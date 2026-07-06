@@ -1,0 +1,23 @@
+services:
+  app:
+    image: yeogido/yeogido-server:latest
+    container_name: yeogido-server
+
+    restart: unless-stopped
+    pull_policy: always
+
+    env_file:
+      - .env
+
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      TZ: Asia/Seoul
+
+    ports:
+      - "8080:8080"
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
