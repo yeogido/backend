@@ -6,10 +6,10 @@
 .idea
 .vscode
 .omx
+*.iml
 
 # Gradle
 .gradle
-build
 
 # Logs
 *.log
