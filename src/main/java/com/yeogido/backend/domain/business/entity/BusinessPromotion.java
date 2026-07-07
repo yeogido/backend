@@ -1,0 +1,54 @@
+package com.yeogido.backend.domain.business.entity;
+
+import com.yeogido.backend.domain.business.enums.PromotionStatus;
+import com.yeogido.backend.domain.place.entity.Place;
+import com.yeogido.backend.domain.user.entity.User;
+import com.yeogido.backend.global.entity.BaseEntity;
+import jakarta.persistence.*;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+
+import java.time.LocalTime;
+
+@Entity
+@Getter
+@Builder
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@AllArgsConstructor
+@Table(name = "business_promotion")
+public class BusinessPromotion extends BaseEntity {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "place_id", nullable = false, unique = true)
+    private Place place;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
+
+    @Column(name = "owner_comment", columnDefinition = "TEXT")
+    private String ownerComment;
+
+    @Column(name = "open_time", nullable = false)
+    private LocalTime openTime;
+
+    @Column(name = "close_time", nullable = false)
+    private LocalTime closeTime;
+
+    @Column(name = "phone_number", length = 20)
+    private String phoneNumber;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private PromotionStatus status;
+
+    @Column(name = "sns_account", length = 100)
+    private String snsAccount;
+}
