@@ -8,7 +8,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
 
-@Tag(name = "Place Like", description = "장소 좋아요 API")
+@Tag(name = "Place", description = "장소 관련 API")
 @RestController
 @RequestMapping("/api/v1/places")
 public class PlaceLikeController {
