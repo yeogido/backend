@@ -1,6 +1,6 @@
 package com.yeogido.backend.domain.place.controller;
 
-import com.yeogido.backend.domain.place.dto.response.PlaceLikeResponse;
+import com.yeogido.backend.domain.place.dto.response.PlaceResponse;
 import com.yeogido.backend.global.common.ApiResponse;
 import com.yeogido.backend.global.common.SuccessCode;
 import io.swagger.v3.oas.annotations.Operation;
@@ -18,11 +18,11 @@ public class PlaceLikeController {
             description = "사용자가 특정 장소에 좋아요를 등록합니다."
     )
     @PostMapping("/{placeId}/likes")
-    public ApiResponse<PlaceLikeResponse.Create> createPlaceLike(
+    public ApiResponse<PlaceResponse.LikeCreate> createPlaceLike(
             @Parameter(description = "장소 ID", example = "1")
             @PathVariable Long placeId
     ) {
-        PlaceLikeResponse.Create response = PlaceLikeResponse.Create.builder()
+        PlaceResponse.LikeCreate response = PlaceResponse.LikeCreate.builder()
                 .placeId(placeId)
                 .isLiked(true)
                 .build();
@@ -34,14 +34,14 @@ public class PlaceLikeController {
             description = "사용자가 특정 장소에 등록한 좋아요를 취소합니다"
     )
     @DeleteMapping("/{placeId}/likes")
-    public ApiResponse<PlaceLikeResponse.Delete> deletePlaceLike(
+    public ApiResponse<PlaceResponse.LikeDelete> deletePlaceLike(
             @Parameter(description = "장소 ID", example = "1")
             @PathVariable Long placeId
     ) {
-        PlaceLikeResponse.Delete response = PlaceLikeResponse.Delete.builder()
+        PlaceResponse.LikeDelete response = PlaceResponse.LikeDelete.builder()
                 .placeId(placeId)
                 .isLiked(false)
                 .build();
-        return ApiResponse.onSuccess(SuccessCode.OK, response);
+        return ApiResponse.onSuccess(SuccessCode.NO_CONTENT, response);
     }
 }
