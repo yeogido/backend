@@ -1,5 +1,6 @@
-package com.yeogido.backend.global.common;
+package com.yeogido.backend.global.common.code;
 
+import com.yeogido.backend.global.common.response.BaseResponse;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
