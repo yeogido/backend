@@ -57,7 +57,7 @@ public class AuthController {
 
   @Operation(summary = "로그아웃 API", description = "현재 로그인된 기기에서 인증 토큰을 무효화합니다.")
   @PostMapping("/logout")
-  public ApiResponse<Void> logout(@RequestHeader("Authorization") String authorization) {
+  public ApiResponse<Void> logout(@RequestHeader(value = "Authorization", required = false) String authorization) {
     authService.logout(authorization);
     return ApiResponse.onSuccess(SuccessCode.OK);
   }
