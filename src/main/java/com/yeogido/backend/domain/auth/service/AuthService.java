@@ -1,54 +1,50 @@
 package com.yeogido.backend.domain.auth.service;
 
-import com.yeogido.backend.domain.auth.dto.EmailCheckRequest;
-import com.yeogido.backend.domain.auth.dto.EmailCheckResponse;
-import com.yeogido.backend.domain.auth.dto.LoginRequest;
-import com.yeogido.backend.domain.auth.dto.LogoutRequest;
-import com.yeogido.backend.domain.auth.dto.PasswordResetCodeRequest;
-import com.yeogido.backend.domain.auth.dto.PasswordVerifyCodeRequest;
-import com.yeogido.backend.domain.auth.dto.PasswordVerifyCodeResponse;
-import com.yeogido.backend.domain.auth.dto.SignUpRequest;
-import com.yeogido.backend.domain.auth.dto.SignUpResponse;
-import com.yeogido.backend.domain.auth.dto.SocialLoginRequest;
-import com.yeogido.backend.domain.auth.dto.TokenResponse;
+import com.yeogido.backend.domain.auth.dto.EmailCheckResDTO;
+import com.yeogido.backend.domain.auth.dto.LoginReqDTO;
+import com.yeogido.backend.domain.auth.dto.PasswordSendCodeReqDTO;
+import com.yeogido.backend.domain.auth.dto.PasswordVerifyCodeReqDTO;
+import com.yeogido.backend.domain.auth.dto.PasswordVerifyCodeResDTO;
+import com.yeogido.backend.domain.auth.dto.SignUpReqDTO;
+import com.yeogido.backend.domain.auth.dto.SignUpResDTO;
+import com.yeogido.backend.domain.auth.dto.SocialLoginReqDTO;
+import com.yeogido.backend.domain.auth.dto.TokenResDTO;
 import org.springframework.stereotype.Service;
 
 @Service
 public class AuthService {
 
-  public SignUpResponse signUp(SignUpRequest request) {
-    return new SignUpResponse(1L, request.email(), request.nickname());
+  public SignUpResDTO signUp(SignUpReqDTO request) {
+    return new SignUpResDTO(1L);
   }
 
-  public TokenResponse login(LoginRequest request) {
-    return new TokenResponse(
-      "mock_access_token_for_" + request.email(),
-      "mock_refresh_token_for_" + request.email(),
+  public TokenResDTO login(LoginReqDTO request) {
+    return new TokenResDTO(
       1L,
-      "테스트유저"
+      "mock_access_token_for_" + request.email(),
+      "mock_refresh_token_for_" + request.email()
     );
   }
 
-  public TokenResponse socialLogin(SocialLoginRequest request) {
-    return new TokenResponse(
-      "mock_social_access_token",
-      "mock_social_refresh_token",
+  public TokenResDTO socialLogin(SocialLoginReqDTO request) {
+    return new TokenResDTO(
       2L,
-      "소셜유저"
+      "mock_social_access_token",
+      "mock_social_refresh_token"
     );
   }
 
-  public EmailCheckResponse checkEmail(EmailCheckRequest request) {
-    return new EmailCheckResponse(true);
+  public EmailCheckResDTO checkEmail(String email) {
+    return new EmailCheckResDTO(true);
   }
 
-  public void logout(LogoutRequest request) {
+  public void logout(String authorization) {
   }
 
-  public void sendResetCode(PasswordResetCodeRequest request) {
+  public void sendResetCode(PasswordSendCodeReqDTO request) {
   }
 
-  public PasswordVerifyCodeResponse verifyResetCode(PasswordVerifyCodeRequest request) {
-    return new PasswordVerifyCodeResponse("mock_verification_token_12345");
+  public PasswordVerifyCodeResDTO verifyResetCode(PasswordVerifyCodeReqDTO request) {
+    return new PasswordVerifyCodeResDTO("a1b2c3d4-e5f6-7890-abcd-ef1234567890");
   }
 }

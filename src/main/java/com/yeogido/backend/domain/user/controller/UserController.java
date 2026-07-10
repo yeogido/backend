@@ -8,6 +8,7 @@ import com.yeogido.backend.global.common.response.CursorResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -31,5 +32,14 @@ public class UserController {
     ) {
         CursorResponse<UserResDTO.LikedResponse> result = userService.getLikedList(category, cursor, size);
         return ApiResponse.onSuccess(SuccessCode.OK, result);
+    }
+
+    @Operation(summary = "내 프로필 조회 API", description = "로그인한 사용자의 프로필 및 계정 정보를 조회합니다.")
+    @GetMapping("/me")
+    public ApiResponse<UserResDTO.Profile> getMyPage(
+            @RequestHeader(value = "Authorization", required = false) String authorization
+    ) {
+        UserResDTO.Profile response = userService.getMyPage(authorization);
+        return ApiResponse.onSuccess(SuccessCode.OK, response);
     }
 }

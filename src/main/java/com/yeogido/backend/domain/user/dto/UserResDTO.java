@@ -1,12 +1,12 @@
 package com.yeogido.backend.domain.user.dto;
 
+import com.yeogido.backend.domain.user.enums.UserRole;
 import io.swagger.v3.oas.annotations.media.Schema;
-
 import java.util.List;
 
 public class UserResDTO {
-    public record LikedResponse(
 
+    public record LikedResponse(
             @Schema(description = "콘텐츠 ID")
             Long id,
 
@@ -30,6 +30,26 @@ public class UserResDTO {
 
             @Schema(description = "생성일")
             String createdAt
+    ) {}
 
-    ){}
+    @Schema(name = "UserProfileResponse", description = "내 프로필 조회 응답")
+    public record Profile(
+            @Schema(description = "사용자 ID", example = "1")
+            Long userId,
+
+            @Schema(description = "이메일", example = "abc@example.com")
+            String email,
+
+            @Schema(description = "이름", example = "홍길동")
+            String name,
+
+            @Schema(description = "지역", example = "서울")
+            String region,
+
+            @Schema(description = "사용자 권한", example = "USER")
+            UserRole role,
+
+            @Schema(description = "프로필 이미지 URL", example = "https://s3.ap-northeast-2.amazonaws.com/.../profile.jpg")
+            String profileImageUrl
+    ) {}
 }

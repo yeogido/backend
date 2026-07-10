@@ -10,4 +10,6 @@ public interface UserService {
             Long cursor,
             Integer size
     );
+
+    UserResDTO.Profile getMyPage(String authorization);
 }
