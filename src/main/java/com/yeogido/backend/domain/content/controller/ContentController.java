@@ -4,8 +4,9 @@ package com.yeogido.backend.domain.content.controller;
 import com.yeogido.backend.domain.content.dto.ContentReqDTO;
 import com.yeogido.backend.domain.content.dto.ContentResDTO;
 import com.yeogido.backend.domain.content.service.ContentService;
-import com.yeogido.backend.global.common.ApiResponse;
-import com.yeogido.backend.global.common.SuccessCode;
+import com.yeogido.backend.global.common.code.SuccessCode;
+import com.yeogido.backend.global.common.response.ApiResponse;
+import com.yeogido.backend.global.common.response.CursorResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -26,10 +27,10 @@ public class ContentController {
 
     )
     @GetMapping
-    public ApiResponse<ContentResDTO.ContentListRes> getContents(
+    public ApiResponse<CursorResponse<ContentResDTO.ContentInfo>> getContents(
             @ModelAttribute ContentReqDTO.ContentListReq request
     ){
-        ContentResDTO.ContentListRes result = contentService.getContents(request);
+        CursorResponse<ContentResDTO.ContentInfo> result = contentService.getContents(request);
         return ApiResponse.onSuccess(SuccessCode.OK,result);
     }
 

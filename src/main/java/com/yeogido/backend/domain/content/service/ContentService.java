@@ -3,6 +3,7 @@ package com.yeogido.backend.domain.content.service;
 
 import com.yeogido.backend.domain.content.dto.ContentReqDTO;
 import com.yeogido.backend.domain.content.dto.ContentResDTO;
+import com.yeogido.backend.global.common.response.CursorResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -11,8 +12,8 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class ContentService {
-    public ContentResDTO.ContentListRes getContents(ContentReqDTO.ContentListReq request){
-        return new ContentResDTO.ContentListRes(
+    public CursorResponse<ContentResDTO.ContentInfo> getContents(ContentReqDTO.ContentListReq request){
+        return CursorResponse.of(
                 List.of(),
                 null,
                 false

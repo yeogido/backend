@@ -8,12 +8,6 @@ import java.util.Date;
 import java.util.List;
 
 public class ContentResDTO {
-    public record ContentListRes(
-            List<ContentInfo> contents,
-            Long nextCursor,
-            Boolean hasNext
-    ) {
-    }
 
     public record ContentInfo(
             Long contentId,
@@ -24,8 +18,7 @@ public class ContentResDTO {
             Long likeCount,
             LocalDate startDate,
             LocalDate endDate
-    ) {
-    }
+    ) {}
 
 
     public record ContentDetailRes(
