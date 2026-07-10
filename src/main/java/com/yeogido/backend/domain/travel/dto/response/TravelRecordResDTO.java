@@ -7,19 +7,6 @@ import java.util.List;
 
 public class TravelRecordResDTO {
 
-    @Schema(name = "TravelRecordListResponse", description = "내 여행 기록 목록 조회 응답")
-    public record ListResponse(
-            @Schema(description = "여행 기록 목록")
-            List<TravelRecordSummary> travelRecords,
-
-            @Schema(description = "다음 커서", example = "19")
-            Long nextCursor,
-
-            @Schema(description = "다음 페이지 존재 여부", example = "true")
-            Boolean hasNext
-    ) {
-    }
-
     @Schema(name = "TravelRecordSummary", description = "여행 기록 목록 아이템")
     public record TravelRecordSummary(
             @Schema(description = "여행 기록 ID", example = "20")

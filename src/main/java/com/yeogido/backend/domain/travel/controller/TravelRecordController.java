@@ -3,8 +3,9 @@ package com.yeogido.backend.domain.travel.controller;
 import com.yeogido.backend.domain.travel.dto.request.TravelRecordReqDTO;
 import com.yeogido.backend.domain.travel.dto.response.TravelRecordResDTO;
 import com.yeogido.backend.domain.travel.service.TravelRecordService;
-import com.yeogido.backend.global.common.ApiResponse;
-import com.yeogido.backend.global.common.SuccessCode;
+import com.yeogido.backend.global.common.code.SuccessCode;
+import com.yeogido.backend.global.common.response.ApiResponse;
+import com.yeogido.backend.global.common.response.CursorResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -30,10 +31,11 @@ public class TravelRecordController {
             description = "로그인한 사용자가 작성한 여행 기록 목록을 조회합니다."
     )
     @GetMapping
-    public ApiResponse<TravelRecordResDTO.ListResponse> getMyTravelRecords(
+    public ApiResponse<CursorResponse<TravelRecordResDTO.TravelRecordSummary>> getMyTravelRecords(
             @ModelAttribute TravelRecordReqDTO.ListRequest request
     ) {
-        TravelRecordResDTO.ListResponse result = travelRecordService.getMyTravelRecords(request);
+        CursorResponse<TravelRecordResDTO.TravelRecordSummary> result =
+                travelRecordService.getMyTravelRecords(request);
         return ApiResponse.onSuccess(SuccessCode.OK, result);
     }
 

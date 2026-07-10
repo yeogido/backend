@@ -2,6 +2,7 @@ package com.yeogido.backend.domain.travel.service;
 
 import com.yeogido.backend.domain.travel.dto.request.TravelRecordReqDTO;
 import com.yeogido.backend.domain.travel.dto.response.TravelRecordResDTO;
+import com.yeogido.backend.global.common.response.CursorResponse;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -15,7 +16,7 @@ public class TravelRecordService {
     private static final LocalDate SAMPLE_END_DATE = LocalDate.of(2026, 5, 24);
     private static final LocalDateTime SAMPLE_CREATED_AT = LocalDateTime.of(2026, 5, 22, 14, 30);
 
-    public TravelRecordResDTO.ListResponse getMyTravelRecords(
+    public CursorResponse<TravelRecordResDTO.TravelRecordSummary> getMyTravelRecords(
             TravelRecordReqDTO.ListRequest request
     ) {
         TravelRecordResDTO.TravelRecordSummary travelRecord =
@@ -30,7 +31,7 @@ public class TravelRecordService {
                         SAMPLE_CREATED_AT
                 );
 
-        return new TravelRecordResDTO.ListResponse(
+        return CursorResponse.of(
                 List.of(travelRecord),
                 19L,
                 true
