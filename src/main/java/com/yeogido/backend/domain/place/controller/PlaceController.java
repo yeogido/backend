@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.*;
 @Tag(name = "Place", description = "장소 관련 API")
 @RestController
 @RequestMapping("/api/v1/places")
-public class PlaceLikeController {
+public class PlaceController {
 
     @Operation(
             summary = "장소 좋아요 등록",
