@@ -1,4 +1,4 @@
-package com.yeogido.backend.global.common;
+package com.yeogido.backend.global.common.response;
 
 public record ValidationError(
         String field,

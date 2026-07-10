@@ -1,8 +1,8 @@
 package com.yeogido.backend.domain.place.controller;
 
 import com.yeogido.backend.domain.place.dto.response.PlaceResponse;
-import com.yeogido.backend.global.common.ApiResponse;
-import com.yeogido.backend.global.common.SuccessCode;
+import com.yeogido.backend.global.common.response.ApiResponse;
+import com.yeogido.backend.global.common.code.SuccessCode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
