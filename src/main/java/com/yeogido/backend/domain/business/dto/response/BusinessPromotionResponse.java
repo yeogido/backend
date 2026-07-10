@@ -18,20 +18,6 @@ public class BusinessPromotionResponse {
     ){ }
 
     @Builder
-    @Schema(name = "BusinessPromotionListResponse", description = "소상공인 홍보 목록 조회 응답")
-    public record ListResult(
-
-            @Schema(description = "홍보글 목록")
-            List<Summary> promotions,
-
-            @Schema(description = "다음 페이지 커서", example = "1")
-            Long nextCursor,
-
-            @Schema(description = "다음 페이지 존재 여부", example = "true")
-            Boolean hasNext
-    ){ }
-
-    @Builder
     @Schema(name = "BusinessPromotionSummaryResponse", description = "홍보글 목록 정보")
     public record Summary(
 
@@ -173,20 +159,6 @@ public class BusinessPromotionResponse {
 
             @Schema(description = "이미지 정렬 순서", example = "1")
             Integer sortOrder
-    ) { }
-
-    @Builder
-    @Schema(name = "MyBusinessPromotionListResponse", description = "내가 등록한 홍보글 조회 응답")
-    public record MyListResult(
-
-            @Schema(description = "내가 등록한 홍보글 목록")
-            List<MySummary> promotions,
-
-            @Schema(description = "다음 페이지 커서", example = "1")
-            Long nextCursor,
-
-            @Schema(description = "다음 페이지 존재 여부", example = "true")
-            Boolean hasNext
     ) { }
 
     @Builder

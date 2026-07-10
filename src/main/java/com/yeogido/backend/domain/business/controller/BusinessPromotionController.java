@@ -2,12 +2,13 @@ package com.yeogido.backend.domain.business.controller;
 
 import com.yeogido.backend.domain.business.dto.request.BusinessPromotionRequest;
 import com.yeogido.backend.domain.business.dto.response.BusinessPromotionResponse;
-import com.yeogido.backend.global.common.ApiResponse;
-import com.yeogido.backend.global.common.SuccessCode;
+import com.yeogido.backend.global.common.response.ApiResponse;
+import com.yeogido.backend.global.common.code.SuccessCode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
+import com.yeogido.backend.global.common.response.CursorResponse;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -33,7 +34,7 @@ public class BusinessPromotionController {
 
     @Operation(summary = "소상공인 홍보 목록 조회", description = "소상공인 홍보 목록을 조회합니다")
     @GetMapping
-    public ApiResponse<BusinessPromotionResponse.ListResult> getBusinessPromotions(
+    public ApiResponse<CursorResponse<BusinessPromotionResponse.Summary>> getBusinessPromotions(
             @RequestParam(required = false) Long cursor,
             @RequestParam(defaultValue = "10") Integer size,
             @RequestParam(required = false) Long regionId,
@@ -54,19 +55,15 @@ public class BusinessPromotionController {
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        BusinessPromotionResponse.ListResult response = BusinessPromotionResponse.ListResult.builder()
-                .promotions(List.of(summary))
-                .nextCursor(1L)
-                .hasNext(false)
-                .build();
+        CursorResponse<BusinessPromotionResponse.Summary> response =
+                CursorResponse.of(List.of(summary), 1L, false);
 
         return ApiResponse.onSuccess(SuccessCode.OK, response);
     }
 
     @Operation(summary = "내가 등록한 홍보글 조회", description = "현재 사용자가 등록한 소상공인 홍보글 목록을 조회합니다.")
     @GetMapping("/me")
-    public ApiResponse<BusinessPromotionResponse.MyListResult> getMyBusinessPromotions(
-            @RequestParam(required = false) Long cursor,
+    public ApiResponse<CursorResponse<BusinessPromotionResponse.MySummary>> getMyBusinessPromotions(            @RequestParam(required = false) Long cursor,
             @RequestParam(defaultValue = "10") Integer size
     ) {
         BusinessPromotionResponse.MySummary summary = BusinessPromotionResponse.MySummary.builder()
@@ -83,11 +80,8 @@ public class BusinessPromotionController {
                 .updatedAt(LocalDateTime.now())
                 .build();
 
-        BusinessPromotionResponse.MyListResult response = BusinessPromotionResponse.MyListResult.builder()
-                .promotions(List.of(summary))
-                .nextCursor(1L)
-                .hasNext(false)
-                .build();
+        CursorResponse<BusinessPromotionResponse.MySummary> response =
+                CursorResponse.of(List.of(summary), 1L, false);
 
         return ApiResponse.onSuccess(SuccessCode.OK, response);
     }
