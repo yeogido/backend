@@ -1,4 +1,4 @@
-package com.yeogido.backend.global.common;
+package com.yeogido.backend.global.common.response;
 
 import com.yeogido.backend.global.exception.ErrorCode;
 import lombok.Builder;

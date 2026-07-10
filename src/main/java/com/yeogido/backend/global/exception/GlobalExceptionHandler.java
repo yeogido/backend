@@ -1,8 +1,8 @@
 package com.yeogido.backend.global.exception;
 
-import com.yeogido.backend.global.common.ApiResponse;
-import com.yeogido.backend.global.common.ValidationError;
-import com.yeogido.backend.global.common.ValidationErrorResponse;
+import com.yeogido.backend.global.common.response.ApiResponse;
+import com.yeogido.backend.global.common.response.ValidationError;
+import com.yeogido.backend.global.common.response.ValidationErrorResponse;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
