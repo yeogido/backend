@@ -86,7 +86,7 @@ public class ContentController {
             summary = "문화콘텐츠 좋아요 등록",
             description = "해당 문화콘텐츠에 좋아요를 등록합니다"
     )
-    @PostMapping("{contentId}/likes")
+    @PostMapping("/{contentId}/likes")
     public ApiResponse<ContentResDTO.ContentLikeRes> likeContent(
             @PathVariable Long contentId
     ){

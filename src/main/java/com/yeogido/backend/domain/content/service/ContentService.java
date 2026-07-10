@@ -9,43 +9,20 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
-@Service
-@RequiredArgsConstructor
-public class ContentService {
-    public CursorResponse<ContentResDTO.ContentInfo> getContents(ContentReqDTO.ContentListReq request){
-        return CursorResponse.of(
-                List.of(),
-                null,
-                false
-        );
-    }
+public interface ContentService {
 
-    public ContentResDTO.ContentDetailRes getContentDetail(Long contentId){
-        return new ContentResDTO.ContentDetailRes(
-                null,
-                null,
-                null,
-                null,
-                List.of(),
-                null,
-                null,
-                null,
-                null,
-                null,
-                List.of()
-        );
+    //문화콘텐츠 목록 조회
+    CursorResponse<ContentResDTO.ContentInfo> getContents(ContentReqDTO.ContentListReq request);
 
-    }
+    //문화콘텐츠 상세 조회
+    ContentResDTO.ContentDetailRes getContentDetail(Long contentId);
 
-    public ContentResDTO.ContentCreateRes createContent(ContentReqDTO.ContentCreateReq request){
-        return new ContentResDTO.ContentCreateRes(null);
-    }
+    //문화콘텐츠 등록
+    ContentResDTO.ContentCreateRes createContent(ContentReqDTO.ContentCreateReq request);
 
-    public ContentResDTO.ContentUpdateRes updateContent(Long contentId, ContentReqDTO.ContentCreateReq request){
-        return new ContentResDTO.ContentUpdateRes(contentId);
-    }
+    //문화콘텐츠 수정
+    ContentResDTO.ContentUpdateRes updateContent(Long contentId, ContentReqDTO.ContentCreateReq request);
 
-    public ContentResDTO.ContentLikeRes likeContent(Long contentId){
-        return new ContentResDTO.ContentLikeRes(true, 0L);
-    }
+    //문화콘텐츠 좋아요 등록
+    ContentResDTO.ContentLikeRes likeContent(Long contentId);
 }
