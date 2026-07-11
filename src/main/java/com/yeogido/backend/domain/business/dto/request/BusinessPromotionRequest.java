@@ -43,7 +43,7 @@ public class BusinessPromotionRequest {
             String phoneNumber,
 
             @Schema(description = "해시태그", example = "[\"오션뷰\", \"부산카페\", \"디저트\"]")
-            List<String> hashtags,
+            List<Long> hashtagIds,
 
             @Valid
             @NotNull(message = "홍보 이미지는 필수입니다")

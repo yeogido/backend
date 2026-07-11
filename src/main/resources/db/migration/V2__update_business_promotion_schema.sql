@@ -4,8 +4,8 @@ ALTER TABLE business_promotion
     DROP COLUMN close_time;
 
 ALTER TABLE business_operating_day
-    ADD COLUMN open_time TIME(6) NOT NULL AFTER day_of_week,
-    ADD COLUMN close_time TIME(6) NOT NULL AFTER open_time;
+    ADD COLUMN open_time TIME NOT NULL AFTER day_of_week,
+    ADD COLUMN close_time TIME NOT NULL AFTER open_time;
 
 ALTER TABLE business_promotion_image
     ADD CONSTRAINT uk_business_promotion_image_promotion_sort_order
