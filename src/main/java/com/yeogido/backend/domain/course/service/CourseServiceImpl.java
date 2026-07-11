@@ -89,6 +89,12 @@ public class CourseServiceImpl implements CourseService {
         return new CourseResDTO.ReviewCreateRes(1L);
     }
 
+    @Override
+    public CourseResDTO.CourseLikeRes createCourseLike(Long courseId) {
+        // TODO: 추천 코스 좋아요 등록 로직 구현
+        return new CourseResDTO.CourseLikeRes(true, 121L);
+    }
+
     private CourseResDTO.CoursePreview createFirstMockCourse() {
         return new CourseResDTO.CoursePreview(
                 1L,

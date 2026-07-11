@@ -147,4 +147,14 @@ public class CourseResDTO {
             @Schema(description = "리뷰 ID", example = "1")
             Long reviewId
     ) { }
+
+    @Schema(name = "CourseLikeResponse", description = "추천 코스 좋아요 등록 응답")
+    public record CourseLikeRes(
+
+            @Schema(description = "좋아요 여부", example = "true")
+            Boolean isLiked,
+
+            @Schema(description = "좋아요 수", example = "121")
+            Long likeCount
+    ) { }
 }

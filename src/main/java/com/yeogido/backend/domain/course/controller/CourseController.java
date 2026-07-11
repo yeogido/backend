@@ -72,4 +72,15 @@ public class CourseController {
 
         return ApiResponse.onSuccess(SuccessCode.CREATED, response);
     }
+
+    @Operation(summary = "추천 코스 좋아요 등록", description = "추천 코스에 좋아요를 등록합니다.")
+    @PostMapping("/{courseId}/likes")
+    public ApiResponse<CourseResDTO.CourseLikeRes> createCourseLike(
+            @Parameter(description = "코스 ID", example = "1")
+            @PathVariable Long courseId
+    ) {
+        CourseResDTO.CourseLikeRes response = courseService.createCourseLike(courseId);
+
+        return ApiResponse.onSuccess(SuccessCode.CREATED, response);
+    }
 }
