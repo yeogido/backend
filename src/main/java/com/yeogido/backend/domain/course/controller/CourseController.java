@@ -15,6 +15,8 @@ import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -57,5 +59,17 @@ public class CourseController {
         CourseResDTO.CourseDetail response = courseService.getCourse(courseId);
 
         return ApiResponse.onSuccess(SuccessCode.OK, response);
+    }
+
+    @Operation(summary = "추천 코스 리뷰 작성", description = "추천 코스 리뷰를 작성합니다.")
+    @PostMapping("/{courseId}/reviews")
+    public ApiResponse<CourseResDTO.ReviewCreateRes> createCourseReview(
+            @Parameter(description = "코스 ID", example = "1")
+            @PathVariable Long courseId,
+            @Valid @RequestBody CourseReqDTO.ReviewCreateReq request
+    ) {
+        CourseResDTO.ReviewCreateRes response = courseService.createCourseReview(courseId, request);
+
+        return ApiResponse.onSuccess(SuccessCode.CREATED, response);
     }
 }

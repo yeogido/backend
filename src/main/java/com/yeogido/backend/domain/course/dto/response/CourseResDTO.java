@@ -140,4 +140,11 @@ public class CourseResDTO {
             @Schema(description = "작성자 프로필 이미지 URL", nullable = true, example = "https://example.com/profile.jpg")
             String profileImageUrl
     ) { }
+
+    @Schema(name = "CourseReviewCreateResponse", description = "추천 코스 리뷰 작성 응답")
+    public record ReviewCreateRes(
+
+            @Schema(description = "리뷰 ID", example = "1")
+            Long reviewId
+    ) { }
 }

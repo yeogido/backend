@@ -8,6 +8,8 @@ import com.yeogido.backend.domain.course.enums.TransportType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
 
+import java.math.BigDecimal;
+
 public class CourseReqDTO {
 
     @Schema(name = "CourseListRequest", description = "추천 코스 목록 조회 요청")
@@ -51,5 +53,16 @@ public class CourseReqDTO {
             @NotNull(message = "코스 타입은 필수입니다")
             @Schema(description = "코스 타입", example = "OFFICIAL")
             CourseType courseType
+    ) { }
+
+    @Schema(name = "CourseReviewCreateRequest", description = "추천 코스 리뷰 작성 요청")
+    public record ReviewCreateReq(
+
+            @NotNull(message = "별점은 필수입니다")
+            @Schema(description = "별점", example = "5.0")
+            BigDecimal rating,
+
+            @Schema(description = "리뷰 내용", example = "지도 동선이 편하고 여행하기 좋았습니다.")
+            String content
     ) { }
 }
