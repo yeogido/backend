@@ -62,6 +62,13 @@ public class Course extends BaseEntity {
     @Column(name = "thumbnail_key", length = 255)
     private String thumbnailKey;
 
+    @Builder.Default
+    @Column(name = "view_count", nullable = false)
+    private Long viewCount = 0L;
+
+    @Column(name = "recommend_order")
+    private Integer recommendOrder;
+
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 }
