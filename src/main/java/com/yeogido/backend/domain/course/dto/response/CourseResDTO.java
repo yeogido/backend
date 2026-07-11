@@ -1,6 +1,5 @@
 package com.yeogido.backend.domain.course.dto.response;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.yeogido.backend.domain.course.enums.CompanionType;
 import com.yeogido.backend.domain.course.enums.CourseItemType;
 import com.yeogido.backend.domain.course.enums.CourseType;
@@ -13,6 +12,13 @@ import java.math.BigDecimal;
 import java.util.List;
 
 public class CourseResDTO {
+
+    @Schema(name = "CourseCreateResponse", description = "추천 코스 등록 응답")
+    public record CourseCreateRes(
+
+            @Schema(description = "코스 ID", example = "15")
+            Long courseId
+    ) { }
 
     @Schema(name = "CoursePreviewResponse", description = "추천 코스 목록 정보")
     public record CoursePreview(

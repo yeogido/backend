@@ -18,6 +18,12 @@ import java.util.List;
 public class CourseServiceImpl implements CourseService {
 
     @Override
+    public CourseResDTO.CourseCreateRes createCourse(CourseReqDTO.CourseCreateReq request) {
+        // TODO: 추천 코스 등록 로직 구현
+        return new CourseResDTO.CourseCreateRes(15L);
+    }
+
+    @Override
     public CursorResponse<CourseResDTO.CoursePreview> getCourses(CourseReqDTO.CourseListReq request) {
         // TODO: 추천 코스 조회 로직 구현
         return CursorResponse.of(List.of(createFirstMockCourse()), 1L, true);
