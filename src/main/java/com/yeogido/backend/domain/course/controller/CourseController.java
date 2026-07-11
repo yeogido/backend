@@ -14,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -38,6 +39,18 @@ public class CourseController {
         CourseResDTO.CourseCreateRes response = courseService.createCourse(request);
 
         return ApiResponse.onSuccess(SuccessCode.CREATED, response);
+    }
+
+    @Operation(summary = "추천 코스 수정", description = "추천 코스를 수정합니다.")
+    @PatchMapping("/{courseId}")
+    public ApiResponse<CourseResDTO.CourseCreateRes> updateCourse(
+            @Parameter(description = "코스 ID", example = "15")
+            @PathVariable Long courseId,
+            @Valid @RequestBody CourseReqDTO.CourseCreateReq request
+    ) {
+        CourseResDTO.CourseCreateRes response = courseService.updateCourse(courseId, request);
+
+        return ApiResponse.onSuccess(SuccessCode.OK, response);
     }
 
     @Operation(summary = "추천 코스 목록 조회", description = "추천 코스 목록을 조회합니다.")

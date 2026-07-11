@@ -10,6 +10,8 @@ public interface CourseService {
 
     CourseResDTO.CourseCreateRes createCourse(CourseReqDTO.CourseCreateReq request);
 
+    CourseResDTO.CourseCreateRes updateCourse(Long courseId, CourseReqDTO.CourseCreateReq request);
+
     CursorResponse<CourseResDTO.CoursePreview> getCourses(CourseReqDTO.CourseListReq request);
 
     List<CourseResDTO.CoursePreview> getPopularCourses(CourseReqDTO.CoursePopularReq request);
