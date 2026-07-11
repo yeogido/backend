@@ -44,4 +44,12 @@ public class CourseReqDTO {
             }
         }
     }
+
+    @Schema(name = "CoursePopularRequest", description = "인기 추천 코스 미리보기 조회 요청")
+    public record CoursePopularReq(
+
+            @NotNull(message = "코스 타입은 필수입니다")
+            @Schema(description = "코스 타입", example = "OFFICIAL")
+            CourseType courseType
+    ) { }
 }
