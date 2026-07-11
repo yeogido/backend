@@ -13,7 +13,15 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
-@Table(name = "business_promotion_image")
+@Table(
+        name = "business_promotion_image",
+        uniqueConstraints = {
+                @UniqueConstraint(
+                        name = "uk_business_promotion_image_promotion_sort_order",
+                        columnNames = {"promotion_id", "sort_order"}
+                )
+        }
+)
 public class BusinessPromotionImage extends BaseEntity {
 
     @Id

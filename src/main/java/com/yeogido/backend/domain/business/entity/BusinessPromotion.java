@@ -5,13 +5,7 @@ import com.yeogido.backend.domain.place.entity.Place;
 import com.yeogido.backend.domain.user.entity.User;
 import com.yeogido.backend.global.entity.BaseEntity;
 import jakarta.persistence.*;
-import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-
-import java.time.LocalTime;
+import lombok.*;
 
 @Entity
 @Getter
@@ -36,11 +30,8 @@ public class BusinessPromotion extends BaseEntity {
     @Column(name = "owner_comment", columnDefinition = "TEXT")
     private String ownerComment;
 
-    @Column(name = "open_time", nullable = false)
-    private LocalTime openTime;
-
-    @Column(name = "close_time", nullable = false)
-    private LocalTime closeTime;
+    @Column(name = "short_description", length = 255)
+    private String shortDescription;
 
     @Column(name = "phone_number", length = 20)
     private String phoneNumber;
