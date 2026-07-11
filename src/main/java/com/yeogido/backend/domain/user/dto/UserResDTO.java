@@ -2,6 +2,8 @@ package com.yeogido.backend.domain.user.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+import java.util.List;
+
 public class UserResDTO {
     public record LikedResponse(
 
@@ -24,7 +26,7 @@ public class UserResDTO {
             String location,
 
             @Schema(description = "해시태그 ID")
-            String hashtagIds,
+            List<Long> hashtagIds,
 
             @Schema(description = "생성일")
             String createdAt
