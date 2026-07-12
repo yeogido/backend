@@ -25,8 +25,8 @@ public class UserResDTO {
             @Schema(description = "위치")
             String location,
 
-            @Schema(description = "해시태그 ID")
-            List<Long> hashtagIds,
+            @Schema(description = "해시태그")
+            List<String> hashtags,
 
             @Schema(description = "생성일")
             String createdAt

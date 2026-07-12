@@ -19,8 +19,8 @@ public class UserController {
 
     //사용자가 좋아요한 목록 조회
     @Operation(
-            summary = "",
-            description = ""
+            summary = "내가 좋아요한 항목 목록 조회",
+            description = "사용자가 좋아요한 문화 콘텐츠 목록을 카테고리별로 조회합니다."
 
     )
     @GetMapping("/me/likes")
