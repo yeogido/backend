@@ -1,5 +1,6 @@
 package com.yeogido.backend.domain.business.dto.request;
 
+import com.yeogido.backend.domain.business.enums.PromotionCategory;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -45,6 +46,10 @@ public class BusinessPromotionRequest {
             @Schema(description = "해시태그", example = "[\"오션뷰\", \"부산카페\", \"디저트\"]")
             List<Long> hashtagIds,
 
+            @NotNull(message = "카테고리는 필수입니다")
+            @Schema(description = "카테고리", example = "CAFE")
+            PromotionCategory promotionCategory,
+
             @Valid
             @NotNull(message = "홍보 이미지는 필수입니다")
             @Schema(description = "홍보 이미지")
@@ -67,14 +72,8 @@ public class BusinessPromotionRequest {
             @Schema(description = "장소명", example = "웨이브온 커피")
             String name,
 
-            @Schema(description = "카테고리", example = "음식점 > 카페 > 커피전문점")
-            String category,
-
             @Schema(description = "카테고리 그룹 코드", example = "CE7")
             String categoryGroupCode,
-
-            @Schema(description = "카테고리 그룹명", example = "카페")
-            String categoryGroupName,
 
             @Schema(description = "도로명 주소", example = "부산 기장군 장안읍 해맞이로 286")
             String roadAddress,

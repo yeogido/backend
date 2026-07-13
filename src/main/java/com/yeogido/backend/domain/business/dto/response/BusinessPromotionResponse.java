@@ -1,5 +1,6 @@
 package com.yeogido.backend.domain.business.dto.response;
 
+import com.yeogido.backend.domain.business.enums.PromotionCategory;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 
@@ -30,8 +31,8 @@ public class BusinessPromotionResponse {
             @Schema(description = "장소명", example = "웨이브온 커피")
             String placeName,
 
-            @Schema(description = "카테고리 그룹명", example = "카페")
-            String categoryGroupName,
+            @Schema(description = "카테고리", example = "카페")
+            PromotionCategory promotionCategory,
 
             @Schema(description = "도로명 주소", example = "부산 기장군 장안읍 해맞이로 286")
             String roadAddress,
@@ -66,6 +67,9 @@ public class BusinessPromotionResponse {
 
             @Schema(description = "장소 정보")
             PlaceInfo place,
+
+            @Schema(description = "카테고리", example = "카페")
+            PromotionCategory promotionCategory,
 
             @Schema(description = "짧은 소개글", example = "바다 뷰 완전 잘 보이는 카페!")
             String shortDescription,
@@ -111,11 +115,8 @@ public class BusinessPromotionResponse {
             @Schema(description = "장소명", example = "웨이브온 커피")
             String name,
 
-            @Schema(description = "카테고리", example = "음식점 > 카페 > 커피전문점")
-            String category,
-
-            @Schema(description = "카테고리 그룹명", example = "카페")
-            String categoryGroupName,
+            @Schema(description = "카테고리 그룹 코드", example = "CE7")
+            String categoryGroupCode,
 
             @Schema(description = "도로명 주소", example = "부산 기장군 장안읍 해맞이로 286")
             String roadAddress,
@@ -174,8 +175,8 @@ public class BusinessPromotionResponse {
             @Schema(description = "장소명", example = "웨이브온 커피")
             String placeName,
 
-            @Schema(description = "카테고리 그룹명", example = "카페")
-            String categoryGroupName,
+            @Schema(description = "카테고리", example = "CAFE")
+            PromotionCategory promotionCategory,
 
             @Schema(description = "도로명 주소", example = "부산 기장군 장안읍 해맞이로 286")
             String roadAddress,
