@@ -42,14 +42,8 @@ public class Place extends BaseEntity {
     @Column(nullable = false, length = 100)
     private String name;
 
-    @Column(length = 50)
-    private String category;
-
     @Column(name = "category_group_code", length = 20)
     private String categoryGroupCode;
-
-    @Column(name = "category_group_name", length = 50)
-    private String categoryGroupName;
 
     @Column(name = "road_address", length = 255)
     private String roadAddress;

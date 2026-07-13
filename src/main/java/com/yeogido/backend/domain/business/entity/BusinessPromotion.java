@@ -1,5 +1,6 @@
 package com.yeogido.backend.domain.business.entity;
 
+import com.yeogido.backend.domain.business.enums.PromotionCategory;
 import com.yeogido.backend.domain.business.enums.PromotionStatus;
 import com.yeogido.backend.domain.place.entity.Place;
 import com.yeogido.backend.domain.user.entity.User;
@@ -32,6 +33,10 @@ public class BusinessPromotion extends BaseEntity {
 
     @Column(name = "short_description", length = 255)
     private String shortDescription;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "promotion_category", nullable = false, length = 20)
+    private PromotionCategory promotionCategory;
 
     @Column(name = "phone_number", length = 20)
     private String phoneNumber;
