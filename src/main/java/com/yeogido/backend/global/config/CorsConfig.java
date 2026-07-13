@@ -16,7 +16,7 @@ public class CorsConfig {
 
         CorsConfiguration configuration = new CorsConfiguration();
 
-        configuration.setAllowedOrigins(List.of(
+        configuration.setAllowedOriginPatterns(List.of(
                 "http://localhost:*",
                 "https://yeogido.kr",
                 "https://www.yeogido.kr"
@@ -24,6 +24,7 @@ public class CorsConfig {
 
         configuration.setAllowedMethods(List.of("*"));
         configuration.setAllowedHeaders(List.of("*"));
+        configuration.setExposedHeaders(List.of("ETag"));
         configuration.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source =
