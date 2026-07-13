@@ -40,12 +40,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -217,15 +212,18 @@ public class CourseServiceImpl implements CourseService {
     }
 
     private void validateHashtags(List<Long> hashtagIds) {
-        if (hashtagIds == null) {
-            return;
+        if (hashtagIds == null || hashtagIds.isEmpty()) {
+            throw new GeneralException(CourseErrorCode.HASHTAG_REQUIRED);
         }
+
         if (hashtagIds.size() > 5) {
             throw new GeneralException(CourseErrorCode.TOO_MANY_HASHTAGS);
         }
-        if (hashtagIds.stream().anyMatch(id -> id == null)) {
-            throw new GeneralException(CourseErrorCode.INVALID_COURSE_ITEM);
+
+        if (hashtagIds.stream().anyMatch(Objects::isNull)) {
+            throw new GeneralException(GeneralErrorCode.INVALID_REQUEST);
         }
+
         if (new HashSet<>(hashtagIds).size() != hashtagIds.size()) {
             throw new GeneralException(CourseErrorCode.DUPLICATE_HASHTAG);
         }
@@ -278,10 +276,6 @@ public class CourseServiceImpl implements CourseService {
     }
 
     private void saveCourseHashtags(Course course, List<Long> hashtagIds) {
-        if (hashtagIds == null || hashtagIds.isEmpty()) {
-            return;
-        }
-
         Map<Long, Hashtag> hashtagMap = hashtagRepository.findAllById(hashtagIds).stream()
                 .collect(Collectors.toMap(Hashtag::getId, Function.identity()));
 

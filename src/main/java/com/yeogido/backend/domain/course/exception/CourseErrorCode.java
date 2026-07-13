@@ -49,6 +49,12 @@ public enum CourseErrorCode implements ErrorCode {
             HttpStatus.BAD_REQUEST,
             "COURSE4006",
             "코스 구성 항목이 올바르지 않습니다."
+    ),
+
+    HASHTAG_REQUIRED(
+            HttpStatus.BAD_REQUEST,
+            "COURSE4007",
+            "해시태그는 최소 1개 이상 선택해야 합니다."
     );
 
     private final HttpStatus httpStatus;
