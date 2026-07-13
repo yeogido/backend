@@ -21,4 +21,6 @@ public interface CourseService {
     CourseResDTO.ReviewCreateRes createCourseReview(Long courseId, CourseReqDTO.ReviewCreateReq request);
 
     CourseResDTO.CourseLikeRes createCourseLike(Long courseId);
+
+    CourseResDTO.CourseLikeRes deleteCourseLike(Long courseId);
 }

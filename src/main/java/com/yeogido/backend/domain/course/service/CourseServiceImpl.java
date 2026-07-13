@@ -2,20 +2,38 @@ package com.yeogido.backend.domain.course.service;
 
 import com.yeogido.backend.domain.course.dto.request.CourseReqDTO;
 import com.yeogido.backend.domain.course.dto.response.CourseResDTO;
+import com.yeogido.backend.domain.course.entity.Course;
+import com.yeogido.backend.domain.course.entity.CourseLike;
+import com.yeogido.backend.domain.course.exception.CourseErrorCode;
+import com.yeogido.backend.domain.course.repository.CourseLikeRepository;
+import com.yeogido.backend.domain.course.repository.CourseRepository;
 import com.yeogido.backend.domain.course.enums.CompanionType;
 import com.yeogido.backend.domain.course.enums.CourseItemType;
 import com.yeogido.backend.domain.course.enums.CourseType;
 import com.yeogido.backend.domain.course.enums.DurationType;
 import com.yeogido.backend.domain.course.enums.TransportType;
 import com.yeogido.backend.domain.place.enums.PlaceSource;
+import com.yeogido.backend.domain.user.entity.User;
+import com.yeogido.backend.domain.user.repository.UserRepository;
 import com.yeogido.backend.global.common.response.CursorResponse;
+import com.yeogido.backend.global.exception.GeneralException;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
 
 @Service
+@RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class CourseServiceImpl implements CourseService {
+
+    private static final Long MOCK_MEMBER_ID = 1L;
+
+    private final CourseRepository courseRepository;
+    private final CourseLikeRepository courseLikeRepository;
+    private final UserRepository userRepository;
 
     @Override
     public CourseResDTO.CourseCreateRes createCourse(CourseReqDTO.CourseCreateReq request) {
@@ -102,9 +120,48 @@ public class CourseServiceImpl implements CourseService {
     }
 
     @Override
+    @Transactional
     public CourseResDTO.CourseLikeRes createCourseLike(Long courseId) {
-        // TODO: 추천 코스 좋아요 등록 로직 구현
-        return new CourseResDTO.CourseLikeRes(true, 121L);
+        Course course = getActiveCourse(courseId);
+
+        // TODO: Spring Security 적용 후 로그인 사용자 정보로 변경
+        User user = userRepository.getReferenceById(MOCK_MEMBER_ID);
+
+        if (!courseLikeRepository.existsByUserIdAndCourseId(user.getId(), courseId)) {
+            CourseLike courseLike = CourseLike.builder()
+                    .user(user)
+                    .course(course)
+                    .build();
+
+            courseLikeRepository.save(courseLike);
+        }
+
+        return new CourseResDTO.CourseLikeRes(
+                true,
+                courseLikeRepository.countByCourseId(courseId)
+        );
+    }
+
+    @Override
+    @Transactional
+    public CourseResDTO.CourseLikeRes deleteCourseLike(Long courseId) {
+        getActiveCourse(courseId);
+
+        // TODO: Spring Security 적용 후 로그인 사용자 정보로 변경
+        User user = userRepository.getReferenceById(MOCK_MEMBER_ID);
+
+        courseLikeRepository.findByUserIdAndCourseId(user.getId(), courseId)
+                .ifPresent(courseLikeRepository::delete);
+
+        return new CourseResDTO.CourseLikeRes(
+                false,
+                courseLikeRepository.countByCourseId(courseId)
+        );
+    }
+
+    private Course getActiveCourse(Long courseId) {
+        return courseRepository.findByIdAndDeletedAtIsNull(courseId)
+                .orElseThrow(() -> new GeneralException(CourseErrorCode.COURSE_NOT_FOUND));
     }
 
     private CourseResDTO.CoursePreview createFirstMockCourse() {
