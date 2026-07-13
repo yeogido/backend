@@ -15,18 +15,6 @@ public enum CourseErrorCode implements ErrorCode {
             "추천 코스가 존재하지 않습니다."
     ),
 
-    HASHTAG_NOT_FOUND(
-            HttpStatus.NOT_FOUND,
-            "COURSE4042",
-            "해시태그가 존재하지 않습니다."
-    ),
-
-    CONTENT_NOT_FOUND(
-            HttpStatus.NOT_FOUND,
-            "COURSE4043",
-            "콘텐츠가 존재하지 않습니다."
-    ),
-
     DUPLICATE_HASHTAG(
             HttpStatus.BAD_REQUEST,
             "COURSE4001",

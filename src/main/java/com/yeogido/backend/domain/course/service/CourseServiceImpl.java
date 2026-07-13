@@ -1,6 +1,7 @@
 package com.yeogido.backend.domain.course.service;
 
 import com.yeogido.backend.domain.content.entity.Content;
+import com.yeogido.backend.domain.content.exception.ContentErrorCode;
 import com.yeogido.backend.domain.content.repository.ContentRepository;
 import com.yeogido.backend.domain.course.converter.CourseConverter;
 import com.yeogido.backend.domain.course.dto.request.CourseReqDTO;
@@ -20,6 +21,7 @@ import com.yeogido.backend.domain.course.enums.CourseType;
 import com.yeogido.backend.domain.course.enums.DurationType;
 import com.yeogido.backend.domain.course.enums.TransportType;
 import com.yeogido.backend.domain.hashtag.entity.Hashtag;
+import com.yeogido.backend.domain.hashtag.exception.HashtagErrorCode;
 import com.yeogido.backend.domain.hashtag.repository.HashtagRepository;
 import com.yeogido.backend.domain.place.entity.Place;
 import com.yeogido.backend.domain.place.enums.PlaceSource;
@@ -284,7 +286,7 @@ public class CourseServiceImpl implements CourseService {
                 .collect(Collectors.toMap(Hashtag::getId, Function.identity()));
 
         if (hashtagMap.size() != hashtagIds.size()) {
-            throw new GeneralException(CourseErrorCode.HASHTAG_NOT_FOUND);
+            throw new GeneralException(HashtagErrorCode.HASHTAG_NOT_FOUND);
         }
 
         List<CourseHashtag> courseHashtags = hashtagIds.stream()
@@ -308,7 +310,7 @@ public class CourseServiceImpl implements CourseService {
 
             Content content = contentMap.get(item.contentId());
             if (content == null) {
-                throw new GeneralException(CourseErrorCode.CONTENT_NOT_FOUND);
+                throw new GeneralException(ContentErrorCode.CONTENT_NOT_FOUND);
             }
             items.add(CourseConverter.toContentCourseItem(course, content, item));
         }
@@ -345,7 +347,7 @@ public class CourseServiceImpl implements CourseService {
                 .collect(Collectors.toMap(Content::getId, Function.identity()));
 
         if (contentMap.size() != contentIds.size()) {
-            throw new GeneralException(CourseErrorCode.CONTENT_NOT_FOUND);
+            throw new GeneralException(ContentErrorCode.CONTENT_NOT_FOUND);
         }
 
         return contentMap;
