@@ -1,10 +1,17 @@
 package com.yeogido.backend.domain.course.service;
 
+import com.yeogido.backend.domain.content.entity.Content;
+import com.yeogido.backend.domain.content.repository.ContentRepository;
+import com.yeogido.backend.domain.course.converter.CourseConverter;
 import com.yeogido.backend.domain.course.dto.request.CourseReqDTO;
 import com.yeogido.backend.domain.course.dto.response.CourseResDTO;
 import com.yeogido.backend.domain.course.entity.Course;
+import com.yeogido.backend.domain.course.entity.CourseHashtag;
+import com.yeogido.backend.domain.course.entity.CourseItem;
 import com.yeogido.backend.domain.course.entity.CourseLike;
 import com.yeogido.backend.domain.course.exception.CourseErrorCode;
+import com.yeogido.backend.domain.course.repository.CourseHashtagRepository;
+import com.yeogido.backend.domain.course.repository.CourseItemRepository;
 import com.yeogido.backend.domain.course.repository.CourseLikeRepository;
 import com.yeogido.backend.domain.course.repository.CourseRepository;
 import com.yeogido.backend.domain.course.enums.CompanionType;
@@ -12,17 +19,33 @@ import com.yeogido.backend.domain.course.enums.CourseItemType;
 import com.yeogido.backend.domain.course.enums.CourseType;
 import com.yeogido.backend.domain.course.enums.DurationType;
 import com.yeogido.backend.domain.course.enums.TransportType;
+import com.yeogido.backend.domain.hashtag.entity.Hashtag;
+import com.yeogido.backend.domain.hashtag.repository.HashtagRepository;
+import com.yeogido.backend.domain.place.entity.Place;
 import com.yeogido.backend.domain.place.enums.PlaceSource;
+import com.yeogido.backend.domain.place.repository.PlaceRepository;
+import com.yeogido.backend.domain.region.entity.Region;
+import com.yeogido.backend.domain.region.exception.RegionErrorCode;
+import com.yeogido.backend.domain.region.repository.RegionRepository;
 import com.yeogido.backend.domain.user.entity.User;
 import com.yeogido.backend.domain.user.repository.UserRepository;
 import com.yeogido.backend.global.common.response.CursorResponse;
+import com.yeogido.backend.global.exception.GeneralErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -33,12 +56,27 @@ public class CourseServiceImpl implements CourseService {
 
     private final CourseRepository courseRepository;
     private final CourseLikeRepository courseLikeRepository;
+    private final CourseHashtagRepository courseHashtagRepository;
+    private final CourseItemRepository courseItemRepository;
+    private final HashtagRepository hashtagRepository;
+    private final PlaceRepository placeRepository;
+    private final ContentRepository contentRepository;
+    private final RegionRepository regionRepository;
     private final UserRepository userRepository;
 
     @Override
+    @Transactional
     public CourseResDTO.CourseCreateRes createCourse(CourseReqDTO.CourseCreateReq request) {
-        // TODO: 추천 코스 등록 로직 구현
-        return new CourseResDTO.CourseCreateRes(15L);
+        validateCourseCreateRequest(request);
+
+        User user = getCurrentUser();
+        Region courseRegion = getRegion(request.regionId());
+        Course course = courseRepository.save(CourseConverter.toCourse(request, user, courseRegion));
+
+        saveCourseHashtags(course, request.hashtagIds());
+        saveCourseItems(course, request.courseItems());
+
+        return new CourseResDTO.CourseCreateRes(course.getId());
     }
 
     @Override
@@ -128,10 +166,7 @@ public class CourseServiceImpl implements CourseService {
         User user = userRepository.getReferenceById(MOCK_MEMBER_ID);
 
         if (!courseLikeRepository.existsByUserIdAndCourseId(user.getId(), courseId)) {
-            CourseLike courseLike = CourseLike.builder()
-                    .user(user)
-                    .course(course)
-                    .build();
+            CourseLike courseLike = CourseConverter.toCourseLike(user, course);
 
             courseLikeRepository.save(courseLike);
         }
@@ -162,6 +197,192 @@ public class CourseServiceImpl implements CourseService {
     private Course getActiveCourse(Long courseId) {
         return courseRepository.findByIdAndDeletedAtIsNull(courseId)
                 .orElseThrow(() -> new GeneralException(CourseErrorCode.COURSE_NOT_FOUND));
+    }
+
+    private User getCurrentUser() {
+        return userRepository.findById(MOCK_MEMBER_ID)
+                .orElseThrow(() -> new GeneralException(GeneralErrorCode.FORBIDDEN));
+    }
+
+    private Region getRegion(Long regionId) {
+        return regionRepository.findById(regionId)
+                .orElseThrow(() -> new GeneralException(RegionErrorCode.REGION_NOT_FOUND));
+    }
+
+    private void validateCourseCreateRequest(CourseReqDTO.CourseCreateReq request) {
+        validateHashtags(request.hashtagIds());
+        validateCourseItems(request.courseItems());
+    }
+
+    private void validateHashtags(List<Long> hashtagIds) {
+        if (hashtagIds == null) {
+            return;
+        }
+        if (hashtagIds.size() > 5) {
+            throw new GeneralException(CourseErrorCode.TOO_MANY_HASHTAGS);
+        }
+        if (hashtagIds.stream().anyMatch(id -> id == null)) {
+            throw new GeneralException(CourseErrorCode.INVALID_COURSE_ITEM);
+        }
+        if (new HashSet<>(hashtagIds).size() != hashtagIds.size()) {
+            throw new GeneralException(CourseErrorCode.DUPLICATE_HASHTAG);
+        }
+    }
+
+    private void validateCourseItems(List<CourseReqDTO.CourseItemCreateReq> courseItems) {
+        if (courseItems == null || courseItems.isEmpty()) {
+            throw new GeneralException(CourseErrorCode.COURSE_ITEM_REQUIRED);
+        }
+
+        Set<Integer> orders = new HashSet<>();
+        boolean hasPlace = false;
+
+        for (CourseReqDTO.CourseItemCreateReq item : courseItems) {
+            if (item.order() == null || !orders.add(item.order())) {
+                throw new GeneralException(CourseErrorCode.DUPLICATE_COURSE_ITEM_ORDER);
+            }
+            if (item.type() == CourseItemType.PLACE) {
+                hasPlace = true;
+                validatePlaceItem(item);
+                continue;
+            }
+            if (item.type() == CourseItemType.CONTENT) {
+                validateContentItem(item);
+                continue;
+            }
+            throw new GeneralException(CourseErrorCode.INVALID_COURSE_ITEM);
+        }
+
+        if (!hasPlace) {
+            throw new GeneralException(CourseErrorCode.PLACE_ITEM_REQUIRED);
+        }
+    }
+
+    private void validatePlaceItem(CourseReqDTO.CourseItemCreateReq item) {
+        if (!StringUtils.hasText(item.externalPlaceId())
+                || !StringUtils.hasText(item.categoryGroupCode())
+                || !StringUtils.hasText(item.name())
+                || (!StringUtils.hasText(item.roadAddress()) && !StringUtils.hasText(item.lotAddress()))
+                || item.latitude() == null
+                || item.longitude() == null) {
+            throw new GeneralException(CourseErrorCode.INVALID_COURSE_ITEM);
+        }
+    }
+
+    private void validateContentItem(CourseReqDTO.CourseItemCreateReq item) {
+        if (item.contentId() == null) {
+            throw new GeneralException(CourseErrorCode.INVALID_COURSE_ITEM);
+        }
+    }
+
+    private void saveCourseHashtags(Course course, List<Long> hashtagIds) {
+        if (hashtagIds == null || hashtagIds.isEmpty()) {
+            return;
+        }
+
+        Map<Long, Hashtag> hashtagMap = hashtagRepository.findAllById(hashtagIds).stream()
+                .collect(Collectors.toMap(Hashtag::getId, Function.identity()));
+
+        if (hashtagMap.size() != hashtagIds.size()) {
+            throw new GeneralException(CourseErrorCode.HASHTAG_NOT_FOUND);
+        }
+
+        List<CourseHashtag> courseHashtags = hashtagIds.stream()
+                .map(hashtagId -> CourseConverter.toCourseHashtag(course, hashtagMap.get(hashtagId)))
+                .toList();
+
+        courseHashtagRepository.saveAll(courseHashtags);
+    }
+
+    private void saveCourseItems(Course course, List<CourseReqDTO.CourseItemCreateReq> courseItems) {
+        Map<String, Place> placeMap = getPlaceMap(courseItems);
+        Map<Long, Content> contentMap = getContentMap(courseItems);
+        List<CourseItem> items = new ArrayList<>();
+
+        for (CourseReqDTO.CourseItemCreateReq item : courseItems) {
+            if (item.type() == CourseItemType.PLACE) {
+                Place place = getOrCreatePlace(item, placeMap);
+                items.add(CourseConverter.toPlaceCourseItem(course, place, item));
+                continue;
+            }
+
+            Content content = contentMap.get(item.contentId());
+            if (content == null) {
+                throw new GeneralException(CourseErrorCode.CONTENT_NOT_FOUND);
+            }
+            items.add(CourseConverter.toContentCourseItem(course, content, item));
+        }
+
+        courseItemRepository.saveAll(items);
+    }
+
+    private Map<String, Place> getPlaceMap(List<CourseReqDTO.CourseItemCreateReq> courseItems) {
+        Set<String> externalPlaceIds = courseItems.stream()
+                .filter(item -> item.type() == CourseItemType.PLACE)
+                .map(CourseReqDTO.CourseItemCreateReq::externalPlaceId)
+                .collect(Collectors.toSet());
+
+        if (externalPlaceIds.isEmpty()) {
+            return new HashMap<>();
+        }
+
+        return placeRepository.findBySourceAndExternalPlaceIdIn(PlaceSource.KAKAO, externalPlaceIds)
+                .stream()
+                .collect(Collectors.toMap(Place::getExternalPlaceId, Function.identity()));
+    }
+
+    private Map<Long, Content> getContentMap(List<CourseReqDTO.CourseItemCreateReq> courseItems) {
+        Set<Long> contentIds = courseItems.stream()
+                .filter(item -> item.type() == CourseItemType.CONTENT)
+                .map(CourseReqDTO.CourseItemCreateReq::contentId)
+                .collect(Collectors.toSet());
+
+        if (contentIds.isEmpty()) {
+            return new HashMap<>();
+        }
+
+        Map<Long, Content> contentMap = contentRepository.findAllById(contentIds).stream()
+                .collect(Collectors.toMap(Content::getId, Function.identity()));
+
+        if (contentMap.size() != contentIds.size()) {
+            throw new GeneralException(CourseErrorCode.CONTENT_NOT_FOUND);
+        }
+
+        return contentMap;
+    }
+
+    private Place getOrCreatePlace(CourseReqDTO.CourseItemCreateReq item, Map<String, Place> placeMap) {
+        Place place = placeMap.get(item.externalPlaceId());
+        if (place != null) {
+            return place;
+        }
+
+        Region placeRegion = findRegionByAddress(item.roadAddress(), item.lotAddress());
+        Place newPlace = placeRepository.save(CourseConverter.toPlace(item, placeRegion));
+
+        placeMap.put(newPlace.getExternalPlaceId(), newPlace);
+        return newPlace;
+    }
+
+    private Region findRegionByAddress(String roadAddress, String lotAddress) {
+        String address = StringUtils.hasText(roadAddress) ? roadAddress : lotAddress;
+        if (!StringUtils.hasText(address)) {
+            throw new GeneralException(RegionErrorCode.REGION_NOT_FOUND);
+        }
+
+        String[] addressParts = address.trim().split("\\s+");
+        if (addressParts.length < 2) {
+            throw new GeneralException(RegionErrorCode.REGION_NOT_FOUND);
+        }
+
+        String sidoFullName = addressParts[0];
+        String sigunguName = addressParts[1];
+
+        Region sido = regionRepository.findByFullName(sidoFullName)
+                .orElseThrow(() -> new GeneralException(RegionErrorCode.REGION_NOT_FOUND));
+
+        return regionRepository.findByParentAndName(sido, sigunguName)
+                .orElseThrow(() -> new GeneralException(RegionErrorCode.REGION_NOT_FOUND));
     }
 
     private CourseResDTO.CoursePreview createFirstMockCourse() {
