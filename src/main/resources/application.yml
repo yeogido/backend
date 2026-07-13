@@ -20,8 +20,10 @@ spring:
     baseline-on-migrate: true
     validate-on-migrate: true
 
+server:
+  forward-headers-strategy: framework
+
 springdoc:
   swagger-ui:
-    path: /swagger-ui.html
     operations-sorter: method
     tags-sorter: alpha

@@ -5,5 +5,5 @@ public enum CompanionType {
     FRIEND,
     COUPLE,
     FAMILY,
-    CHILD
+    PET
 }
