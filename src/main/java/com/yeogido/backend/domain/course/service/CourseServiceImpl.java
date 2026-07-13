@@ -4,6 +4,7 @@ import com.yeogido.backend.domain.course.dto.request.CourseReqDTO;
 import com.yeogido.backend.domain.course.dto.response.CourseResDTO;
 import com.yeogido.backend.domain.course.entity.Course;
 import com.yeogido.backend.domain.course.entity.CourseLike;
+import com.yeogido.backend.domain.course.entity.CourseReview;
 import com.yeogido.backend.domain.course.exception.CourseErrorCode;
 import com.yeogido.backend.domain.course.repository.CourseLikeRepository;
 import com.yeogido.backend.domain.course.repository.CourseRepository;
@@ -12,10 +13,12 @@ import com.yeogido.backend.domain.course.enums.CourseItemType;
 import com.yeogido.backend.domain.course.enums.CourseType;
 import com.yeogido.backend.domain.course.enums.DurationType;
 import com.yeogido.backend.domain.course.enums.TransportType;
+import com.yeogido.backend.domain.course.repository.CourseReviewRepository;
 import com.yeogido.backend.domain.place.enums.PlaceSource;
 import com.yeogido.backend.domain.user.entity.User;
 import com.yeogido.backend.domain.user.repository.UserRepository;
 import com.yeogido.backend.global.common.response.CursorResponse;
+import com.yeogido.backend.global.exception.GeneralErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -30,9 +33,12 @@ import java.util.List;
 public class CourseServiceImpl implements CourseService {
 
     private static final Long MOCK_MEMBER_ID = 1L;
+    private static final BigDecimal MIN_RATING = BigDecimal.ZERO;
+    private static final BigDecimal MAX_RATING = BigDecimal.valueOf(5);
 
     private final CourseRepository courseRepository;
     private final CourseLikeRepository courseLikeRepository;
+    private final CourseReviewRepository courseReviewRepository;
     private final UserRepository userRepository;
 
     @Override
@@ -114,9 +120,24 @@ public class CourseServiceImpl implements CourseService {
     }
 
     @Override
+    @Transactional
     public CourseResDTO.ReviewCreateRes createCourseReview(Long courseId, CourseReqDTO.ReviewCreateReq request) {
-        // TODO: 추천 코스 리뷰 작성 로직 구현
-        return new CourseResDTO.ReviewCreateRes(1L);
+        Course course = getActiveCourse(courseId);
+        validateRating(request.rating());
+
+        // TODO: Spring Security 적용 후 로그인 사용자 정보로 변경
+        User user = userRepository.getReferenceById(MOCK_MEMBER_ID);
+
+        CourseReview review = CourseReview.builder()
+                .user(user)
+                .course(course)
+                .rating(request.rating())
+                .content(request.content())
+                .build();
+
+        CourseReview savedReview = courseReviewRepository.save(review);
+
+        return new CourseResDTO.ReviewCreateRes(savedReview.getId());
     }
 
     @Override
@@ -162,6 +183,14 @@ public class CourseServiceImpl implements CourseService {
     private Course getActiveCourse(Long courseId) {
         return courseRepository.findByIdAndDeletedAtIsNull(courseId)
                 .orElseThrow(() -> new GeneralException(CourseErrorCode.COURSE_NOT_FOUND));
+    }
+
+    private void validateRating(BigDecimal rating) {
+        if (rating == null
+                || rating.compareTo(MIN_RATING) < 0
+                || rating.compareTo(MAX_RATING) > 0) {
+            throw new GeneralException(GeneralErrorCode.INVALID_REQUEST);
+        }
     }
 
     private CourseResDTO.CoursePreview createFirstMockCourse() {
