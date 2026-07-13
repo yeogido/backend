@@ -2,13 +2,14 @@ package com.yeogido.backend.domain.business.controller;
 
 import com.yeogido.backend.domain.business.dto.request.BusinessPromotionRequest;
 import com.yeogido.backend.domain.business.dto.response.BusinessPromotionResponse;
-import com.yeogido.backend.global.common.response.ApiResponse;
+import com.yeogido.backend.domain.business.enums.PromotionCategory;
 import com.yeogido.backend.global.common.code.SuccessCode;
+import com.yeogido.backend.global.common.response.ApiResponse;
+import com.yeogido.backend.global.common.response.CursorResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
-import com.yeogido.backend.global.common.response.CursorResponse;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -37,6 +38,7 @@ public class BusinessPromotionController {
     public ApiResponse<CursorResponse<BusinessPromotionResponse.Summary>> getBusinessPromotions(
             @RequestParam(required = false) Long cursor,
             @RequestParam(defaultValue = "10") Integer size,
+            @RequestParam(required = false) PromotionCategory category,
             @RequestParam(required = false) Long regionId,
             @RequestParam(defaultValue = "LATEST") String sort
     ) {
@@ -44,7 +46,7 @@ public class BusinessPromotionController {
                 .promotionId(1L)
                 .placeId(10L)
                 .placeName("웨이브온 커피")
-                .categoryGroupName("카페")
+                .promotionCategory(PromotionCategory.CAFE)
                 .roadAddress("부산 기장군 장안읍 해맞이로 286")
                 .regionId(26L)
                 .regionName("부산광역시")
@@ -70,7 +72,7 @@ public class BusinessPromotionController {
                 .promotionId(1L)
                 .placeId(10L)
                 .placeName("웨이브온 커피")
-                .categoryGroupName("카페")
+                .promotionCategory(PromotionCategory.CAFE)
                 .roadAddress("부산 기장군 장안읍 해맞이로 286")
                 .thumbnailImageUrl("https://example.com/image.jpg")
                 .shortDescription("바다 뷰 완전 잘 보이는 카페!")
@@ -94,8 +96,7 @@ public class BusinessPromotionController {
         BusinessPromotionResponse.PlaceInfo place = BusinessPromotionResponse.PlaceInfo.builder()
                 .placeId(10L)
                 .name("웨이브온 커피")
-                .category("음식점 > 카페 > 커피전문점")
-                .categoryGroupName("카페")
+                .categoryGroupCode("CE7")
                 .roadAddress("부산 기장군 장안읍 해맞이로 286")
                 .lotAddress("부산 기장군 장안읍 월내리 553")
                 .latitude(new BigDecimal("35.3214567"))
@@ -119,6 +120,7 @@ public class BusinessPromotionController {
         BusinessPromotionResponse.Detail response = BusinessPromotionResponse.Detail.builder()
                 .promotionId(promotionId)
                 .place(place)
+                .promotionCategory(PromotionCategory.CAFE)
                 .shortDescription("바다 뷰 완전 잘 보이는 카페!")
                 .ownerComment("부산 바다를 담은 공간, 웨이브온 커피에 오신 걸 환영합니다!")
                 .businessHours(List.of(businessHour))
