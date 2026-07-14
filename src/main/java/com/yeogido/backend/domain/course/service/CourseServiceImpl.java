@@ -212,44 +212,32 @@ public class CourseServiceImpl implements CourseService {
     }
 
     private void validateHashtags(List<Long> hashtagIds) {
-        if (hashtagIds == null || hashtagIds.isEmpty()) {
-            throw new GeneralException(CourseErrorCode.HASHTAG_REQUIRED);
-        }
-
-        if (hashtagIds.size() > 5) {
-            throw new GeneralException(CourseErrorCode.TOO_MANY_HASHTAGS);
-        }
-
-        if (hashtagIds.stream().anyMatch(Objects::isNull)) {
-            throw new GeneralException(GeneralErrorCode.INVALID_REQUEST);
-        }
-
         if (new HashSet<>(hashtagIds).size() != hashtagIds.size()) {
             throw new GeneralException(CourseErrorCode.DUPLICATE_HASHTAG);
         }
     }
 
     private void validateCourseItems(List<CourseReqDTO.CourseItemCreateReq> courseItems) {
-        if (courseItems == null || courseItems.isEmpty()) {
-            throw new GeneralException(CourseErrorCode.COURSE_ITEM_REQUIRED);
-        }
-
         Set<Integer> orders = new HashSet<>();
         boolean hasPlace = false;
 
         for (CourseReqDTO.CourseItemCreateReq item : courseItems) {
-            if (item.order() == null || !orders.add(item.order())) {
+
+            if (!orders.add(item.order())) {
                 throw new GeneralException(CourseErrorCode.DUPLICATE_COURSE_ITEM_ORDER);
             }
+
             if (item.type() == CourseItemType.PLACE) {
                 hasPlace = true;
                 validatePlaceItem(item);
                 continue;
             }
+
             if (item.type() == CourseItemType.CONTENT) {
                 validateContentItem(item);
                 continue;
             }
+
             throw new GeneralException(CourseErrorCode.INVALID_COURSE_ITEM);
         }
 

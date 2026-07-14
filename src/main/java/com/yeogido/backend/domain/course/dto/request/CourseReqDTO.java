@@ -50,11 +50,16 @@ public class CourseReqDTO {
             String thumbnailKey,
 
             @Schema(description = "해시태그 ID 목록", example = "[1, 3, 5]")
-            @Size(max = 5, message = "해시태그는 최대 5개까지 등록할 수 있습니다")
-            List<Long> hashtagIds,
+            @NotNull(message = "해시태그를 선택해주세요.")
+            @Size(
+                    min = 1,
+                    max = 5,
+                    message = "해시태그는 1개 이상 5개 이하로 선택할 수 있습니다."
+            )
+            List<@NotNull(message = "유효하지 않은 해시태그입니다.") Long> hashtagIds,
 
             @Valid
-            @NotEmpty
+            @NotEmpty(message = "코스 구성 항목은 최소 1개 이상 필요합니다.")
             @Schema(description = "코스 구성 항목")
             List<CourseItemCreateReq> courseItems
     ) { }
