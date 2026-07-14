@@ -387,13 +387,14 @@ public class CourseServiceImpl implements CourseService {
             throw new GeneralException(RegionErrorCode.REGION_NOT_FOUND);
         }
 
-        String sidoFullName = addressParts[0];
-        String sigunguName = addressParts[1];
+        String regionName = addressParts[0];
+        String subRegionName = addressParts[1];
 
-        Region sido = regionRepository.findByFullName(sidoFullName)
+        Region region = regionRepository.findByFullName(regionName)
+                .or(() -> regionRepository.findByName(regionName))
                 .orElseThrow(() -> new GeneralException(RegionErrorCode.REGION_NOT_FOUND));
 
-        return regionRepository.findByParentAndName(sido, sigunguName)
+        return regionRepository.findByParentAndName(region, subRegionName)
                 .orElseThrow(() -> new GeneralException(RegionErrorCode.REGION_NOT_FOUND));
     }
 
