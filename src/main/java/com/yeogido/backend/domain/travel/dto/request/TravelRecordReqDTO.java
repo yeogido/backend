@@ -21,7 +21,11 @@ public class TravelRecordReqDTO {
 
             @Schema(description = "조회할 여행 기록 개수", example = "10", defaultValue = "10")
             @Positive(message = "size는 양수여야 합니다.")
-            Integer size
+            Integer size,
+
+            @Schema(description = "조회할 여행 연도", example = "2026", defaultValue = "현재 연도")
+            @Positive(message = "year는 양수여야 합니다.")
+            Integer year
     ) {
     }
 

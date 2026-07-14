@@ -40,6 +40,16 @@ public class TravelRecordController {
     }
 
     @Operation(
+            summary = "내 여행 기록 연도 목록 조회",
+            description = "로그인한 사용자가 작성한 여행 기록 중 실제 기록이 존재하는 연도 목록을 조회합니다."
+    )
+    @GetMapping("/years")
+    public ApiResponse<TravelRecordResDTO.YearListResponse> getMyTravelRecordYears() {
+        TravelRecordResDTO.YearListResponse result = travelRecordService.getMyTravelRecordYears();
+        return ApiResponse.onSuccess(SuccessCode.OK, result);
+    }
+
+    @Operation(
             summary = "여행 기록 상세 조회",
             description = "선택한 여행 기록의 상세 정보를 조회합니다."
     )
