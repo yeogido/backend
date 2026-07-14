@@ -58,7 +58,7 @@ public class BusinessPromotionRequest {
     ){ }
 
     @Builder
-    @Schema(name = "소상공인 홍보 수정 요청", description = "BusinessUpdateReqDTO")
+    @Schema(name = "BusinessUpdateReqDTO", description = "소상공인 홍보 수정 요청")
     public record Update(
 
             @Valid
@@ -76,6 +76,7 @@ public class BusinessPromotionRequest {
             String ownerComment,
 
             @Valid
+            @Size(min = 1, message = "영업시간은 최소 1개 이상 입력해야 합니다")
             @Schema(description = "요일별 영업시간")
             List<BusinessHour> businessHours,
 
@@ -94,6 +95,7 @@ public class BusinessPromotionRequest {
             PromotionCategory promotionCategory,
 
             @Valid
+            @Size(min = 1, max = 5, message = "이미지는 최소 1개, 최대 5개까지 등록할 수 있습니다")
             @Schema(description = "교체할 홍보 이미지 목록")
             List<Image> images
     ) { }
