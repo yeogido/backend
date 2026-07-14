@@ -3,6 +3,7 @@ package com.yeogido.backend.domain.travel.service;
 import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.region.exception.RegionErrorCode;
 import com.yeogido.backend.domain.region.repository.RegionRepository;
+import com.yeogido.backend.domain.travel.converter.TravelRecordConverter;
 import com.yeogido.backend.domain.travel.dto.request.TravelRecordReqDTO;
 import com.yeogido.backend.domain.travel.dto.response.TravelRecordResDTO;
 import com.yeogido.backend.domain.travel.entity.TravelRecord;
@@ -15,11 +16,9 @@ import com.yeogido.backend.domain.user.entity.User;
 import com.yeogido.backend.domain.user.repository.UserRepository;
 import com.yeogido.backend.global.common.response.CursorResponse;
 import com.yeogido.backend.global.exception.GeneralException;
-import java.util.Collections;
-import java.util.List;
 import java.time.LocalDate;
 import java.time.Year;
-import java.time.ZoneId;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -33,9 +32,7 @@ public class TravelRecordServiceImpl implements TravelRecordService {
 
     private static final Long MOCK_USER_ID = 1L;
     private static final int DEFAULT_PAGE_SIZE = 10;
-    private static final int MAX_IMAGE_COUNT = 5;
     private static final FolderTheme DEFAULT_FOLDER_THEME = FolderTheme.BASIC;
-    private static final ZoneId SERVICE_ZONE_ID = ZoneId.of("Asia/Seoul");
 
     private final TravelRecordRepository travelRecordRepository;
     private final TravelRecordPhotoRepository travelRecordPhotoRepository;
@@ -66,7 +63,7 @@ public class TravelRecordServiceImpl implements TravelRecordService {
                 : travelRecords;
 
         List<TravelRecordResDTO.TravelRecordSummary> items = content.stream()
-                .map(this::toTravelRecordSummary)
+                .map(TravelRecordConverter::toTravelRecordSummary)
                 .toList();
 
         Long nextCursor = items.isEmpty()
@@ -97,7 +94,7 @@ public class TravelRecordServiceImpl implements TravelRecordService {
         List<TravelRecordPhoto> photos =
                 travelRecordPhotoRepository.findByTravelRecordIdOrderByImageOrderAsc(travelRecordId);
 
-        return toDetailResponse(travelRecord, photos);
+        return TravelRecordConverter.toDetailResponse(travelRecord, photos);
     }
 
     @Override
@@ -109,36 +106,29 @@ public class TravelRecordServiceImpl implements TravelRecordService {
         Region region = getRegionOrThrow(request.regionId());
 
         validateDateRange(request);
-        validateImages(request.images());
 
         String coverImageKey = findCoverImageKey(request.images());
 
         // travel_record.cover_image_key가 NOT NULL이라 대표 이미지 key를 여행 기록에도 저장
-        TravelRecord travelRecord = TravelRecord.builder()
-                .user(user)
-                .region(region)
-                .title(request.title())
-                .startDate(request.startDate())
-                .endDate(request.endDate())
-                .coverImageKey(coverImageKey)
-                // 폴더 색상 변경 기능이 없으므로 현재는 기본 테마로 고정합니다.
-                .folderTheme(DEFAULT_FOLDER_THEME)
-                .build();
+        TravelRecord travelRecord = TravelRecordConverter.toTravelRecord(
+                request,
+                user,
+                region,
+                coverImageKey,
+                DEFAULT_FOLDER_THEME
+        );
 
         TravelRecord savedTravelRecord = travelRecordRepository.save(travelRecord);
 
-        List<TravelRecordPhoto> photos = request.images().stream()
-                .map(image -> TravelRecordPhoto.builder()
-                        .travelRecord(savedTravelRecord)
-                        .imageKey(image.imageKey())
-                        .imageOrder(image.imageOrder())
-                        .build())
-                .toList();
+        List<TravelRecordPhoto> photos = TravelRecordConverter.toTravelRecordPhotos(
+                savedTravelRecord,
+                request.images()
+        );
 
         travelRecordPhotoRepository.saveAll(photos);
 
         // 스티커 요청값은 현재 범위에서는 저장 로직을 구현하지 않음
-        return toCreateResponse(savedTravelRecord);
+        return TravelRecordConverter.toCreateResponse(savedTravelRecord);
     }
 
     private Long getCurrentUserId() {
@@ -172,7 +162,7 @@ public class TravelRecordServiceImpl implements TravelRecordService {
 
     private int resolveYear(Integer year) {
         if (year == null) {
-            return Year.now(SERVICE_ZONE_ID).getValue();
+            return Year.now().getValue();
         }
 
         if (year <= 0) {
@@ -235,84 +225,11 @@ public class TravelRecordServiceImpl implements TravelRecordService {
         }
     }
 
-    private void validateImages(List<TravelRecordReqDTO.ImageRequest> images) {
-        if (images == null || images.isEmpty()) {
-            throw new GeneralException(TravelRecordErrorCode.IMAGE_REQUIRED);
-        }
-
-        if (images.size() > MAX_IMAGE_COUNT) {
-            throw new GeneralException(TravelRecordErrorCode.IMAGE_LIMIT_EXCEEDED);
-        }
-
-        images.forEach(this::validateImage);
-    }
-
-    private void validateImage(TravelRecordReqDTO.ImageRequest image) {
-        if (image.imageKey() == null || image.imageKey().isBlank()) {
-            throw new GeneralException(TravelRecordErrorCode.INVALID_IMAGE_KEY);
-        }
-
-        if (image.imageOrder() == null || image.imageOrder() < 1) {
-            throw new GeneralException(TravelRecordErrorCode.INVALID_IMAGE_ORDER);
-        }
-    }
-
     private String findCoverImageKey(List<TravelRecordReqDTO.ImageRequest> images) {
         return images.stream()
                 .filter(image -> Integer.valueOf(1).equals(image.imageOrder()))
                 .findFirst()
                 .map(TravelRecordReqDTO.ImageRequest::imageKey)
                 .orElse(images.get(0).imageKey());
-    }
-
-    private TravelRecordResDTO.TravelRecordSummary toTravelRecordSummary(
-            TravelRecord travelRecord
-    ) {
-        return new TravelRecordResDTO.TravelRecordSummary(
-                travelRecord.getId(),
-                travelRecord.getTitle(),
-                travelRecord.getRegion().getId(),
-                travelRecord.getStartDate(),
-                travelRecord.getEndDate(),
-                travelRecord.getCoverImageKey(),
-                travelRecord.getFolderTheme() == null ? null : travelRecord.getFolderTheme().name(),
-                travelRecord.getCreatedAt()
-        );
-    }
-
-    private TravelRecordResDTO.DetailResponse toDetailResponse(
-            TravelRecord travelRecord,
-            List<TravelRecordPhoto> photos
-    ) {
-        List<TravelRecordResDTO.ImageResponse> images = photos.stream()
-                .map(photo -> new TravelRecordResDTO.ImageResponse(
-                        photo.getId(),
-                        photo.getImageKey(),
-                        photo.getImageOrder()
-                ))
-                .toList();
-
-        return new TravelRecordResDTO.DetailResponse(
-                travelRecord.getId(),
-                travelRecord.getTitle(),
-                travelRecord.getRegion().getId(),
-                travelRecord.getStartDate(),
-                travelRecord.getEndDate(),
-                travelRecord.getCoverImageKey(),
-                travelRecord.getFolderTheme() == null ? null : travelRecord.getFolderTheme().name(),
-                images,
-                Collections.emptyList(),
-                travelRecord.getCreatedAt(),
-                travelRecord.getUpdatedAt()
-        );
-    }
-
-    private TravelRecordResDTO.CreateResponse toCreateResponse(TravelRecord travelRecord) {
-        return new TravelRecordResDTO.CreateResponse(
-                travelRecord.getId(),
-                travelRecord.getTitle(),
-                travelRecord.getCoverImageKey(),
-                travelRecord.getCreatedAt()
-        );
     }
 }
