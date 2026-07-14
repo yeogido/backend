@@ -277,7 +277,16 @@ public class CourseServiceImpl implements CourseService {
     }
 
     private void validateContentItem(CourseReqDTO.CourseItemCreateReq item) {
-        if (item.contentId() == null) {
+        if (item.contentId() == null
+                || item.placeId() != null
+                || StringUtils.hasText(item.externalPlaceId())
+                || StringUtils.hasText(item.categoryGroupCode())
+                || StringUtils.hasText(item.name())
+                || StringUtils.hasText(item.roadAddress())
+                || StringUtils.hasText(item.lotAddress())
+                || item.latitude() != null
+                || item.longitude() != null
+                || StringUtils.hasText(item.imageKey())) {
             throw new GeneralException(CourseErrorCode.INVALID_COURSE_ITEM);
         }
     }
