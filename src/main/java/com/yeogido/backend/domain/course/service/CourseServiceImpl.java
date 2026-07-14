@@ -123,7 +123,6 @@ public class CourseServiceImpl implements CourseService {
     @Transactional
     public CourseResDTO.ReviewCreateRes createCourseReview(Long courseId, CourseReqDTO.ReviewCreateReq request) {
         Course course = getActiveCourse(courseId);
-        validateRating(request.rating());
 
         // TODO: Spring Security 적용 후 로그인 사용자 정보로 변경
         User user = userRepository.getReferenceById(MOCK_MEMBER_ID);
@@ -183,14 +182,6 @@ public class CourseServiceImpl implements CourseService {
     private Course getActiveCourse(Long courseId) {
         return courseRepository.findByIdAndDeletedAtIsNull(courseId)
                 .orElseThrow(() -> new GeneralException(CourseErrorCode.COURSE_NOT_FOUND));
-    }
-
-    private void validateRating(BigDecimal rating) {
-        if (rating == null
-                || rating.compareTo(MIN_RATING) < 0
-                || rating.compareTo(MAX_RATING) > 0) {
-            throw new GeneralException(GeneralErrorCode.INVALID_REQUEST);
-        }
     }
 
     private CourseResDTO.CoursePreview createFirstMockCourse() {
