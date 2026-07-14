@@ -1,5 +1,6 @@
 package com.yeogido.backend.global.exception;
 
+import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import com.yeogido.backend.global.common.response.ApiResponse;
 import com.yeogido.backend.global.common.response.ValidationError;
 import com.yeogido.backend.global.common.response.ValidationErrorResponse;
@@ -11,6 +12,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import java.util.Collections;
 import java.util.List;
 
 @Slf4j
@@ -55,13 +57,39 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
-    public ResponseEntity<ApiResponse<Void>> handleHttpMessageNotReadableException(
+    public ResponseEntity<ApiResponse<ValidationErrorResponse>> handleHttpMessageNotReadableException(
             HttpMessageNotReadableException e
     ) {
 
+        if (e.getCause() instanceof InvalidFormatException ex
+                && !ex.getPath().isEmpty()) {
+
+            String field = ex.getPath().get(ex.getPath().size() - 1).getFieldName();
+
+            ValidationError error = new ValidationError(
+                    field,
+                    ex.getValue(),
+                    "올바르지 않은 값입니다."
+            );
+
+            return ResponseEntity
+                    .status(GeneralErrorCode.INVALID_REQUEST.getHttpStatus())
+                    .body(ApiResponse.<ValidationErrorResponse>builder()
+                            .isSuccess(false)
+                            .code(GeneralErrorCode.INVALID_REQUEST.getCode())
+                            .message(GeneralErrorCode.INVALID_REQUEST.getMessage())
+                            .result(new ValidationErrorResponse(Collections.singletonList(error)))
+                            .build());
+        }
+
         return ResponseEntity
                 .status(GeneralErrorCode.INVALID_REQUEST.getHttpStatus())
-                .body(ApiResponse.onFailure(GeneralErrorCode.INVALID_REQUEST));
+                .body(ApiResponse.<ValidationErrorResponse>builder()
+                        .isSuccess(false)
+                        .code(GeneralErrorCode.INVALID_REQUEST.getCode())
+                        .message(GeneralErrorCode.INVALID_REQUEST.getMessage())
+                        .result(null)
+                        .build());
     }
 
     @ExceptionHandler(Exception.class)
