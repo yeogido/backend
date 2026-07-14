@@ -7,6 +7,7 @@ import com.yeogido.backend.global.common.code.SuccessCode;
 import com.yeogido.backend.global.common.response.ApiResponse;
 import com.yeogido.backend.global.common.response.CursorResponse;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
@@ -31,6 +32,41 @@ public class BusinessPromotionController {
                 .build();
 
         return ApiResponse.onSuccess(SuccessCode.CREATED, response);
+    }
+
+    @Operation(
+            summary = "소상공인 홍보 수정",
+            description = "현재 사용자가 등록한 소상공인 홍보글을 수정합니다")
+
+    @PatchMapping("/{promotionId}")
+    public ApiResponse<BusinessPromotionResponse.Update> updateBusinessPromotion(
+            @Parameter(
+                    description = "수정할 소상공인 홍보 ID",
+                    required = true,
+                    example = "1")
+            @PathVariable Long promotionId,
+            @Valid @RequestBody BusinessPromotionRequest.Update request
+    ) {
+        BusinessPromotionResponse.Update response = BusinessPromotionResponse.Update.builder()
+                .promotionId(promotionId)
+                .build();
+        return ApiResponse.onSuccess(SuccessCode.OK, response);
+    }
+
+    @Operation(
+            summary = "소상공인 홍보 삭제",
+            description = "현재 사용자가 등록한 소상공인 홍보글을 삭제합니다")
+
+    @DeleteMapping("/{promotionId}")
+    public ApiResponse<Void> deleteBusinessPromotion(
+            @Parameter(
+                    description = "삭제할 소상공인 홍보 ID",
+                    required = true,
+                    example = "1"
+            )
+            @PathVariable Long promotionId
+    ) {
+        return ApiResponse.onSuccess(SuccessCode.NO_CONTENT, null);
     }
 
     @Operation(summary = "소상공인 홍보 목록 조회", description = "소상공인 홍보 목록을 조회합니다")

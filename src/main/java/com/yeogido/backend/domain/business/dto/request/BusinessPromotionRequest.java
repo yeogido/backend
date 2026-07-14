@@ -14,7 +14,7 @@ import java.util.List;
 
 public class BusinessPromotionRequest {
     @Builder
-    @Schema(name = "BusinessPromotionRegisterRequest", description = "소상공인 홍보 등록 요청")
+    @Schema(name = "BusinessRegisterReqDTO", description = "소상공인 홍보 등록 요청")
     public record Register(
 
             @Valid
@@ -43,7 +43,7 @@ public class BusinessPromotionRequest {
             @Schema(description = "전화번호", example = "051-727-1660")
             String phoneNumber,
 
-            @Schema(description = "해시태그", example = "[\"오션뷰\", \"부산카페\", \"디저트\"]")
+            @Schema(description = "해시태그 ID 목록", example = "[1, 2, 3]")
             List<Long> hashtagIds,
 
             @NotNull(message = "카테고리는 필수입니다")
@@ -56,6 +56,47 @@ public class BusinessPromotionRequest {
             @Size(min = 1, max = 5, message = "이미지는 최소 1개, 최대 5개까지 등록할 수 있습니다")
             List<Image> images
     ){ }
+
+    @Builder
+    @Schema(name = "소상공인 홍보 수정 요청", description = "BusinessUpdateReqDTO")
+    public record Update(
+
+            @Valid
+            @Schema(description = "변경할 장소 정보. 카카오맵에서 다른 장소를 선택한 경우에만 전달합니다")
+            Place place,
+
+            @Schema(
+                    description = "짧은 소개글",
+                    example = "바다를 바라보며 즐기는 향긋한 커피와 디저트")
+            String shortDescription,
+
+            @Schema(
+                    description = "사장님의 한마디",
+                    example = "부산 바다를 담은 공간, 웨이브온 커피에 오신 걸 환영합니다!")
+            String ownerComment,
+
+            @Valid
+            @Schema(description = "요일별 영업시간")
+            List<BusinessHour> businessHours,
+
+            @Schema(
+                    description = "SNS 계정",
+                    example = "https://instagram.com/waveoncoffee")
+            String snsAccount,
+
+            @Schema(description = "전화번호", example = "051-727-1660")
+            String phoneNumber,
+
+            @Schema(description = "해시태그 ID 목록", example = "[1, 2, 3]")
+            List<Long> hashtagIds,
+
+            @Schema(description = "홍보 카테고리", example = "CAFE")
+            PromotionCategory promotionCategory,
+
+            @Valid
+            @Schema(description = "교체할 홍보 이미지 목록")
+            List<Image> images
+    ) { }
 
     @Builder
     @Schema(description = "장소 정보")
