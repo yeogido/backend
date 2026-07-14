@@ -7,6 +7,13 @@ import java.util.List;
 
 public class TravelRecordResDTO {
 
+    @Schema(name = "TravelRecordYearListResponse", description = "내 여행 기록 연도 목록 조회 응답")
+    public record YearListResponse(
+            @Schema(description = "여행 기록이 존재하는 연도 목록", example = "[2026, 2025, 2024]")
+            List<Integer> years
+    ) {
+    }
+
     @Schema(name = "TravelRecordSummary", description = "여행 기록 목록 아이템")
     public record TravelRecordSummary(
             @Schema(description = "여행 기록 ID", example = "20")
