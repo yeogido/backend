@@ -104,4 +104,8 @@ public class Course extends BaseEntity {
             this.thumbnailKey = thumbnailKey;
         }
     }
+
+    public void delete() {
+        this.deletedAt = LocalDateTime.now();
+    }
 }

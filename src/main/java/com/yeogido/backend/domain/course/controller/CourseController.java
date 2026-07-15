@@ -66,6 +66,17 @@ public class CourseController {
         return ApiResponse.onSuccess(SuccessCode.OK, response);
     }
 
+    @Operation(summary = "추천 코스 삭제", description = "추천 코스를 삭제합니다.")
+    @DeleteMapping("/{courseId}")
+    public ApiResponse<Void> deleteCourse(
+            @Parameter(description = "코스 ID", example = "15")
+            @PathVariable Long courseId
+    ) {
+        courseService.deleteCourse(courseId);
+
+        return ApiResponse.onSuccess(SuccessCode.NO_CONTENT);
+    }
+
     @Operation(summary = "추천 코스 목록 조회", description = "추천 코스 목록을 조회합니다.")
     @GetMapping
     public ApiResponse<CursorResponse<CourseResDTO.CoursePreview>> getCourses(
