@@ -27,10 +27,11 @@ import com.yeogido.backend.domain.hashtag.repository.HashtagRepository;
 import com.yeogido.backend.domain.place.entity.Place;
 import com.yeogido.backend.domain.course.repository.CourseReviewRepository;
 import com.yeogido.backend.domain.place.enums.PlaceSource;
-import com.yeogido.backend.domain.place.repository.PlaceRepository;
+import com.yeogido.backend.domain.place.service.PlaceService;
 import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.region.exception.RegionErrorCode;
 import com.yeogido.backend.domain.region.repository.RegionRepository;
+import com.yeogido.backend.domain.region.service.RegionService;
 import com.yeogido.backend.domain.user.entity.User;
 import com.yeogido.backend.domain.user.repository.UserRepository;
 import com.yeogido.backend.global.common.response.CursorResponse;
@@ -60,11 +61,11 @@ public class CourseServiceImpl implements CourseService {
     private final CourseHashtagRepository courseHashtagRepository;
     private final CourseItemRepository courseItemRepository;
     private final HashtagRepository hashtagRepository;
-    private final PlaceRepository placeRepository;
+    private final PlaceService placeService;
     private final ContentRepository contentRepository;
-    private final RegionRepository regionRepository;
     private final CourseReviewRepository courseReviewRepository;
     private final UserRepository userRepository;
+    private final RegionRepository regionRepository;
 
     @Override
     @Transactional
@@ -307,13 +308,13 @@ public class CourseServiceImpl implements CourseService {
     }
 
     private void saveCourseItems(Course course, List<CourseReqDTO.CourseItemCreateReq> courseItems) {
-        Map<String, Place> placeMap = getPlaceMap(courseItems);
+        Map<String, Place> placeMap = placeService.getPlaceMap(courseItems);
         Map<Long, Content> contentMap = getContentMap(courseItems);
         List<CourseItem> items = new ArrayList<>();
 
         for (CourseReqDTO.CourseItemCreateReq item : courseItems) {
             if (item.type() == CourseItemType.PLACE) {
-                Place place = getOrCreatePlace(item, placeMap);
+                Place place = placeService.getOrCreatePlace(item, placeMap);
                 items.add(CourseConverter.toPlaceCourseItem(course, place, item));
                 continue;
             }
@@ -326,21 +327,6 @@ public class CourseServiceImpl implements CourseService {
         }
 
         courseItemRepository.saveAll(items);
-    }
-
-    private Map<String, Place> getPlaceMap(List<CourseReqDTO.CourseItemCreateReq> courseItems) {
-        Set<String> externalPlaceIds = courseItems.stream()
-                .filter(item -> item.type() == CourseItemType.PLACE)
-                .map(CourseReqDTO.CourseItemCreateReq::externalPlaceId)
-                .collect(Collectors.toSet());
-
-        if (externalPlaceIds.isEmpty()) {
-            return new HashMap<>();
-        }
-
-        return placeRepository.findBySourceAndExternalPlaceIdIn(PlaceSource.KAKAO, externalPlaceIds)
-                .stream()
-                .collect(Collectors.toMap(Place::getExternalPlaceId, Function.identity()));
     }
 
     private Map<Long, Content> getContentMap(List<CourseReqDTO.CourseItemCreateReq> courseItems) {
@@ -361,41 +347,6 @@ public class CourseServiceImpl implements CourseService {
         }
 
         return contentMap;
-    }
-
-    private Place getOrCreatePlace(CourseReqDTO.CourseItemCreateReq item, Map<String, Place> placeMap) {
-        Place place = placeMap.get(item.externalPlaceId());
-        if (place != null) {
-            return place;
-        }
-
-        Region placeRegion = findRegionByAddress(item.roadAddress(), item.lotAddress());
-        Place newPlace = placeRepository.save(CourseConverter.toPlace(item, placeRegion));
-
-        placeMap.put(newPlace.getExternalPlaceId(), newPlace);
-        return newPlace;
-    }
-
-    private Region findRegionByAddress(String roadAddress, String lotAddress) {
-        String address = StringUtils.hasText(roadAddress) ? roadAddress : lotAddress;
-        if (!StringUtils.hasText(address)) {
-            throw new GeneralException(RegionErrorCode.REGION_NOT_FOUND);
-        }
-
-        String[] addressParts = address.trim().split("\\s+");
-        if (addressParts.length < 2) {
-            throw new GeneralException(RegionErrorCode.REGION_NOT_FOUND);
-        }
-
-        String regionName = addressParts[0];
-        String subRegionName = addressParts[1];
-
-        Region region = regionRepository.findByFullName(regionName)
-                .or(() -> regionRepository.findByName(regionName))
-                .orElseThrow(() -> new GeneralException(RegionErrorCode.REGION_NOT_FOUND));
-
-        return regionRepository.findByParentAndName(region, subRegionName)
-                .orElseThrow(() -> new GeneralException(RegionErrorCode.REGION_NOT_FOUND));
     }
 
     private CourseResDTO.CoursePreview createFirstMockCourse() {
