@@ -2,7 +2,6 @@ package com.yeogido.backend.domain.content.service;
 
 import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.Tuple;
-import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.core.types.dsl.NumberExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
@@ -11,21 +10,19 @@ import com.yeogido.backend.domain.content.dto.ContentResDTO;
 import com.yeogido.backend.domain.content.entity.Content;
 import com.yeogido.backend.domain.content.entity.QContent;
 import com.yeogido.backend.domain.content.entity.QContentLike;
-import com.yeogido.backend.domain.content.enums.ContentCategory;
 import com.yeogido.backend.domain.content.repository.ContentLikeRepository;
-import com.yeogido.backend.domain.content.repository.ContentRepository;
 import com.yeogido.backend.domain.place.entity.QPlace;
-import com.yeogido.backend.global.common.response.CursorResponse;
-import com.yeogido.backend.global.common.response.StringCursorResponse;
+import com.yeogido.backend.global.common.dto.NextCursor;
+import com.yeogido.backend.global.common.response.ComplexCursorResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
-import static java.util.stream.Collectors.toList;
+import static com.yeogido.backend.domain.content.enums.ContentSort.DISTANCE;
+import static com.yeogido.backend.domain.content.enums.ContentSort.RECOMMEND;
 
 
 @Service
@@ -34,22 +31,23 @@ public class ContentServiceImpl implements ContentService{
 
     private final ContentLikeRepository contentLikeRepository;
     private final JPAQueryFactory queryFactory;
+    private static final int DEFAULT_PAGE_SIZE = 6;
+    private final QContent qContent = QContent.content;
+    private final QPlace qPlace = QPlace.place;
+    private final QContentLike qContentLike = QContentLike.contentLike;
+    private final NumberExpression<Long> likeCountExpression = qContentLike.id.count();
 
     @Override
-    public StringCursorResponse<ContentResDTO.ContentInfo> getContents(ContentReqDTO.ContentListReq request){
-
-        QContent qContent = QContent.content;
-        QContentLike qContentLike = QContentLike.contentLike;
-        QPlace qPlace =QPlace.place;
-        NumberExpression<Long> likeCount = qContentLike.id.count();
+    public ComplexCursorResponse<ContentResDTO.ContentInfo> getContents(ContentReqDTO.ContentListReq request){
 
         BooleanBuilder builder = new BooleanBuilder();
 
-        int size = request.size() == null ? 6 : request.size();
-        Long cursorLikeCount = null;
-        Long cursorId = null;
+        int size = request.size() == null ? DEFAULT_PAGE_SIZE : request.size();
+
+
         LocalDate cursorEndDate = null;
-        Double cursorDistance = null;
+        String cursorValue = request.cursorValue();
+        Long cursorId = request.cursorId();
 
         if (request.regionId() != null && request.regionId() > 0) {
             builder.and(qContent.place.region.id.eq(request.regionId()));
@@ -65,206 +63,74 @@ public class ContentServiceImpl implements ContentService{
 
         //TODO : 검색 로직 구현
 
-        //종료 임박순 : id 파싱
-        if ("종료 임박순".equals(request.sort()) && request.cursor() != null && !request.cursor().isBlank()) {
 
-            String[] cursor = request.cursor().split(":");
+        List<Content> contents=new ArrayList<>();
+        NextCursor<?> nextCursor = null;
 
-            cursorEndDate = LocalDate.parse(cursor[0]);
-            cursorId = Long.parseLong(cursor[1]);
-
-            builder.and(
-                    qContent.endDate.gt(cursorEndDate)
-                            .or(
-                                    qContent.endDate.eq(cursorEndDate)
-                                            .and(qContent.id.gt(cursorId))
-                            )
-            );
-        }
-
-
-        // 저장순 : id 파싱
-        if ("저장순".equals(request.sort()) && request.cursor() != null && !request.cursor().isBlank()) {
-
-            String[] cursor = request.cursor().split(":");
-
-            cursorLikeCount = Long.parseLong(cursor[0]);
-            cursorId = Long.parseLong(cursor[1]);
-        }
-
-
-
-        Double baseLatitude=null;
-        Double baseLongitude=null;
-
-        List<Content> contents;
-        List<Tuple> tuples = null;
-        NumberExpression<Double> distance = null;
 
         // 정렬 기준
-        if ("저장순".equals(request.sort())) {
+        switch (request.sort()) {
 
-            var query = queryFactory
-                    .selectFrom(qContent)
-                    .leftJoin(qContentLike)
-                    .on(qContentLike.content.eq(qContent))
-                    .where(builder)
-                    .groupBy(qContent.id);
+            case LIKE ->{
 
-            if (cursorLikeCount != null && cursorId != null) {
+                Long cursorLikeCount = null;
 
-                query.having(
-                        likeCount.lt(cursorLikeCount)
-                                .or(likeCount.eq(cursorLikeCount)
-                                                .and(qContent.id.gt(cursorId))
-                                )
+                if (request.cursorValue() != null) {
+                    cursorLikeCount = Long.valueOf(request.cursorValue());
+                }
+
+                contents = getLikeContents(
+                        builder,
+                        size,
+                        cursorLikeCount,
+                        request.cursorId()
                 );
-            }
 
-            contents = query
-                    .orderBy(likeCount.desc(), qContent.id.asc())
-                    .limit(size + 1)
-                    .fetch();
+                if (!contents.isEmpty()) {
+                    Content last = contents.get(contents.size() - 1);
 
-
-        } else if ("종료 임박순".equals(request.sort())) {
-
-            builder.and(qContent.endDate.goe(LocalDate.now()));
-
-            contents = queryFactory
-                    .selectFrom(qContent)
-                    .where(builder)
-                    .orderBy(qContent.endDate.asc(), qContent.id.asc())
-                    .limit(size+1)
-                    .fetch();
-
-        } else if ("거리순".equals(request.sort())) {
-
-            //GPS 허용 시 거리순
-            if(request.latitude() != null && request.longitude() != null){
-                baseLatitude = request.latitude();
-                baseLongitude = request.longitude();
-
-            }else {
-                if (request.regionId() == null) {
-                    throw new IllegalArgumentException("GPS를 허용하지 않은 경우 regionId가 필요합니다.");
-                }
-
-                //GPS 미허용 시 선택한 지역 중심 기준 거리순
-                Tuple center = queryFactory
-                        .select(
-                                qPlace.latitude.avg(),
-                                qPlace.longitude.avg()
-                        )
-                        .from(qPlace)
-                        .where(qPlace.region.id.eq(request.regionId()))
-                        .fetchOne();
-
-                if (center == null
-                        || center.get(qPlace.latitude.avg()) == null
-                        || center.get(qPlace.longitude.avg()) == null) {
-                    throw new IllegalArgumentException("선택한 지역의 좌표를 찾을 수 없습니다.");
-                }
-
-                baseLatitude = center.get(qPlace.latitude.avg()).doubleValue();
-                baseLongitude = center.get(qPlace.longitude.avg()).doubleValue();
-            }
-
-            //거리 계산식
-            distance =
-                    Expressions.numberTemplate(
-                            Double.class,
-                            "POWER({0} - {1}, 2) + POWER({2} - {3}, 2)",
-                            qContent.place.latitude,
-                            baseLatitude,
-                            qContent.place.longitude,
-                            baseLongitude
+                    nextCursor = new NextCursor<>(
+                            contentLikeRepository.countByContent(last),
+                            last.getId()
                     );
+                }
+            }
 
-            if (request.cursor() != null && !request.cursor().isBlank()) {
+            case DEADLINE -> {
 
-                String[] cursor = request.cursor().split(":");
+                contents = getDeadlineContents(builder, size, cursorId, cursorEndDate);
 
-                cursorDistance = Double.parseDouble(cursor[0]);
-                cursorId = Long.parseLong(cursor[1]);
+                Content last = contents.get(contents.size() - 1);
 
-                builder.and(
-                        distance.gt(cursorDistance)
-                                .or(
-                                        distance.eq(cursorDistance)
-                                                .and(qContent.id.gt(cursorId))
-                                )
+                nextCursor = new NextCursor<>(
+                        last.getEndDate(),
+                        last.getId()
+                );
+            }
+            case DISTANCE ->{
+
+                nextCursor = getDistanceContents(
+                        request,
+                        builder,
+                        size,
+                        contents
                 );
             }
 
-            tuples = queryFactory
-                    .select(qContent, distance)
-                    .from(qContent)
-                    .where(builder)
-                    .orderBy(distance.asc(), qContent.id.asc())
-                    .limit(size + 1)
-                    .fetch();
+            case RECOMMEND -> {
+                contents = getRecommendedContents(builder,size);
 
-            contents = new ArrayList<>(
-                    tuples.stream()
-                            .map(tuple -> tuple.get(qContent))
-                            .toList()
-            );
-
-        } else {
-
-            // TODO : 추천순 조회 로직 구현
-
-            contents = queryFactory
-                    .selectFrom(qContent)
-                    .where(builder)
-                    .orderBy(qContent.id.asc())
-                    .limit(size + 1)
-                    .fetch();
-
+                //TODO : 추천순 nextCursor 구현
+            }
         }
 
         boolean hasNext = contents.size() > size;
 
         if (hasNext) {
             contents.remove(contents.size() - 1);
-
-            if (tuples != null) {
-                tuples.remove(tuples.size() - 1);
-            }
         }
 
 
-        // nextCursor 생성
-        String nextCursor = null;
-
-        if (!contents.isEmpty()) {
-            Content last = contents.get(contents.size() - 1);
-
-            if ("저장순".equals(request.sort())) {
-
-                long likeCountValue = contentLikeRepository.countByContent(last);
-                nextCursor = likeCountValue + ":" + last.getId();
-
-            } else if ("종료 임박순".equals(request.sort())) {
-
-                nextCursor = last.getEndDate() + ":" + last.getId();
-
-            } else if ("거리순".equals(request.sort())) {
-
-                Tuple lastTuple = tuples.get(tuples.size() - 1);
-
-                last = lastTuple.get(qContent);
-                Double lastDistance = lastTuple.get(distance);
-
-                nextCursor = lastDistance + ":" + last.getId();
-
-            } else {
-
-                // TODO:추천순 커서 구현
-                nextCursor = last.getId().toString();
-            }
-        }
 
         // TODO : 반환값에 해시태그 추가
         List<ContentResDTO.ContentInfo> result = contents.stream()
@@ -280,12 +146,182 @@ public class ContentServiceImpl implements ContentService{
                         .build())
                 .toList();
 
-        return StringCursorResponse.of(
+        return ComplexCursorResponse.of(
                 result,
                 nextCursor,
                 hasNext
         );
     }
+
+
+    // 저장순(좋아요 많은 순)
+    private List<Content> getLikeContents(
+            BooleanBuilder builder,
+            int size,
+            Long cursorLikeCount,
+            Long cursorId
+    ) {
+
+        var query = queryFactory
+                .select(qContent, likeCountExpression)
+                .from(qContent)
+                .leftJoin(qContentLike)
+                .on(qContentLike.content.eq(qContent))
+                .where(builder)
+                .groupBy(qContent.id);
+
+        if (cursorLikeCount != null && cursorId != null) {
+            query.having(
+                    likeCountExpression.lt(cursorLikeCount)
+                            .or(likeCountExpression.eq(cursorLikeCount)
+                                    .and(qContent.id.gt(cursorId))
+                            )
+            );
+        }
+
+        return query
+                .orderBy(likeCountExpression.desc(), qContent.id.asc())
+                .limit(size + 1)
+                .fetch();
+
+    }
+
+    // 종료 임박순
+    private List<Content> getDeadlineContents(
+            BooleanBuilder builder,
+            int size,
+            Long cursorId,
+            LocalDate cursorEndDate
+    ) {
+        if (cursorEndDate != null && cursorId != null) {
+            builder.and(
+                    qContent.endDate.gt(cursorEndDate)
+                            .or(
+                                    qContent.endDate.eq(cursorEndDate)
+                                            .and(qContent.id.gt(cursorId))
+                            )
+            );
+        }
+
+        return queryFactory
+                .selectFrom(qContent)
+                .where(builder)
+                .orderBy(qContent.endDate.asc(), qContent.id.asc())
+                .limit(size+1)
+                .fetch();
+
+    }
+
+
+    // 거리순
+    private NextCursor<Double> getDistanceContents(
+            ContentReqDTO.ContentListReq request,
+            BooleanBuilder builder,
+            int size,
+            List<Content> contents
+    ) {
+
+        NumberExpression<Double> avgLatitude = qPlace.latitude.avg();
+        NumberExpression<Double> avgLongitude = qPlace.longitude.avg();
+
+        double baseLatitude;
+        double baseLongitude;
+
+        //GPS 허용 시 거리순
+        if(request.latitude() != null && request.longitude() != null){
+            baseLatitude = request.latitude();
+            baseLongitude = request.longitude();
+
+        }else {
+            if (request.regionId() == null) {
+                throw new IllegalArgumentException("GPS를 허용하지 않은 경우 regionId가 필요합니다.");
+            }
+
+            //GPS 미허용 시 선택한 지역 중심 기준 거리순
+            Tuple center = queryFactory
+                    .select(avgLatitude, avgLongitude)
+                    .from(qPlace)
+                    .where(qPlace.region.id.eq(request.regionId()))
+                    .fetchOne();
+
+            if (center == null
+                    || center.get(avgLatitude) == null
+                    || center.get(avgLongitude) == null) {
+                throw new IllegalArgumentException("선택한 지역의 좌표를 찾을 수 없습니다.");
+            }
+
+            baseLatitude = center.get(avgLatitude);
+            baseLongitude = center.get(avgLongitude);
+        }
+
+        NumberExpression<Double> distance =
+                createDistanceExpression(baseLatitude, baseLongitude);
+
+        List<Tuple> tuples= queryFactory
+                .select(qContent, distance)
+                .from(qContent)
+                .where(builder)
+                .orderBy(distance.asc(), qContent.id.asc())
+                .limit(size + 1)
+                .fetch();
+
+        contents.addAll(
+                tuples.stream()
+                        .map(tuple -> tuple.get(qContent))
+                        .toList()
+        );
+
+        Tuple lastTuple = tuples.get(tuples.size() - 1);
+
+        Double lastDistance = lastTuple.get(distance);
+        Content lastContent = lastTuple.get(qContent);
+
+        return new NextCursor<>(
+                lastDistance,
+                lastContent.getId()
+        );
+
+    }
+
+
+    // 추천순
+    private List<Content> getRecommendedContents(
+            BooleanBuilder builder,
+            int size
+    ) {
+
+        // TODO : 추천순 로직 구현
+
+        return queryFactory
+                .selectFrom(qContent)
+                .where(builder)
+                .orderBy(
+                        qContent.createdAt.desc(),
+                        qContent.id.asc()
+                )
+                .limit(size + 1)
+                .fetch();
+    }
+
+
+    //거리 계산(거리순)
+    private NumberExpression<Double> createDistanceExpression(
+            double baseLatitude,
+            double baseLongitude
+    ) {
+        return Expressions.numberTemplate(
+                Double.class,
+                "POWER({0} - {1}, 2) + POWER({2} - {3}, 2)",
+                qContent.place.latitude,
+                baseLatitude,
+                qContent.place.longitude,
+                baseLongitude
+        );
+    }
+
+
+
+
 
     @Override
     public ContentResDTO.ContentDetailRes getContentDetail(Long contentId){
@@ -304,6 +340,7 @@ public class ContentServiceImpl implements ContentService{
         );
 
     }
+
 
     @Override
     public ContentResDTO.ContentCreateRes createContent(ContentReqDTO.ContentCreateReq request){

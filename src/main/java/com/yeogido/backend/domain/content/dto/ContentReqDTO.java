@@ -1,6 +1,8 @@
 package com.yeogido.backend.domain.content.dto;
 
 import com.yeogido.backend.domain.content.enums.ContentCategory;
+import com.yeogido.backend.domain.content.enums.ContentSort;
+import com.yeogido.backend.global.common.dto.NextCursor;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.LocalDate;
@@ -20,7 +22,7 @@ public class ContentReqDTO {
             String keyword,
 
             @Schema(description = "정렬 기준")
-            String sort,
+            ContentSort sort,
 
             @Schema(description = "위도")
             Double latitude,
@@ -28,13 +30,14 @@ public class ContentReqDTO {
             @Schema(description = "경도")
             Double longitude,
 
-            @Schema(description = "커서")
-            String cursor,
+            @Schema(description = "커서 값")
+            String cursorValue,
+
+            @Schema(description = "커서 ID")
+            Long cursorId,
 
             @Schema(description = "조회 개수")
             Integer size
-
-
 
     ){}
 

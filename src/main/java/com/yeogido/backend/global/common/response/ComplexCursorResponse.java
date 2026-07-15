@@ -1,5 +1,6 @@
 package com.yeogido.backend.global.common.response;
 
+import com.yeogido.backend.global.common.dto.NextCursor;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -12,20 +13,20 @@ import java.util.List;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class StringCursorResponse<T> {
+public class ComplexCursorResponse<T> {
 
     private List<T> items;
 
-    private String nextCursor;
+    private NextCursor<?> nextCursor;
 
     private boolean hasNext;
 
-    public static <T> StringCursorResponse<T> of(
+    public static <T> ComplexCursorResponse<T> of(
             List<T> items,
-            String nextCursor,
+            NextCursor<?> nextCursor,
             boolean hasNext
     ) {
-        return StringCursorResponse.<T>builder()
+        return ComplexCursorResponse.<T>builder()
                 .items(items)
                 .nextCursor(nextCursor)
                 .hasNext(hasNext)

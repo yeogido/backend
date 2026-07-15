@@ -6,12 +6,10 @@ import com.yeogido.backend.domain.content.dto.ContentResDTO;
 import com.yeogido.backend.domain.content.service.ContentService;
 import com.yeogido.backend.global.common.code.SuccessCode;
 import com.yeogido.backend.global.common.response.ApiResponse;
-import com.yeogido.backend.global.common.response.CursorResponse;
-import com.yeogido.backend.global.common.response.StringCursorResponse;
+import com.yeogido.backend.global.common.response.ComplexCursorResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import lombok.Value;
 import org.springframework.web.bind.annotation.*;
 
 @RequiredArgsConstructor
@@ -28,10 +26,10 @@ public class ContentController {
 
     )
     @GetMapping
-    public ApiResponse<StringCursorResponse<ContentResDTO.ContentInfo>> getContents(
+    public ApiResponse<ComplexCursorResponse<ContentResDTO.ContentInfo>> getContents(
             @ModelAttribute ContentReqDTO.ContentListReq request
     ){
-        StringCursorResponse<ContentResDTO.ContentInfo> result = contentService.getContents(request);
+        ComplexCursorResponse<ContentResDTO.ContentInfo> result = contentService.getContents(request);
         return ApiResponse.onSuccess(SuccessCode.OK,result);
     }
 
