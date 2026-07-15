@@ -371,8 +371,6 @@ public class CourseServiceImpl implements CourseService {
 
     private void replaceCourseHashtags(Course course, List<Long> hashtagIds) {
         courseHashtagRepository.deleteAllByCourseId(course.getId());
-        courseHashtagRepository.flush();
-
         saveCourseHashtags(course, hashtagIds);
     }
 
@@ -400,8 +398,6 @@ public class CourseServiceImpl implements CourseService {
 
     private void replaceCourseItems(Course course, List<CourseReqDTO.CourseItemCreateReq> courseItems) {
         courseItemRepository.deleteAllByCourseId(course.getId());
-        courseItemRepository.flush();
-
         saveCourseItems(course, courseItems);
     }
 
