@@ -32,6 +32,7 @@ import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.region.exception.RegionErrorCode;
 import com.yeogido.backend.domain.region.repository.RegionRepository;
 import com.yeogido.backend.domain.user.entity.User;
+import com.yeogido.backend.domain.user.enums.UserRole;
 import com.yeogido.backend.domain.user.repository.UserRepository;
 import com.yeogido.backend.global.common.response.CursorResponse;
 import com.yeogido.backend.global.exception.GeneralErrorCode;
@@ -87,7 +88,7 @@ public class CourseServiceImpl implements CourseService {
         Course course = getActiveCourse(courseId);
         User user = getCurrentUser();
 
-        validateCourseAuthor(course, user);
+        validateCourseAuthority(course, user);
         validateCourseUpdateRequest(request);
 
         course.update(
@@ -248,9 +249,22 @@ public class CourseServiceImpl implements CourseService {
                 .orElseThrow(() -> new GeneralException(RegionErrorCode.REGION_NOT_FOUND));
     }
 
-    private void validateCourseAuthor(Course course, User user) {
-        if (course.getUser() == null || !Objects.equals(course.getUser().getId(), user.getId())) {
-            throw new GeneralException(GeneralErrorCode.FORBIDDEN);
+    private void validateCourseAuthority(Course course, User user) {
+        switch (course.getCourseType()) {
+            case OFFICIAL -> {
+                if (user.getRole() != UserRole.ADMIN) {
+                    throw new GeneralException(GeneralErrorCode.FORBIDDEN);
+                }
+            }
+
+            case LOCAL -> {
+                if (course.getUser() == null ||
+                        !Objects.equals(course.getUser().getId(), user.getId())) {
+                    throw new GeneralException(GeneralErrorCode.FORBIDDEN);
+                }
+            }
+
+            default -> throw new GeneralException(GeneralErrorCode.FORBIDDEN);
         }
     }
 
