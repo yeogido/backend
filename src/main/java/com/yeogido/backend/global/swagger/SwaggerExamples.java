@@ -13,6 +13,8 @@ public final class SwaggerExamples {
               "durationType": "DAY_TRIP",
               "transportType": "CAR",
               "companionType": "FRIEND",
+              "monthStart": 4,
+              "monthEnd": 10,
               "thumbnailKey": "courses/thumbnail/abcd1234.jpg",
               "hashtagIds": [1, 3],
               "courseItems": [
@@ -41,6 +43,8 @@ public final class SwaggerExamples {
         {
           "title": "부산 감성 여행 코스",
           "description": "광안리와 해운대를 중심으로 감성 카페와 야경을 즐기는 코스입니다.",
+          "monthStart": 5,
+          "monthEnd": 9,
           "thumbnailKey": "courses/thumbnail/busan-emotion.jpg",
           "hashtagIds": [2, 4, 6],
           "courseItems": [

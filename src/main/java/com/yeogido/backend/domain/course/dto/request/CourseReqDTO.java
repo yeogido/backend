@@ -10,6 +10,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -47,6 +49,18 @@ public class CourseReqDTO {
             @Schema(description = "동행 유형", example = "FRIEND")
             CompanionType companionType,
 
+            @NotNull(message = "여행 시작 월은 필수입니다")
+            @Min(value = 1, message = "여행 시작 월은 1 이상이어야 합니다")
+            @Max(value = 12, message = "여행 시작 월은 12 이하이어야 합니다")
+            @Schema(description = "여행 시작 월", example = "4")
+            Integer monthStart,
+
+            @NotNull(message = "여행 종료 월은 필수입니다")
+            @Min(value = 1, message = "여행 종료 월은 1 이상이어야 합니다")
+            @Max(value = 12, message = "여행 종료 월은 12 이하이어야 합니다")
+            @Schema(description = "여행 종료 월", example = "10")
+            Integer monthEnd,
+
             @Schema(description = "대표 이미지 S3 key", example = "courses/thumbnail/abcd1234.jpg")
             @NotBlank(message = "대표 이미지는 필수입니다")
             String thumbnailKey,
@@ -83,6 +97,16 @@ public class CourseReqDTO {
 
             @Schema(description = "동행 유형", example = "FRIEND")
             CompanionType companionType,
+
+            @Min(value = 1, message = "여행 시작 월은 1 이상이어야 합니다")
+            @Max(value = 12, message = "여행 시작 월은 12 이하이어야 합니다")
+            @Schema(description = "여행 시작 월", example = "5")
+            Integer monthStart,
+
+            @Min(value = 1, message = "여행 종료 월은 1 이상이어야 합니다")
+            @Max(value = 12, message = "여행 종료 월은 12 이하이어야 합니다")
+            @Schema(description = "여행 종료 월", example = "9")
+            Integer monthEnd,
 
             @Schema(description = "대표 이미지 S3 key", example = "courses/thumbnail/abcd1234.jpg")
             String thumbnailKey,

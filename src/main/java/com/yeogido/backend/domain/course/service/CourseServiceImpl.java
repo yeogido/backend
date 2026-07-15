@@ -97,6 +97,8 @@ public class CourseServiceImpl implements CourseService {
                 request.durationType(),
                 request.transportType(),
                 request.companionType(),
+                request.monthStart(),
+                request.monthEnd(),
                 request.thumbnailKey()
         );
 

@@ -83,6 +83,8 @@ public class Course extends BaseEntity {
             DurationType durationType,
             TransportType transportType,
             CompanionType companionType,
+            Integer monthStart,
+            Integer monthEnd,
             String thumbnailKey
     ) {
         if (title != null) {
@@ -99,6 +101,12 @@ public class Course extends BaseEntity {
         }
         if (companionType != null) {
             this.companionType = companionType;
+        }
+        if (monthStart != null) {
+            this.monthStart = monthStart;
+        }
+        if (monthEnd != null) {
+            this.monthEnd = monthEnd;
         }
         if (thumbnailKey != null) {
             this.thumbnailKey = thumbnailKey;
