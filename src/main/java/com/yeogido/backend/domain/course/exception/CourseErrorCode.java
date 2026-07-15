@@ -13,6 +13,30 @@ public enum CourseErrorCode implements ErrorCode {
             HttpStatus.NOT_FOUND,
             "COURSE4041",
             "추천 코스가 존재하지 않습니다."
+    ),
+
+    DUPLICATE_HASHTAG(
+            HttpStatus.BAD_REQUEST,
+            "COURSE4001",
+            "중복된 해시태그가 포함되어 있습니다."
+    ),
+
+    PLACE_ITEM_REQUIRED(
+            HttpStatus.BAD_REQUEST,
+            "COURSE4002",
+            "코스에는 장소가 최소 1개 이상 포함되어야 합니다."
+    ),
+
+    DUPLICATE_COURSE_ITEM_ORDER(
+            HttpStatus.BAD_REQUEST,
+            "COURSE4003",
+            "코스 구성 항목 순서는 중복될 수 없습니다."
+    ),
+
+    INVALID_COURSE_ITEM(
+            HttpStatus.BAD_REQUEST,
+            "COURSE4004",
+            "코스 구성 항목이 올바르지 않습니다."
     );
 
     private final HttpStatus httpStatus;

@@ -5,6 +5,7 @@ import com.yeogido.backend.domain.course.enums.CourseType;
 import com.yeogido.backend.domain.course.enums.DurationType;
 import com.yeogido.backend.domain.course.enums.TransportType;
 import com.yeogido.backend.domain.region.entity.Region;
+import com.yeogido.backend.domain.user.entity.User;
 import com.yeogido.backend.global.entity.BaseEntity;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -30,6 +31,10 @@ public class Course extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "region_id", nullable = false)
     private Region region;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
+    private User user;
 
     @Column(nullable = false, length = 100)
     private String title;

@@ -1,15 +1,19 @@
 package com.yeogido.backend.global.exception;
 
+import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import com.yeogido.backend.global.common.response.ApiResponse;
 import com.yeogido.backend.global.common.response.ValidationError;
 import com.yeogido.backend.global.common.response.ValidationErrorResponse;
-import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+import java.util.Collections;
+import java.util.List;
 
 @Slf4j
 @RestControllerAdvice
@@ -27,24 +31,11 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.onFailure(errorCode));
     }
 
-    @ExceptionHandler(Exception.class)
-    public ResponseEntity<ApiResponse<Void>> handleException(
-            Exception e
-    ) {
-
-        log.error("Unexpected exception occurred", e);
-
-        return ResponseEntity
-                .status(GeneralErrorCode.INTERNAL_SERVER_ERROR.getHttpStatus())
-                .body(ApiResponse.onFailure(
-                        GeneralErrorCode.INTERNAL_SERVER_ERROR
-                ));
-    }
-
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiResponse<ValidationErrorResponse>> handleValidationException(
             MethodArgumentNotValidException e
     ) {
+
         List<ValidationError> errors = e.getBindingResult()
                 .getFieldErrors()
                 .stream()
@@ -63,6 +54,56 @@ public class GlobalExceptionHandler {
                         .message(GeneralErrorCode.INVALID_REQUEST.getMessage())
                         .result(new ValidationErrorResponse(errors))
                         .build());
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiResponse<ValidationErrorResponse>> handleHttpMessageNotReadableException(
+            HttpMessageNotReadableException e
+    ) {
+
+        if (e.getCause() instanceof InvalidFormatException ex
+                && !ex.getPath().isEmpty()) {
+
+            String field = ex.getPath().get(ex.getPath().size() - 1).getFieldName();
+
+            ValidationError error = new ValidationError(
+                    field,
+                    ex.getValue(),
+                    "올바르지 않은 값입니다."
+            );
+
+            return ResponseEntity
+                    .status(GeneralErrorCode.INVALID_REQUEST.getHttpStatus())
+                    .body(ApiResponse.<ValidationErrorResponse>builder()
+                            .isSuccess(false)
+                            .code(GeneralErrorCode.INVALID_REQUEST.getCode())
+                            .message(GeneralErrorCode.INVALID_REQUEST.getMessage())
+                            .result(new ValidationErrorResponse(Collections.singletonList(error)))
+                            .build());
+        }
+
+        return ResponseEntity
+                .status(GeneralErrorCode.INVALID_REQUEST.getHttpStatus())
+                .body(ApiResponse.<ValidationErrorResponse>builder()
+                        .isSuccess(false)
+                        .code(GeneralErrorCode.INVALID_REQUEST.getCode())
+                        .message(GeneralErrorCode.INVALID_REQUEST.getMessage())
+                        .result(null)
+                        .build());
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ApiResponse<Void>> handleException(
+            Exception e
+    ) {
+
+        log.error("Unexpected exception occurred", e);
+
+        return ResponseEntity
+                .status(GeneralErrorCode.INTERNAL_SERVER_ERROR.getHttpStatus())
+                .body(ApiResponse.onFailure(
+                        GeneralErrorCode.INTERNAL_SERVER_ERROR
+                ));
     }
 
     private Object getRejectedValue(FieldError error) {

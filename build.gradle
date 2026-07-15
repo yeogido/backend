@@ -49,6 +49,10 @@ dependencies {
 	testCompileOnly 'org.projectlombok:lombok'
 	testAnnotationProcessor 'org.projectlombok:lombok'
 
+	// AWS SDK
+	implementation platform("software.amazon.awssdk:bom:2.32.19")
+	implementation "software.amazon.awssdk:s3"
+
 	// Test
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'com.h2database:h2'

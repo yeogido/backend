@@ -1,0 +1,85 @@
+package com.yeogido.backend.domain.place.service;
+
+import com.yeogido.backend.domain.course.converter.CourseConverter;
+import com.yeogido.backend.domain.course.dto.request.CourseReqDTO;
+import com.yeogido.backend.domain.course.enums.CourseItemType;
+import com.yeogido.backend.domain.place.entity.Place;
+import com.yeogido.backend.domain.place.enums.PlaceSource;
+import com.yeogido.backend.domain.place.repository.PlaceRepository;
+import com.yeogido.backend.domain.region.entity.Region;
+import com.yeogido.backend.domain.region.exception.RegionErrorCode;
+import com.yeogido.backend.domain.region.repository.RegionRepository;
+import com.yeogido.backend.global.exception.GeneralException;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
+@Service
+@RequiredArgsConstructor
+@Transactional(readOnly = true)
+public class PlaceServiceImpl implements PlaceService {
+
+    private final PlaceRepository placeRepository;
+    private final RegionRepository regionRepository;
+
+    @Override
+    public Map<String, Place> getPlaceMap(List<CourseReqDTO.CourseItemCreateReq> items) {
+        Set<String> externalPlaceIds = items.stream()
+                .filter(item -> item.type() == CourseItemType.PLACE)
+                .map(CourseReqDTO.CourseItemCreateReq::externalPlaceId)
+                .collect(Collectors.toSet());
+
+        if (externalPlaceIds.isEmpty()) {
+            return new HashMap<>();
+        }
+
+        return placeRepository.findBySourceAndExternalPlaceIdIn(PlaceSource.KAKAO, externalPlaceIds)
+                .stream()
+                .collect(Collectors.toMap(Place::getExternalPlaceId, Function.identity()));
+    }
+
+    @Override
+    @Transactional
+    public Place getOrCreatePlace(CourseReqDTO.CourseItemCreateReq item, Map<String, Place> placeMap) {
+        Place place = placeMap.get(item.externalPlaceId());
+        if (place != null) {
+            return place;
+        }
+
+        Region placeRegion = findRegionByAddress(item.roadAddress(), item.lotAddress());
+        Place newPlace = placeRepository.save(CourseConverter.toPlace(item, placeRegion));
+
+        placeMap.put(newPlace.getExternalPlaceId(), newPlace);
+        return newPlace;
+    }
+
+    private Region findRegionByAddress(String roadAddress, String lotAddress) {
+        String address = StringUtils.hasText(roadAddress) ? roadAddress : lotAddress;
+        if (!StringUtils.hasText(address)) {
+            throw new GeneralException(RegionErrorCode.REGION_NOT_FOUND);
+        }
+
+        String[] addressParts = address.trim().split("\\s+");
+        if (addressParts.length < 2) {
+            throw new GeneralException(RegionErrorCode.REGION_NOT_FOUND);
+        }
+
+        String regionName = addressParts[0];
+        String subRegionName = addressParts[1];
+
+        Region region = regionRepository.findByFullName(regionName)
+                .or(() -> regionRepository.findByName(regionName))
+                .orElseThrow(() -> new GeneralException(RegionErrorCode.REGION_NOT_FOUND));
+
+        return regionRepository.findByParentAndName(region, subRegionName)
+                .orElseThrow(() -> new GeneralException(RegionErrorCode.REGION_NOT_FOUND));
+    }
+}

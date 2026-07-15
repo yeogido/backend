@@ -20,6 +20,18 @@ spring:
     baseline-on-migrate: true
     validate-on-migrate: true
 
+cloud:
+  aws:
+    credentials:
+      access-key: ${AWS_ACCESS_KEY}
+      secret-key: ${AWS_SECRET_KEY}
+    region:
+      static: ${AWS_REGION}
+
+app:
+  s3:
+    bucket: ${S3_BUCKET}
+
 server:
   forward-headers-strategy: framework
 

@@ -1,4 +1,4 @@
-package com.yeogido.backend.domain.region.exception;
+package com.yeogido.backend.domain.content.exception;
 
 import com.yeogido.backend.global.exception.ErrorCode;
 import lombok.Getter;
@@ -7,12 +7,12 @@ import org.springframework.http.HttpStatus;
 
 @Getter
 @RequiredArgsConstructor
-public enum RegionErrorCode implements ErrorCode {
+public enum ContentErrorCode implements ErrorCode {
 
-    REGION_NOT_FOUND(
+    CONTENT_NOT_FOUND(
             HttpStatus.NOT_FOUND,
-            "REGION4041",
-            "지역이 존재하지 않습니다."
+            "CONTENT4041",
+            "콘텐츠가 존재하지 않습니다."
     );
 
     private final HttpStatus httpStatus;
