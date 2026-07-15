@@ -6,6 +6,6 @@ import lombok.RequiredArgsConstructor;
 @Getter
 @RequiredArgsConstructor
 public enum RegionType {
-    SIDO,
-    SIGUNGU
+    REGION,
+    SUB_REGION
 }

@@ -6,8 +6,11 @@ import com.yeogido.backend.domain.course.service.CourseService;
 import com.yeogido.backend.global.common.code.SuccessCode;
 import com.yeogido.backend.global.common.response.ApiResponse;
 import com.yeogido.backend.global.common.response.CursorResponse;
+import com.yeogido.backend.global.swagger.SwaggerExamples;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +35,15 @@ public class CourseController {
 
     private final CourseService courseService;
 
+    @io.swagger.v3.oas.annotations.parameters.RequestBody(
+            required = true,
+            content = @Content(
+                    examples = @ExampleObject(
+                            name = "추천 코스 등록 예시",
+                            value = SwaggerExamples.COURSE_CREATE
+                    )
+            )
+    )
     @Operation(summary = "추천 코스 등록", description = "추천 코스를 등록합니다.")
     @PostMapping
     public ApiResponse<CourseResDTO.CourseCreateRes> createCourse(
