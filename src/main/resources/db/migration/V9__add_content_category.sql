@@ -1,0 +1,2 @@
+ALTER TABLE content
+ADD COLUMN category VARCHAR(20);
