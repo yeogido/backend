@@ -14,6 +14,8 @@ import com.yeogido.backend.domain.content.repository.ContentLikeRepository;
 import com.yeogido.backend.domain.place.entity.QPlace;
 import com.yeogido.backend.global.common.dto.NextCursor;
 import com.yeogido.backend.global.common.response.ComplexCursorResponse;
+import com.yeogido.backend.global.exception.GeneralErrorCode;
+import com.yeogido.backend.global.exception.GeneralException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -45,9 +47,11 @@ public class ContentServiceImpl implements ContentService{
         int size = request.size() == null ? DEFAULT_PAGE_SIZE : request.size();
 
 
+        Long cursorLikeCount = null;
         LocalDate cursorEndDate = null;
         String cursorValue = request.cursorValue();
         Long cursorId = request.cursorId();
+        Double cursorDistance = null;
 
         if (request.regionId() != null && request.regionId() > 0) {
             builder.and(qContent.place.region.id.eq(request.regionId()));
@@ -66,6 +70,7 @@ public class ContentServiceImpl implements ContentService{
 
         List<Content> contents=new ArrayList<>();
         NextCursor<?> nextCursor = null;
+        boolean hasNext = false;
 
 
         // 정렬 기준
@@ -73,48 +78,81 @@ public class ContentServiceImpl implements ContentService{
 
             case LIKE ->{
 
-                Long cursorLikeCount = null;
-
                 if (request.cursorValue() != null) {
                     cursorLikeCount = Long.valueOf(request.cursorValue());
                 }
 
-                contents = getLikeContents(
+                List<Tuple> tuples = getLikeContents(
                         builder,
                         size,
                         cursorLikeCount,
                         request.cursorId()
                 );
 
-                if (!contents.isEmpty()) {
-                    Content last = contents.get(contents.size() - 1);
+                hasNext = tuples.size() > size;
+
+                if (hasNext) {
+                    tuples.remove(tuples.size() - 1);
+                }
+
+                contents = tuples.stream()
+                        .map(tuple -> tuple.get(qContent))
+                        .toList();
+
+                if (!tuples.isEmpty()) {
+
+                    Tuple lastTuple = tuples.get(tuples.size() - 1);
 
                     nextCursor = new NextCursor<>(
-                            contentLikeRepository.countByContent(last),
-                            last.getId()
+                            lastTuple.get(likeCountExpression),
+                            lastTuple.get(qContent).getId()
                     );
                 }
             }
 
             case DEADLINE -> {
 
+                if (cursorValue != null) {
+                    cursorEndDate = LocalDate.parse(cursorValue);
+                }
+
                 contents = getDeadlineContents(builder, size, cursorId, cursorEndDate);
 
-                Content last = contents.get(contents.size() - 1);
+                hasNext = contents.size() > size;
 
-                nextCursor = new NextCursor<>(
-                        last.getEndDate(),
-                        last.getId()
-                );
+                if (hasNext) {
+                    contents.remove(contents.size() - 1);
+                }
+
+                if (!contents.isEmpty()) {
+                    Content last = contents.get(contents.size() - 1);
+
+                    nextCursor = new NextCursor<>(
+                            last.getEndDate(),
+                            last.getId()
+                    );
+                }
             }
             case DISTANCE ->{
+
+                if (cursorValue != null) {
+                    cursorDistance = Double.valueOf(cursorValue);
+                }
 
                 nextCursor = getDistanceContents(
                         request,
                         builder,
                         size,
+                        cursorDistance,
+                        cursorId,
                         contents
                 );
+
+                hasNext = contents.size() > size;
+
+                if (hasNext) {
+                    contents.remove(contents.size() - 1);
+                }
             }
 
             case RECOMMEND -> {
@@ -124,11 +162,6 @@ public class ContentServiceImpl implements ContentService{
             }
         }
 
-        boolean hasNext = contents.size() > size;
-
-        if (hasNext) {
-            contents.remove(contents.size() - 1);
-        }
 
 
 
@@ -155,7 +188,7 @@ public class ContentServiceImpl implements ContentService{
 
 
     // 저장순(좋아요 많은 순)
-    private List<Content> getLikeContents(
+    private List<Tuple> getLikeContents(
             BooleanBuilder builder,
             int size,
             Long cursorLikeCount,
@@ -193,6 +226,9 @@ public class ContentServiceImpl implements ContentService{
             Long cursorId,
             LocalDate cursorEndDate
     ) {
+
+        builder.and(qContent.endDate.goe(LocalDate.now()));
+
         if (cursorEndDate != null && cursorId != null) {
             builder.and(
                     qContent.endDate.gt(cursorEndDate)
@@ -218,6 +254,8 @@ public class ContentServiceImpl implements ContentService{
             ContentReqDTO.ContentListReq request,
             BooleanBuilder builder,
             int size,
+            Double cursorDistance,
+            Long cursorId,
             List<Content> contents
     ) {
 
@@ -227,17 +265,17 @@ public class ContentServiceImpl implements ContentService{
         double baseLatitude;
         double baseLongitude;
 
-        //GPS 허용 시 거리순
+        //GPS 허용 시
         if(request.latitude() != null && request.longitude() != null){
             baseLatitude = request.latitude();
             baseLongitude = request.longitude();
 
         }else {
             if (request.regionId() == null) {
-                throw new IllegalArgumentException("GPS를 허용하지 않은 경우 regionId가 필요합니다.");
+                throw new GeneralException(GeneralErrorCode.INVALID_PARAMETER);
             }
 
-            //GPS 미허용 시 선택한 지역 중심 기준 거리순
+            //GPS 미허용 시 선택한 지역 중심 기준
             Tuple center = queryFactory
                     .select(avgLatitude, avgLongitude)
                     .from(qPlace)
@@ -247,7 +285,7 @@ public class ContentServiceImpl implements ContentService{
             if (center == null
                     || center.get(avgLatitude) == null
                     || center.get(avgLongitude) == null) {
-                throw new IllegalArgumentException("선택한 지역의 좌표를 찾을 수 없습니다.");
+                throw new GeneralException(GeneralErrorCode.INVALID_PARAMETER);
             }
 
             baseLatitude = center.get(avgLatitude);
@@ -257,7 +295,17 @@ public class ContentServiceImpl implements ContentService{
         NumberExpression<Double> distance =
                 createDistanceExpression(baseLatitude, baseLongitude);
 
-        List<Tuple> tuples= queryFactory
+        if (cursorDistance != null && cursorId != null) {
+            builder.and(
+                    distance.gt(cursorDistance)
+                            .or(
+                                    distance.eq(cursorDistance)
+                                            .and(qContent.id.gt(cursorId))
+                            )
+            );
+        }
+
+        List<Tuple> tuples = queryFactory
                 .select(qContent, distance)
                 .from(qContent)
                 .where(builder)
@@ -270,6 +318,14 @@ public class ContentServiceImpl implements ContentService{
                         .map(tuple -> tuple.get(qContent))
                         .toList()
         );
+
+        if (tuples.isEmpty()) {
+            return null;
+        }
+
+        if (tuples.size() > size) {
+            tuples.remove(tuples.size() - 1);
+        }
 
         Tuple lastTuple = tuples.get(tuples.size() - 1);
 
