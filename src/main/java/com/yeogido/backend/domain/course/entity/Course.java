@@ -76,4 +76,32 @@ public class Course extends BaseEntity {
 
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
+
+    public void update(
+            String title,
+            String description,
+            DurationType durationType,
+            TransportType transportType,
+            CompanionType companionType,
+            String thumbnailKey
+    ) {
+        if (title != null) {
+            this.title = title;
+        }
+        if (description != null) {
+            this.description = description;
+        }
+        if (durationType != null) {
+            this.durationType = durationType;
+        }
+        if (transportType != null) {
+            this.transportType = transportType;
+        }
+        if (companionType != null) {
+            this.companionType = companionType;
+        }
+        if (thumbnailKey != null) {
+            this.thumbnailKey = thumbnailKey;
+        }
+    }
 }

@@ -46,22 +46,22 @@ public class CourseController {
     )
     @Operation(summary = "추천 코스 등록", description = "추천 코스를 등록합니다.")
     @PostMapping
-    public ApiResponse<CourseResDTO.CourseCreateRes> createCourse(
+    public ApiResponse<CourseResDTO.CourseIdRes> createCourse(
             @Valid @RequestBody CourseReqDTO.CourseCreateReq request
     ) {
-        CourseResDTO.CourseCreateRes response = courseService.createCourse(request);
+        CourseResDTO.CourseIdRes response = courseService.createCourse(request);
 
         return ApiResponse.onSuccess(SuccessCode.CREATED, response);
     }
 
     @Operation(summary = "추천 코스 수정", description = "추천 코스를 수정합니다.")
     @PatchMapping("/{courseId}")
-    public ApiResponse<CourseResDTO.CourseCreateRes> updateCourse(
+    public ApiResponse<CourseResDTO.CourseIdRes> updateCourse(
             @Parameter(description = "코스 ID", example = "15")
             @PathVariable Long courseId,
-            @Valid @RequestBody CourseReqDTO.CourseCreateReq request
+            @Valid @RequestBody CourseReqDTO.CourseUpdateReq request
     ) {
-        CourseResDTO.CourseCreateRes response = courseService.updateCourse(courseId, request);
+        CourseResDTO.CourseIdRes response = courseService.updateCourse(courseId, request);
 
         return ApiResponse.onSuccess(SuccessCode.OK, response);
     }

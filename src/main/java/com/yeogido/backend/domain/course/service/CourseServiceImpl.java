@@ -31,7 +31,6 @@ import com.yeogido.backend.domain.place.service.PlaceService;
 import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.region.exception.RegionErrorCode;
 import com.yeogido.backend.domain.region.repository.RegionRepository;
-import com.yeogido.backend.domain.region.service.RegionService;
 import com.yeogido.backend.domain.user.entity.User;
 import com.yeogido.backend.domain.user.repository.UserRepository;
 import com.yeogido.backend.global.common.response.CursorResponse;
@@ -69,7 +68,7 @@ public class CourseServiceImpl implements CourseService {
 
     @Override
     @Transactional
-    public CourseResDTO.CourseCreateRes createCourse(CourseReqDTO.CourseCreateReq request) {
+    public CourseResDTO.CourseIdRes createCourse(CourseReqDTO.CourseCreateReq request) {
         validateCourseCreateRequest(request);
 
         User user = getCurrentUser();
@@ -79,13 +78,36 @@ public class CourseServiceImpl implements CourseService {
         saveCourseHashtags(course, request.hashtagIds());
         saveCourseItems(course, request.courseItems());
 
-        return new CourseResDTO.CourseCreateRes(course.getId());
+        return new CourseResDTO.CourseIdRes(course.getId());
     }
 
     @Override
-    public CourseResDTO.CourseCreateRes updateCourse(Long courseId, CourseReqDTO.CourseCreateReq request) {
-        // TODO: 추천 코스 수정 로직 구현
-        return new CourseResDTO.CourseCreateRes(15L);
+    @Transactional
+    public CourseResDTO.CourseIdRes updateCourse(Long courseId, CourseReqDTO.CourseUpdateReq request) {
+        Course course = getActiveCourse(courseId);
+        User user = getCurrentUser();
+
+        validateCourseAuthor(course, user);
+        validateCourseUpdateRequest(request);
+
+        course.update(
+                request.title(),
+                request.description(),
+                request.durationType(),
+                request.transportType(),
+                request.companionType(),
+                request.thumbnailKey()
+        );
+
+        if (request.hashtagIds() != null) {
+            replaceCourseHashtags(course, request.hashtagIds());
+        }
+
+        if (request.courseItems() != null) {
+            replaceCourseItems(course, request.courseItems());
+        }
+
+        return new CourseResDTO.CourseIdRes(course.getId());
     }
 
     @Override
@@ -226,9 +248,25 @@ public class CourseServiceImpl implements CourseService {
                 .orElseThrow(() -> new GeneralException(RegionErrorCode.REGION_NOT_FOUND));
     }
 
+    private void validateCourseAuthor(Course course, User user) {
+        if (course.getUser() == null || !Objects.equals(course.getUser().getId(), user.getId())) {
+            throw new GeneralException(GeneralErrorCode.FORBIDDEN);
+        }
+    }
+
     private void validateCourseCreateRequest(CourseReqDTO.CourseCreateReq request) {
         validateHashtags(request.hashtagIds());
         validateCourseItems(request.courseItems());
+    }
+
+    private void validateCourseUpdateRequest(CourseReqDTO.CourseUpdateReq request) {
+        if (request.hashtagIds() != null) {
+            validateHashtags(request.hashtagIds());
+        }
+
+        if (request.courseItems() != null) {
+            validateCourseItems(request.courseItems());
+        }
     }
 
     private void validateHashtags(List<Long> hashtagIds) {
@@ -279,7 +317,6 @@ public class CourseServiceImpl implements CourseService {
 
     private void validateContentItem(CourseReqDTO.CourseItemCreateReq item) {
         if (item.contentId() == null
-                || item.placeId() != null
                 || StringUtils.hasText(item.externalPlaceId())
                 || StringUtils.hasText(item.categoryGroupCode())
                 || StringUtils.hasText(item.name())
@@ -307,6 +344,13 @@ public class CourseServiceImpl implements CourseService {
         courseHashtagRepository.saveAll(courseHashtags);
     }
 
+    private void replaceCourseHashtags(Course course, List<Long> hashtagIds) {
+        courseHashtagRepository.deleteAllByCourseId(course.getId());
+        courseHashtagRepository.flush();
+
+        saveCourseHashtags(course, hashtagIds);
+    }
+
     private void saveCourseItems(Course course, List<CourseReqDTO.CourseItemCreateReq> courseItems) {
         Map<String, Place> placeMap = placeService.getPlaceMap(courseItems);
         Map<Long, Content> contentMap = getContentMap(courseItems);
@@ -327,6 +371,13 @@ public class CourseServiceImpl implements CourseService {
         }
 
         courseItemRepository.saveAll(items);
+    }
+
+    private void replaceCourseItems(Course course, List<CourseReqDTO.CourseItemCreateReq> courseItems) {
+        courseItemRepository.deleteAllByCourseId(course.getId());
+        courseItemRepository.flush();
+
+        saveCourseItems(course, courseItems);
     }
 
     private Map<Long, Content> getContentMap(List<CourseReqDTO.CourseItemCreateReq> courseItems) {
