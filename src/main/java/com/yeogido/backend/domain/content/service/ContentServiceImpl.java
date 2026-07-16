@@ -431,7 +431,7 @@ public class ContentServiceImpl implements ContentService{
         //TODO : 로그인 유저 가져오기
         User currentUser = null;
 
-        List<Long> hashtags = contentHashtagRepository.findByContent(content)
+        List<Long> hashtagIds = contentHashtagRepository.findByContent(content)
                 .stream()
                 .map(ch->ch.getHashtag().getId())
                 .toList();
@@ -443,16 +443,9 @@ public class ContentServiceImpl implements ContentService{
             liked = contentLikeRepository.existsByContentAndUser(content,currentUser);
         }
 
-        Place place = content.getPlace();
-
         ContentResDTO.PlaceInfo placeInfo =
-                new ContentResDTO.PlaceInfo(
-                        place.getId(),
-                        place.getName(),
-                        place.getRoadAddress(),
-                        place.getLatitude(),
-                        place.getLongitude()
-                );
+                ContentConverter.toPlaceInfo(content.getPlace());
+
 
         List<ContentResDTO.CourseInfo> courses =
                 courseItemRepository.findByContentOrderByOrderNoAsc(content)
@@ -469,36 +462,17 @@ public class ContentServiceImpl implements ContentService{
                             }
 
 
-                            return new ContentResDTO.CourseInfo(
-                                    course.getId(),
-                                    course.getTitle(),
-                                    course.getThumbnailKey(),
-                                    course.getDescription(),
-                                    course.getDurationType(),
-                                    course.getTransportType(),
-                                    course.getCompanionType(),
-                                    courseLiked
+                            return ContentConverter.toCourseInfo(course, courseLiked);
 
-                            );
                         })
                         .toList();
 
 
-        //TODO : converter로 바꾸기
-        return new ContentResDTO.ContentDetailRes(
-                content.getId(),
-                content.getTitle(),
-                content.getDescription(),
-                content.getThumbnailImage(),
-                hashtags,
-                content.getStartDate(),
-                content.getEndDate(),
+        return ContentConverter.toContentDetailRes(
+                content,
+                hashtagIds,
                 likeCount,
                 liked,
-
-                content.getContactPhone(),
-                content.getOfficialUrl(),
-
                 placeInfo,
                 courses
         );
