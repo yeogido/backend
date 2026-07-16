@@ -14,6 +14,11 @@ spring:
     password: ${DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
   flyway:
     enabled: true
     locations: classpath:db/migration
@@ -38,7 +43,6 @@ app:
   oauth:
     kakao:
       user-info-uri: https://kapi.kakao.com/v2/user/me
-    social-signup-token-secret: ${SOCIAL_SIGNUP_TOKEN_SECRET:local-social-signup-secret}
     social-signup-token-expiration-minutes: 10
 
 server:

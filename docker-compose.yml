@@ -19,7 +19,7 @@ services:
     command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
-      - --default-time-zone=Asia/Seoul
+      - --defau아lt-time-zone=Asia/Seoul
 
     volumes:
       - mysql-data:/var/lib/mysql
@@ -30,5 +30,25 @@ services:
       timeout: 5s
       retries: 10
 
+  redis:
+    image: redis:7.4-alpine
+    container_name: yeogido-redis
+    restart: unless-stopped
+
+    ports:
+      - "6379:6379"
+
+    command: ["redis-server", "--appendonly", "yes"]
+
+    volumes:
+      - redis-data:/data
+
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
 volumes:
   mysql-data:
+  redis-data:
