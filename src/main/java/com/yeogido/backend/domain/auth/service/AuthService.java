@@ -1,6 +1,7 @@
 package com.yeogido.backend.domain.auth.service;
 
 import com.yeogido.backend.domain.auth.client.KakaoUserInfoClient;
+import com.yeogido.backend.domain.auth.client.NaverUserInfoClient;
 import com.yeogido.backend.domain.auth.dto.AuthReqDTO;
 import com.yeogido.backend.domain.auth.dto.AuthResDTO;
 import com.yeogido.backend.domain.auth.dto.SocialSignupTokenPayload;
@@ -28,6 +29,7 @@ import org.springframework.util.StringUtils;
 public class AuthService {
 
   private final KakaoUserInfoClient kakaoUserInfoClient;
+  private final NaverUserInfoClient naverUserInfoClient;
   private final SocialAccountRepository socialAccountRepository;
   private final SocialSignupTokenService socialSignupTokenService;
   private final JwtTokenProvider jwtTokenProvider;
@@ -48,11 +50,7 @@ public class AuthService {
 
   @Transactional(readOnly = true)
   public AuthResDTO.SocialLogin socialLogin(AuthReqDTO.SocialLogin request) {
-    if (request.provider() != SocialProvider.KAKAO) {
-      throw new GeneralException(AuthErrorCode.UNSUPPORTED_SOCIAL_PROVIDER);
-    }
-
-    SocialUserInfo socialUserInfo = kakaoUserInfoClient.getUserInfo(request.accessToken());
+    SocialUserInfo socialUserInfo = getSocialUserInfo(request);
 
     if (!StringUtils.hasText(socialUserInfo.email())) {
       throw new GeneralException(AuthErrorCode.SOCIAL_EMAIL_REQUIRED);
@@ -64,6 +62,14 @@ public class AuthService {
       )
       .map(this::createExistingSocialLoginResponse)
       .orElseGet(() -> createNewSocialLoginResponse(socialUserInfo));
+  }
+
+  private SocialUserInfo getSocialUserInfo(AuthReqDTO.SocialLogin request) {
+    return switch (request.provider()) {
+      case KAKAO -> kakaoUserInfoClient.getUserInfo(request.accessToken());
+      case NAVER -> naverUserInfoClient.getUserInfo(request.accessToken());
+      default -> throw new GeneralException(AuthErrorCode.UNSUPPORTED_SOCIAL_PROVIDER);
+    };
   }
 
   private AuthResDTO.SocialLogin createExistingSocialLoginResponse(SocialAccount socialAccount) {

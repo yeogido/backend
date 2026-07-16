@@ -52,7 +52,7 @@ public class AuthReqDTO {
 
   @Schema(name = "AuthSocialLoginReq", description = "소셜 로그인 요청")
   public record SocialLogin(
-    @Schema(description = "소셜 로그인 제공자", example = "KAKAO")
+    @Schema(description = "소셜 로그인 제공자", example = "KAKAO", allowableValues = {"KAKAO", "NAVER"})
     @NotNull(message = "소셜 로그인 제공자는 필수 입력값입니다.")
     SocialProvider provider,
 
