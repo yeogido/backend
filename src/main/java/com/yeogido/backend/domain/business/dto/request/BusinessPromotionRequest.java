@@ -130,11 +130,7 @@ public class BusinessPromotionRequest {
 
             @NotNull(message = "경도는 필수입니다")
             @Schema(description = "경도", example = "129.2741234")
-            BigDecimal longitude,
-
-            @NotNull(message = "지역ID는 필수입니다")
-            @Schema(description = "지역ID", example = "26")
-            Long regionId
+            BigDecimal longitude
     ) { }
 
     @Builder

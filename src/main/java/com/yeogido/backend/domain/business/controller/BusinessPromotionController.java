@@ -66,7 +66,7 @@ public class BusinessPromotionController {
             )
             @PathVariable Long promotionId
     ) {
-        return ApiResponse.onSuccess(SuccessCode.NO_CONTENT, null);
+        return ApiResponse.onSuccess(SuccessCode.OK, null);
     }
 
     @Operation(summary = "소상공인 홍보 목록 조회", description = "소상공인 홍보 목록을 조회합니다")
