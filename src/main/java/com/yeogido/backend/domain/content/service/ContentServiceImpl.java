@@ -13,7 +13,6 @@ import com.yeogido.backend.domain.content.entity.QContent;
 import com.yeogido.backend.domain.content.entity.QContentLike;
 import com.yeogido.backend.domain.content.enums.ContentSort;
 import com.yeogido.backend.domain.place.entity.QPlace;
-import com.yeogido.backend.global.common.dto.NextCursor;
 import com.yeogido.backend.global.common.response.CursorResponse;
 import com.yeogido.backend.global.exception.GeneralErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
@@ -72,7 +71,6 @@ public class ContentServiceImpl implements ContentService{
 
         List<ContentResDTO.ContentInfo> result = new ArrayList<>();
         List<Content> contents=new ArrayList<>();
-        NextCursor<?> nextCursor = null;
         boolean hasNext = false;
 
 
