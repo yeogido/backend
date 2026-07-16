@@ -11,12 +11,20 @@ import java.util.List;
 
 public class BusinessPromotionResponse {
     @Builder
-    @Schema(name = "BusinessPromotionRegisterResponse", description = "소상공인 홍보 등록 응답")
+    @Schema(name = "BusinessRegisterResDTO", description = "소상공인 홍보 등록 응답")
     public record Register(
 
-            @Schema(description = "소상공인 홍보ID", example = "1")
+            @Schema(description = "소상공인 홍보 ID", example = "1")
             Long promotionId
     ){ }
+
+    @Builder
+    @Schema(name = "BusinessUpdateResDTO", description = "소상공인 홍보 수정 응답")
+    public record Update(
+
+            @Schema(description = "소상공인 홍보 ID", example = "1")
+            Long promotionId
+    ) { }
 
     @Builder
     @Schema(name = "BusinessPromotionSummaryResponse", description = "홍보글 목록 정보")
