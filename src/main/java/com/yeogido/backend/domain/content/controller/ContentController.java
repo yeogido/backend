@@ -6,7 +6,7 @@ import com.yeogido.backend.domain.content.dto.ContentResDTO;
 import com.yeogido.backend.domain.content.service.ContentService;
 import com.yeogido.backend.global.common.code.SuccessCode;
 import com.yeogido.backend.global.common.response.ApiResponse;
-import com.yeogido.backend.global.common.response.ComplexCursorResponse;
+import com.yeogido.backend.global.common.response.CursorResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -31,10 +31,10 @@ public class ContentController {
 
     )
     @GetMapping
-    public ApiResponse<ComplexCursorResponse<ContentResDTO.ContentInfo>> getContents(
+    public ApiResponse<CursorResponse<ContentResDTO.ContentInfo>> getContents(
             @ModelAttribute ContentReqDTO.ContentListReq request
     ){
-        ComplexCursorResponse<ContentResDTO.ContentInfo> result = contentService.getContents(request);
+        CursorResponse<ContentResDTO.ContentInfo> result = contentService.getContents(request);
         return ApiResponse.onSuccess(SuccessCode.OK,result);
     }
 

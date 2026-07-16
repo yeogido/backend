@@ -12,10 +12,9 @@ import com.yeogido.backend.domain.content.entity.Content;
 import com.yeogido.backend.domain.content.entity.QContent;
 import com.yeogido.backend.domain.content.entity.QContentLike;
 import com.yeogido.backend.domain.content.enums.ContentSort;
-import com.yeogido.backend.domain.content.repository.ContentLikeRepository;
 import com.yeogido.backend.domain.place.entity.QPlace;
 import com.yeogido.backend.global.common.dto.NextCursor;
-import com.yeogido.backend.global.common.response.ComplexCursorResponse;
+import com.yeogido.backend.global.common.response.CursorResponse;
 import com.yeogido.backend.global.exception.GeneralErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
 import lombok.RequiredArgsConstructor;
@@ -40,7 +39,7 @@ public class ContentServiceImpl implements ContentService{
     private final NumberExpression<Long> likeCountExpression = qContentLike.id.count();
 
     @Override
-    public ComplexCursorResponse<ContentResDTO.ContentInfo> getContents(ContentReqDTO.ContentListReq request){
+    public CursorResponse<ContentResDTO.ContentInfo> getContents(ContentReqDTO.ContentListReq request){
 
         BooleanBuilder builder = new BooleanBuilder();
 
@@ -52,6 +51,9 @@ public class ContentServiceImpl implements ContentService{
         String cursorValue = request.cursorValue();
         Long cursorId = request.cursorId();
         Double cursorDistance = null;
+
+        Object nextCursorValue = null;
+        Long nextCursorId = null;
 
         if (request.regionId() != null
                 && request.sort() != ContentSort.DISTANCE) {
@@ -100,10 +102,8 @@ public class ContentServiceImpl implements ContentService{
 
                     Tuple lastTuple = tuples.get(tuples.size() - 1);
 
-                    nextCursor = new NextCursor<>(
-                            lastTuple.get(likeCountExpression),
-                            lastTuple.get(qContent).getId()
-                    );
+                    nextCursorValue = lastTuple.get(likeCountExpression);
+                    nextCursorId = lastTuple.get(qContent).getId();
                 }
 
                 result = tuples.stream()
@@ -132,10 +132,8 @@ public class ContentServiceImpl implements ContentService{
                 if (!contents.isEmpty()) {
                     Content last = contents.get(contents.size() - 1);
 
-                    nextCursor = new NextCursor<>(
-                            last.getEndDate(),
-                            last.getId()
-                    );
+                    nextCursorValue = last.getEndDate();
+                    nextCursorId = last.getId();
                 }
 
                 Map<Long, Long> likeCountMap = getLikeCountMap(contents);
@@ -154,7 +152,7 @@ public class ContentServiceImpl implements ContentService{
                     cursorDistance = Double.valueOf(cursorValue);
                 }
 
-                nextCursor = getDistanceContents(
+                nextCursorValue = getDistanceContents(
                         request,
                         builder,
                         size,
@@ -167,6 +165,10 @@ public class ContentServiceImpl implements ContentService{
 
                 if (hasNext) {
                     contents.remove(contents.size() - 1);
+                }
+
+                if (!contents.isEmpty()) {
+                    nextCursorId = contents.get(contents.size() - 1).getId();
                 }
 
                 Map<Long, Long> likeCountMap = getLikeCountMap(contents);
@@ -188,9 +190,10 @@ public class ContentServiceImpl implements ContentService{
         }
 
 
-        return ComplexCursorResponse.of(
+        return CursorResponse.of(
                 result,
-                nextCursor,
+                nextCursorValue,
+                nextCursorId,
                 hasNext
         );
     }
@@ -259,7 +262,7 @@ public class ContentServiceImpl implements ContentService{
 
 
     // 거리순
-    private NextCursor<Double> getDistanceContents(
+    private Double getDistanceContents(
             ContentReqDTO.ContentListReq request,
             BooleanBuilder builder,
             int size,
@@ -338,13 +341,8 @@ public class ContentServiceImpl implements ContentService{
 
         Tuple lastTuple = tuples.get(tuples.size() - 1);
 
-        Double lastDistance = lastTuple.get(distance);
-        Content lastContent = lastTuple.get(qContent);
+        return lastTuple.get(distance);
 
-        return new NextCursor<>(
-                lastDistance,
-                lastContent.getId()
-        );
 
     }
 

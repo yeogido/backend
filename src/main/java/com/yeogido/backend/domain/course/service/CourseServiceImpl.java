@@ -91,7 +91,7 @@ public class CourseServiceImpl implements CourseService {
     @Override
     public CursorResponse<CourseResDTO.CoursePreview> getCourses(CourseReqDTO.CourseListReq request) {
         // TODO: 추천 코스 조회 로직 구현
-        return CursorResponse.of(List.of(createFirstMockCourse()), 1L, true);
+        return CursorResponse.of(List.of(createFirstMockCourse()), 1L, null,true);
     }
 
     @Override
