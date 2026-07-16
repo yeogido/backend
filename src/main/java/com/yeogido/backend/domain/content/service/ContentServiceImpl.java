@@ -437,13 +437,9 @@ public class ContentServiceImpl implements ContentService{
                 .toList();
 
 
-        long likeCount = contentLikeRepository.countByContent(content);
-
         boolean liked = false;
         if(currentUser!=null){
             liked = contentLikeRepository.existsByContentAndUser(content,currentUser);
-
-            // TODO : 로그인 유저 좋아요
         }
 
         ContentResDTO.PlaceInfo placeInfo =
@@ -474,7 +470,6 @@ public class ContentServiceImpl implements ContentService{
         return ContentConverter.toContentDetailRes(
                 content,
                 hashtagIds,
-                likeCount,
                 liked,
                 placeInfo,
                 courses

@@ -73,7 +73,6 @@ public class ContentConverter {
     public static ContentResDTO.ContentDetailRes toContentDetailRes(
             Content content,
             List<Long> hashtagIds,
-            long likeCount,
             boolean liked,
             ContentResDTO.PlaceInfo placeInfo,
             List<ContentResDTO.CourseInfo> courses
@@ -86,7 +85,6 @@ public class ContentConverter {
                 hashtagIds,
                 content.getStartDate(),
                 content.getEndDate(),
-                likeCount,
                 liked,
                 content.getContactPhone(),
                 content.getOfficialUrl(),

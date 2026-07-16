@@ -68,9 +68,6 @@ public class ContentResDTO {
             @Schema(description = "종료일")
             LocalDate endDate,
 
-            @Schema(description = "좋아요 수")
-            Long likeCount,
-
             @Schema(description = "좋아요 여부")
             Boolean liked,
 
