@@ -5,6 +5,7 @@ import com.querydsl.core.Tuple;
 import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.core.types.dsl.NumberExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
+import com.yeogido.backend.domain.content.converter.ContentConverter;
 import com.yeogido.backend.domain.content.dto.ContentReqDTO;
 import com.yeogido.backend.domain.content.dto.ContentResDTO;
 import com.yeogido.backend.domain.content.entity.Content;
@@ -21,11 +22,10 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
-
-import static com.yeogido.backend.domain.content.enums.ContentSort.DISTANCE;
-import static com.yeogido.backend.domain.content.enums.ContentSort.RECOMMEND;
-
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -67,7 +67,7 @@ public class ContentServiceImpl implements ContentService{
 
         //TODO : 검색 로직 구현
 
-
+        List<ContentResDTO.ContentInfo> result = new ArrayList<>();
         List<Content> contents=new ArrayList<>();
         NextCursor<?> nextCursor = null;
         boolean hasNext = false;
@@ -95,10 +95,6 @@ public class ContentServiceImpl implements ContentService{
                     tuples.remove(tuples.size() - 1);
                 }
 
-                contents = tuples.stream()
-                        .map(tuple -> tuple.get(qContent))
-                        .toList();
-
                 if (!tuples.isEmpty()) {
 
                     Tuple lastTuple = tuples.get(tuples.size() - 1);
@@ -108,6 +104,14 @@ public class ContentServiceImpl implements ContentService{
                             lastTuple.get(qContent).getId()
                     );
                 }
+
+                result = tuples.stream()
+                        .map(tuple -> ContentConverter.toContentInfo(
+                                tuple,
+                                qContent,
+                                likeCountExpression
+                        ))
+                        .toList();
             }
 
             case DEADLINE -> {
@@ -132,6 +136,16 @@ public class ContentServiceImpl implements ContentService{
                             last.getId()
                     );
                 }
+
+                Map<Long, Long> likeCountMap = getLikeCountMap(contents);
+
+                result = contents.stream()
+                        .map(content -> ContentConverter.toContentInfo(
+                                content,
+                                likeCountMap.getOrDefault(content.getId(), 0L)
+                        ))
+                        .toList();
+
             }
             case DISTANCE ->{
 
@@ -153,6 +167,16 @@ public class ContentServiceImpl implements ContentService{
                 if (hasNext) {
                     contents.remove(contents.size() - 1);
                 }
+
+                Map<Long, Long> likeCountMap = getLikeCountMap(contents);
+
+                result = contents.stream()
+                        .map(content -> ContentConverter.toContentInfo(
+                                content,
+                                likeCountMap.getOrDefault(content.getId(), 0L)
+                        ))
+                        .toList();
+
             }
 
             case RECOMMEND -> {
@@ -162,22 +186,6 @@ public class ContentServiceImpl implements ContentService{
             }
         }
 
-
-
-
-        // TODO : 반환값에 해시태그 추가
-        List<ContentResDTO.ContentInfo> result = contents.stream()
-                .map(content -> ContentResDTO.ContentInfo.builder()
-                        .contentId(content.getId())
-                        .placeId(content.getPlace().getId())
-                        .title(content.getTitle())
-                        .thumbnailImageUrl(content.getThumbnailImage())
-                        .regionName(content.getPlace().getRegion().getName())
-                        .likeCount(contentLikeRepository.countByContent(content))
-                        .startDate(content.getStartDate())
-                        .endDate(content.getEndDate())
-                        .build())
-                .toList();
 
         return ComplexCursorResponse.of(
                 result,
@@ -375,6 +383,29 @@ public class ContentServiceImpl implements ContentService{
         );
     }
 
+    private Map<Long, Long> getLikeCountMap(List<Content> contents) {
+
+        if (contents.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        List<Long> contentIds = contents.stream()
+                .map(Content::getId)
+                .toList();
+
+        List<Tuple> tuples = queryFactory
+                .select(qContentLike.content.id, qContentLike.id.count())
+                .from(qContentLike)
+                .where(qContentLike.content.id.in(contentIds))
+                .groupBy(qContentLike.content.id)
+                .fetch();
+
+        return tuples.stream()
+                .collect(Collectors.toMap(
+                        tuple -> tuple.get(qContentLike.content.id),
+                        tuple -> tuple.get(qContentLike.id.count())
+                ));
+    }
 
 
 
