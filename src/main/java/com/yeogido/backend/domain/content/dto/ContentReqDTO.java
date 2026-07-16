@@ -4,6 +4,7 @@ import com.yeogido.backend.domain.content.enums.ContentCategory;
 import com.yeogido.backend.domain.content.enums.ContentSort;
 import com.yeogido.backend.global.common.dto.NextCursor;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.Positive;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -37,6 +38,7 @@ public class ContentReqDTO {
             Long cursorId,
 
             @Schema(description = "조회 개수")
+            @Positive
             Integer size
 
     ){}
