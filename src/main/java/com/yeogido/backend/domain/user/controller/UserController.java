@@ -5,11 +5,12 @@ import com.yeogido.backend.domain.user.service.UserService;
 import com.yeogido.backend.global.common.code.SuccessCode;
 import com.yeogido.backend.global.common.response.ApiResponse;
 import com.yeogido.backend.global.common.response.CursorResponse;
+import com.yeogido.backend.domain.auth.security.AuthUser;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -39,9 +40,9 @@ public class UserController {
     @Operation(summary = "내 프로필 조회 API", description = "로그인한 사용자의 프로필 및 계정 정보를 조회합니다.")
     @GetMapping("/me")
     public ApiResponse<UserResDTO.Profile> getMyPage(
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal AuthUser authUser
     ) {
-        UserResDTO.Profile response = userService.getMyPage(authorization);
+        UserResDTO.Profile response = userService.getMyPage(authUser.userId());
         return ApiResponse.onSuccess(SuccessCode.OK, response);
     }
 }

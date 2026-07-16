@@ -13,6 +13,12 @@ public enum UserErrorCode implements ErrorCode {
     HttpStatus.CONFLICT,
     "USER4091",
     "이미 가입된 이메일입니다."
+  ),
+
+  USER_NOT_FOUND(
+    HttpStatus.NOT_FOUND,
+    "USER4041",
+    "존재하지 않는 회원입니다."
   );
 
   private final HttpStatus httpStatus;
