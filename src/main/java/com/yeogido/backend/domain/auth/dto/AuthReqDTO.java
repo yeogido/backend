@@ -1,6 +1,7 @@
 package com.yeogido.backend.domain.auth.dto;
 
 import com.yeogido.backend.domain.auth.enums.SocialProvider;
+import com.yeogido.backend.domain.user.enums.Gender;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -55,14 +56,33 @@ public class AuthReqDTO {
     @NotNull(message = "소셜 로그인 제공자는 필수 입력값입니다.")
     SocialProvider provider,
 
-    @Schema(description = "소셜 제공자 사용자 식별자", example = "1234567890")
-    @NotBlank(message = "소셜 제공자 사용자 식별자는 필수 입력값입니다.")
-    String providerId,
+    @Schema(description = "소셜 accessToken", example = "kakao_access_token")
+    @NotBlank(message = "소셜 accessToken은 필수 입력값입니다.")
+    String accessToken
+  ) {}
 
-    @Schema(description = "소셜 계정 이메일", example = "kakao_user@example.com")
-    @NotBlank(message = "이메일은 필수 입력값입니다.")
-    @Email(message = "올바른 이메일 형식이어야 합니다.")
-    String email
+  @Schema(name = "AuthSocialSignupCompleteReq", description = "소셜 로그인 추가 프로필 작성 완료 요청")
+  public record SocialSignupComplete(
+    @Schema(description = "소셜 회원가입 임시 토큰", example = "temp_social_signup_token")
+    @NotBlank(message = "소셜 회원가입 임시 토큰은 필수 입력값입니다.")
+    String temporaryToken,
+
+    @Schema(description = "사용자 이름. 소셜 계정 이름을 기본값으로 사용하며 프로필에서 수정 가능합니다.", example = "홍길동")
+    @NotBlank(message = "이름은 필수 입력값입니다.")
+    String name,
+
+    @Schema(description = "성별", example = "MALE")
+    @NotNull(message = "성별은 필수 입력값입니다.")
+    Gender gender,
+
+    @Schema(description = "출생연도", example = "2001")
+    @NotBlank(message = "출생연도는 필수 입력값입니다.")
+    @Pattern(regexp = "^\\d{4}$", message = "출생연도는 4자리 숫자여야 합니다.")
+    String birthYear,
+
+    @Schema(description = "지역 ID", example = "1")
+    @NotNull(message = "지역 ID는 필수 입력값입니다.")
+    Long regionId
   ) {}
 
   @Schema(name = "AuthPasswordSendCodeReq", description = "비밀번호 찾기 인증번호 발송 요청")

@@ -31,6 +31,15 @@ cloud:
 app:
   s3:
     bucket: ${S3_BUCKET}
+  jwt:
+    secret: ${JWT_SECRET:local-jwt-secret-for-development}
+    access-token-expiration-minutes: 60
+    refresh-token-expiration-days: 14
+  oauth:
+    kakao:
+      user-info-uri: https://kapi.kakao.com/v2/user/me
+    social-signup-token-secret: ${SOCIAL_SIGNUP_TOKEN_SECRET:local-social-signup-secret}
+    social-signup-token-expiration-minutes: 10
 
 server:
   forward-headers-strategy: framework

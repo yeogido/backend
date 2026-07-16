@@ -1,0 +1,39 @@
+package com.yeogido.backend.domain.auth.exception;
+
+import com.yeogido.backend.global.exception.ErrorCode;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+
+@Getter
+@RequiredArgsConstructor
+public enum AuthErrorCode implements ErrorCode {
+
+  UNSUPPORTED_SOCIAL_PROVIDER(
+    HttpStatus.BAD_REQUEST,
+    "EXT4001",
+    "지원하지 않는 소셜 플랫폼입니다."
+  ),
+
+  SOCIAL_EMAIL_REQUIRED(
+    HttpStatus.BAD_REQUEST,
+    "AUTH4002",
+    "소셜 계정 이메일 제공 동의가 필요합니다."
+  ),
+
+  INVALID_SOCIAL_ACCESS_TOKEN(
+    HttpStatus.UNAUTHORIZED,
+    "AUTH4011",
+    "유효하지 않은 소셜 accessToken입니다."
+  ),
+
+  INVALID_SOCIAL_SIGNUP_TOKEN(
+    HttpStatus.BAD_REQUEST,
+    "AUTH4003",
+    "유효하지 않거나 만료된 소셜 회원가입 임시 토큰입니다."
+  );
+
+  private final HttpStatus httpStatus;
+  private final String code;
+  private final String message;
+}
