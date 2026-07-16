@@ -16,18 +16,22 @@ public class CursorResponse<T> {
 
     private List<T> items;
 
-    private Long nextCursor;
+    private Object cursorValue;
+
+    private Long cursorId;
 
     private boolean hasNext;
 
     public static <T> CursorResponse<T> of(
             List<T> items,
-            Long nextCursor,
+            Object cursorValue,
+            Long cursorId,
             boolean hasNext
     ) {
         return CursorResponse.<T>builder()
                 .items(items)
-                .nextCursor(nextCursor)
+                .cursorValue(cursorValue)
+                .cursorId(cursorId)
                 .hasNext(hasNext)
                 .build();
     }

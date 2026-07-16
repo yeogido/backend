@@ -64,6 +64,7 @@ public class ReviewService {
         return CursorResponse.of(
                 List.of(review),
                 101L,
+                10L,
                 true
         );
     }

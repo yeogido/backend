@@ -2,6 +2,10 @@ package com.yeogido.backend.domain.content.dto;
 
 import com.yeogido.backend.domain.course.enums.DurationType;
 import com.yeogido.backend.domain.course.enums.TransportType;
+import io.swagger.v3.oas.annotations.media.Schema;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
 
 import java.time.LocalDate;
 import java.util.Date;
@@ -9,63 +13,136 @@ import java.util.List;
 
 public class ContentResDTO {
 
+    @Schema(description = "문화콘텐츠 목록 정보")
     public record ContentInfo(
+
+            @Schema(description = "문화콘텐츠 ID")
             Long contentId,
+
+            @Schema(description = "장소 ID")
             Long placeId,
+
+            @Schema(description = "제목")
             String title,
+
+            @Schema(description = "썸네일 이미지")
             String thumbnailImageUrl,
+
+            @Schema(description = "지역명")
             String regionName,
+
+            @Schema(description = "좋아요 수")
             Long likeCount,
+
+            @Schema(description = "시작일")
             LocalDate startDate,
+
+            @Schema(description = "종료일")
             LocalDate endDate
     ) {}
 
 
+    @Schema(description = "문화콘텐츠 상세 조회")
     public record ContentDetailRes(
+
+            @Schema(description = "문화콘텐츠 ID")
             Long contentId,
+
+            @Schema(description = "제목")
             String title,
+
+            @Schema(description = "설명")
             String description,
+
+            @Schema(description = "썸네일")
             String thumbnailImage,
+
+            @Schema(description = "해시태그")
             List<String> hashtags,
+
+            @Schema(description = "시작일")
             LocalDate startDate,
+
+            @Schema(description = "종료일")
             LocalDate endDate,
+
+            @Schema(description = "좋아요 수")
             Long likeCount,
+
+            @Schema(description = "좋아요 여부")
             Boolean liked,
+
+            @Schema(description = "장소 정보")
             PlaceInfo place,
+
+            @Schema(description = "코스 정보")
             List<CourseInfo> courses
-    ){}
+    ) {}
 
+    @Schema(description = "장소 정보")
     public record PlaceInfo(
+
+            @Schema(description = "장소 ID")
             Long placeId,
+
+            @Schema(description = "장소명")
             String name,
+
+            @Schema(description = "도로명 주소")
             String roadAddress,
+
+            @Schema(description = "위도")
             Double latitude,
+
+            @Schema(description = "전화번호")
             String phone,
-            String officalUrl
-    ){}
 
+            @Schema(description = "공식 홈페이지")
+            String officialUrl
+    ) {}
+
+    @Schema(description = "추천 코스")
     public record CourseInfo(
-            Long courseId,
-            String title,
-            String thumbnailImage,
-            String description,
-            DurationType durationType,
-            TransportType transportType,
-            Boolean liked
 
-    ){}
+            @Schema(description = "코스 ID")
+            Long courseId,
+
+            @Schema(description = "제목")
+            String title,
+
+            @Schema(description = "썸네일")
+            String thumbnailImage,
+
+            @Schema(description = "설명")
+            String description,
+
+            @Schema(description = "소요 시간")
+            DurationType durationType,
+
+            @Schema(description = "이동 수단")
+            TransportType transportType,
+
+            @Schema(description = "좋아요 여부")
+            Boolean liked
+    ) {}
 
 
     public record ContentCreateRes(
+            @Schema(description = "문화콘텐츠 ID")
             Long contentId
-    ){}
+    ) {}
+
 
     public record ContentUpdateRes(
+            @Schema(description = "문화콘텐츠 ID")
             Long contentId
-    ){}
+    ) {}
 
     public record ContentLikeRes(
+            @Schema(description = "좋아요 여부")
             Boolean isLiked,
+
+            @Schema(description = "좋아요 수")
             Long likeCount
-    ){}
+    ) {}
 }

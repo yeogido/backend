@@ -4,10 +4,6 @@ package com.yeogido.backend.domain.content.service;
 import com.yeogido.backend.domain.content.dto.ContentReqDTO;
 import com.yeogido.backend.domain.content.dto.ContentResDTO;
 import com.yeogido.backend.global.common.response.CursorResponse;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-
-import java.util.List;
 
 public interface ContentService {
 

@@ -1,5 +1,6 @@
 package com.yeogido.backend.domain.content.entity;
 
+import com.yeogido.backend.domain.content.enums.ContentCategory;
 import com.yeogido.backend.domain.content.enums.ContentSource;
 import com.yeogido.backend.domain.place.entity.Place;
 import com.yeogido.backend.global.entity.BaseEntity;
@@ -49,4 +50,7 @@ public class Content extends BaseEntity {
 
     @Column(name = "official_url", length = 500)
     private String officialUrl;
+
+    @Enumerated(EnumType.STRING)
+    private ContentCategory category;
 }

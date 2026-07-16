@@ -94,7 +94,7 @@ public class BusinessPromotionController {
                 .build();
 
         CursorResponse<BusinessPromotionResponse.Summary> response =
-                CursorResponse.of(List.of(summary), 1L, false);
+                CursorResponse.of(List.of(summary), 1L,null, false);
 
         return ApiResponse.onSuccess(SuccessCode.OK, response);
     }
@@ -119,7 +119,7 @@ public class BusinessPromotionController {
                 .build();
 
         CursorResponse<BusinessPromotionResponse.MySummary> response =
-                CursorResponse.of(List.of(summary), 1L, false);
+                CursorResponse.of(List.of(summary), 1L,null, false);
 
         return ApiResponse.onSuccess(SuccessCode.OK, response);
     }

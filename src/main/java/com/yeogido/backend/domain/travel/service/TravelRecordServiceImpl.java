@@ -70,7 +70,7 @@ public class TravelRecordServiceImpl implements TravelRecordService {
                 ? null
                 : items.get(items.size() - 1).travelRecordId();
 
-        return CursorResponse.of(items, nextCursor, hasNext);
+        return CursorResponse.of(items,null, nextCursor, hasNext);
     }
 
     @Override
