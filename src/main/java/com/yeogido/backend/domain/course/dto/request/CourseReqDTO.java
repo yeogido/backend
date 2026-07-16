@@ -13,6 +13,7 @@ import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -26,7 +27,12 @@ public class CourseReqDTO {
             @Schema(description = "코스 제목", example = "부산 야경 여행")
             String title,
 
+            @NotNull(message = "지역은 필수입니다")
+            @Schema(description = "코스 지역 ID", example = "26")
+            Long regionId,
+
             @Schema(description = "코스 설명", example = "부산의 야경과 축제를 함께 즐길 수 있는 코스입니다.")
+            @NotBlank(message = "코스 설명은 필수입니다")
             String description,
 
             @NotNull(message = "여행 기간은 필수입니다")
@@ -42,13 +48,20 @@ public class CourseReqDTO {
             CompanionType companionType,
 
             @Schema(description = "대표 이미지 S3 key", example = "courses/thumbnail/abcd1234.jpg")
+            @NotBlank(message = "대표 이미지는 필수입니다")
             String thumbnailKey,
 
             @Schema(description = "해시태그 ID 목록", example = "[1, 3, 5]")
-            List<Long> hashtagIds,
+            @NotNull(message = "해시태그를 선택해주세요.")
+            @Size(
+                    min = 1,
+                    max = 5,
+                    message = "해시태그는 1개 이상 5개 이하로 선택할 수 있습니다."
+            )
+            List<@NotNull(message = "유효하지 않은 해시태그입니다.") Long> hashtagIds,
 
             @Valid
-            @NotEmpty
+            @NotEmpty(message = "코스 구성 항목은 최소 1개 이상 필요합니다.")
             @Schema(description = "코스 구성 항목")
             List<CourseItemCreateReq> courseItems
     ) { }
@@ -69,6 +82,27 @@ public class CourseReqDTO {
 
             @Schema(description = "콘텐츠 ID. type=CONTENT인 경우 사용합니다.", example = "10")
             Long contentId,
+
+            @Schema(description = "외부 장소 ID. type=PLACE인 경우 필수입니다.", example = "123456")
+            String externalPlaceId,
+
+            @Schema(description = "카테고리 그룹 코드. type=PLACE인 경우 필수입니다.", example = "AT4")
+            String categoryGroupCode,
+
+            @Schema(description = "장소명. type=PLACE인 경우 필수입니다.", example = "광안리")
+            String name,
+
+            @Schema(description = "도로명 주소. type=PLACE인 경우 필수입니다.", example = "부산 수영구 광안해변로 219")
+            String roadAddress,
+
+            @Schema(description = "지번 주소. type=PLACE인 경우 선택입니다.", example = "부산 수영구 광안동 192-20")
+            String lotAddress,
+
+            @Schema(description = "위도. type=PLACE인 경우 필수입니다.", example = "35.1531698")
+            BigDecimal latitude,
+
+            @Schema(description = "경도. type=PLACE인 경우 필수입니다.", example = "129.118666")
+            BigDecimal longitude,
 
             @Schema(description = "장소 이미지 S3 key. type=PLACE인 경우에만 사용합니다.", nullable = true, example = "courses/place/efgh1234.jpg")
             String imageKey

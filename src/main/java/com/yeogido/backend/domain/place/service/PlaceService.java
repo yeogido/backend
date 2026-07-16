@@ -1,0 +1,14 @@
+package com.yeogido.backend.domain.place.service;
+
+import com.yeogido.backend.domain.course.dto.request.CourseReqDTO;
+import com.yeogido.backend.domain.place.entity.Place;
+
+import java.util.List;
+import java.util.Map;
+
+public interface PlaceService {
+
+    Map<String, Place> getPlaceMap(List<CourseReqDTO.CourseItemCreateReq> items);
+
+    Place getOrCreatePlace(CourseReqDTO.CourseItemCreateReq item, Map<String, Place> placeMap);
+}
