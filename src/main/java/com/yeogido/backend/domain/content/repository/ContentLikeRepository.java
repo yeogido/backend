@@ -7,6 +7,6 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface ContentLikeRepository extends JpaRepository<ContentLike,Long> {
-    long countByContent(Content content);
+
 
 }

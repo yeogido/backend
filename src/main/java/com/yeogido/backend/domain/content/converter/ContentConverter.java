@@ -15,16 +15,16 @@ public class ContentConverter {
             Long likeCount
     ) {
         // TODO : 반환값에 해시태그 추가
-        return ContentResDTO.ContentInfo.builder()
-                .contentId(content.getId())
-                .placeId(content.getPlace().getId())
-                .title(content.getTitle())
-                .thumbnailImageUrl(content.getThumbnailImage())
-                .regionName(content.getPlace().getRegion().getName())
-                .likeCount(likeCount)
-                .startDate(content.getStartDate())
-                .endDate(content.getEndDate())
-                .build();
+        return new ContentResDTO.ContentInfo(
+                content.getId(),
+                content.getPlace().getId(),
+                content.getTitle(),
+                content.getThumbnailImage(),
+                content.getPlace().getRegion().getName(),
+                likeCount,
+                content.getStartDate(),
+                content.getEndDate()
+        );
     }
 
     public static ContentResDTO.ContentInfo toContentInfo(

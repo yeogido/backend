@@ -11,6 +11,7 @@ import com.yeogido.backend.domain.content.dto.ContentResDTO;
 import com.yeogido.backend.domain.content.entity.Content;
 import com.yeogido.backend.domain.content.entity.QContent;
 import com.yeogido.backend.domain.content.entity.QContentLike;
+import com.yeogido.backend.domain.content.enums.ContentSort;
 import com.yeogido.backend.domain.content.repository.ContentLikeRepository;
 import com.yeogido.backend.domain.place.entity.QPlace;
 import com.yeogido.backend.global.common.dto.NextCursor;
@@ -31,7 +32,6 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ContentServiceImpl implements ContentService{
 
-    private final ContentLikeRepository contentLikeRepository;
     private final JPAQueryFactory queryFactory;
     private static final int DEFAULT_PAGE_SIZE = 6;
     private final QContent qContent = QContent.content;
@@ -53,7 +53,8 @@ public class ContentServiceImpl implements ContentService{
         Long cursorId = request.cursorId();
         Double cursorDistance = null;
 
-        if (request.regionId() != null && request.regionId() > 0) {
+        if (request.regionId() != null
+                && request.sort() != ContentSort.DISTANCE) {
             builder.and(qContent.place.region.id.eq(request.regionId()));
         }
 

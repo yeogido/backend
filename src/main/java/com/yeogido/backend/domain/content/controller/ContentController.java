@@ -8,10 +8,15 @@ import com.yeogido.backend.global.common.code.SuccessCode;
 import com.yeogido.backend.global.common.response.ApiResponse;
 import com.yeogido.backend.global.common.response.ComplexCursorResponse;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+@Tag(
+        name = "Content",
+        description = "문화콘텐츠 API"
+)
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/api/v1/contents")
