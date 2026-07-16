@@ -1,29 +1,43 @@
 package com.yeogido.backend.domain.content.dto;
 
+import com.yeogido.backend.domain.content.enums.ContentCategory;
+import com.yeogido.backend.domain.content.enums.ContentSort;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.Positive;
 
 import java.time.LocalDate;
 import java.util.List;
 
 public class ContentReqDTO {
+
     public record ContentListReq(
 
             @Schema(description = "지역 ID")
             Long regionId,
 
             @Schema(description = "카테고리")
-            String category,
+            ContentCategory category,
 
             @Schema(description = "검색어")
             String keyword,
 
             @Schema(description = "정렬 기준")
-            String sort,
+            ContentSort sort,
 
-            @Schema(description = "커서")
-            Long cursor,
+            @Schema(description = "위도")
+            Double latitude,
+
+            @Schema(description = "경도")
+            Double longitude,
+
+            @Schema(description = "커서 값")
+            String cursorValue,
+
+            @Schema(description = "커서 ID")
+            Long cursorId,
 
             @Schema(description = "조회 개수")
+            @Positive
             Integer size
 
     ){}
