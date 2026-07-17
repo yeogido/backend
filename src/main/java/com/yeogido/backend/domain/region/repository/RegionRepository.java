@@ -14,6 +14,10 @@ public interface RegionRepository extends JpaRepository<Region, Long> {
 
     Optional<Region> findByParentAndName(Region parent, String name);
 
+    Optional<Region> findByIdAndType(Long id, RegionType type);
+
     List<Region> findByTypeAndParentIsNullOrderByIdAsc(RegionType type);
+
+    List<Region> findByParentIdAndTypeOrderByIdAsc(Long parentId, RegionType type);
 
 }

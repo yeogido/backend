@@ -1,10 +1,12 @@
 package com.yeogido.backend.domain.region.service;
 
+import com.yeogido.backend.domain.file.service.S3Service;
 import com.yeogido.backend.domain.region.dto.response.RegionResDTO;
 import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.region.enums.RegionType;
+import com.yeogido.backend.domain.region.exception.RegionErrorCode;
 import com.yeogido.backend.domain.region.repository.RegionRepository;
-import com.yeogido.backend.domain.file.service.S3Service;
+import com.yeogido.backend.global.exception.GeneralException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -25,6 +27,22 @@ public class RegionServiceImpl implements RegionService {
                 .toList();
 
         return new RegionResDTO.RegionListResponse(regions);
+    }
+
+    @Override
+    public RegionResDTO.SubRegionListResponse getSubRegions(Long regionId) {
+        regionRepository.findByIdAndType(regionId, RegionType.REGION)
+                .orElseThrow(() -> new GeneralException(RegionErrorCode.REGION_NOT_FOUND));
+
+        List<RegionResDTO.SubRegionPreview> subRegions = regionRepository.findByParentIdAndTypeOrderByIdAsc(
+                        regionId,
+                        RegionType.SUB_REGION
+                )
+                .stream()
+                .map(this::toSubRegionPreview)
+                .toList();
+
+        return new RegionResDTO.SubRegionListResponse(subRegions);
     }
 
     @Override
@@ -75,6 +93,13 @@ public class RegionServiceImpl implements RegionService {
                 region.getId(),
                 region.getName(),
                 s3Service.getImageUrl(region.getImageKey())
+        );
+    }
+
+    private RegionResDTO.SubRegionPreview toSubRegionPreview(Region region) {
+        return new RegionResDTO.SubRegionPreview(
+                region.getId(),
+                region.getName()
         );
     }
 }
