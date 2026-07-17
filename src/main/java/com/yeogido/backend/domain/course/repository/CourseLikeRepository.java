@@ -1,9 +1,11 @@
 package com.yeogido.backend.domain.course.repository;
 
 import com.yeogido.backend.domain.course.entity.CourseLike;
-import org.springframework.data.jpa.repository.JpaRepository;
-
+import java.util.List;
 import java.util.Optional;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface CourseLikeRepository extends JpaRepository<CourseLike, Long> {
 
@@ -12,4 +14,15 @@ public interface CourseLikeRepository extends JpaRepository<CourseLike, Long> {
     Optional<CourseLike> findByUserIdAndCourseId(Long memberId, Long courseId);
 
     long countByCourseId(Long courseId);
+
+    @Query("""
+            select cl.course.id
+            from CourseLike cl
+            where cl.user.id = :userId
+              and cl.course.id in :courseIds
+            """)
+    List<Long> findLikedCourseIdsByUserIdAndCourseIdIn(
+            @Param("userId") Long userId,
+            @Param("courseIds") List<Long> courseIds
+    );
 }
