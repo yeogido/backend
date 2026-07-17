@@ -22,6 +22,17 @@ public class RegionController {
     private final RegionService regionService;
 
     @Operation(
+            summary = "상위 지역 목록 조회",
+            description = "지역 선택 화면에서 사용하는 상위 지역 목록을 조회합니다."
+    )
+    @GetMapping
+    public ApiResponse<RegionResDTO.RegionListResponse> getRegions() {
+        RegionResDTO.RegionListResponse response = regionService.getRegions();
+
+        return ApiResponse.onSuccess(SuccessCode.OK, response);
+    }
+
+    @Operation(
             summary = "인기 지역 조회",
             description = "추천 코스 작성 화면에서 사용하는 인기 지역 목록을 조회합니다."
     )
