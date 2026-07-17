@@ -26,6 +26,9 @@ public class S3Service {
     @Value("${app.s3.bucket}")
     private String bucket;
 
+    @Value("${cloud.aws.region.static}")
+    private String region;
+
     public FileResDTO.PresignedUrlRes createPresignedUrl(
             ImageDirectory directory,
             String fileName,
@@ -50,6 +53,14 @@ public class S3Service {
                 .uploadUrl(presignedRequest.url().toString())
                 .objectKey(objectKey)
                 .build();
+    }
+
+    public String getImageUrl(String imageKey) {
+        if (imageKey == null || imageKey.isBlank()) {
+            return null;
+        }
+
+        return "https://" + bucket + ".s3." + region + ".amazonaws.com/" + imageKey;
     }
 
     private String createObjectKey(ImageDirectory directory, String fileName) {
