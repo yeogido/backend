@@ -13,8 +13,8 @@ import java.util.List;
 
 public class CourseResDTO {
 
-    @Schema(name = "CourseCreateResponse", description = "추천 코스 등록 응답")
-    public record CourseCreateRes(
+    @Schema(name = "CourseIdResponse", description = "추천 코스 ID 응답")
+    public record CourseIdRes(
 
             @Schema(description = "코스 ID", example = "15")
             Long courseId

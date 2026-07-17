@@ -46,24 +46,44 @@ public class CourseController {
     )
     @Operation(summary = "추천 코스 등록", description = "추천 코스를 등록합니다.")
     @PostMapping
-    public ApiResponse<CourseResDTO.CourseCreateRes> createCourse(
+    public ApiResponse<CourseResDTO.CourseIdRes> createCourse(
             @Valid @RequestBody CourseReqDTO.CourseCreateReq request
     ) {
-        CourseResDTO.CourseCreateRes response = courseService.createCourse(request);
+        CourseResDTO.CourseIdRes response = courseService.createCourse(request);
 
         return ApiResponse.onSuccess(SuccessCode.CREATED, response);
     }
 
+    @io.swagger.v3.oas.annotations.parameters.RequestBody(
+            required = true,
+            content = @Content(
+                    examples = @ExampleObject(
+                            name = "추천 코스 수정 예시",
+                            value = SwaggerExamples.COURSE_UPDATE
+                    )
+            )
+    )
     @Operation(summary = "추천 코스 수정", description = "추천 코스를 수정합니다.")
     @PatchMapping("/{courseId}")
-    public ApiResponse<CourseResDTO.CourseCreateRes> updateCourse(
+    public ApiResponse<CourseResDTO.CourseIdRes> updateCourse(
             @Parameter(description = "코스 ID", example = "15")
             @PathVariable Long courseId,
-            @Valid @RequestBody CourseReqDTO.CourseCreateReq request
+            @Valid @RequestBody CourseReqDTO.CourseUpdateReq request
     ) {
-        CourseResDTO.CourseCreateRes response = courseService.updateCourse(courseId, request);
+        CourseResDTO.CourseIdRes response = courseService.updateCourse(courseId, request);
 
         return ApiResponse.onSuccess(SuccessCode.OK, response);
+    }
+
+    @Operation(summary = "추천 코스 삭제", description = "추천 코스를 삭제합니다.")
+    @DeleteMapping("/{courseId}")
+    public ApiResponse<Void> deleteCourse(
+            @Parameter(description = "코스 ID", example = "15")
+            @PathVariable Long courseId
+    ) {
+        courseService.deleteCourse(courseId);
+
+        return ApiResponse.onSuccess(SuccessCode.OK);
     }
 
     @Operation(summary = "추천 코스 목록 조회", description = "추천 코스 목록을 조회합니다.")
