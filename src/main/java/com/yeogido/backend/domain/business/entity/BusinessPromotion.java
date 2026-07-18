@@ -47,4 +47,21 @@ public class BusinessPromotion extends BaseEntity {
 
     @Column(name = "sns_account", length = 100)
     private String snsAccount;
+
+    public void reactivate(
+            User user,
+            String shortDescription,
+            String ownerComment,
+            PromotionCategory promotionCategory,
+            String phoneNumber,
+            String snsAccount
+    ) {
+        this.user = user;
+        this.shortDescription = shortDescription;
+        this.ownerComment = ownerComment;
+        this.promotionCategory = promotionCategory;
+        this.phoneNumber = phoneNumber;
+        this.snsAccount = snsAccount;
+        this.status = PromotionStatus.ACTIVE;
+    }
 }

@@ -32,7 +32,7 @@ public class Place extends BaseEntity {
     @JoinColumn(name = "region_id", nullable = false)
     private Region region;
 
-    @Column(name = "external_place_id", length = 100)
+    @Column(nullable = false, name = "external_place_id", length = 100)
     private String externalPlaceId;
 
     @Enumerated(EnumType.STRING)

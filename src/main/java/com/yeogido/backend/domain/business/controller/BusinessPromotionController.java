@@ -3,6 +3,7 @@ package com.yeogido.backend.domain.business.controller;
 import com.yeogido.backend.domain.business.dto.request.BusinessPromotionRequest;
 import com.yeogido.backend.domain.business.dto.response.BusinessPromotionResponse;
 import com.yeogido.backend.domain.business.enums.PromotionCategory;
+import com.yeogido.backend.domain.business.service.BusinessPromotionService;
 import com.yeogido.backend.global.common.code.SuccessCode;
 import com.yeogido.backend.global.common.response.ApiResponse;
 import com.yeogido.backend.global.common.response.CursorResponse;
@@ -10,6 +11,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -19,17 +21,19 @@ import java.util.List;
 
 @Tag(name = "Business Promotion", description = "소상공인 홍보 API")
 @RestController
+@RequiredArgsConstructor
 @RequestMapping("/api/v1/business-promotions")
 public class BusinessPromotionController {
+
+    private final BusinessPromotionService businessPromotionService;
 
     @Operation(summary = "소상공인 홍보 등록", description = "소상공인 홍보글을 등록합니다")
     @PostMapping
     public ApiResponse<BusinessPromotionResponse.Register> registerBusinessPromotion(
             @Valid @RequestBody BusinessPromotionRequest.Register request
     ) {
-        BusinessPromotionResponse.Register response = BusinessPromotionResponse.Register.builder()
-                .promotionId(1L)
-                .build();
+        BusinessPromotionResponse.Register response =
+                businessPromotionService.registerBusinessPromotion(request);
 
         return ApiResponse.onSuccess(SuccessCode.CREATED, response);
     }
