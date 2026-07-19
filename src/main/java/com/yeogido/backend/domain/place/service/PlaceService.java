@@ -22,9 +22,4 @@ public interface PlaceService {
             List<CourseReqDTO.CourseItemCreateReq> items
     );
 
-    Place getOrCreatePlace(
-            CourseReqDTO.CourseItemCreateReq item,
-            Map<String, Place> placeMap
-    );
-
 }
