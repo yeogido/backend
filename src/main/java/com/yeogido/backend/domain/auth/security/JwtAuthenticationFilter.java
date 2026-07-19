@@ -2,6 +2,7 @@ package com.yeogido.backend.domain.auth.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yeogido.backend.domain.auth.exception.AuthErrorCode;
+import com.yeogido.backend.domain.auth.service.JwtTokenProvider;
 import com.yeogido.backend.global.common.response.ApiResponse;
 import com.yeogido.backend.global.exception.GeneralException;
 import jakarta.servlet.FilterChain;

@@ -1,5 +1,6 @@
 package com.yeogido.backend.domain.user.service;
 
+import com.yeogido.backend.domain.user.converter.UserConverter;
 import com.yeogido.backend.domain.user.dto.UserResDTO;
 import com.yeogido.backend.domain.user.entity.User;
 import com.yeogido.backend.domain.user.exception.UserErrorCode;
@@ -31,14 +32,7 @@ public class UserServiceImpl implements UserService{
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
 
-        return new UserResDTO.Profile(
-                user.getId(),
-                user.getEmail(),
-                user.getNickname(),
-                user.getRegion().getName(),
-                user.getRole(),
-                user.getProfileImage()
-        );
+        return UserConverter.toProfile(user);
     }
 
 }
