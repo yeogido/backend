@@ -7,9 +7,9 @@ import java.util.Optional;
 
 public interface PlaceLikeRepository extends JpaRepository<PlaceLike, Long> {
 
-    // 특정 사용자가 해당 장소에 이미 좋아요를 등록했는지 확인
+    // 멱등한 좋아요 등록을 위해 기존 좋아요 존재 여부 확인
     boolean existsByUserIdAndPlaceId(Long userId, Long placeId);
 
-    // 특정 사용자가 장소에 등록한 좋아요 데이터 단건 조회 (좋아요 취소에 사용)
+    // 좋아요가 존재하는 경우에만 삭제하기 위한 단건 조회
     Optional<PlaceLike> findByUserIdAndPlaceId(Long userId, Long placeId);
 }

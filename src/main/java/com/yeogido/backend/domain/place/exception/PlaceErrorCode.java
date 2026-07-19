@@ -14,18 +14,6 @@ public enum PlaceErrorCode implements ErrorCode {
             HttpStatus.NOT_FOUND,
             "PLACE4041",
             "장소를 찾을 수 없습니다"
-    ),
-
-    PLACE_LIKE_NOT_FOUND(
-            HttpStatus.NOT_FOUND,
-            "PLACE4042",
-            "장소 좋아요 정보를 찾을 수 없습니다"
-    ),
-
-    PLACE_LIKE_ALREADY_EXIST(
-            HttpStatus.CONFLICT,
-            "PLACE4091",
-            "이미 좋아요를 누른 장소입니다"
     );
 
     private final HttpStatus httpStatus;

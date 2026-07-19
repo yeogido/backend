@@ -41,16 +41,15 @@ public class PlaceServiceImpl implements PlaceService {
     private final RegionRepository regionRepository;
 
     @Override
-    @Transactional()
+    @Transactional
     public void createPlaceLike(Long placeId) {
         Place place = getPlace(placeId);
-        User user = userRepository.getReferenceById(MOCK_USER_ID);
 
-        if (placeLikeRepository.existsByUserIdAndPlaceId(user.getId(), placeId)) {
-            throw new GeneralException(
-                    PlaceErrorCode.PLACE_LIKE_ALREADY_EXIST
-            );
+        if (placeLikeRepository.existsByUserIdAndPlaceId(MOCK_USER_ID, placeId)) {
+            return;
         }
+
+        User user = userRepository.getReferenceById(MOCK_USER_ID);
 
         PlaceLike placeLike = PlaceLike.builder()
                 .place(place)
@@ -61,19 +60,14 @@ public class PlaceServiceImpl implements PlaceService {
     }
 
     @Override
-    @Transactional()
+    @Transactional
     public void deletePlaceLike(Long placeId) {
         getPlace(placeId);
-        User user = userRepository.getReferenceById(MOCK_USER_ID);
 
-        PlaceLike placeLike = placeLikeRepository.findByUserIdAndPlaceId(
-                user.getId(),
+        placeLikeRepository.findByUserIdAndPlaceId(
+                MOCK_USER_ID,
                 placeId
-        ).orElseThrow(() -> new GeneralException(
-                PlaceErrorCode.PLACE_LIKE_NOT_FOUND
-        ));
-
-        placeLikeRepository.delete(placeLike);
+        ).ifPresent(placeLikeRepository::delete);
     }
 
     @Override
