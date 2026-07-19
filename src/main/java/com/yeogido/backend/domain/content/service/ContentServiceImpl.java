@@ -431,9 +431,9 @@ public class ContentServiceImpl implements ContentService{
         //TODO : 로그인 유저 가져오기
         User currentUser = null;
 
-        List<Long> hashtagIds = contentHashtagRepository.findByContent(content)
+        List<String> hashtags = contentHashtagRepository.findByContent(content)
                 .stream()
-                .map(ch->ch.getHashtag().getId())
+                .map(ch->ch.getHashtag().getHashtagName())
                 .toList();
 
 
@@ -469,7 +469,7 @@ public class ContentServiceImpl implements ContentService{
 
         return ContentConverter.toContentDetailRes(
                 content,
-                hashtagIds,
+                hashtags,
                 liked,
                 placeInfo,
                 courses

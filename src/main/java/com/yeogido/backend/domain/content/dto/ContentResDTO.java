@@ -60,7 +60,7 @@ public class ContentResDTO {
             String thumbnailImage,
 
             @Schema(description = "해시태그")
-            List<Long> hashtagIds,
+            List<String> hashtags,
 
             @Schema(description = "시작일")
             LocalDate startDate,
