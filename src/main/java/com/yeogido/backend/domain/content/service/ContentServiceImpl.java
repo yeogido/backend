@@ -12,7 +12,10 @@ import com.yeogido.backend.domain.content.entity.Content;
 import com.yeogido.backend.domain.content.entity.ContentHashtag;
 import com.yeogido.backend.domain.content.entity.QContent;
 import com.yeogido.backend.domain.content.entity.QContentLike;
+import com.yeogido.backend.domain.content.enums.ContentCategory;
 import com.yeogido.backend.domain.content.enums.ContentSort;
+import com.yeogido.backend.domain.content.enums.ContentSource;
+import com.yeogido.backend.domain.content.exception.ContentErrorCode;
 import com.yeogido.backend.domain.content.repository.ContentHashtagRepository;
 import com.yeogido.backend.domain.content.repository.ContentRepository;
 import com.yeogido.backend.domain.hashtag.entity.Hashtag;
@@ -20,6 +23,7 @@ import com.yeogido.backend.domain.hashtag.exception.HashtagErrorCode;
 import com.yeogido.backend.domain.hashtag.repository.HashtagRepository;
 import com.yeogido.backend.domain.place.entity.Place;
 import com.yeogido.backend.domain.place.entity.QPlace;
+import com.yeogido.backend.domain.place.enums.PlaceSource;
 import com.yeogido.backend.domain.place.service.PlaceService;
 import com.yeogido.backend.global.common.response.CursorResponse;
 import com.yeogido.backend.global.exception.GeneralErrorCode;
@@ -471,9 +475,49 @@ public class ContentServiceImpl implements ContentService{
         );
     }
 
+    @Transactional
     @Override
     public ContentResDTO.ContentUpdateRes updateContent(Long contentId, ContentReqDTO.ContentCreateReq request){
-        return new ContentResDTO.ContentUpdateRes(contentId);
+        Content content = contentRepository.findById(contentId)
+                .orElseThrow(() -> new GeneralException(ContentErrorCode.CONTENT_NOT_FOUND));
+
+        Place place = placeService.getOrCreatePlace(request.place());
+
+        content.update(
+                place,
+                request.place().externalPlaceId(),
+                request.title(),
+                request.description(),
+                request.thumbnailImageKey(),
+                request.startDate(),
+                request.endDate(),
+                request.contactPhone(),
+                request.officialUrl(),
+                ContentCategory.valueOf(request.category()),
+                PlaceSource.valueOf(request.place().source()) == PlaceSource.KAKAO
+                        ? ContentSource.ADMIN
+                        : ContentSource.TOUR_API
+        );
+
+        contentHashtagRepository.deleteByContentId(contentId);
+
+        if (request.hashtagIds() != null && !request.hashtagIds().isEmpty()) {
+
+            for (Long hashtagId : request.hashtagIds()) {
+
+                Hashtag hashtag = hashtagRepository.findById(hashtagId)
+                        .orElseThrow(() -> new GeneralException(HashtagErrorCode.HASHTAG_NOT_FOUND));
+
+                contentHashtagRepository.save(
+                        ContentHashtag.builder()
+                                .content(content)
+                                .hashtag(hashtag)
+                                .build()
+                );
+            }
+        }
+
+        return new ContentResDTO.ContentUpdateRes(content.getId());
     }
 
     @Override
