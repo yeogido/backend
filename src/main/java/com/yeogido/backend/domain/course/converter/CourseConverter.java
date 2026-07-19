@@ -29,6 +29,8 @@ public class CourseConverter {
                 .durationType(request.durationType())
                 .transportType(request.transportType())
                 .companionType(request.companionType())
+                .monthStart(request.monthStart())
+                .monthEnd(request.monthEnd())
                 .thumbnailKey(request.thumbnailKey())
                 .build();
     }

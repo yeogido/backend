@@ -10,6 +10,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -47,6 +49,18 @@ public class CourseReqDTO {
             @Schema(description = "동행 유형", example = "FRIEND")
             CompanionType companionType,
 
+            @NotNull(message = "여행 시작 월은 필수입니다")
+            @Min(value = 1, message = "여행 시작 월은 1 이상이어야 합니다")
+            @Max(value = 12, message = "여행 시작 월은 12 이하이어야 합니다")
+            @Schema(description = "여행 시작 월", example = "4")
+            Integer monthStart,
+
+            @NotNull(message = "여행 종료 월은 필수입니다")
+            @Min(value = 1, message = "여행 종료 월은 1 이상이어야 합니다")
+            @Max(value = 12, message = "여행 종료 월은 12 이하이어야 합니다")
+            @Schema(description = "여행 종료 월", example = "10")
+            Integer monthEnd,
+
             @Schema(description = "대표 이미지 S3 key", example = "courses/thumbnail/abcd1234.jpg")
             @NotBlank(message = "대표 이미지는 필수입니다")
             String thumbnailKey,
@@ -63,7 +77,50 @@ public class CourseReqDTO {
             @Valid
             @NotEmpty(message = "코스 구성 항목은 최소 1개 이상 필요합니다.")
             @Schema(description = "코스 구성 항목")
-            List<CourseItemCreateReq> courseItems
+            List<@NotNull(message = "코스 구성 항목이 올바르지 않습니다.") CourseItemCreateReq> courseItems
+    ) { }
+
+    @Schema(name = "CourseUpdateRequest", description = "추천 코스 수정 요청")
+    public record CourseUpdateReq(
+
+            @Schema(description = "코스 제목", example = "부산 야경 여행")
+            String title,
+
+            @Schema(description = "코스 설명", example = "부산의 야경과 축제를 함께 즐길 수 있는 코스입니다.")
+            String description,
+
+            @Schema(description = "여행 기간", example = "DAY_TRIP")
+            DurationType durationType,
+
+            @Schema(description = "이동 수단", example = "CAR")
+            TransportType transportType,
+
+            @Schema(description = "동행 유형", example = "FRIEND")
+            CompanionType companionType,
+
+            @Min(value = 1, message = "여행 시작 월은 1 이상이어야 합니다")
+            @Max(value = 12, message = "여행 시작 월은 12 이하이어야 합니다")
+            @Schema(description = "여행 시작 월", example = "5")
+            Integer monthStart,
+
+            @Min(value = 1, message = "여행 종료 월은 1 이상이어야 합니다")
+            @Max(value = 12, message = "여행 종료 월은 12 이하이어야 합니다")
+            @Schema(description = "여행 종료 월", example = "9")
+            Integer monthEnd,
+
+            @Schema(description = "대표 이미지 S3 key", example = "courses/thumbnail/abcd1234.jpg")
+            String thumbnailKey,
+
+            @Schema(description = "해시태그 ID 목록", example = "[1, 3, 5]")
+            @Size(
+                    max = 5,
+                    message = "해시태그는 5개 이하로 선택할 수 있습니다."
+            )
+            List<@NotNull(message = "유효하지 않은 해시태그입니다.") Long> hashtagIds,
+
+            @Valid
+            @Schema(description = "코스 구성 항목")
+            List<@NotNull(message = "코스 구성 항목이 올바르지 않습니다.") CourseItemCreateReq> courseItems
     ) { }
 
     @Schema(name = "CourseItemCreateRequest", description = "추천 코스 구성 항목 등록 요청")
@@ -74,11 +131,8 @@ public class CourseReqDTO {
             Integer order,
 
             @NotNull(message = "코스 항목 타입은 필수입니다")
-            @Schema(description = "코스 항목 타입. PLACE인 경우 placeId와 imageKey를 사용하고, CONTENT인 경우 contentId를 사용합니다.", example = "PLACE")
+            @Schema(description = "PLACE인 경우 externalPlaceId, categoryGroupCode, name, roadAddress(또는 lotAddress), latitude, longitude, imageKey를 사용하고, CONTENT인 경우 contentId를 사용합니다.", example = "PLACE")
             CourseItemType type,
-
-            @Schema(description = "장소 ID. type=PLACE인 경우 사용합니다.", example = "1")
-            Long placeId,
 
             @Schema(description = "콘텐츠 ID. type=CONTENT인 경우 사용합니다.", example = "10")
             Long contentId,
