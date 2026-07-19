@@ -65,6 +65,7 @@ public class ContentController {
             @RequestBody @Valid ContentReqDTO.ContentCreateReq request
 
     ){
+        System.out.println("===== Controller =====");
         ContentResDTO.ContentCreateRes result = contentService.createContent(request);
         return ApiResponse.onSuccess(SuccessCode.CREATED, result);
     }

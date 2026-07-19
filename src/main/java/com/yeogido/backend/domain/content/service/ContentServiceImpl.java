@@ -9,13 +9,22 @@ import com.yeogido.backend.domain.content.converter.ContentConverter;
 import com.yeogido.backend.domain.content.dto.ContentReqDTO;
 import com.yeogido.backend.domain.content.dto.ContentResDTO;
 import com.yeogido.backend.domain.content.entity.Content;
+import com.yeogido.backend.domain.content.entity.ContentHashtag;
 import com.yeogido.backend.domain.content.entity.QContent;
 import com.yeogido.backend.domain.content.entity.QContentLike;
 import com.yeogido.backend.domain.content.enums.ContentSort;
+import com.yeogido.backend.domain.content.repository.ContentHashtagRepository;
+import com.yeogido.backend.domain.content.repository.ContentRepository;
+import com.yeogido.backend.domain.hashtag.entity.Hashtag;
+import com.yeogido.backend.domain.hashtag.exception.HashtagErrorCode;
+import com.yeogido.backend.domain.hashtag.repository.HashtagRepository;
+import com.yeogido.backend.domain.place.entity.Place;
 import com.yeogido.backend.domain.place.entity.QPlace;
+import com.yeogido.backend.domain.place.service.PlaceService;
 import com.yeogido.backend.global.common.response.CursorResponse;
 import com.yeogido.backend.global.exception.GeneralErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -36,6 +45,11 @@ public class ContentServiceImpl implements ContentService{
     private final QPlace qPlace = QPlace.place;
     private final QContentLike qContentLike = QContentLike.contentLike;
     private final NumberExpression<Long> likeCountExpression = qContentLike.id.count();
+    private final ContentRepository contentRepository;
+    private final PlaceService placeService;
+    private final ContentHashtagRepository contentHashtagRepository;
+    private final HashtagRepository hashtagRepository;
+
 
     @Override
     public CursorResponse<ContentResDTO.ContentInfo> getContents(ContentReqDTO.ContentListReq request){
@@ -427,8 +441,34 @@ public class ContentServiceImpl implements ContentService{
 
 
     @Override
-    public ContentResDTO.ContentCreateRes createContent(ContentReqDTO.ContentCreateReq request){
-        return new ContentResDTO.ContentCreateRes(null);
+    @Transactional
+    public ContentResDTO.ContentCreateRes createContent(ContentReqDTO.ContentCreateReq request) {
+
+        Place place = placeService.getOrCreatePlace(request.place());
+
+        Content content = ContentConverter.toContent(request, place);
+
+        Content savedContent = contentRepository.save(content);
+
+        if (request.hashtagIds() != null && !request.hashtagIds().isEmpty()) {
+
+            for (Long hashtagId : request.hashtagIds()) {
+
+                Hashtag hashtag = hashtagRepository.findById(hashtagId)
+                        .orElseThrow(() -> new GeneralException(HashtagErrorCode.HASHTAG_NOT_FOUND));
+
+                ContentHashtag contentHashtag = ContentHashtag.builder()
+                        .content(savedContent)
+                        .hashtag(hashtag)
+                        .build();
+
+                contentHashtagRepository.save(contentHashtag);
+            }
+        }
+
+        return new ContentResDTO.ContentCreateRes(
+                savedContent.getId()
+        );
     }
 
     @Override
