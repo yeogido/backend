@@ -31,6 +31,12 @@ public enum AuthErrorCode implements ErrorCode {
     HttpStatus.BAD_REQUEST,
     "AUTH4003",
     "유효하지 않거나 만료된 소셜 회원가입 임시 토큰입니다."
+  ),
+
+  SOCIAL_ACCOUNT_ALREADY_EXISTS(
+    HttpStatus.CONFLICT,
+    "AUTH4091",
+    "이미 가입된 소셜 계정입니다."
   );
 
   private final HttpStatus httpStatus;
