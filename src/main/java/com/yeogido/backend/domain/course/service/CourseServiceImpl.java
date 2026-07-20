@@ -18,15 +18,14 @@ import com.yeogido.backend.domain.course.repository.CourseLikeRepository;
 import com.yeogido.backend.domain.course.repository.CourseRepository;
 import com.yeogido.backend.domain.course.enums.CompanionType;
 import com.yeogido.backend.domain.course.enums.CourseItemType;
-import com.yeogido.backend.domain.course.enums.CourseType;
 import com.yeogido.backend.domain.course.enums.DurationType;
 import com.yeogido.backend.domain.course.enums.TransportType;
 import com.yeogido.backend.domain.hashtag.entity.Hashtag;
 import com.yeogido.backend.domain.hashtag.exception.HashtagErrorCode;
 import com.yeogido.backend.domain.hashtag.repository.HashtagRepository;
+import com.yeogido.backend.domain.file.service.S3Service;
 import com.yeogido.backend.domain.place.entity.Place;
 import com.yeogido.backend.domain.course.repository.CourseReviewRepository;
-import com.yeogido.backend.domain.place.enums.PlaceSource;
 import com.yeogido.backend.domain.place.service.PlaceService;
 import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.region.exception.RegionErrorCode;
@@ -66,6 +65,7 @@ public class CourseServiceImpl implements CourseService {
     private final CourseReviewRepository courseReviewRepository;
     private final UserRepository userRepository;
     private final RegionRepository regionRepository;
+    private final S3Service s3Service;
 
     @Override
     @Transactional
@@ -140,53 +140,32 @@ public class CourseServiceImpl implements CourseService {
     }
 
     @Override
-    public CourseResDTO.CourseDetail getCourse(Long courseId) {
-        // TODO: 추천 코스 상세 조회 로직 구현
-        CourseResDTO.CourseItem placeItem = new CourseResDTO.CourseItem(
-                1,
-                CourseItemType.PLACE,
-                11L,
-                PlaceSource.KAKAO,
-                "123456789",
-                "주문진 해변",
-                "강원특별자치도 강릉시 해안로 1609",
-                "강원특별자치도 강릉시 주문진읍 향호리",
-                new BigDecimal("37.9111111"),
-                new BigDecimal("128.8211111")
-        );
+    public CourseResDTO.CourseDetail getCourseDetail(Long courseId) {
+        Course course = courseRepository.findCourseDetailByIdAndDeletedAtIsNull(courseId)
+                .orElseThrow(() -> new GeneralException(CourseErrorCode.COURSE_NOT_FOUND));
 
-        CourseResDTO.CourseItem contentItem = new CourseResDTO.CourseItem(
-                2,
-                CourseItemType.CONTENT,
-                27L,
-                PlaceSource.KAKAO,
-                "987654321",
-                "강릉 커피축제",
-                "강원특별자치도 강릉시 난설헌로 131",
-                "강원특별자치도 강릉시 초당동",
-                new BigDecimal("37.7911111"),
-                new BigDecimal("128.9144444")
-        );
+        // TODO: 추천 코스 상세 조회 시 조회수 증가 로직 구현
+        // TODO: Spring Security 적용 후 인증 사용자 ID로 교체
+        boolean isLiked = courseLikeRepository.existsByUserIdAndCourseId(MOCK_MEMBER_ID, courseId);
+        Long likeCount = courseLikeRepository.countByCourseId(courseId);
 
-        CourseResDTO.Author author = new CourseResDTO.Author(null, null);
+        List<String> tags = courseHashtagRepository.findByCourseId(courseId).stream()
+                .map(courseHashtag -> courseHashtag.getHashtag().getHashtagName())
+                .toList();
 
-        return new CourseResDTO.CourseDetail(
-                courseId,
-                CourseType.OFFICIAL,
-                "강릉 혼자 여행 코스",
-                "https://example.com/course1.jpg",
-                "바다를 따라 걷고, 감성 가득한 카페와 로컬 맛집을 즐기는 강릉 여행 코스입니다.",
-                List.of("여름", "자연", "바다", "카페"),
-                DurationType.TWO_NIGHT,
-                TransportType.WALK,
-                4,
-                10,
-                CompanionType.SOLO,
-                true,
-                120L,
-                1304L,
-                List.of(placeItem, contentItem),
-                author
+        List<CourseResDTO.CourseItem> courseItems = courseItemRepository
+                .findByCourseIdOrderByOrderNoAsc(courseId)
+                .stream()
+                .map(CourseConverter::toCourseItem)
+                .toList();
+
+        return CourseConverter.toCourseDetail(
+                course,
+                s3Service.getImageUrl(course.getThumbnailKey()),
+                tags,
+                isLiked,
+                likeCount,
+                courseItems
         );
     }
 

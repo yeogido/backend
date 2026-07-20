@@ -15,6 +15,9 @@ public interface CourseItemRepository extends JpaRepository<CourseItem, Long> {
     @EntityGraph(attributePaths = "course")
     List<CourseItem> findByContentOrderByOrderNoAsc(Content content);
 
+    @EntityGraph(attributePaths = {"place", "content", "content.place"})
+    List<CourseItem> findByCourseIdOrderByOrderNoAsc(Long courseId);
+
     @Modifying
     @Query("delete from CourseItem ci where ci.course.id = :courseId")
     void deleteAllByCourseId(@Param("courseId") Long courseId);

@@ -1,5 +1,6 @@
 package com.yeogido.backend.domain.course.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.yeogido.backend.domain.course.enums.CompanionType;
 import com.yeogido.backend.domain.course.enums.CourseItemType;
 import com.yeogido.backend.domain.course.enums.CourseType;
@@ -100,6 +101,7 @@ public class CourseResDTO {
             List<CourseItem> courseItems,
 
             @Schema(description = "작성자 정보")
+            @JsonInclude(JsonInclude.Include.NON_NULL)
             Author author
     ) { }
 
