@@ -58,7 +58,7 @@ public class BusinessPromotionResponse {
             String shortDescription,
 
             @Schema(description = "연결된 장소의 좋아요 수", example = "24")
-            Integer likeCount,
+            Long likeCount,
 
             @Schema(description = "현재 사용자의 장소 좋아요 여부", example = "true")
             Boolean isLiked,
@@ -101,7 +101,7 @@ public class BusinessPromotionResponse {
             List<ImageInfo> images,
 
             @Schema(description = "연결된 장소의 좋아요 수", example = "24")
-            Integer likeCount,
+            Long likeCount,
 
             @Schema(description = "현재 사용자의 장소 좋아요 여부", example = "true")
             Boolean isLiked,
@@ -199,7 +199,7 @@ public class BusinessPromotionResponse {
             String status,
 
             @Schema(description = "연결된 장소의 좋아요 수", example = "24")
-            Integer likeCount,
+            Long likeCount,
 
             @Schema(description = "생성일시", example = "2026-07-05T10:30:00")
             LocalDateTime createdAt,
