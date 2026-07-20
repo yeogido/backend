@@ -30,8 +30,21 @@ public class ReviewResDTO {
             @Schema(description = "생성 일시", example = "2026-07-05T15:30:00")
             LocalDateTime createdAt,
 
+            @Schema(description = "리뷰 이미지 목록")
+            List<ReviewImage> images,
+
             @Schema(description = "작성자 정보")
             Author author
+    ) {
+    }
+
+    @Schema(name = "ReviewImage", description = "리뷰 이미지 정보")
+    public record ReviewImage(
+            @Schema(description = "리뷰 이미지 URL", example = "https://example-bucket.s3.ap-northeast-2.amazonaws.com/reviews/abc.jpg")
+            String imageUrl,
+
+            @Schema(description = "리뷰 이미지 순서", example = "1")
+            Integer imageOrder
     ) {
     }
 
