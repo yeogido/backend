@@ -22,6 +22,30 @@ public class AuthResDTO {
     String refreshToken
   ) {}
 
+  @Schema(name = "AuthSocialLoginRes", description = "소셜 로그인 응답")
+  public record SocialLogin(
+    @Schema(description = "신규 소셜 사용자 여부", example = "true")
+    boolean isNewUser,
+
+    @Schema(description = "사용자 ID. 기존 사용자 로그인 성공 시 반환", example = "2")
+    Long userId,
+
+    @Schema(description = "액세스 토큰. 기존 사용자 로그인 성공 시 반환", example = "eyJhbGciOiJIUzI1NiJ9...")
+    String accessToken,
+
+    @Schema(description = "리프레시 토큰. 기존 사용자 로그인 성공 시 반환", example = "eyJhbGciOiJIUzI1NiJ9...")
+    String refreshToken,
+
+    @Schema(description = "프로필 작성용 임시 토큰. 신규 소셜 사용자일 때 반환", example = "temp_social_signup_token")
+    String temporaryToken,
+
+    @Schema(description = "소셜 Provider에서 조회한 이메일. 신규 소셜 사용자일 때 반환", example = "kakao_user@example.com")
+    String email,
+
+    @Schema(description = "소셜 Provider에서 조회한 이름. 신규 소셜 사용자일 때 반환", example = "홍길동")
+    String name
+  ) {}
+
   @Schema(name = "AuthEmailCheckRes", description = "이메일 중복 확인 응답")
   public record EmailCheck(
     @Schema(description = "이메일 사용 가능 여부", example = "true")

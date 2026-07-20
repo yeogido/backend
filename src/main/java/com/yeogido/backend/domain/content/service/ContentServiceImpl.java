@@ -14,6 +14,7 @@ import com.yeogido.backend.domain.content.entity.QContent;
 import com.yeogido.backend.domain.content.entity.QContentLike;
 import com.yeogido.backend.domain.content.enums.ContentCategory;
 import com.yeogido.backend.domain.content.enums.ContentSort;
+
 import com.yeogido.backend.domain.content.enums.ContentSource;
 import com.yeogido.backend.domain.content.exception.ContentErrorCode;
 import com.yeogido.backend.domain.content.repository.ContentHashtagRepository;
@@ -25,6 +26,12 @@ import com.yeogido.backend.domain.place.entity.Place;
 import com.yeogido.backend.domain.place.entity.QPlace;
 import com.yeogido.backend.domain.place.enums.PlaceSource;
 import com.yeogido.backend.domain.place.service.PlaceService;
+import com.yeogido.backend.domain.content.repository.ContentLikeRepository;
+import com.yeogido.backend.domain.course.entity.Course;
+import com.yeogido.backend.domain.course.repository.CourseItemRepository;
+import com.yeogido.backend.domain.course.repository.CourseLikeRepository;
+import com.yeogido.backend.domain.user.entity.User;
+
 import com.yeogido.backend.global.common.response.CursorResponse;
 import com.yeogido.backend.global.exception.GeneralErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
@@ -54,6 +61,12 @@ public class ContentServiceImpl implements ContentService{
     private final ContentHashtagRepository contentHashtagRepository;
     private final HashtagRepository hashtagRepository;
 
+
+    private final ContentRepository contentRepository;
+    private final ContentHashtagRepository contentHashtagRepository;
+    private final ContentLikeRepository contentLikeRepository;
+    private final CourseItemRepository courseItemRepository;
+    private final CourseLikeRepository courseLikeRepository;
 
     @Override
     public CursorResponse<ContentResDTO.ContentInfo> getContents(ContentReqDTO.ContentListReq request){
@@ -427,18 +440,55 @@ public class ContentServiceImpl implements ContentService{
 
     @Override
     public ContentResDTO.ContentDetailRes getContentDetail(Long contentId){
-        return new ContentResDTO.ContentDetailRes(
-                null,
-                null,
-                null,
-                null,
-                List.of(),
-                null,
-                null,
-                null,
-                null,
-                null,
-                List.of()
+
+        Content content = contentRepository.findById(contentId)
+                .orElseThrow(()-> new GeneralException(ContentErrorCode.CONTENT_NOT_FOUND));
+
+        //TODO : 로그인 유저 가져오기
+        User currentUser = null;
+
+        List<String> hashtags = contentHashtagRepository.findByContent(content)
+                .stream()
+                .map(ch->ch.getHashtag().getHashtagName())
+                .toList();
+
+
+        boolean liked = false;
+        if(currentUser!=null){
+            liked = contentLikeRepository.existsByContentAndUser(content,currentUser);
+        }
+
+        ContentResDTO.PlaceInfo placeInfo =
+                ContentConverter.toPlaceInfo(content.getPlace());
+
+
+        List<ContentResDTO.CourseInfo> courses =
+                courseItemRepository.findByContentOrderByOrderNoAsc(content)
+                        .stream()
+                        .map(courseItem -> {
+
+                            Course course = courseItem.getCourse();
+
+                            boolean courseLiked = false;
+
+                            if (currentUser != null) {
+                                courseLiked =
+                                        courseLikeRepository.existsByCourseAndUser(course, currentUser);
+                            }
+
+
+                            return ContentConverter.toCourseInfo(course, courseLiked);
+
+                        })
+                        .toList();
+
+
+        return ContentConverter.toContentDetailRes(
+                content,
+                hashtags,
+                liked,
+                placeInfo,
+                courses
         );
 
     }
