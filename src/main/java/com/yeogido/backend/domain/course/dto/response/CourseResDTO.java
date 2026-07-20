@@ -103,6 +103,28 @@ public class CourseResDTO {
             Author author
     ) { }
 
+    @Schema(name = "CourseSummaryResponse", description = "추천 코스 요약 조회 응답")
+    public record CourseSummary(
+
+            @Schema(description = "코스 ID", example = "1")
+            Long courseId,
+
+            @Schema(description = "코스 제목", example = "강릉 혼자 여행 코스")
+            String title,
+
+            @Schema(description = "대표 이미지 URL", example = "https://example.com/course1.jpg")
+            String thumbnailUrl,
+
+            @Schema(description = "여행 기간", example = "TWO_NIGHT")
+            DurationType durationType,
+
+            @Schema(description = "이동 수단", example = "CAR")
+            TransportType transportationType,
+
+            @Schema(description = "동행 유형", example = "FRIEND")
+            CompanionType companionType
+    ) { }
+
     @Schema(name = "CourseItemResponse", description = "코스 구성 항목")
     public record CourseItem(
 

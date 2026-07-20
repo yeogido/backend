@@ -20,6 +20,8 @@ public interface CourseService {
 
     CourseResDTO.CourseDetail getCourse(Long courseId);
 
+    CourseResDTO.CourseSummary getCourseSummary(Long courseId, Long userId);
+
     CourseResDTO.ReviewCreateRes createCourseReview(Long courseId, CourseReqDTO.ReviewCreateReq request);
 
     CourseResDTO.CourseLikeRes createCourseLike(Long courseId);
