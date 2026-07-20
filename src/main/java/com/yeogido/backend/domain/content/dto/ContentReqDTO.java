@@ -3,8 +3,10 @@ package com.yeogido.backend.domain.content.dto;
 import com.yeogido.backend.domain.content.enums.ContentCategory;
 import com.yeogido.backend.domain.content.enums.ContentSort;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -44,8 +46,9 @@ public class ContentReqDTO {
 
     public record ContentCreateReq(
 
-            @Schema(description = "장소 ID")
-            Long placeId,
+            @Valid
+            @Schema(description = "장소 정보")
+            PlaceReq place,
 
             @Schema(description = "문화콘텐츠명")
             String title,
@@ -65,13 +68,41 @@ public class ContentReqDTO {
             @Schema(description = "문의 연락처")
             String contactPhone,
 
+            @Schema(description = "공식 홈페이지")
+            String officialUrl,
+
             @Schema(description = "대표 사진 Key")
             String thumbnailImageKey,
 
             @Schema(description = "해시태그 ID 목록")
-            List<String> hashtagIds
+            List<Long> hashtagIds
 
     ){}
+
+        public record PlaceReq(
+
+                @Schema(description = "외부 장소 식별 ID")
+                String externalPlaceId,
+
+                @Schema(description = "장소 데이터 출처")
+                String source,
+
+                @Schema(description = "장소명")
+                String name,
+
+                @Schema(description = "도로명 주소")
+                String roadAddress,
+
+                @Schema(description = "지번 주소")
+                String lotAddress,
+
+                @Schema(description = "위도")
+                BigDecimal latitude,
+
+                @Schema(description = "경도")
+                BigDecimal longitude
+
+        ){}
 
 
 }

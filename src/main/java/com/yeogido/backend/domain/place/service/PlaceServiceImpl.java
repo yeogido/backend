@@ -1,5 +1,7 @@
 package com.yeogido.backend.domain.place.service;
 
+import com.yeogido.backend.domain.content.converter.ContentConverter;
+import com.yeogido.backend.domain.content.dto.ContentReqDTO;
 import com.yeogido.backend.domain.course.converter.CourseConverter;
 import com.yeogido.backend.domain.course.dto.request.CourseReqDTO;
 import com.yeogido.backend.domain.course.enums.CourseItemType;
@@ -20,10 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -98,6 +97,36 @@ public class PlaceServiceImpl implements PlaceService {
         Place newPlace = placeRepository.save(CourseConverter.toPlace(item, placeRegion));
 
         placeMap.put(newPlace.getExternalPlaceId(), newPlace);
+        return newPlace;
+    }
+
+    @Override
+    @Transactional
+    public Place getOrCreatePlace(ContentReqDTO.PlaceReq request) {
+
+        PlaceSource source = PlaceSource.valueOf(request.source());
+
+        Optional<Place> optionalPlace =
+                placeRepository.findBySourceAndExternalPlaceId(
+                        source,
+                        request.externalPlaceId()
+                );
+
+        if (optionalPlace.isPresent()) {
+            Place place = optionalPlace.get();
+
+            return place;
+        }
+
+        Region region = findRegionByAddress(
+                request.roadAddress(),
+                request.lotAddress()
+        );
+
+        Place newPlace = ContentConverter.toPlace(request, region);
+
+        newPlace = placeRepository.save(newPlace);
+
         return newPlace;
     }
 
