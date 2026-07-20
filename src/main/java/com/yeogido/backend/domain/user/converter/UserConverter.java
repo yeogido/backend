@@ -14,6 +14,7 @@ public class UserConverter {
                 user.getEmail(),
                 user.getNickname(),
                 user.getRegion().getName(),
+                user.getBirthYear(),
                 user.getRole(),
                 user.getProfileImage()
         );
