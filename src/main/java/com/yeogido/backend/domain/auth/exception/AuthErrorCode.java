@@ -37,6 +37,12 @@ public enum AuthErrorCode implements ErrorCode {
     HttpStatus.CONFLICT,
     "AUTH4091",
     "이미 가입된 소셜 계정입니다."
+  ),
+
+  LOGIN_REQUIRED(
+    HttpStatus.UNAUTHORIZED,
+    "AUTH4011",
+    "로그인이 필요합니다."
   );
 
   private final HttpStatus httpStatus;

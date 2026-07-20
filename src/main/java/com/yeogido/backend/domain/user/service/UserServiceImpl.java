@@ -1,14 +1,21 @@
 package com.yeogido.backend.domain.user.service;
 
+import com.yeogido.backend.domain.user.converter.UserConverter;
 import com.yeogido.backend.domain.user.dto.UserResDTO;
-import com.yeogido.backend.domain.user.enums.UserRole;
+import com.yeogido.backend.domain.user.entity.User;
+import com.yeogido.backend.domain.user.exception.UserErrorCode;
+import com.yeogido.backend.domain.user.repository.UserRepository;
 import com.yeogido.backend.global.common.response.CursorResponse;
+import com.yeogido.backend.global.exception.GeneralException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
 public class UserServiceImpl implements UserService{
+
+    private final UserRepository userRepository;
 
     @Override
     public CursorResponse<UserResDTO.LikedResponse> getLikedList(
@@ -20,15 +27,12 @@ public class UserServiceImpl implements UserService{
     }
 
     @Override
-    public UserResDTO.Profile getMyPage(String authorization) {
-        return new UserResDTO.Profile(
-                1L,
-                "abc@example.com",
-                "홍길동",
-                "서울",
-                UserRole.USER,
-                "https://s3.ap-northeast-2.amazonaws.com/.../profile.jpg"
-        );
+    @Transactional(readOnly = true)
+    public UserResDTO.Profile getMyPage(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
+
+        return UserConverter.toProfile(user);
     }
 
 }

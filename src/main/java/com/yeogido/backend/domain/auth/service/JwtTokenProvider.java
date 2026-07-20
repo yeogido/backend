@@ -1,9 +1,13 @@
 package com.yeogido.backend.domain.auth.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yeogido.backend.domain.auth.dto.AuthResDTO;
+import com.yeogido.backend.domain.auth.exception.AuthErrorCode;
+import com.yeogido.backend.domain.auth.security.AuthUser;
 import com.yeogido.backend.domain.user.entity.User;
+import com.yeogido.backend.domain.user.enums.UserRole;
 import com.yeogido.backend.global.exception.GeneralErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
 import java.nio.charset.StandardCharsets;
@@ -38,9 +42,38 @@ public class JwtTokenProvider {
   public AuthResDTO.Token issueToken(User user) {
     return new AuthResDTO.Token(
       user.getId(),
-      createToken(user, TOKEN_TYPE_ACCESS, Instant.now().plus(accessTokenExpirationMinutes, ChronoUnit.MINUTES)),
-      createToken(user, TOKEN_TYPE_REFRESH, Instant.now().plus(refreshTokenExpirationDays, ChronoUnit.DAYS))
+      issueAccessToken(user),
+      issueRefreshToken(user)
     );
+  }
+
+  public String issueAccessToken(User user) {
+    return createToken(user, TOKEN_TYPE_ACCESS, Instant.now().plus(accessTokenExpirationMinutes, ChronoUnit.MINUTES));
+  }
+
+  public String issueRefreshToken(User user) {
+    return createToken(user, TOKEN_TYPE_REFRESH, Instant.now().plus(refreshTokenExpirationDays, ChronoUnit.DAYS));
+  }
+
+  public AuthUser parseAccessToken(String token) {
+    Map<String, Object> payload = parseToken(token);
+
+    if (!TOKEN_TYPE_ACCESS.equals(payload.get("type"))) {
+      throw new GeneralException(AuthErrorCode.LOGIN_REQUIRED);
+    }
+
+    Number userId = (Number) payload.get("userId");
+    String role = (String) payload.get("role");
+
+    if (userId == null || role == null) {
+      throw new GeneralException(AuthErrorCode.LOGIN_REQUIRED);
+    }
+
+    try {
+      return new AuthUser(userId.longValue(), UserRole.valueOf(role));
+    } catch (IllegalArgumentException e) {
+      throw new GeneralException(AuthErrorCode.LOGIN_REQUIRED);
+    }
   }
 
   private String createToken(User user, String tokenType, Instant expiresAt) {
@@ -64,10 +97,43 @@ public class JwtTokenProvider {
     }
   }
 
+  private Map<String, Object> parseToken(String token) {
+    try {
+      String[] tokenParts = token.split("\\.");
+
+      if (tokenParts.length != 3) {
+        throw new GeneralException(AuthErrorCode.LOGIN_REQUIRED);
+      }
+
+      String unsignedToken = tokenParts[0] + "." + tokenParts[1];
+      if (!sign(unsignedToken).equals(tokenParts[2])) {
+        throw new GeneralException(AuthErrorCode.LOGIN_REQUIRED);
+      }
+
+      Map<String, Object> payload = objectMapper.readValue(
+        decode(tokenParts[1]),
+        new TypeReference<>() {}
+      );
+
+      Number expiresAt = (Number) payload.get("exp");
+      if (expiresAt == null || expiresAt.longValue() < Instant.now().getEpochSecond()) {
+        throw new GeneralException(AuthErrorCode.LOGIN_REQUIRED);
+      }
+
+      return payload;
+    } catch (JsonProcessingException | IllegalArgumentException | ClassCastException e) {
+      throw new GeneralException(AuthErrorCode.LOGIN_REQUIRED);
+    }
+  }
+
   private String encode(String value) {
     return Base64.getUrlEncoder()
       .withoutPadding()
       .encodeToString(value.getBytes(StandardCharsets.UTF_8));
+  }
+
+  private String decode(String value) {
+    return new String(Base64.getUrlDecoder().decode(value), StandardCharsets.UTF_8);
   }
 
   private String sign(String value) {
