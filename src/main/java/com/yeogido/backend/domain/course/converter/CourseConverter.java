@@ -98,7 +98,8 @@ public class CourseConverter {
             String thumbnailUrl,
             List<String> tags,
             boolean isLiked,
-            List<CourseResDTO.CourseItem> courseItems
+            List<CourseResDTO.CourseItem> courseItems,
+            String profileImageUrl
     ) {
         return new CourseResDTO.CourseDetail(
                 course.getId(),
@@ -114,7 +115,7 @@ public class CourseConverter {
                 course.getCompanionType(),
                 isLiked,
                 courseItems,
-                toAuthor(course)
+                toAuthor(course, profileImageUrl)
         );
     }
 
@@ -144,16 +145,17 @@ public class CourseConverter {
         return courseItem.getContent().getPlace();
     }
 
-    private static CourseResDTO.Author toAuthor(Course course) {
+    private static CourseResDTO.Author toAuthor(
+            Course course,
+            String profileImageUrl
+    ) {
         if (course.getCourseType() != CourseType.LOCAL || course.getUser() == null) {
             return null;
         }
 
-        User user = course.getUser();
-
         return new CourseResDTO.Author(
-                user.getNickname(),
-                user.getProfileImage()
+                course.getUser().getNickname(),
+                profileImageUrl
         );
     }
 }

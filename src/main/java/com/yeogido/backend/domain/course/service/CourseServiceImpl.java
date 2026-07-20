@@ -11,15 +11,12 @@ import com.yeogido.backend.domain.course.entity.CourseHashtag;
 import com.yeogido.backend.domain.course.entity.CourseItem;
 import com.yeogido.backend.domain.course.entity.CourseLike;
 import com.yeogido.backend.domain.course.entity.CourseReview;
+import com.yeogido.backend.domain.course.enums.*;
 import com.yeogido.backend.domain.course.exception.CourseErrorCode;
 import com.yeogido.backend.domain.course.repository.CourseHashtagRepository;
 import com.yeogido.backend.domain.course.repository.CourseItemRepository;
 import com.yeogido.backend.domain.course.repository.CourseLikeRepository;
 import com.yeogido.backend.domain.course.repository.CourseRepository;
-import com.yeogido.backend.domain.course.enums.CompanionType;
-import com.yeogido.backend.domain.course.enums.CourseItemType;
-import com.yeogido.backend.domain.course.enums.DurationType;
-import com.yeogido.backend.domain.course.enums.TransportType;
 import com.yeogido.backend.domain.hashtag.entity.Hashtag;
 import com.yeogido.backend.domain.hashtag.exception.HashtagErrorCode;
 import com.yeogido.backend.domain.hashtag.repository.HashtagRepository;
@@ -161,12 +158,18 @@ public class CourseServiceImpl implements CourseService {
                 .map(CourseConverter::toCourseItem)
                 .toList();
 
+        String profileImageUrl = null;
+        if (course.getCourseType() == CourseType.LOCAL && course.getUser() != null) {
+            profileImageUrl = s3Service.getImageUrl(course.getUser().getProfileImage());
+        }
+
         return CourseConverter.toCourseDetail(
                 course,
                 s3Service.getImageUrl(course.getThumbnailKey()),
                 tags,
                 isLiked,
-                courseItems
+                courseItems,
+                profileImageUrl
         );
     }
 
