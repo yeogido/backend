@@ -61,9 +61,6 @@ public class ContentServiceImpl implements ContentService{
     private final ContentHashtagRepository contentHashtagRepository;
     private final HashtagRepository hashtagRepository;
 
-
-    private final ContentRepository contentRepository;
-    private final ContentHashtagRepository contentHashtagRepository;
     private final ContentLikeRepository contentLikeRepository;
     private final CourseItemRepository courseItemRepository;
     private final CourseLikeRepository courseLikeRepository;
