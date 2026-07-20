@@ -108,9 +108,6 @@ public class CourseResDTO {
             @Schema(description = "코스 항목 타입", example = "PLACE")
             CourseItemType type,
 
-            @Schema(description = "장소 ID", example = "11")
-            Long placeId,
-
             @Schema(description = "장소 정보 출처", example = "KAKAO")
             PlaceSource source,
 

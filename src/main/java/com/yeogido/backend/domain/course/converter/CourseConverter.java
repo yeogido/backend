@@ -126,7 +126,6 @@ public class CourseConverter {
         return new CourseResDTO.CourseItem(
                 courseItem.getOrderNo(),
                 courseItem.getItemType(),
-                place.getId(),
                 place.getSource(),
                 place.getExternalPlaceId(),
                 content == null ? place.getName() : content.getTitle(),
