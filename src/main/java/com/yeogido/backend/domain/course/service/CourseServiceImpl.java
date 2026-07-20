@@ -140,11 +140,14 @@ public class CourseServiceImpl implements CourseService {
     }
 
     @Override
+    @Transactional
     public CourseResDTO.CourseDetail getCourseDetail(Long courseId) {
         Course course = courseRepository.findCourseDetailByIdAndDeletedAtIsNull(courseId)
                 .orElseThrow(() -> new GeneralException(CourseErrorCode.COURSE_NOT_FOUND));
 
-        // TODO: 추천 코스 상세 조회 시 조회수 증가 로직 구현
+        // TODO: 인기순 조회 성능 개선을 위해 Redis 기반 조회수 집계 방식으로 변경
+        course.increaseViewCount();
+
         // TODO: Spring Security 적용 후 인증 사용자 ID로 교체
         boolean isLiked = courseLikeRepository.existsByUserIdAndCourseId(MOCK_MEMBER_ID, courseId);
         Long likeCount = courseLikeRepository.countByCourseId(courseId);
