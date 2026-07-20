@@ -9,9 +9,12 @@ import com.yeogido.backend.global.common.response.ApiResponse;
 import com.yeogido.backend.global.common.response.CursorResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import com.yeogido.backend.domain.auth.security.AuthUser;
 
 @Tag(
         name = "Content",
@@ -92,10 +95,33 @@ public class ContentController {
     )
     @PostMapping("/{contentId}/likes")
     public ApiResponse<ContentResDTO.ContentLikeRes> likeContent(
-            @PathVariable Long contentId
+            @PathVariable Long contentId,
+            @AuthenticationPrincipal AuthUser authUser
     ){
-        ContentResDTO.ContentLikeRes result = contentService.likeContent(contentId);
-        return ApiResponse.onSuccess(SuccessCode.OK,result);
+
+        ContentResDTO.ContentLikeRes result =
+                contentService.likeContent(contentId, authUser.userId());
+
+        return ApiResponse.onSuccess(SuccessCode.OK, result);
+
+    }
+
+
+    //문화콘텐츠 좋아요 취소
+    @Operation(
+            summary = "문화콘텐츠 좋아요 취소",
+            description = "해당 문화콘텐츠의 좋아요를 취소합니다."
+    )
+    @DeleteMapping("/{contentId}/likes")
+    public ApiResponse<ContentResDTO.ContentLikeRes> unlikeContent(
+            @PathVariable Long contentId,
+            @AuthenticationPrincipal AuthUser authUser
+    ) {
+
+        ContentResDTO.ContentLikeRes result =
+                contentService.unlikeContent(contentId, authUser.userId());
+
+        return ApiResponse.onSuccess(SuccessCode.OK, result);
     }
 
 

@@ -20,5 +20,8 @@ public interface ContentService {
     ContentResDTO.ContentUpdateRes updateContent(Long contentId, ContentReqDTO.ContentCreateReq request);
 
     //문화콘텐츠 좋아요 등록
-    ContentResDTO.ContentLikeRes likeContent(Long contentId);
+    ContentResDTO.ContentLikeRes likeContent(Long contentId, Long userId);
+
+    //문화콘텐츠 좋아요 취소
+    ContentResDTO.ContentLikeRes unlikeContent(Long contentId, Long userId);
 }
