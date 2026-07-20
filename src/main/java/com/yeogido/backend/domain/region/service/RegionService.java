@@ -6,5 +6,9 @@ import java.util.List;
 
 public interface RegionService {
 
+    RegionResDTO.RegionListResponse getRegions();
+
+    RegionResDTO.SubRegionListResponse getSubRegions(Long regionId);
+
     List<RegionResDTO.PopularRegionRes> getPopularRegions();
 }

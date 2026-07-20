@@ -37,10 +37,17 @@ public class AuthController {
     return ApiResponse.onSuccess(SuccessCode.OK, response);
   }
 
-  @Operation(summary = "소셜 로그인 API", description = "소셜 제공자와 제공자 식별자를 이용하여 로그인 또는 자동 회원가입을 진행합니다.")
+  @Operation(summary = "소셜 로그인 API", description = "프론트에서 전달받은 소셜 accessToken을 검증하고, 신규 사용자는 프로필 작성 단계로 안내합니다.")
   @PostMapping("/social-login")
-  public ApiResponse<AuthResDTO.Token> socialLogin(@Valid @RequestBody AuthReqDTO.SocialLogin request) {
-    AuthResDTO.Token response = authService.socialLogin(request);
+  public ApiResponse<AuthResDTO.SocialLogin> socialLogin(@Valid @RequestBody AuthReqDTO.SocialLogin request) {
+    AuthResDTO.SocialLogin response = authService.socialLogin(request);
+    return ApiResponse.onSuccess(SuccessCode.OK, response);
+  }
+
+  @Operation(summary = "소셜 로그인 추가 프로필 작성 완료 API", description = "신규 소셜 사용자의 추가 프로필 정보를 저장하고 회원가입을 완료합니다.")
+  @PostMapping("/social-signup/complete")
+  public ApiResponse<AuthResDTO.Token> completeSocialSignup(@Valid @RequestBody AuthReqDTO.SocialSignupComplete request) {
+    AuthResDTO.Token response = authService.completeSocialSignup(request);
     return ApiResponse.onSuccess(SuccessCode.OK, response);
   }
 

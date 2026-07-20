@@ -1,5 +1,6 @@
 package com.yeogido.backend.domain.content.dto;
 
+import com.yeogido.backend.domain.course.enums.CompanionType;
 import com.yeogido.backend.domain.course.enums.DurationType;
 import com.yeogido.backend.domain.course.enums.TransportType;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -7,6 +8,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Date;
 import java.util.List;
@@ -66,11 +68,14 @@ public class ContentResDTO {
             @Schema(description = "종료일")
             LocalDate endDate,
 
-            @Schema(description = "좋아요 수")
-            Long likeCount,
-
             @Schema(description = "좋아요 여부")
             Boolean liked,
+
+            @Schema(description = "전화번호")
+            String phone,
+
+            @Schema(description = "공식 홈페이지")
+            String officialUrl,
 
             @Schema(description = "장소 정보")
             PlaceInfo place,
@@ -92,13 +97,10 @@ public class ContentResDTO {
             String roadAddress,
 
             @Schema(description = "위도")
-            Double latitude,
+            BigDecimal latitude,
 
-            @Schema(description = "전화번호")
-            String phone,
-
-            @Schema(description = "공식 홈페이지")
-            String officialUrl
+            @Schema(description = "경도")
+            BigDecimal longitude
     ) {}
 
     @Schema(description = "추천 코스")
@@ -121,6 +123,9 @@ public class ContentResDTO {
 
             @Schema(description = "이동 수단")
             TransportType transportType,
+
+            @Schema(description = "동행 유형")
+            CompanionType companionType,
 
             @Schema(description = "좋아요 여부")
             Boolean liked
