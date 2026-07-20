@@ -1,5 +1,6 @@
 package com.yeogido.backend.domain.business.service;
 
+import com.yeogido.backend.domain.business.converter.BusinessPromotionConverter;
 import com.yeogido.backend.domain.business.dto.request.BusinessPromotionRequest;
 import com.yeogido.backend.domain.business.dto.response.BusinessPromotionResponse;
 import com.yeogido.backend.domain.business.entity.BusinessOperatingDay;
@@ -72,9 +73,9 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
 
         savePromotionHashtags(businessPromotion, request.hashtagIds());
 
-        return BusinessPromotionResponse.Register.builder()
-                .promotionId(businessPromotion.getId())
-                .build();
+        return BusinessPromotionConverter.toRegisterResponse(
+                businessPromotion
+        );
     }
 
     private Place getOrCreatePlace(
@@ -94,17 +95,12 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
                                     RegionErrorCode.REGION_NOT_FOUND
                             ));
 
-                    Place newPlace = Place.builder()
-                            .region(region)
-                            .externalPlaceId(request.externalPlaceId())
-                            .source(source)
-                            .name(request.name())
-                            .categoryGroupCode(request.categoryGroupCode())
-                            .roadAddress(request.roadAddress())
-                            .lotAddress(request.lotAddress())
-                            .latitude(request.latitude())
-                            .longitude(request.longitude())
-                            .build();
+                    Place newPlace =
+                            BusinessPromotionConverter.toPlace(
+                                    request,
+                                    source,
+                                    region
+                            );
 
                     return placeRepository.save(newPlace);
                 });
@@ -124,12 +120,12 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
             BusinessPromotion businessPromotion,
             List<BusinessPromotionRequest.BusinessHour> businessHours) {
         List<BusinessOperatingDay> operatingDays = businessHours.stream()
-                .map(businessHour -> BusinessOperatingDay.builder()
-                        .promotion(businessPromotion)
-                        .dayOfWeek(parseDayOfWeek(businessHour.dayOfWeek()))
-                        .openTime(businessHour.openTime())
-                        .closeTime(businessHour.closeTime())
-                        .build()
+                .map(businessHour ->
+                        BusinessPromotionConverter.toBusinessOperatingDay(
+                                businessPromotion,
+                                businessHour,
+                                parseDayOfWeek(businessHour.dayOfWeek())
+                        )
                 )
                 .toList();
         businessOperatingDayRepository.saveAll(operatingDays);
@@ -150,11 +146,11 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
             List<BusinessPromotionRequest.Image> images
     ) {
         List<BusinessPromotionImage> promotionImages = images.stream()
-                .map(image -> BusinessPromotionImage.builder()
-                        .promotion(businessPromotion)
-                        .imageKey(image.imageKey())
-                        .sortOrder(image.sortOrder())
-                        .build()
+                .map(image ->
+                        BusinessPromotionConverter.toBusinessPromotionImage(
+                                businessPromotion,
+                                image
+                        )
                 )
                 .toList();
 
@@ -181,12 +177,13 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
                     HashtagErrorCode.HASHTAG_NOT_FOUND
             );
         }
-
         List<BusinessPromotionHashtag> promotionHashtags = hashtags.stream()
-                .map(hashtag -> BusinessPromotionHashtag.builder()
-                        .promotion(businessPromotion)
-                        .hashtag(hashtag)
-                        .build())
+                .map(hashtag ->
+                        BusinessPromotionConverter.toBusinessPromotionHashtag(
+                                businessPromotion,
+                                hashtag
+                        )
+                )
                 .toList();
 
         businessPromotionHashtagRepository.saveAll(promotionHashtags);
@@ -202,16 +199,12 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
                 .orElse(null);
 
         if (existingPromotion == null) {
-            BusinessPromotion newPromotion = BusinessPromotion.builder()
-                    .place(place)
-                    .user(user)
-                    .shortDescription(request.shortDescription())
-                    .ownerComment(request.ownerComment())
-                    .promotionCategory(request.promotionCategory())
-                    .phoneNumber(request.phoneNumber())
-                    .snsAccount(request.snsAccount())
-                    .status(PromotionStatus.ACTIVE)
-                    .build();
+            BusinessPromotion newPromotion =
+                    BusinessPromotionConverter.toBusinessPromotion(
+                            place,
+                            user,
+                            request
+                    );
 
             return businessPromotionRepository.save(newPromotion);
         }
