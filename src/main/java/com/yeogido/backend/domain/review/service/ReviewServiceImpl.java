@@ -55,7 +55,6 @@ public class ReviewServiceImpl implements ReviewService {
     ) {
         int size = resolveSize(request.size());
         ReviewSortType sort = resolveSort(request.sort());
-        validateCursor(request.cursor());
 
         Pageable pageable = PageRequest.of(0, size + 1);
         List<CourseReview> reviews = findReviews(
@@ -162,10 +161,6 @@ public class ReviewServiceImpl implements ReviewService {
             return DEFAULT_PAGE_SIZE;
         }
 
-        if (size <= 0) {
-            throw new GeneralException(GeneralErrorCode.INVALID_REQUEST);
-        }
-
         return size;
     }
 
@@ -175,12 +170,6 @@ public class ReviewServiceImpl implements ReviewService {
         }
 
         return sort;
-    }
-
-    private void validateCursor(Long cursor) {
-        if (cursor != null && cursor <= 0) {
-            throw new GeneralException(GeneralErrorCode.INVALID_REQUEST);
-        }
     }
 
     private Object getNextCursorValue(List<CourseReview> reviews, ReviewSortType sort) {

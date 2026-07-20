@@ -8,6 +8,7 @@ import com.yeogido.backend.global.common.response.ApiResponse;
 import com.yeogido.backend.global.common.response.CursorResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -38,7 +39,7 @@ public class ReviewController {
     )
     @GetMapping
     public ApiResponse<CursorResponse<ReviewResDTO.ReviewDetail>> getReviews(
-            @ModelAttribute ReviewReqDTO.ListRequest request
+            @Valid @ModelAttribute ReviewReqDTO.ListRequest request
     ) {
         CursorResponse<ReviewResDTO.ReviewDetail> result = reviewService.getReviews(request);
         return ApiResponse.onSuccess(SuccessCode.OK, result);
