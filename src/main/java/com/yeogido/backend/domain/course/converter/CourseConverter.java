@@ -98,7 +98,6 @@ public class CourseConverter {
             String thumbnailUrl,
             List<String> tags,
             boolean isLiked,
-            Long likeCount,
             List<CourseResDTO.CourseItem> courseItems
     ) {
         return new CourseResDTO.CourseDetail(
@@ -114,8 +113,6 @@ public class CourseConverter {
                 course.getMonthEnd(),
                 course.getCompanionType(),
                 isLiked,
-                likeCount,
-                course.getViewCount(),
                 courseItems,
                 toAuthor(course)
         );

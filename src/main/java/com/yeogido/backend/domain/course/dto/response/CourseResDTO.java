@@ -91,12 +91,6 @@ public class CourseResDTO {
             @Schema(description = "현재 사용자의 코스 좋아요 여부", example = "true")
             Boolean isLiked,
 
-            @Schema(description = "좋아요 수", example = "120")
-            Long likeCount,
-
-            @Schema(description = "조회 수", example = "1304")
-            Long viewCount,
-
             @Schema(description = "코스 구성 항목")
             List<CourseItem> courseItems,
 

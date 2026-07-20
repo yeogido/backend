@@ -150,7 +150,6 @@ public class CourseServiceImpl implements CourseService {
 
         // TODO: Spring Security 적용 후 인증 사용자 ID로 교체
         boolean isLiked = courseLikeRepository.existsByUserIdAndCourseId(MOCK_MEMBER_ID, courseId);
-        Long likeCount = courseLikeRepository.countByCourseId(courseId);
 
         List<String> tags = courseHashtagRepository.findByCourseId(courseId).stream()
                 .map(courseHashtag -> courseHashtag.getHashtag().getHashtagName())
@@ -167,7 +166,6 @@ public class CourseServiceImpl implements CourseService {
                 s3Service.getImageUrl(course.getThumbnailKey()),
                 tags,
                 isLiked,
-                likeCount,
                 courseItems
         );
     }
