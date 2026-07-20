@@ -53,4 +53,32 @@ public class Content extends BaseEntity {
 
     @Enumerated(EnumType.STRING)
     private ContentCategory category;
+
+
+    public void update(
+            Place place,
+            String externalContentId,
+            String title,
+            String description,
+            String thumbnailImage,
+            LocalDate startDate,
+            LocalDate endDate,
+            String contactPhone,
+            String officialUrl,
+            ContentCategory category,
+            ContentSource source
+    ) {
+        this.place = place;
+        this.externalContentId = externalContentId;
+        this.title = title;
+        this.description = description;
+        this.thumbnailImage = thumbnailImage;
+        this.startDate = startDate;
+        this.endDate = endDate;
+        this.contactPhone = contactPhone;
+        this.officialUrl = officialUrl;
+        this.category = category;
+        this.source = source;
+    }
 }
+

@@ -55,12 +55,12 @@ public class S3Service {
                 .build();
     }
 
-    public String getImageUrl(String imageKey) {
-        if (imageKey == null || imageKey.isBlank()) {
+    public String getImageUrl(String objectKey) {
+        if (objectKey == null || objectKey.isBlank()) {
             return null;
         }
 
-        return "https://" + bucket + ".s3." + region + ".amazonaws.com/" + imageKey;
+        return "https://" + bucket + ".s3." + region + ".amazonaws.com/" + objectKey;
     }
 
     private String createObjectKey(ImageDirectory directory, String fileName) {

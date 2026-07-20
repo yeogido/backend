@@ -8,9 +8,11 @@ import java.util.List;
 
 public interface CourseService {
 
-    CourseResDTO.CourseCreateRes createCourse(CourseReqDTO.CourseCreateReq request);
+    CourseResDTO.CourseIdRes createCourse(CourseReqDTO.CourseCreateReq request);
 
-    CourseResDTO.CourseCreateRes updateCourse(Long courseId, CourseReqDTO.CourseCreateReq request);
+    CourseResDTO.CourseIdRes updateCourse(Long courseId, CourseReqDTO.CourseUpdateReq request);
+
+    void deleteCourse(Long courseId);
 
     CursorResponse<CourseResDTO.CoursePreview> getCourses(CourseReqDTO.CourseListReq request);
 

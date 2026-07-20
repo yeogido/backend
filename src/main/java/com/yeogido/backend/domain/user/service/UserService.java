@@ -11,5 +11,5 @@ public interface UserService {
             Integer size
     );
 
-    UserResDTO.Profile getMyPage(String authorization);
+    UserResDTO.Profile getMyPage(Long userId);
 }

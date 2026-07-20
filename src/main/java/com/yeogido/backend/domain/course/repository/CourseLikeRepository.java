@@ -1,6 +1,8 @@
 package com.yeogido.backend.domain.course.repository;
 
+import com.yeogido.backend.domain.course.entity.Course;
 import com.yeogido.backend.domain.course.entity.CourseLike;
+import com.yeogido.backend.domain.user.entity.User;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -14,6 +16,8 @@ public interface CourseLikeRepository extends JpaRepository<CourseLike, Long> {
     Optional<CourseLike> findByUserIdAndCourseId(Long memberId, Long courseId);
 
     long countByCourseId(Long courseId);
+
+    boolean existsByCourseAndUser(Course course, User user);
 
     @Query("""
             select cl.course.id

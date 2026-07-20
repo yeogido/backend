@@ -1,24 +1,28 @@
 package com.yeogido.backend.domain.place.service;
 
+import com.yeogido.backend.domain.content.converter.ContentConverter;
+import com.yeogido.backend.domain.content.dto.ContentReqDTO;
 import com.yeogido.backend.domain.course.converter.CourseConverter;
 import com.yeogido.backend.domain.course.dto.request.CourseReqDTO;
 import com.yeogido.backend.domain.course.enums.CourseItemType;
 import com.yeogido.backend.domain.place.entity.Place;
+import com.yeogido.backend.domain.place.entity.PlaceLike;
 import com.yeogido.backend.domain.place.enums.PlaceSource;
+import com.yeogido.backend.domain.place.exception.PlaceErrorCode;
+import com.yeogido.backend.domain.place.repository.PlaceLikeRepository;
 import com.yeogido.backend.domain.place.repository.PlaceRepository;
 import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.region.exception.RegionErrorCode;
 import com.yeogido.backend.domain.region.repository.RegionRepository;
+import com.yeogido.backend.domain.user.entity.User;
+import com.yeogido.backend.domain.user.repository.UserRepository;
 import com.yeogido.backend.global.exception.GeneralException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -27,8 +31,43 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class PlaceServiceImpl implements PlaceService {
 
+    // TODO: 인증 연동 후 현재 로그인 사용자 ID로 변경
+    private static final Long MOCK_USER_ID = 1L;
+
     private final PlaceRepository placeRepository;
+    private final PlaceLikeRepository placeLikeRepository;
+    private final UserRepository userRepository;
     private final RegionRepository regionRepository;
+
+    @Override
+    @Transactional
+    public void createPlaceLike(Long placeId) {
+        Place place = getPlace(placeId);
+
+        if (placeLikeRepository.existsByUserIdAndPlaceId(MOCK_USER_ID, placeId)) {
+            return;
+        }
+
+        User user = userRepository.getReferenceById(MOCK_USER_ID);
+
+        PlaceLike placeLike = PlaceLike.builder()
+                .place(place)
+                .user(user)
+                .build();
+
+        placeLikeRepository.save(placeLike);
+    }
+
+    @Override
+    @Transactional
+    public void deletePlaceLike(Long placeId) {
+        getPlace(placeId);
+
+        placeLikeRepository.findByUserIdAndPlaceId(
+                MOCK_USER_ID,
+                placeId
+        ).ifPresent(placeLikeRepository::delete);
+    }
 
     @Override
     public Map<String, Place> getPlaceMap(List<CourseReqDTO.CourseItemCreateReq> items) {
@@ -61,6 +100,36 @@ public class PlaceServiceImpl implements PlaceService {
         return newPlace;
     }
 
+    @Override
+    @Transactional
+    public Place getOrCreatePlace(ContentReqDTO.PlaceReq request) {
+
+        PlaceSource source = PlaceSource.valueOf(request.source());
+
+        Optional<Place> optionalPlace =
+                placeRepository.findBySourceAndExternalPlaceId(
+                        source,
+                        request.externalPlaceId()
+                );
+
+        if (optionalPlace.isPresent()) {
+            Place place = optionalPlace.get();
+
+            return place;
+        }
+
+        Region region = findRegionByAddress(
+                request.roadAddress(),
+                request.lotAddress()
+        );
+
+        Place newPlace = ContentConverter.toPlace(request, region);
+
+        newPlace = placeRepository.save(newPlace);
+
+        return newPlace;
+    }
+
     private Region findRegionByAddress(String roadAddress, String lotAddress) {
         String address = StringUtils.hasText(roadAddress) ? roadAddress : lotAddress;
         if (!StringUtils.hasText(address)) {
@@ -81,5 +150,14 @@ public class PlaceServiceImpl implements PlaceService {
 
         return regionRepository.findByParentAndName(region, subRegionName)
                 .orElseThrow(() -> new GeneralException(RegionErrorCode.REGION_NOT_FOUND));
+    }
+
+    private Place getPlace(Long placeId) {
+        return placeRepository.findById(placeId)
+                .orElseThrow(
+                        () -> new GeneralException(
+                                PlaceErrorCode.PLACE_NOT_FOUND
+                        )
+                );
     }
 }
