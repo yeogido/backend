@@ -62,6 +62,9 @@ public class ReviewResDTO {
             @Schema(description = "생성 일시", example = "2026-07-05T15:30:00")
             LocalDateTime createdAt,
 
+            @Schema(description = "리뷰 이미지 목록")
+            List<ReviewImage> images,
+
             @Schema(description = "작성자 정보")
             Author author,
 
