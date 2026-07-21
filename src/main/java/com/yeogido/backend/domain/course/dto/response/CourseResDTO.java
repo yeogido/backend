@@ -1,5 +1,6 @@
 package com.yeogido.backend.domain.course.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.yeogido.backend.domain.course.enums.CompanionType;
 import com.yeogido.backend.domain.course.enums.CourseItemType;
 import com.yeogido.backend.domain.course.enums.CourseType;
@@ -90,16 +91,11 @@ public class CourseResDTO {
             @Schema(description = "현재 사용자의 코스 좋아요 여부", example = "true")
             Boolean isLiked,
 
-            @Schema(description = "좋아요 수", example = "120")
-            Long likeCount,
-
-            @Schema(description = "조회 수", example = "1304")
-            Long viewCount,
-
             @Schema(description = "코스 구성 항목")
             List<CourseItem> courseItems,
 
             @Schema(description = "작성자 정보")
+            @JsonInclude(JsonInclude.Include.NON_NULL)
             Author author
     ) { }
 
@@ -111,9 +107,6 @@ public class CourseResDTO {
 
             @Schema(description = "코스 항목 타입", example = "PLACE")
             CourseItemType type,
-
-            @Schema(description = "장소 ID", example = "11")
-            Long placeId,
 
             @Schema(description = "장소 정보 출처", example = "KAKAO")
             PlaceSource source,
