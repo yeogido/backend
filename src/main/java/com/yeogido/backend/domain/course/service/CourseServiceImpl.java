@@ -201,13 +201,9 @@ public class CourseServiceImpl implements CourseService {
         CourseRepository.CourseSummaryProjection summary = courseRepository.findSummaryByCourseId(courseId)
                 .orElseThrow(() -> new GeneralException(CourseErrorCode.COURSE_NOT_FOUND));
 
-        return new CourseResDTO.CourseSummary(
-                summary.getCourseId(),
-                summary.getTitle(),
-                s3Service.getImageUrl(summary.getThumbnailKey()),
-                summary.getDurationType(),
-                summary.getTransportType(),
-                summary.getCompanionType()
+        return CourseConverter.toCourseSummary(
+                summary,
+                s3Service.getImageUrl(summary.getThumbnailKey())
         );
     }
 
