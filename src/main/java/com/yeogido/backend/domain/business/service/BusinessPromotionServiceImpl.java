@@ -71,15 +71,13 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
     private final NumberExpression<Long> likeCountExpression =
             qPlaceLike.id.count();
 
-    // TODO: 인증 연동 후 현재 로그인 사용자 ID로 변경
-    private static final Long MOCK_USER_ID = 1L;
-
     @Override
     @Transactional
     public BusinessPromotionResponse.Register registerBusinessPromotion(
+            Long userId,
             BusinessPromotionRequest.Register request
     ) {
-        User user = userRepository.getReferenceById(MOCK_USER_ID);
+        User user = userRepository.getReferenceById(userId);
 
         validateDuplicateBusinessHours(request.businessHours());
         validateDuplicateImageSortOrders(request.images());
@@ -102,6 +100,7 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
 
     @Override
     public BusinessPromotionResponse.Detail getBusinessPromotion(
+            Long userId,
             Long promotionId
     ) {
         BusinessPromotion promotion = businessPromotionRepository.findByIdAndStatus(promotionId, PromotionStatus.ACTIVE)
@@ -111,30 +110,15 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
 
         Place place = promotion.getPlace();
 
-        BusinessPromotionResponse.PlaceInfo placeInfo = BusinessPromotionResponse.PlaceInfo.builder()
-                .placeId(place.getId())
-                .name(place.getName())
-                .categoryGroupCode(place.getCategoryGroupCode())
-                .roadAddress(place.getRoadAddress())
-                .lotAddress(place.getLotAddress())
-                .latitude(place.getLatitude())
-                .longitude(place.getLongitude())
-                .regionId(place.getRegion().getId())
-                .regionName(place.getRegion().getName())
-                .build();
+        BusinessPromotionResponse.PlaceInfo placeInfo =
+                BusinessPromotionConverter.toPlaceInfo(place);
 
         List<BusinessPromotionResponse.BusinessHourInfo> businessHours =
                 businessOperatingDayRepository
                         .findAllByPromotion_Id(promotionId)
                         .stream()
                         .sorted(Comparator.comparing(BusinessOperatingDay::getDayOfWeek))
-                        .map(operatingDay ->
-                                BusinessPromotionResponse.BusinessHourInfo.builder()
-                                        .dayOfWeek(operatingDay.getDayOfWeek().name())
-                                        .openTime(operatingDay.getOpenTime())
-                                        .closeTime(operatingDay.getCloseTime())
-                                        .build()
-                        )
+                        .map(BusinessPromotionConverter::toBusinessHourInfo)
                         .toList();
 
         List<BusinessPromotionResponse.ImageInfo> images =
@@ -142,14 +126,12 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
                         .findAllByPromotion_IdOrderBySortOrderAsc(promotionId)
                         .stream()
                         .map(promotionImage ->
-                                BusinessPromotionResponse.ImageInfo.builder()
-                                        .imageUrl(
-                                                s3Service.getImageUrl(
-                                                        promotionImage.getImageKey()
-                                                )
+                                BusinessPromotionConverter.toImageInfo(
+                                        promotionImage,
+                                        s3Service.getImageUrl(
+                                                promotionImage.getImageKey()
                                         )
-                                        .sortOrder(promotionImage.getSortOrder())
-                                        .build()
+                                )
                         )
                         .toList();
 
@@ -164,48 +146,56 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
 
         long likeCount = placeLikeRepository.countByPlaceId(place.getId());
 
-        boolean isLiked = placeLikeRepository.existsByUserIdAndPlaceId(MOCK_USER_ID, place.getId());
+        boolean isLiked =
+                userId != null && placeLikeRepository.existsByUserIdAndPlaceId(
+                        userId,
+                        place.getId()
+                );
 
-        return BusinessPromotionResponse.Detail.builder()
-                .promotionId(promotion.getId())
-                .place(placeInfo)
-                .promotionCategory(promotion.getPromotionCategory())
-                .shortDescription(promotion.getShortDescription())
-                .ownerComment(promotion.getOwnerComment())
-                .businessHours(businessHours)
-                .snsAccount(promotion.getSnsAccount())
-                .phoneNumber(promotion.getPhoneNumber())
-                .hashtags(hashtags)
-                .images(images)
-                .likeCount(likeCount)
-                .isLiked(isLiked)
-                .createdAt(promotion.getCreatedAt())
-                .updatedAt(promotion.getUpdatedAt())
-                .build();
+        return BusinessPromotionConverter.toDetailResponse(
+                promotion,
+                placeInfo,
+                businessHours,
+                hashtags,
+                images,
+                likeCount,
+                isLiked
+        );
     }
 
     @Override
-    public CursorResponse<BusinessPromotionResponse.MySummary> getMyBusinessPromotions(
+    public CursorResponse<BusinessPromotionResponse.MySummary>
+    getMyBusinessPromotions(
+            Long userId,
             LocalDateTime cursorValue,
             Long cursorId,
             Integer size
     ) {
+        boolean firstPage =
+                cursorValue == null && cursorId == null;
+
+        if (!firstPage && (cursorValue == null || cursorId == null)) {
+            throw new GeneralException(
+                    GeneralErrorCode.INVALID_REQUEST
+            );
+        }
+
         Pageable pageable = PageRequest.of(0, size + 1);
 
         List<BusinessPromotion> promotions;
 
-        if (cursorValue == null && cursorId == null) {
+        if (firstPage) {
             promotions =
                     businessPromotionRepository
                             .findByUserIdAndStatusOrderByCreatedAtDescIdDesc(
-                                    MOCK_USER_ID,
+                                    userId,
                                     PromotionStatus.ACTIVE,
                                     pageable
                             );
         } else {
             promotions =
                     businessPromotionRepository.findMyPromotionsAfterCursor(
-                            MOCK_USER_ID,
+                            userId,
                             PromotionStatus.ACTIVE,
                             cursorValue,
                             cursorId,
@@ -225,7 +215,9 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
                 .toList();
 
         Map<Long, BusinessPromotionImage> thumbnailImageMap =
-                businessPromotionImageRepository
+                promotionIds.isEmpty()
+                        ? Map.of()
+                        : businessPromotionImageRepository
                         .findAllByPromotion_IdInAndSortOrder(
                                 promotionIds,
                                 1
@@ -265,28 +257,17 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
                                             thumbnailImage.getImageKey()
                                     );
 
-                            return BusinessPromotionResponse.MySummary.builder()
-                                    .promotionId(promotion.getId())
-                                    .placeId(place.getId())
-                                    .placeName(place.getName())
-                                    .promotionCategory(
-                                            promotion.getPromotionCategory()
-                                    )
-                                    .roadAddress(place.getRoadAddress())
-                                    .thumbnailImageUrl(thumbnailImageUrl)
-                                    .shortDescription(
-                                            promotion.getShortDescription()
-                                    )
-                                    .status(promotion.getStatus().name())
-                                    .likeCount(
-                                            likeCountMap.getOrDefault(
-                                                    place.getId(),
-                                                    0L
-                                            )
-                                    )
-                                    .createdAt(promotion.getCreatedAt())
-                                    .updatedAt(promotion.getUpdatedAt())
-                                    .build();
+                            long likeCount =
+                                    likeCountMap.getOrDefault(
+                                            place.getId(),
+                                            0L
+                                    );
+
+                            return BusinessPromotionConverter.toMySummaryResponse(
+                                    promotion,
+                                    thumbnailImageUrl,
+                                    likeCount
+                            );
                         })
                         .toList();
 
@@ -310,7 +291,9 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
     }
 
     @Override
-    public CursorResponse<BusinessPromotionResponse.Summary> getBusinessPromotions(
+    public CursorResponse<BusinessPromotionResponse.Summary>
+    getBusinessPromotions(
+            Long userId,
             String cursorValue,
             Long cursorId,
             Integer size,
@@ -388,11 +371,11 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
                 .toList();
 
         Set<Long> likedPlaceIds =
-                placeIds.isEmpty()
+                userId == null || placeIds.isEmpty()
                         ? Set.of()
                         : new HashSet<>(
                         placeLikeRepository.findLikedPlaceIds(
-                                MOCK_USER_ID,
+                                userId,
                                 placeIds
                         )
                 );
@@ -434,37 +417,19 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
                                     thumbnailImageMap.get(promotion.getId());
 
                             String thumbnailImageUrl =
-                                    thumbnailImage == null
-                                            ? null
-                                            : s3Service.getImageUrl(
-                                            thumbnailImage.getImageKey()
-                                    );
+                                    thumbnailImage == null ? null : s3Service.getImageUrl(thumbnailImage.getImageKey());
 
-                            return BusinessPromotionResponse.Summary.builder()
-                                    .promotionId(promotion.getId())
-                                    .placeId(place.getId())
-                                    .placeName(place.getName())
-                                    .promotionCategory(
-                                            promotion.getPromotionCategory()
-                                    )
-                                    .roadAddress(place.getRoadAddress())
-                                    .regionId(place.getRegion().getId())
-                                    .regionName(place.getRegion().getName())
-                                    .thumbnailImageUrl(thumbnailImageUrl)
-                                    .shortDescription(
-                                            promotion.getShortDescription()
-                                    )
-                                    .likeCount(
-                                            likeCountMap.getOrDefault(
-                                                    place.getId(),
-                                                    0L
-                                            )
-                                    )
-                                    .isLiked(
-                                            likedPlaceIds.contains(place.getId())
-                                    )
-                                    .createdAt(promotion.getCreatedAt())
-                                    .build();
+                            long likeCount =
+                                    likeCountMap.getOrDefault(place.getId(), 0L);
+
+                            boolean isLiked = likedPlaceIds.contains(place.getId());
+
+                            return BusinessPromotionConverter.toSummaryResponse(
+                                    promotion,
+                                    thumbnailImageUrl,
+                                    likeCount,
+                                    isLiked
+                            );
                         })
                         .toList();
 
@@ -878,6 +843,12 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
                         GeneralErrorCode.INVALID_REQUEST
                 );
             }
+        }
+
+        if (!sortOrders.contains(1)) {
+            throw new GeneralException(
+                    GeneralErrorCode.INVALID_REQUEST
+            );
         }
     }
 }

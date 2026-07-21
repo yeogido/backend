@@ -10,20 +10,31 @@ import java.time.LocalDateTime;
 
 public interface BusinessPromotionService {
 
-    // 홍보글 등록 interface
+    // 홍보글 등록
     BusinessPromotionResponse.Register registerBusinessPromotion(
+            Long userId,
             BusinessPromotionRequest.Register request
     );
 
-    // 홍보글 상세 조회 interface
-    BusinessPromotionResponse.Detail getBusinessPromotion(Long promotionId);
+    // 홍보글 상세 조회
+    BusinessPromotionResponse.Detail getBusinessPromotion(
+            Long userId,
+            Long promotionId
+    );
 
-    // 내가 등록한 홍보글 조회 interface
-    CursorResponse<BusinessPromotionResponse.MySummary> getMyBusinessPromotions(
-            LocalDateTime cursorValue, Long cursor, Integer size);
+    // 내가 등록한 홍보글 조회
+    CursorResponse<BusinessPromotionResponse.MySummary>
+    getMyBusinessPromotions(
+            Long userId,
+            LocalDateTime cursorValue,
+            Long cursorId,
+            Integer size
+    );
 
-    // 홍보 목록 조회 interface
-    CursorResponse<BusinessPromotionResponse.Summary> getBusinessPromotions(
+    // 홍보 목록 조회
+    CursorResponse<BusinessPromotionResponse.Summary>
+    getBusinessPromotions(
+            Long userId,
             String cursorValue,
             Long cursorId,
             Integer size,

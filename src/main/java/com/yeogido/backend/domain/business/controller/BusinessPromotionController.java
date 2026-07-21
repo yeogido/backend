@@ -1,5 +1,6 @@
 package com.yeogido.backend.domain.business.controller;
 
+import com.yeogido.backend.domain.auth.security.AuthUser;
 import com.yeogido.backend.domain.business.dto.request.BusinessPromotionRequest;
 import com.yeogido.backend.domain.business.dto.response.BusinessPromotionResponse;
 import com.yeogido.backend.domain.business.enums.PromotionCategory;
@@ -12,7 +13,10 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -21,6 +25,7 @@ import java.time.LocalDateTime;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/business-promotions")
+@Validated
 public class BusinessPromotionController {
 
     private final BusinessPromotionService businessPromotionService;
@@ -28,10 +33,14 @@ public class BusinessPromotionController {
     @Operation(summary = "소상공인 홍보 등록", description = "소상공인 홍보글을 등록합니다")
     @PostMapping
     public ApiResponse<BusinessPromotionResponse.Register> registerBusinessPromotion(
+            @AuthenticationPrincipal AuthUser authUser,
             @Valid @RequestBody BusinessPromotionRequest.Register request
     ) {
         BusinessPromotionResponse.Register response =
-                businessPromotionService.registerBusinessPromotion(request);
+                businessPromotionService.registerBusinessPromotion(
+                        authUser.userId(),
+                        request
+                );
 
         return ApiResponse.onSuccess(SuccessCode.CREATED, response);
     }
@@ -75,12 +84,15 @@ public class BusinessPromotionController {
     @GetMapping
     public ApiResponse<CursorResponse<BusinessPromotionResponse.Summary>>
     getBusinessPromotions(
+            @AuthenticationPrincipal AuthUser authUser,
+
             @RequestParam(required = false)
             String cursorValue,
 
             @RequestParam(required = false)
             Long cursorId,
 
+            @Positive(message = "조회 개수는 1 이상이어야 합니다")
             @RequestParam(defaultValue = "10")
             Integer size,
 
@@ -90,8 +102,13 @@ public class BusinessPromotionController {
             @RequestParam(defaultValue = "RECOMMEND")
             PromotionSortType sort
     ) {
+        Long userId = authUser == null
+                        ? null
+                        : authUser.userId();
+
         CursorResponse<BusinessPromotionResponse.Summary> response =
                 businessPromotionService.getBusinessPromotions(
+                        userId,
                         cursorValue,
                         cursorId,
                         size,
@@ -104,18 +121,23 @@ public class BusinessPromotionController {
 
     @Operation(summary = "내가 등록한 홍보글 조회", description = "현재 사용자가 등록한 소상공인 홍보글 목록을 조회합니다.")
     @GetMapping("/me")
-    public ApiResponse<CursorResponse<BusinessPromotionResponse.MySummary>> getMyBusinessPromotions(
+    public ApiResponse<CursorResponse<BusinessPromotionResponse.MySummary>>
+    getMyBusinessPromotions(
+            @AuthenticationPrincipal AuthUser authUser,
+
             @RequestParam(required = false)
             LocalDateTime cursorValue,
 
             @RequestParam(required = false)
             Long cursorId,
 
+            @Positive(message = "조회 개수는 1 이상이어야 합니다")
             @RequestParam(defaultValue = "10")
             Integer size
     ) {
         CursorResponse<BusinessPromotionResponse.MySummary> response =
                 businessPromotionService.getMyBusinessPromotions(
+                        authUser.userId(),
                         cursorValue,
                         cursorId,
                         size
@@ -127,10 +149,18 @@ public class BusinessPromotionController {
     @Operation(summary = "소상공인 홍보 상세 조회", description = "소상공인 홍보글 상세 정보를 조회합니다.")
     @GetMapping("/{promotionId}")
     public ApiResponse<BusinessPromotionResponse.Detail> getBusinessPromotion(
+            @AuthenticationPrincipal AuthUser authUser,
             @PathVariable Long promotionId
     ) {
+        Long userId = authUser == null
+                        ? null
+                        : authUser.userId();
+
         BusinessPromotionResponse.Detail response =
-                businessPromotionService.getBusinessPromotion(promotionId);
+                businessPromotionService.getBusinessPromotion(
+                        userId,
+                        promotionId
+                );
 
         return ApiResponse.onSuccess(SuccessCode.OK, response);
     }

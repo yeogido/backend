@@ -2,7 +2,7 @@ package com.yeogido.backend.domain.business.repository;
 
 import com.yeogido.backend.domain.business.entity.BusinessPromotion;
 import com.yeogido.backend.domain.business.enums.PromotionStatus;
-import io.lettuce.core.dynamic.annotation.Param;
+import org.springframework.data.repository.query.Param;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
