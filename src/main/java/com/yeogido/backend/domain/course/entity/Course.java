@@ -116,4 +116,8 @@ public class Course extends BaseEntity {
     public void delete() {
         this.deletedAt = LocalDateTime.now();
     }
+
+    public void increaseViewCount() {
+        this.viewCount++;
+    }
 }

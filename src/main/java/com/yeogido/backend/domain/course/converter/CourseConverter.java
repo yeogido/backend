@@ -2,6 +2,7 @@ package com.yeogido.backend.domain.course.converter;
 
 import com.yeogido.backend.domain.content.entity.Content;
 import com.yeogido.backend.domain.course.dto.request.CourseReqDTO;
+import com.yeogido.backend.domain.course.dto.response.CourseResDTO;
 import com.yeogido.backend.domain.course.entity.Course;
 import com.yeogido.backend.domain.course.entity.CourseHashtag;
 import com.yeogido.backend.domain.course.entity.CourseItem;
@@ -15,6 +16,8 @@ import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.user.entity.User;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
+
+import java.util.List;
 
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class CourseConverter {
@@ -88,5 +91,70 @@ public class CourseConverter {
                 .user(user)
                 .course(course)
                 .build();
+    }
+
+    public static CourseResDTO.CourseDetail toCourseDetail(
+            Course course,
+            String thumbnailUrl,
+            List<String> tags,
+            boolean isLiked,
+            List<CourseResDTO.CourseItem> courseItems,
+            String profileImageUrl
+    ) {
+        return new CourseResDTO.CourseDetail(
+                course.getId(),
+                course.getCourseType(),
+                course.getTitle(),
+                thumbnailUrl,
+                course.getDescription(),
+                tags,
+                course.getDurationType(),
+                course.getTransportType(),
+                course.getMonthStart(),
+                course.getMonthEnd(),
+                course.getCompanionType(),
+                isLiked,
+                courseItems,
+                toAuthor(course, profileImageUrl)
+        );
+    }
+
+    public static CourseResDTO.CourseItem toCourseItem(CourseItem courseItem) {
+        Place place = resolvePlace(courseItem);
+        Content content = courseItem.getContent();
+
+        return new CourseResDTO.CourseItem(
+                courseItem.getOrderNo(),
+                courseItem.getItemType(),
+                place.getSource(),
+                place.getExternalPlaceId(),
+                content == null ? place.getName() : content.getTitle(),
+                place.getRoadAddress(),
+                place.getLotAddress(),
+                place.getLatitude(),
+                place.getLongitude()
+        );
+    }
+
+    private static Place resolvePlace(CourseItem courseItem) {
+        if (courseItem.getItemType() == CourseItemType.PLACE) {
+            return courseItem.getPlace();
+        }
+
+        return courseItem.getContent().getPlace();
+    }
+
+    private static CourseResDTO.Author toAuthor(
+            Course course,
+            String profileImageUrl
+    ) {
+        if (course.getCourseType() != CourseType.LOCAL || course.getUser() == null) {
+            return null;
+        }
+
+        return new CourseResDTO.Author(
+                course.getUser().getNickname(),
+                profileImageUrl
+        );
     }
 }
