@@ -20,7 +20,7 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
                 c.title as title,
                 c.thumbnailKey as thumbnailKey,
                 c.durationType as durationType,
-                c.transportType as transportationType,
+                c.transportType as transportType,
                 c.companionType as companionType
             from Course c
             where c.id = :courseId
@@ -38,7 +38,7 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
 
         DurationType getDurationType();
 
-        TransportType getTransportationType();
+        TransportType getTransportType();
 
         CompanionType getCompanionType();
     }

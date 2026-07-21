@@ -206,7 +206,7 @@ public class CourseServiceImpl implements CourseService {
                 summary.getTitle(),
                 s3Service.getImageUrl(summary.getThumbnailKey()),
                 summary.getDurationType(),
-                summary.getTransportationType(),
+                summary.getTransportType(),
                 summary.getCompanionType()
         );
     }

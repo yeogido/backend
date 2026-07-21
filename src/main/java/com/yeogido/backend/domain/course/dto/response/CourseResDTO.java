@@ -119,7 +119,7 @@ public class CourseResDTO {
             DurationType durationType,
 
             @Schema(description = "이동 수단", example = "CAR")
-            TransportType transportationType,
+            TransportType transportType,
 
             @Schema(description = "동행 유형", example = "FRIEND")
             CompanionType companionType
