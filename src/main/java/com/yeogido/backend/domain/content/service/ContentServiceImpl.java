@@ -581,18 +581,16 @@ public class ContentServiceImpl implements ContentService{
         Content content = contentRepository.findById(contentId)
                 .orElseThrow(() -> new GeneralException(ContentErrorCode.CONTENT_NOT_FOUND));
 
-        if (contentLikeRepository.existsByUserAndContent(user, content)) {
-            throw new GeneralException(ContentErrorCode.CONTENT_ALREADY_LIKED);
+        if (!contentLikeRepository.existsByUserAndContent(user, content)) {
+            ContentLike contentLike = ContentLike.builder()
+                    .user(user)
+                    .content(content)
+                    .build();
+
+            contentLikeRepository.save(contentLike);
         }
 
-        ContentLike contentLike = ContentLike.builder()
-                .user(user)
-                .content(content)
-                .build();
-
-        contentLikeRepository.save(contentLike);
-
-        long likeCount = contentLikeRepository.countByContent(content);
+        Long likeCount = contentLikeRepository.countByContent(content);
 
         return new ContentResDTO.ContentLikeRes(
                 true,
@@ -611,11 +609,8 @@ public class ContentServiceImpl implements ContentService{
         Content content = contentRepository.findById(contentId)
                 .orElseThrow(() -> new GeneralException(ContentErrorCode.CONTENT_NOT_FOUND));
 
-        ContentLike contentLike = contentLikeRepository
-                .findByUserAndContent(user, content)
-                .orElseThrow(() -> new GeneralException(ContentErrorCode.CONTENT_LIKE_NOT_FOUND));
-
-        contentLikeRepository.delete(contentLike);
+        contentLikeRepository.findByUserAndContent(user, content)
+                .ifPresent(contentLikeRepository::delete);
 
         Long likeCount = contentLikeRepository.countByContent(content);
 
