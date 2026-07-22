@@ -3,9 +3,7 @@ package com.yeogido.backend.domain.business.dto.request;
 import com.yeogido.backend.domain.business.enums.PromotionCategory;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.*;
 import lombok.Builder;
 
 import java.math.BigDecimal;
@@ -104,7 +102,8 @@ public class BusinessPromotionRequest {
     @Schema(description = "장소 정보")
     public record Place(
 
-            @Schema(description = "외부 장소ID", example = "1234567890")
+            @NotBlank(message = "외부 장소 ID는 필수입니다")
+            @Schema(description = "외부 장소 ID", example = "123456789")
             String externalPlaceId,
 
             @NotBlank(message = "장소 정보 출처는 필수입니다")
@@ -130,7 +129,11 @@ public class BusinessPromotionRequest {
 
             @NotNull(message = "경도는 필수입니다")
             @Schema(description = "경도", example = "129.2741234")
-            BigDecimal longitude
+            BigDecimal longitude,
+
+            @NotNull(message = "지역 ID는 필수입니다")
+            @Schema(description = "지역 ID", example = "26")
+            Long regionId
     ) { }
 
     @Builder
@@ -159,6 +162,8 @@ public class BusinessPromotionRequest {
             String imageKey,
 
             @NotNull(message = "이미지 정렬 순서는 필수입니다")
+            @Min(value = 1, message = "이미지 정렬 순서는 1 이상이어야 합니다")
+            @Max(value = 5, message = "이미지 정렬 순서는 5 이하여야 합니다")
             @Schema(description = "이미지 정렬 순서", example = "1")
             Integer sortOrder
     ) { }

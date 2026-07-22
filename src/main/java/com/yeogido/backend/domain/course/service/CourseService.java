@@ -18,7 +18,7 @@ public interface CourseService {
 
     List<CourseResDTO.CoursePreview> getPopularCourses(CourseReqDTO.CoursePopularReq request);
 
-    CourseResDTO.CourseDetail getCourse(Long courseId);
+    CourseResDTO.CourseDetail getCourseDetail(Long courseId);
 
     CourseResDTO.CourseSummary getCourseSummary(Long courseId, Long userId);
 

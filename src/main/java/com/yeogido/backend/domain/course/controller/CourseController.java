@@ -113,7 +113,7 @@ public class CourseController {
             @Parameter(description = "코스 ID", example = "1")
             @PathVariable Long courseId
     ) {
-        CourseResDTO.CourseDetail response = courseService.getCourse(courseId);
+        CourseResDTO.CourseDetail response = courseService.getCourseDetail(courseId);
 
         return ApiResponse.onSuccess(SuccessCode.OK, response);
     }
