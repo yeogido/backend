@@ -17,6 +17,12 @@ import com.yeogido.backend.domain.course.repository.CourseHashtagRepository;
 import com.yeogido.backend.domain.course.repository.CourseItemRepository;
 import com.yeogido.backend.domain.course.repository.CourseLikeRepository;
 import com.yeogido.backend.domain.course.repository.CourseRepository;
+import com.yeogido.backend.domain.course.enums.CompanionType;
+import com.yeogido.backend.domain.course.enums.CourseItemType;
+import com.yeogido.backend.domain.course.enums.CourseType;
+import com.yeogido.backend.domain.course.enums.DurationType;
+import com.yeogido.backend.domain.course.enums.TransportType;
+import com.yeogido.backend.domain.file.service.S3Service;
 import com.yeogido.backend.domain.hashtag.entity.Hashtag;
 import com.yeogido.backend.domain.hashtag.exception.HashtagErrorCode;
 import com.yeogido.backend.domain.hashtag.repository.HashtagRepository;
@@ -29,6 +35,8 @@ import com.yeogido.backend.domain.region.exception.RegionErrorCode;
 import com.yeogido.backend.domain.region.repository.RegionRepository;
 import com.yeogido.backend.domain.user.entity.User;
 import com.yeogido.backend.domain.user.enums.UserRole;
+import com.yeogido.backend.domain.user.enums.UserStatus;
+import com.yeogido.backend.domain.user.exception.UserErrorCode;
 import com.yeogido.backend.domain.user.repository.UserRepository;
 import com.yeogido.backend.global.common.response.CursorResponse;
 import com.yeogido.backend.global.exception.GeneralErrorCode;
@@ -174,6 +182,19 @@ public class CourseServiceImpl implements CourseService {
     }
 
     @Override
+    public CourseResDTO.CourseSummary getCourseSummary(Long courseId, Long userId) {
+        getCurrentUser(userId);
+
+        CourseRepository.CourseSummaryProjection summary = courseRepository.findSummaryByCourseId(courseId)
+                .orElseThrow(() -> new GeneralException(CourseErrorCode.COURSE_NOT_FOUND));
+
+        return CourseConverter.toCourseSummary(
+                summary,
+                s3Service.getImageUrl(summary.getThumbnailKey())
+        );
+    }
+
+    @Override
     @Transactional
     public CourseResDTO.ReviewCreateRes createCourseReview(Long courseId, CourseReqDTO.ReviewCreateReq request) {
         Course course = getActiveCourse(courseId);
@@ -238,6 +259,17 @@ public class CourseServiceImpl implements CourseService {
     private User getCurrentUser() {
         return userRepository.findById(MOCK_MEMBER_ID)
                 .orElseThrow(() -> new GeneralException(GeneralErrorCode.FORBIDDEN));
+    }
+
+    private User getCurrentUser(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
+
+        if (user.getStatus() != UserStatus.ACTIVE) {
+            throw new GeneralException(UserErrorCode.USER_NOT_FOUND);
+        }
+
+        return user;
     }
 
     private Region getRegion(Long regionId) {

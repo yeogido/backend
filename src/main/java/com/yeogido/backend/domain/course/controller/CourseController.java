@@ -1,5 +1,6 @@
 package com.yeogido.backend.domain.course.controller;
 
+import com.yeogido.backend.domain.auth.security.AuthUser;
 import com.yeogido.backend.domain.course.dto.request.CourseReqDTO;
 import com.yeogido.backend.domain.course.dto.response.CourseResDTO;
 import com.yeogido.backend.domain.course.service.CourseService;
@@ -13,7 +14,9 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -24,8 +27,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springdoc.core.annotations.ParameterObject;
-
-import java.util.List;
 
 @Tag(name = "Course", description = "추천 코스 API")
 @RestController
@@ -113,6 +114,18 @@ public class CourseController {
             @PathVariable Long courseId
     ) {
         CourseResDTO.CourseDetail response = courseService.getCourseDetail(courseId);
+
+        return ApiResponse.onSuccess(SuccessCode.OK, response);
+    }
+
+    @Operation(summary = "추천 코스 요약 조회", description = "리뷰 작성 화면에서 사용하는 추천 코스 요약 정보를 조회합니다.")
+    @GetMapping("/{courseId}/summary")
+    public ApiResponse<CourseResDTO.CourseSummary> getCourseSummary(
+            @Parameter(description = "코스 ID", example = "1")
+            @PathVariable Long courseId,
+            @AuthenticationPrincipal AuthUser authUser
+    ) {
+        CourseResDTO.CourseSummary response = courseService.getCourseSummary(courseId, authUser.userId());
 
         return ApiResponse.onSuccess(SuccessCode.OK, response);
     }

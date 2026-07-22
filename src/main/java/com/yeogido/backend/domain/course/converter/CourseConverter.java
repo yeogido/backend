@@ -9,6 +9,7 @@ import com.yeogido.backend.domain.course.entity.CourseItem;
 import com.yeogido.backend.domain.course.entity.CourseLike;
 import com.yeogido.backend.domain.course.enums.CourseItemType;
 import com.yeogido.backend.domain.course.enums.CourseType;
+import com.yeogido.backend.domain.course.repository.CourseRepository;
 import com.yeogido.backend.domain.hashtag.entity.Hashtag;
 import com.yeogido.backend.domain.place.entity.Place;
 import com.yeogido.backend.domain.place.enums.PlaceSource;
@@ -155,6 +156,20 @@ public class CourseConverter {
         return new CourseResDTO.Author(
                 course.getUser().getNickname(),
                 profileImageUrl
+        );
+    }
+
+    public static CourseResDTO.CourseSummary toCourseSummary(
+            CourseRepository.CourseSummaryProjection summary,
+            String thumbnailUrl
+    ) {
+        return new CourseResDTO.CourseSummary(
+                summary.getCourseId(),
+                summary.getTitle(),
+                thumbnailUrl,
+                summary.getDurationType(),
+                summary.getTransportType(),
+                summary.getCompanionType()
         );
     }
 }
