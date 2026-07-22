@@ -31,9 +31,6 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class PlaceServiceImpl implements PlaceService {
 
-    // TODO: 인증 연동 후 현재 로그인 사용자 ID로 변경
-    private static final Long MOCK_USER_ID = 1L;
-
     private final PlaceRepository placeRepository;
     private final PlaceLikeRepository placeLikeRepository;
     private final UserRepository userRepository;
@@ -41,14 +38,14 @@ public class PlaceServiceImpl implements PlaceService {
 
     @Override
     @Transactional
-    public void createPlaceLike(Long placeId) {
+    public void createPlaceLike(Long userId, Long placeId) {
         Place place = getPlace(placeId);
 
-        if (placeLikeRepository.existsByUserIdAndPlaceId(MOCK_USER_ID, placeId)) {
+        if (placeLikeRepository.existsByUserIdAndPlaceId(userId, placeId)) {
             return;
         }
 
-        User user = userRepository.getReferenceById(MOCK_USER_ID);
+        User user = userRepository.getReferenceById(userId);
 
         PlaceLike placeLike = PlaceLike.builder()
                 .place(place)
@@ -60,11 +57,11 @@ public class PlaceServiceImpl implements PlaceService {
 
     @Override
     @Transactional
-    public void deletePlaceLike(Long placeId) {
+    public void deletePlaceLike(Long userId, Long placeId) {
         getPlace(placeId);
 
         placeLikeRepository.findByUserIdAndPlaceId(
-                MOCK_USER_ID,
+                userId,
                 placeId
         ).ifPresent(placeLikeRepository::delete);
     }

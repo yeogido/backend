@@ -9,14 +9,13 @@ import java.util.Map;
 
 public interface PlaceService {
 
-    void createPlaceLike(Long placeId);
+    void createPlaceLike(Long userId, Long placeId);
 
+    void deletePlaceLike(Long userId, Long placeId);
 
     Place getOrCreatePlace(CourseReqDTO.CourseItemCreateReq item, Map<String, Place> placeMap);
 
     Place getOrCreatePlace(ContentReqDTO.PlaceReq request);
-
-    void deletePlaceLike(Long placeId);
 
     Map<String, Place> getPlaceMap(
             List<CourseReqDTO.CourseItemCreateReq> items
