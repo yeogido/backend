@@ -13,6 +13,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @Tag(
         name = "Content",
         description = "문화콘텐츠 API"
@@ -98,5 +100,14 @@ public class ContentController {
         return ApiResponse.onSuccess(SuccessCode.OK,result);
     }
 
+    @Operation(
+            summary = "여기도 추천 대표 행사 조회 API",
+            description = "종료일이 가까운 순으로 대표 행사 목록을 조회합니다."
+    )
+    @GetMapping("/banner")
+    public ApiResponse<List<ContentResDTO.BannerRes>> getBannerContents() {
+        List<ContentResDTO.BannerRes> result = contentService.getBannerContents();
+        return ApiResponse.onSuccess(SuccessCode.OK, result);
+    }
 
 }

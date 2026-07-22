@@ -150,4 +150,16 @@ public class ContentResDTO {
             @Schema(description = "좋아요 수")
             Long likeCount
     ) {}
+
+    public record BannerRes(
+
+            Long contentId,
+            String title,
+            String thumbnailImage,
+            String description,
+            LocalDate startDate,
+            LocalDate endDate
+    ) {}
+
+
 }

@@ -5,6 +5,8 @@ import com.yeogido.backend.domain.content.dto.ContentReqDTO;
 import com.yeogido.backend.domain.content.dto.ContentResDTO;
 import com.yeogido.backend.global.common.response.CursorResponse;
 
+import java.util.List;
+
 public interface ContentService {
 
     //문화콘텐츠 목록 조회
@@ -21,4 +23,7 @@ public interface ContentService {
 
     //문화콘텐츠 좋아요 등록
     ContentResDTO.ContentLikeRes likeContent(Long contentId);
+
+    //문화콘텐츠 추천 대표 행사
+    List<ContentResDTO.BannerRes> getBannerContents();
 }

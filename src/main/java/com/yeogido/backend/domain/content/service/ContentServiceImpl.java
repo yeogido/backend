@@ -35,7 +35,7 @@ import com.yeogido.backend.domain.user.entity.User;
 import com.yeogido.backend.global.common.response.CursorResponse;
 import com.yeogido.backend.global.exception.GeneralErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -570,5 +570,24 @@ public class ContentServiceImpl implements ContentService{
     @Override
     public ContentResDTO.ContentLikeRes likeContent(Long contentId){
         return new ContentResDTO.ContentLikeRes(true, 0L);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ContentResDTO.BannerRes> getBannerContents() {
+
+        List<Content> contents =
+                contentRepository.findAllByEndDateGreaterThanEqualOrderByEndDateAsc(LocalDate.now());
+
+        return contents.stream()
+                .map(content -> new ContentResDTO.BannerRes(
+                        content.getId(),
+                        content.getTitle(),
+                        content.getThumbnailImage(),
+                        content.getDescription(),
+                        content.getStartDate(),
+                        content.getEndDate()
+                ))
+                .toList();
     }
 }
