@@ -42,6 +42,14 @@ public class CourseRedisRepository {
         return stringRedisTemplate.opsForValue().decrement(likeCountKey(courseId));
     }
 
+    public Long increaseDailyLikeCount(Long courseId, LocalDate date) {
+        return stringRedisTemplate.opsForValue().increment(dailyLikeCountKey(courseId, date));
+    }
+
+    public Long decreaseDailyLikeCount(Long courseId, LocalDate date) {
+        return stringRedisTemplate.opsForValue().decrement(dailyLikeCountKey(courseId, date));
+    }
+
     public void saveCreatedEvent(Long courseId, OffsetDateTime createdAt) {
         stringRedisTemplate.opsForSet().add(createdEventKey(createdAt.toLocalDate()), courseId.toString());
         stringRedisTemplate.opsForValue().set(createdAtKey(courseId), createdAt.toString());
@@ -57,6 +65,10 @@ public class CourseRedisRepository {
 
     public Long getLikeCount(Long courseId) {
         return getLongValue(likeCountKey(courseId));
+    }
+
+    public Long getDailyLikeCount(Long courseId, LocalDate date) {
+        return getLongValue(dailyLikeCountKey(courseId, date));
     }
 
     public Set<String> getCreatedCourseIds(LocalDate date) {
@@ -83,6 +95,10 @@ public class CourseRedisRepository {
 
     private String likeCountKey(Long courseId) {
         return RedisKey.of(DOMAIN, courseId.toString(), LIKES);
+    }
+
+    private String dailyLikeCountKey(Long courseId, LocalDate date) {
+        return RedisKey.daily(DOMAIN, date, courseId.toString(), LIKES);
     }
 
     private String createdEventKey(LocalDate date) {
