@@ -16,6 +16,7 @@ import com.yeogido.backend.domain.course.exception.CourseErrorCode;
 import com.yeogido.backend.domain.course.repository.CourseHashtagRepository;
 import com.yeogido.backend.domain.course.repository.CourseItemRepository;
 import com.yeogido.backend.domain.course.repository.CourseLikeRepository;
+import com.yeogido.backend.domain.course.repository.CourseRedisRepository;
 import com.yeogido.backend.domain.course.repository.CourseRepository;
 import com.yeogido.backend.domain.course.enums.CompanionType;
 import com.yeogido.backend.domain.course.enums.CourseItemType;
@@ -47,6 +48,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -68,6 +70,7 @@ public class CourseServiceImpl implements CourseService {
     private final PlaceService placeService;
     private final ContentRepository contentRepository;
     private final CourseReviewRepository courseReviewRepository;
+    private final CourseRedisRepository courseRedisRepository;
     private final UserRepository userRepository;
     private final RegionRepository regionRepository;
     private final S3Service s3Service;
@@ -145,13 +148,11 @@ public class CourseServiceImpl implements CourseService {
     }
 
     @Override
-    @Transactional
     public CourseResDTO.CourseDetail getCourseDetail(Long courseId) {
         Course course = courseRepository.findCourseDetailByIdAndDeletedAtIsNull(courseId)
                 .orElseThrow(() -> new GeneralException(CourseErrorCode.COURSE_NOT_FOUND));
 
-        // TODO: 인기순 조회 성능 개선을 위해 Redis 기반 조회수 집계 방식으로 변경
-        course.increaseViewCount();
+        courseRedisRepository.increaseViewCount(courseId, LocalDate.now());
 
         // TODO: Spring Security 적용 후 인증 사용자 ID로 교체
         boolean isLiked = courseLikeRepository.existsByUserIdAndCourseId(MOCK_MEMBER_ID, courseId);

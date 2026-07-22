@@ -25,6 +25,11 @@ public class CourseRedisRepository {
         return stringRedisTemplate.opsForValue().increment(viewCountKey(courseId));
     }
 
+    public void increaseViewCount(Long courseId, LocalDate date) {
+        increaseViewCount(courseId);
+        increaseDailyViewCount(courseId, date);
+    }
+
     public Long increaseDailyViewCount(Long courseId, LocalDate date) {
         return stringRedisTemplate.opsForValue().increment(dailyViewCountKey(courseId, date));
     }
