@@ -15,6 +15,7 @@ public enum ContentErrorCode implements ErrorCode {
             "콘텐츠가 존재하지 않습니다."
     );
 
+
     private final HttpStatus httpStatus;
     private final String code;
     private final String message;
