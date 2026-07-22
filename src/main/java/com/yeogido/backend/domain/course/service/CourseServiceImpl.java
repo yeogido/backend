@@ -43,16 +43,21 @@ import com.yeogido.backend.global.common.response.CursorResponse;
 import com.yeogido.backend.global.exception.GeneralErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -86,6 +91,7 @@ public class CourseServiceImpl implements CourseService {
 
         saveCourseHashtags(course, request.hashtagIds());
         saveCourseItems(course, request.courseItems());
+        saveCreatedEventAfterCommit(course.getId());
 
         return new CourseResDTO.CourseIdRes(course.getId());
     }
@@ -268,6 +274,28 @@ public class CourseServiceImpl implements CourseService {
     private User getCurrentUser() {
         return userRepository.findById(MOCK_MEMBER_ID)
                 .orElseThrow(() -> new GeneralException(GeneralErrorCode.FORBIDDEN));
+    }
+
+    private void saveCreatedEventAfterCommit(Long courseId) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            saveCreatedEvent(courseId);
+            return;
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                saveCreatedEvent(courseId);
+            }
+        });
+    }
+
+    private void saveCreatedEvent(Long courseId) {
+        try {
+            courseRedisRepository.saveCreatedEvent(courseId, OffsetDateTime.now());
+        } catch (RuntimeException exception) {
+            log.warn("Failed to save course created event. courseId={}", courseId, exception);
+        }
     }
 
     private User getCurrentUser(Long userId) {
