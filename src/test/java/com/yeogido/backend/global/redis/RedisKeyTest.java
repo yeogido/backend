@@ -24,6 +24,13 @@ class RedisKeyTest {
     }
 
     @Test
+    void datedAddsScopeBeforeDate() {
+        String key = RedisKey.dated("course", "activity", LocalDate.of(2026, 7, 23), "views");
+
+        assertThat(key).isEqualTo("course:activity:20260723:views");
+    }
+
+    @Test
     void keyPartCannotContainDelimiter() {
         assertThatThrownBy(() -> RedisKey.of("course", "1:views"))
                 .isInstanceOf(IllegalArgumentException.class);

@@ -39,7 +39,7 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
-import java.time.OffsetDateTime;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -124,9 +124,9 @@ class CourseServiceImplTest {
         TransactionSynchronizationManager.getSynchronizations()
                 .forEach(TransactionSynchronization::afterCommit);
 
-        ArgumentCaptor<OffsetDateTime> createdAtCaptor = ArgumentCaptor.forClass(OffsetDateTime.class);
-        verify(courseRedisRepository).saveCreatedEvent(eq(10L), createdAtCaptor.capture());
-        assertThat(createdAtCaptor.getValue()).isNotNull();
+        ArgumentCaptor<LocalDate> dateCaptor = ArgumentCaptor.forClass(LocalDate.class);
+        verify(courseRedisRepository).saveCreatedEvent(eq(10L), dateCaptor.capture());
+        assertThat(dateCaptor.getValue()).isNotNull();
     }
 
     @Test

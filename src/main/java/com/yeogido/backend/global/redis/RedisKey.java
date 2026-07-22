@@ -27,6 +27,17 @@ public final class RedisKey {
         return join(domain, dateParts);
     }
 
+    public static String dated(String domain, String scope, LocalDate date, String... parts) {
+        Objects.requireNonNull(date, "date must not be null");
+
+        String[] dateParts = new String[parts.length + 2];
+        dateParts[0] = scope;
+        dateParts[1] = DATE_FORMATTER.format(date);
+        System.arraycopy(parts, 0, dateParts, 2, parts.length);
+
+        return join(domain, dateParts);
+    }
+
     private static String join(String domain, String... parts) {
         Objects.requireNonNull(domain, "domain must not be null");
 

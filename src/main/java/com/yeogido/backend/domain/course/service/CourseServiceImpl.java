@@ -52,7 +52,6 @@ import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -292,7 +291,7 @@ public class CourseServiceImpl implements CourseService {
 
     private void saveCreatedEvent(Long courseId) {
         try {
-            courseRedisRepository.saveCreatedEvent(courseId, OffsetDateTime.now());
+            courseRedisRepository.saveCreatedEvent(courseId, LocalDate.now());
         } catch (RuntimeException exception) {
             log.warn("Failed to save course created event. courseId={}", courseId, exception);
         }
