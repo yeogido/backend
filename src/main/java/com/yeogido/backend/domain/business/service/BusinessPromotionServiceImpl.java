@@ -152,6 +152,10 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
                         place.getId()
                 );
 
+        String profileImageUrl = s3Service.getImageUrl(
+                promotion.getUser().getProfileImage()
+        );
+
         return BusinessPromotionConverter.toDetailResponse(
                 promotion,
                 placeInfo,
@@ -159,7 +163,8 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
                 hashtags,
                 images,
                 likeCount,
-                isLiked
+                isLiked,
+                profileImageUrl
         );
     }
 

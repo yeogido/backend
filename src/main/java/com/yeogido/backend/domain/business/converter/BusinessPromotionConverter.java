@@ -141,7 +141,8 @@ public final class BusinessPromotionConverter {
             List<String> hashtags,
             List<BusinessPromotionResponse.ImageInfo> images,
             long likeCount,
-            boolean isLiked
+            boolean isLiked,
+            String profileImageUrl
     ) {
         return BusinessPromotionResponse.Detail.builder()
                 .promotionId(promotion.getId())
@@ -154,7 +155,7 @@ public final class BusinessPromotionConverter {
                 .phoneNumber(promotion.getPhoneNumber())
                 .hashtags(hashtags)
                 .images(images)
-                .author(toAuthorResponse(promotion.getUser()))
+                .author(toAuthorResponse(promotion.getUser(), profileImageUrl))
                 .likeCount(likeCount)
                 .isLiked(isLiked)
                 .createdAt(promotion.getCreatedAt())
@@ -209,11 +210,12 @@ public final class BusinessPromotionConverter {
     }
 
     public static BusinessPromotionResponse.Author toAuthorResponse(
-            User user
+            User user,
+            String profileImageUrl
     ) {
         return BusinessPromotionResponse.Author.builder()
                 .nickname(user.getNickname())
-                .profileImageUrl(user.getProfileImage())
+                .profileImageUrl(profileImageUrl)
                 .build();
     }
 }
