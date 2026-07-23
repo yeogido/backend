@@ -139,6 +139,17 @@ public class  ContentConverter {
         );
     }
 
+    public static ContentResDTO.BannerRes toBannerRes(Content content) {
+        return new ContentResDTO.BannerRes(
+                content.getId(),
+                content.getTitle(),
+                content.getThumbnailImage(),
+                content.getDescription(),
+                content.getStartDate(),
+                content.getEndDate()
+        );
+    }
+
 
 
 }

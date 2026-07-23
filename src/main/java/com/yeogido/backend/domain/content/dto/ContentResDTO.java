@@ -153,11 +153,22 @@ public class ContentResDTO {
 
     public record BannerRes(
 
+            @Schema(description = "문화 콘텐츠 ID")
             Long contentId,
+
+            @Schema(description = "문화 콘텐츠명")
             String title,
+
+            @Schema(description = "배너 썸네일 이미지 URL")
             String thumbnailImage,
+
+            @Schema(description = "문화 콘텐츠 설명")
             String description,
+
+            @Schema(description = "행사 시작일")
             LocalDate startDate,
+
+            @Schema(description = "행사 종료일")
             LocalDate endDate
     ) {}
 

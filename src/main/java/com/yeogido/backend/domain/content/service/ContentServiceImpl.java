@@ -628,14 +628,7 @@ public class ContentServiceImpl implements ContentService{
                 contentRepository.findAllByEndDateGreaterThanEqualOrderByEndDateAsc(LocalDate.now());
 
         return contents.stream()
-                .map(content -> new ContentResDTO.BannerRes(
-                        content.getId(),
-                        content.getTitle(),
-                        content.getThumbnailImage(),
-                        content.getDescription(),
-                        content.getStartDate(),
-                        content.getEndDate()
-                ))
+                .map(ContentConverter::toBannerRes)
                 .toList();
     }
 }
