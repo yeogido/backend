@@ -1,5 +1,6 @@
 package com.yeogido.backend.domain.user.service;
 
+import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.DateTimePath;
 import com.querydsl.core.types.dsl.NumberPath;
@@ -21,6 +22,7 @@ import com.yeogido.backend.domain.place.repository.PlaceLikeRepository;
 import com.yeogido.backend.domain.user.converter.UserConverter;
 import com.yeogido.backend.domain.user.dto.UserResDTO;
 import com.yeogido.backend.domain.user.entity.User;
+import com.yeogido.backend.domain.user.enums.LikeSortType;
 import com.yeogido.backend.domain.user.exception.UserErrorCode;
 import com.yeogido.backend.domain.user.repository.UserRepository;
 import com.yeogido.backend.domain.user.enums.LikeCategory;
@@ -57,6 +59,7 @@ public class UserServiceImpl implements UserService{
     public CursorResponse<UserResDTO.LikedResponse> getLikedList(
             Long userId,
             LikeCategory category,
+            LikeSortType sort,
             LocalDateTime cursorCreatedAt,
             Long cursorId,
             Integer size
@@ -68,7 +71,7 @@ public class UserServiceImpl implements UserService{
         switch (category) {
             case COURSE:{
                 List<CourseLike> likes =
-                        getCourseLikes(user, cursorCreatedAt, cursorId, size);
+                        getCourseLikes(user, sort, cursorCreatedAt, cursorId, size);
 
                 Map<Long, List<String>> hashtagMap =
                         getCourseHashtagMap(likes);
@@ -89,7 +92,7 @@ public class UserServiceImpl implements UserService{
             }
             case CONTENT:{
                 List<ContentLike> likes =
-                        getContentLikes(user, cursorCreatedAt, cursorId, size);
+                        getContentLikes(user, sort, cursorCreatedAt, cursorId, size);
 
                 Map<Long, List<String>> hashtagMap =
                         getContentHashtagMap(likes);
@@ -110,14 +113,14 @@ public class UserServiceImpl implements UserService{
             }
             case PLACE:
                 return toCursorResponse(
-                        getPlaceLikes(user, cursorCreatedAt, cursorId, size),
+                        getPlaceLikes(user, sort, cursorCreatedAt, cursorId, size),
                         UserConverter::toLikedResponse,
                         PlaceLike::getCreatedAt,
                         PlaceLike::getId,
                         size
                 );
             case ALL:
-                return getAllLikes(user, cursorCreatedAt, cursorId, size);
+                return getAllLikes(user, sort, cursorCreatedAt, cursorId, size);
         }
         throw new GeneralException(GeneralErrorCode.INTERNAL_SERVER_ERROR);
     }
@@ -125,11 +128,22 @@ public class UserServiceImpl implements UserService{
 
     private List<CourseLike> getCourseLikes(
             User user,
+            LikeSortType sort,
             LocalDateTime cursorCreatedAt,
             Long cursorId,
             int size
     ) {
         QCourseLike courseLike = QCourseLike.courseLike;
+
+        OrderSpecifier<?> createdAtOrder =
+                sort == LikeSortType.LATEST
+                        ? courseLike.createdAt.desc()
+                        : courseLike.createdAt.asc();
+
+        OrderSpecifier<?> idOrder =
+                sort == LikeSortType.LATEST
+                        ? courseLike.id.desc()
+                        : courseLike.id.asc();
 
         return queryFactory
                 .selectFrom(courseLike)
@@ -142,10 +156,7 @@ public class UserServiceImpl implements UserService{
                                 cursorCreatedAt,
                                 cursorId)
                 )
-                .orderBy(
-                        courseLike.createdAt.desc(),
-                        courseLike.id.desc()
-                )
+                .orderBy(createdAtOrder, idOrder)
                 .limit(size + 1)
                 .fetch();
 
@@ -154,11 +165,22 @@ public class UserServiceImpl implements UserService{
 
     private List<ContentLike> getContentLikes(
             User user,
+            LikeSortType sort,
             LocalDateTime cursorCreatedAt,
             Long cursorId,
             int size
     ) {
         QContentLike contentLike = QContentLike.contentLike;
+
+        OrderSpecifier<?> createdAtOrder =
+                sort == LikeSortType.LATEST
+                        ? contentLike.createdAt.desc()
+                        : contentLike.createdAt.asc();
+
+        OrderSpecifier<?> idOrder =
+                sort == LikeSortType.LATEST
+                        ? contentLike.id.desc()
+                        : contentLike.id.asc();
 
         return queryFactory
                 .selectFrom(contentLike)
@@ -171,10 +193,7 @@ public class UserServiceImpl implements UserService{
                                 cursorCreatedAt,
                                 cursorId)
                 )
-                .orderBy(
-                        contentLike.createdAt.desc(),
-                        contentLike.id.desc()
-                )
+                .orderBy(createdAtOrder, idOrder)
                 .limit(size + 1)
                 .fetch();
 
@@ -183,11 +202,22 @@ public class UserServiceImpl implements UserService{
 
     private List<PlaceLike> getPlaceLikes(
             User user,
+            LikeSortType sort,
             LocalDateTime cursorCreatedAt,
             Long cursorId,
             int size
     ) {
         QPlaceLike placeLike = QPlaceLike.placeLike;
+
+        OrderSpecifier<?> createdAtOrder =
+                sort == LikeSortType.LATEST
+                        ? placeLike.createdAt.desc()
+                        : placeLike.createdAt.asc();
+
+        OrderSpecifier<?> idOrder =
+                sort == LikeSortType.LATEST
+                        ? placeLike.id.desc()
+                        : placeLike.id.asc();
 
         return queryFactory
                 .selectFrom(placeLike)
@@ -200,10 +230,7 @@ public class UserServiceImpl implements UserService{
                                 cursorCreatedAt,
                                 cursorId)
                 )
-                .orderBy(
-                        placeLike.createdAt.desc(),
-                        placeLike.id.desc()
-                )
+                .orderBy(createdAtOrder, idOrder)
                 .limit(size + 1)
                 .fetch();
 
@@ -211,18 +238,19 @@ public class UserServiceImpl implements UserService{
 
     private CursorResponse<UserResDTO.LikedResponse> getAllLikes(
             User user,
+            LikeSortType sort,
             LocalDateTime cursorCreatedAt,
             Long cursorId,
             int size
     ) {
         List<CourseLike> courseLikes =
-                getCourseLikes(user, cursorCreatedAt, cursorId, size);
+                getCourseLikes(user, sort, cursorCreatedAt, cursorId, size);
 
         List<ContentLike> contentLikes =
-                getContentLikes(user, cursorCreatedAt, cursorId, size);
+                getContentLikes(user, sort, cursorCreatedAt, cursorId, size);
 
         List<PlaceLike> placeLikes =
-                getPlaceLikes(user, cursorCreatedAt, cursorId, size);
+                getPlaceLikes(user, sort, cursorCreatedAt, cursorId, size);
 
         Map<Long, List<String>> courseHashtagMap =
                 courseHashtagRepository.findByCourseIdIn(
@@ -280,11 +308,15 @@ public class UserServiceImpl implements UserService{
                 items.add(toPlaceLikeItem(like))
         );
 
-        items.sort(
+        Comparator<LikeItem> comparator =
                 Comparator.comparing(LikeItem::createdAt)
-                        .reversed()
-                        .thenComparing(LikeItem::likeId, Comparator.reverseOrder())
-        );
+                        .thenComparing(LikeItem::likeId);
+
+        if (sort == LikeSortType.LATEST) {
+            comparator = comparator.reversed();
+        }
+
+        items.sort(comparator);
 
         boolean hasNext = items.size() > size;
 

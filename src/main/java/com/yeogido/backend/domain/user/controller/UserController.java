@@ -1,6 +1,7 @@
 package com.yeogido.backend.domain.user.controller;
 
 import com.yeogido.backend.domain.user.dto.UserResDTO;
+import com.yeogido.backend.domain.user.enums.LikeSortType;
 import com.yeogido.backend.domain.user.service.UserService;
 import com.yeogido.backend.global.common.code.SuccessCode;
 import com.yeogido.backend.domain.user.enums.LikeCategory;
@@ -33,6 +34,7 @@ public class UserController {
     @GetMapping("/me/likes")
     public ApiResponse<CursorResponse<UserResDTO.LikedResponse>> getLikedList(
             @RequestParam LikeCategory category,
+            @RequestParam(defaultValue = "LATEST") LikeSortType sort,
             @RequestParam(required = false) LocalDateTime cursorCreatedAt,
             @RequestParam(required = false) Long cursorId,
             @RequestParam(defaultValue = "6") Integer size,
@@ -42,6 +44,7 @@ public class UserController {
                 userService.getLikedList(
                         authUser.userId(),
                         category,
+                        sort,
                         cursorCreatedAt,
                         cursorId,
                         size
