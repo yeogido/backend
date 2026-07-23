@@ -64,10 +64,32 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
             """)
     List<CoursePopularProjection> findPopularCoursesByCourseIds(@Param("courseIds") Collection<Long> courseIds);
 
+    @Query("""
+    select c.id
+    from Course c
+    where c.courseType = com.yeogido.backend.domain.course.enums.CourseType.OFFICIAL
+    order by c.createdAt desc
+    """)
     List<Long> findLatestOfficialCourseIds(Pageable pageable);
 
-    List<Long> findLatestOfficialRegionCourseIds(Long regionId, Pageable pageable);
+    @Query("""
+    select c.id
+    from Course c
+    where c.courseType = com.yeogido.backend.domain.course.enums.CourseType.OFFICIAL
+      and c.region.id = :regionId
+    order by c.createdAt desc
+    """)
+    List<Long> findLatestOfficialRegionCourseIds(
+            @Param("regionId") Long regionId,
+            Pageable pageable
+    );
 
+    @Query("""
+    select c.id
+    from Course c
+    where c.courseType = com.yeogido.backend.domain.course.enums.CourseType.LOCAL
+    order by c.createdAt desc
+    """)
     List<Long> findLatestLocalCourseIds(Pageable pageable);
 
     interface CourseSummaryProjection {
