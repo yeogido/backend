@@ -5,6 +5,7 @@ import com.yeogido.backend.domain.content.dto.ContentReqDTO;
 import com.yeogido.backend.domain.course.converter.CourseConverter;
 import com.yeogido.backend.domain.course.dto.request.CourseReqDTO;
 import com.yeogido.backend.domain.course.enums.CourseItemType;
+import com.yeogido.backend.domain.place.dto.response.PlaceResponse;
 import com.yeogido.backend.domain.place.entity.Place;
 import com.yeogido.backend.domain.place.entity.PlaceLike;
 import com.yeogido.backend.domain.place.enums.PlaceSource;
@@ -31,9 +32,6 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class PlaceServiceImpl implements PlaceService {
 
-    // TODO: 인증 연동 후 현재 로그인 사용자 ID로 변경
-    private static final Long MOCK_USER_ID = 1L;
-
     private final PlaceRepository placeRepository;
     private final PlaceLikeRepository placeLikeRepository;
     private final UserRepository userRepository;
@@ -41,32 +39,38 @@ public class PlaceServiceImpl implements PlaceService {
 
     @Override
     @Transactional
-    public void createPlaceLike(Long placeId) {
+    public PlaceResponse.PlaceLikeRes createPlaceLike(Long userId, Long placeId) {
         Place place = getPlace(placeId);
 
-        if (placeLikeRepository.existsByUserIdAndPlaceId(MOCK_USER_ID, placeId)) {
-            return;
+        if (!placeLikeRepository.existsByUserIdAndPlaceId(userId, placeId)) {
+            User user = userRepository.getReferenceById(userId);
+
+            PlaceLike placeLike = PlaceLike.builder()
+                    .place(place)
+                    .user(user)
+                    .build();
+
+            placeLikeRepository.save(placeLike);
         }
 
-        User user = userRepository.getReferenceById(MOCK_USER_ID);
-
-        PlaceLike placeLike = PlaceLike.builder()
-                .place(place)
-                .user(user)
-                .build();
-
-        placeLikeRepository.save(placeLike);
+        return new PlaceResponse.PlaceLikeRes(
+                true,
+                placeLikeRepository.countByPlaceId(placeId)
+        );
     }
 
     @Override
     @Transactional
-    public void deletePlaceLike(Long placeId) {
+    public PlaceResponse.PlaceLikeRes deletePlaceLike(Long userId, Long placeId) {
         getPlace(placeId);
 
-        placeLikeRepository.findByUserIdAndPlaceId(
-                MOCK_USER_ID,
-                placeId
-        ).ifPresent(placeLikeRepository::delete);
+        placeLikeRepository.findByUserIdAndPlaceId(userId, placeId)
+                .ifPresent(placeLikeRepository::delete);
+
+        return new PlaceResponse.PlaceLikeRes(
+                false,
+                placeLikeRepository.countByPlaceId(placeId)
+        );
     }
 
     @Override
