@@ -13,6 +13,12 @@ public enum BusinessPromotionErrorCode implements ErrorCode {
             HttpStatus.CONFLICT,
             "BUSINESS_PROMOTION4091",
             "이미 해당 장소에 등록된 홍보글이 있습니다"
+    ),
+
+    BUSINESS_PROMOTION_NOT_FOUND(
+            HttpStatus.NOT_FOUND,
+            "BUSINESS_PROMOTION4041",
+            "소상공인 홍보글을 찾을 수 없습니다"
     );
 
     private final HttpStatus httpStatus;
