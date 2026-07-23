@@ -232,9 +232,7 @@ public class CourseServiceImpl implements CourseService {
             CourseLike courseLike = CourseConverter.toCourseLike(user, course);
 
             courseLikeRepository.save(courseLike);
-
             courseRedisRepository.increaseLikeCount(courseId);
-            courseRedisRepository.increaseDailyLikeCount(courseId, LocalDate.now());
         }
 
         return new CourseResDTO.CourseLikeRes(
@@ -254,9 +252,7 @@ public class CourseServiceImpl implements CourseService {
         courseLikeRepository.findByUserIdAndCourseId(user.getId(), courseId)
                 .ifPresent(courseLike -> {
                     courseLikeRepository.delete(courseLike);
-
                     courseRedisRepository.decreaseLikeCount(courseId);
-                    courseRedisRepository.decreaseDailyLikeCount(courseId, LocalDate.now());
                 });
 
         return new CourseResDTO.CourseLikeRes(
