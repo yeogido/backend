@@ -18,6 +18,7 @@ public class CoursePopularityRankingRedisRepository {
     private static final String RANKING = "ranking";
     private static final String OFFICIAL = "official";
     private static final String LOCAL = "local";
+    private static final String REGIONS = "regions";
 
     private final StringRedisTemplate stringRedisTemplate;
 
@@ -31,6 +32,9 @@ public class CoursePopularityRankingRedisRepository {
 
     public void replaceOfficialRegionRanking(Long regionId, List<CoursePopularityRankingEntry> entries) {
         replaceRanking(officialRegionRankingKey(regionId), entries);
+
+        stringRedisTemplate.opsForSet()
+                .add(officialRegionSetKey(), regionId.toString());
     }
 
     public List<Long> findTopOfficialRegionCourseIds(Long regionId, int size) {
@@ -38,13 +42,19 @@ public class CoursePopularityRankingRedisRepository {
     }
 
     public void deleteOfficialRegionRankings() {
-        Set<String> keys = stringRedisTemplate.keys(officialRegionRankingKeyPattern());
+        Set<String> regionIds =
+                stringRedisTemplate.opsForSet().members(officialRegionSetKey());
 
-        if (keys == null || keys.isEmpty()) {
+        if (regionIds == null || regionIds.isEmpty()) {
             return;
         }
 
+        List<String> keys = regionIds.stream()
+                .map(id -> officialRegionRankingKey(Long.valueOf(id)))
+                .toList();
+
         stringRedisTemplate.delete(keys);
+        stringRedisTemplate.delete(officialRegionSetKey());
     }
 
     public void replaceLocalRanking(List<CoursePopularityRankingEntry> entries) {
@@ -66,8 +76,10 @@ public class CoursePopularityRankingRedisRepository {
                 connection.zAdd(
                         redisKey,
                         entry.score(),
-                        Objects.requireNonNull(stringRedisTemplate.getStringSerializer()
-                                .serialize(entry.courseId().toString()))
+                        Objects.requireNonNull(
+                                stringRedisTemplate.getStringSerializer()
+                                        .serialize(entry.courseId().toString())
+                        )
                 );
             }
 
@@ -100,8 +112,8 @@ public class CoursePopularityRankingRedisRepository {
         return RedisKey.of(DOMAIN, RANKING, OFFICIAL, regionId.toString());
     }
 
-    private String officialRegionRankingKeyPattern() {
-        return RedisKey.of(DOMAIN, RANKING, OFFICIAL, "*");
+    private String officialRegionSetKey() {
+        return RedisKey.of(DOMAIN, RANKING, OFFICIAL, REGIONS);
     }
 
     private String localRankingKey() {
