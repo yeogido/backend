@@ -26,4 +26,8 @@ public interface ContentService {
 
     //문화콘텐츠 추천 대표 행사
     List<ContentResDTO.BannerRes> getBannerContents();
+    ContentResDTO.ContentLikeRes likeContent(Long contentId, Long userId);
+
+    //문화콘텐츠 좋아요 취소
+    ContentResDTO.ContentLikeRes unlikeContent(Long contentId, Long userId);
 }

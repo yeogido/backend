@@ -9,6 +9,7 @@ import com.yeogido.backend.domain.content.converter.ContentConverter;
 import com.yeogido.backend.domain.content.dto.ContentReqDTO;
 import com.yeogido.backend.domain.content.dto.ContentResDTO;
 import com.yeogido.backend.domain.content.entity.Content;
+import com.yeogido.backend.domain.content.entity.ContentLike;
 import com.yeogido.backend.domain.content.entity.ContentHashtag;
 import com.yeogido.backend.domain.content.entity.QContent;
 import com.yeogido.backend.domain.content.entity.QContentLike;
@@ -31,6 +32,8 @@ import com.yeogido.backend.domain.course.entity.Course;
 import com.yeogido.backend.domain.course.repository.CourseItemRepository;
 import com.yeogido.backend.domain.course.repository.CourseLikeRepository;
 import com.yeogido.backend.domain.user.entity.User;
+import com.yeogido.backend.domain.user.exception.UserErrorCode;
+import com.yeogido.backend.domain.user.repository.UserRepository;
 
 import com.yeogido.backend.global.common.response.CursorResponse;
 import com.yeogido.backend.global.exception.GeneralErrorCode;
@@ -39,6 +42,7 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.net.ContentHandler;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -48,6 +52,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Transactional
 public class ContentServiceImpl implements ContentService{
 
     private final JPAQueryFactory queryFactory;
@@ -64,6 +69,7 @@ public class ContentServiceImpl implements ContentService{
     private final ContentLikeRepository contentLikeRepository;
     private final CourseItemRepository courseItemRepository;
     private final CourseLikeRepository courseLikeRepository;
+    private final UserRepository userRepository;
 
     @Override
     public CursorResponse<ContentResDTO.ContentInfo> getContents(ContentReqDTO.ContentListReq request){
@@ -568,8 +574,50 @@ public class ContentServiceImpl implements ContentService{
     }
 
     @Override
-    public ContentResDTO.ContentLikeRes likeContent(Long contentId){
-        return new ContentResDTO.ContentLikeRes(true, 0L);
+    public ContentResDTO.ContentLikeRes likeContent(Long contentId, Long userId){
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
+
+        Content content = contentRepository.findById(contentId)
+                .orElseThrow(() -> new GeneralException(ContentErrorCode.CONTENT_NOT_FOUND));
+
+        if (!contentLikeRepository.existsByUserAndContent(user, content)) {
+            ContentLike contentLike = ContentLike.builder()
+                    .user(user)
+                    .content(content)
+                    .build();
+
+            contentLikeRepository.save(contentLike);
+        }
+
+        Long likeCount = contentLikeRepository.countByContent(content);
+
+        return new ContentResDTO.ContentLikeRes(
+                true,
+                likeCount
+        );
+    }
+
+
+    @Override
+    @Transactional
+    public ContentResDTO.ContentLikeRes unlikeContent(Long contentId, Long userId) {
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
+
+        Content content = contentRepository.findById(contentId)
+                .orElseThrow(() -> new GeneralException(ContentErrorCode.CONTENT_NOT_FOUND));
+
+        contentLikeRepository.findByUserAndContent(user, content)
+                .ifPresent(contentLikeRepository::delete);
+
+        Long likeCount = contentLikeRepository.countByContent(content);
+
+        return new ContentResDTO.ContentLikeRes(
+                false,
+                likeCount
+        );
     }
 
     @Override
