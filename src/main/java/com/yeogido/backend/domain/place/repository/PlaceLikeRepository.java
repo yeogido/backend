@@ -18,8 +18,6 @@ public interface PlaceLikeRepository extends JpaRepository<PlaceLike, Long> {
     // 좋아요가 존재하는 경우에만 삭제하기 위한 단건 조회
     Optional<PlaceLike> findByUserIdAndPlaceId(Long userId, Long placeId);
 
-    long countByPlaceId(Long placeId);
-
     @Query("""
         SELECT placeLike.place.id AS placeId,
                COUNT(placeLike.id) AS likeCount
