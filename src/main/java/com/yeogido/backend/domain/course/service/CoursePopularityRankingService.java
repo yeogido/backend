@@ -7,6 +7,7 @@ import com.yeogido.backend.domain.course.repository.CourseRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -53,7 +54,8 @@ public class CoursePopularityRankingService {
                 .map(course -> new CourseRankingTarget(
                         course.getCourseId(),
                         course.getRegionId(),
-                        scores.get(course.getCourseId())
+                        scores.get(course.getCourseId()),
+                        course.getCreatedAt()
                 ))
                 .filter(target -> target.score() != null)
                 .toList();
@@ -72,8 +74,14 @@ public class CoursePopularityRankingService {
 
     private List<CoursePopularityRankingEntry> toRankingEntries(List<CourseRankingTarget> targets) {
         return targets.stream()
-                .sorted(Comparator.comparing(CourseRankingTarget::score).reversed()
-                        .thenComparing(CourseRankingTarget::courseId))
+                .sorted(
+                        Comparator.comparing(CourseRankingTarget::score)
+                                .reversed()
+                                .thenComparing(
+                                        CourseRankingTarget::createdAt,
+                                        Comparator.reverseOrder()
+                                )
+                )
                 .map(target -> new CoursePopularityRankingEntry(target.courseId(), target.score()))
                 .toList();
     }
@@ -81,7 +89,8 @@ public class CoursePopularityRankingService {
     private record CourseRankingTarget(
             Long courseId,
             Long regionId,
-            Long score
+            Long score,
+            LocalDateTime createdAt
     ) {
     }
 }

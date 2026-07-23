@@ -25,14 +25,22 @@ public class CoursePopularityRankingRedisRepository {
         replaceRanking(officialRankingKey(), entries);
     }
 
+    public List<Long> findTopOfficialCourseIds(int size) {
+        return findTopCourseIds(officialRankingKey(), size);
+    }
+
     public void replaceOfficialRegionRanking(Long regionId, List<CoursePopularityRankingEntry> entries) {
         replaceRanking(officialRegionRankingKey(regionId), entries);
+    }
+
+    public List<Long> findTopOfficialRegionCourseIds(Long regionId, int size) {
+        return findTopCourseIds(officialRegionRankingKey(regionId), size);
     }
 
     public void deleteOfficialRegionRankings() {
         Set<String> keys = stringRedisTemplate.keys(officialRegionRankingKeyPattern());
 
-        if (keys.isEmpty()) {
+        if (keys == null || keys.isEmpty()) {
             return;
         }
 
@@ -41,6 +49,10 @@ public class CoursePopularityRankingRedisRepository {
 
     public void replaceLocalRanking(List<CoursePopularityRankingEntry> entries) {
         replaceRanking(localRankingKey(), entries);
+    }
+
+    public List<Long> findTopLocalCourseIds(int size) {
+        return findTopCourseIds(localRankingKey(), size);
     }
 
     private void replaceRanking(String key, List<CoursePopularityRankingEntry> entries) {
@@ -61,6 +73,23 @@ public class CoursePopularityRankingRedisRepository {
 
             return null;
         });
+    }
+
+    private List<Long> findTopCourseIds(String key, int size) {
+        if (size <= 0) {
+            return List.of();
+        }
+
+        Set<String> courseIds = stringRedisTemplate.opsForZSet()
+                .reverseRange(key, 0, size - 1L);
+
+        if (courseIds == null || courseIds.isEmpty()) {
+            return List.of();
+        }
+
+        return courseIds.stream()
+                .map(Long::valueOf)
+                .toList();
     }
 
     private String officialRankingKey() {
