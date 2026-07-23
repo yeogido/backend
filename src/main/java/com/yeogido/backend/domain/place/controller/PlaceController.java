@@ -1,6 +1,7 @@
 package com.yeogido.backend.domain.place.controller;
 
 import com.yeogido.backend.domain.auth.security.AuthUser;
+import com.yeogido.backend.domain.place.dto.response.PlaceResponse;
 import com.yeogido.backend.domain.place.service.PlaceService;
 import com.yeogido.backend.global.common.code.SuccessCode;
 import com.yeogido.backend.global.common.response.ApiResponse;
@@ -24,14 +25,15 @@ public class PlaceController {
             description = "사용자가 특정 장소에 좋아요를 등록합니다."
     )
     @PostMapping("/{placeId}/likes")
-    public ApiResponse<Void> createPlaceLike(
+    public ApiResponse<PlaceResponse.PlaceLikeRes> createPlaceLike(
             @AuthenticationPrincipal AuthUser authUser,
             @Parameter(description = "장소 ID", example = "1")
             @PathVariable Long placeId
     ) {
-        placeService.createPlaceLike(authUser.userId(), placeId);
+        PlaceResponse.PlaceLikeRes response =
+                placeService.createPlaceLike(authUser.userId(), placeId);
 
-        return ApiResponse.onSuccess(SuccessCode.CREATED);
+        return ApiResponse.onSuccess(SuccessCode.CREATED, response);
     }
 
     @Operation(
@@ -39,13 +41,14 @@ public class PlaceController {
             description = "사용자가 특정 장소에 등록한 좋아요를 취소합니다"
     )
     @DeleteMapping("/{placeId}/likes")
-    public ApiResponse<Void> deletePlaceLike(
+    public ApiResponse<PlaceResponse.PlaceLikeRes> deletePlaceLike(
             @AuthenticationPrincipal AuthUser authUser,
             @Parameter(description = "장소 ID", example = "1")
             @PathVariable Long placeId
     ) {
-        placeService.deletePlaceLike(authUser.userId(), placeId);
+        PlaceResponse.PlaceLikeRes response =
+                placeService.deletePlaceLike(authUser.userId(), placeId);
 
-        return ApiResponse.onSuccess(SuccessCode.OK);
+        return ApiResponse.onSuccess(SuccessCode.OK, response);
     }
 }
