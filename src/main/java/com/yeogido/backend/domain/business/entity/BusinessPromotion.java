@@ -48,6 +48,10 @@ public class BusinessPromotion extends BaseEntity {
     @Column(name = "sns_account", length = 100)
     private String snsAccount;
 
+    @Builder.Default
+    @Column(name = "recommendation_priority", nullable = false)
+    private Integer recommendationPriority = 0;
+
     public void reactivate(
             User user,
             String shortDescription,

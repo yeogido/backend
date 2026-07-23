@@ -1,39 +1,49 @@
 package com.yeogido.backend.domain.business.service;
 
+import com.querydsl.core.BooleanBuilder;
+import com.querydsl.core.types.dsl.BooleanExpression;
+import com.querydsl.core.types.dsl.NumberExpression;
+import com.querydsl.jpa.impl.JPAQueryFactory;
 import com.yeogido.backend.domain.business.converter.BusinessPromotionConverter;
 import com.yeogido.backend.domain.business.dto.request.BusinessPromotionRequest;
 import com.yeogido.backend.domain.business.dto.response.BusinessPromotionResponse;
-import com.yeogido.backend.domain.business.entity.BusinessOperatingDay;
-import com.yeogido.backend.domain.business.entity.BusinessPromotion;
-import com.yeogido.backend.domain.business.entity.BusinessPromotionHashtag;
-import com.yeogido.backend.domain.business.entity.BusinessPromotionImage;
+import com.yeogido.backend.domain.business.entity.*;
 import com.yeogido.backend.domain.business.enums.DayOfWeek;
+import com.yeogido.backend.domain.business.enums.PromotionCategory;
+import com.yeogido.backend.domain.business.enums.PromotionSortType;
 import com.yeogido.backend.domain.business.enums.PromotionStatus;
 import com.yeogido.backend.domain.business.exception.BusinessPromotionErrorCode;
 import com.yeogido.backend.domain.business.repository.BusinessOperatingDayRepository;
 import com.yeogido.backend.domain.business.repository.BusinessPromotionHashtagRepository;
 import com.yeogido.backend.domain.business.repository.BusinessPromotionImageRepository;
 import com.yeogido.backend.domain.business.repository.BusinessPromotionRepository;
+import com.yeogido.backend.domain.file.service.S3Service;
 import com.yeogido.backend.domain.hashtag.entity.Hashtag;
 import com.yeogido.backend.domain.hashtag.exception.HashtagErrorCode;
 import com.yeogido.backend.domain.hashtag.repository.HashtagRepository;
 import com.yeogido.backend.domain.place.entity.Place;
+import com.yeogido.backend.domain.place.entity.QPlaceLike;
 import com.yeogido.backend.domain.place.enums.PlaceSource;
+import com.yeogido.backend.domain.place.repository.PlaceLikeRepository;
 import com.yeogido.backend.domain.place.repository.PlaceRepository;
 import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.region.exception.RegionErrorCode;
 import com.yeogido.backend.domain.region.repository.RegionRepository;
 import com.yeogido.backend.domain.user.entity.User;
 import com.yeogido.backend.domain.user.repository.UserRepository;
+import com.yeogido.backend.global.common.response.CursorResponse;
 import com.yeogido.backend.global.exception.GeneralErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeParseException;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -45,19 +55,29 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
     private final BusinessPromotionHashtagRepository businessPromotionHashtagRepository;
     private final BusinessPromotionImageRepository businessPromotionImageRepository;
     private final PlaceRepository placeRepository;
+    private final PlaceLikeRepository placeLikeRepository;
     private final RegionRepository regionRepository;
     private final UserRepository userRepository;
     private final HashtagRepository hashtagRepository;
+    private final S3Service s3Service;
 
-    // TODO: 인증 연동 후 현재 로그인 사용자 ID로 변경
-    private static final Long MOCK_USER_ID = 1L;
+    private final JPAQueryFactory queryFactory;
+    private final QBusinessPromotion qPromotion =
+            QBusinessPromotion.businessPromotion;
+
+    private final QPlaceLike qPlaceLike =
+            QPlaceLike.placeLike;
+
+    private final NumberExpression<Long> likeCountExpression =
+            qPlaceLike.id.count();
 
     @Override
     @Transactional
     public BusinessPromotionResponse.Register registerBusinessPromotion(
+            Long userId,
             BusinessPromotionRequest.Register request
     ) {
-        User user = userRepository.getReferenceById(MOCK_USER_ID);
+        User user = userRepository.getReferenceById(userId);
 
         validateDuplicateBusinessHours(request.businessHours());
         validateDuplicateImageSortOrders(request.images());
@@ -77,6 +97,567 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
                 businessPromotion
         );
     }
+
+    @Override
+    public BusinessPromotionResponse.Detail getBusinessPromotion(
+            Long userId,
+            Long promotionId
+    ) {
+        BusinessPromotion promotion = businessPromotionRepository.findByIdAndStatus(promotionId, PromotionStatus.ACTIVE)
+                .orElseThrow(() -> new GeneralException(
+                        BusinessPromotionErrorCode.BUSINESS_PROMOTION_NOT_FOUND
+                ));
+
+        Place place = promotion.getPlace();
+
+        BusinessPromotionResponse.PlaceInfo placeInfo =
+                BusinessPromotionConverter.toPlaceInfo(place);
+
+        List<BusinessPromotionResponse.BusinessHourInfo> businessHours =
+                businessOperatingDayRepository
+                        .findAllByPromotion_Id(promotionId)
+                        .stream()
+                        .sorted(Comparator.comparing(BusinessOperatingDay::getDayOfWeek))
+                        .map(BusinessPromotionConverter::toBusinessHourInfo)
+                        .toList();
+
+        List<BusinessPromotionResponse.ImageInfo> images =
+                businessPromotionImageRepository
+                        .findAllByPromotion_IdOrderBySortOrderAsc(promotionId)
+                        .stream()
+                        .map(promotionImage ->
+                                BusinessPromotionConverter.toImageInfo(
+                                        promotionImage,
+                                        s3Service.getImageUrl(
+                                                promotionImage.getImageKey()
+                                        )
+                                )
+                        )
+                        .toList();
+
+        List<String> hashtags =
+                businessPromotionHashtagRepository
+                        .findAllByPromotion_IdOrderByHashtag_IdAsc(promotionId)
+                        .stream()
+                        .map(promotionHashtag ->
+                                promotionHashtag.getHashtag().getHashtagName()
+                        )
+                        .toList();
+
+        long likeCount = placeLikeRepository.countByPlaceId(place.getId());
+
+        boolean isLiked =
+                userId != null && placeLikeRepository.existsByUserIdAndPlaceId(
+                        userId,
+                        place.getId()
+                );
+
+        String profileImageUrl = s3Service.getImageUrl(
+                promotion.getUser().getProfileImage()
+        );
+
+        return BusinessPromotionConverter.toDetailResponse(
+                promotion,
+                placeInfo,
+                businessHours,
+                hashtags,
+                images,
+                likeCount,
+                isLiked,
+                profileImageUrl
+        );
+    }
+
+    @Override
+    public CursorResponse<BusinessPromotionResponse.MySummary>
+    getMyBusinessPromotions(
+            Long userId,
+            LocalDateTime cursorValue,
+            Long cursorId,
+            Integer size
+    ) {
+        boolean firstPage =
+                cursorValue == null && cursorId == null;
+
+        if (!firstPage && (cursorValue == null || cursorId == null)) {
+            throw new GeneralException(
+                    GeneralErrorCode.INVALID_REQUEST
+            );
+        }
+
+        Pageable pageable = PageRequest.of(0, size + 1);
+
+        List<BusinessPromotion> promotions;
+
+        if (firstPage) {
+            promotions =
+                    businessPromotionRepository
+                            .findByUserIdAndStatusOrderByCreatedAtDescIdDesc(
+                                    userId,
+                                    PromotionStatus.ACTIVE,
+                                    pageable
+                            );
+        } else {
+            promotions =
+                    businessPromotionRepository.findMyPromotionsAfterCursor(
+                            userId,
+                            PromotionStatus.ACTIVE,
+                            cursorValue,
+                            cursorId,
+                            pageable
+                    );
+        }
+
+        boolean hasNext = promotions.size() > size;
+
+        List<BusinessPromotion> pageItems =
+                hasNext
+                        ? promotions.subList(0, size)
+                        : promotions;
+
+        List<Long> promotionIds = pageItems.stream()
+                .map(BusinessPromotion::getId)
+                .toList();
+
+        Map<Long, BusinessPromotionImage> thumbnailImageMap =
+                promotionIds.isEmpty()
+                        ? Map.of()
+                        : businessPromotionImageRepository
+                        .findAllByPromotion_IdInAndSortOrder(
+                                promotionIds,
+                                1
+                        )
+                        .stream()
+                        .collect(Collectors.toMap(
+                                image -> image.getPromotion().getId(),
+                                image -> image
+                        ));
+
+        List<Long> placeIds = pageItems.stream()
+                .map(promotion -> promotion.getPlace().getId())
+                .toList();
+
+        Map<Long, Long> likeCountMap =
+                placeIds.isEmpty()
+                        ? Map.of()
+                        : placeLikeRepository.countByPlaceIds(placeIds)
+                        .stream()
+                        .collect(Collectors.toMap(
+                                PlaceLikeRepository.PlaceLikeCount::getPlaceId,
+                                PlaceLikeRepository.PlaceLikeCount::getLikeCount
+                        ));
+
+        List<BusinessPromotionResponse.MySummary> items =
+                pageItems.stream()
+                        .map(promotion -> {
+                            Place place = promotion.getPlace();
+
+                            BusinessPromotionImage thumbnailImage =
+                                    thumbnailImageMap.get(promotion.getId());
+
+                            String thumbnailImageUrl =
+                                    thumbnailImage == null
+                                            ? null
+                                            : s3Service.getImageUrl(
+                                            thumbnailImage.getImageKey()
+                                    );
+
+                            long likeCount =
+                                    likeCountMap.getOrDefault(
+                                            place.getId(),
+                                            0L
+                                    );
+
+                            return BusinessPromotionConverter.toMySummaryResponse(
+                                    promotion,
+                                    thumbnailImageUrl,
+                                    likeCount
+                            );
+                        })
+                        .toList();
+
+        LocalDateTime nextCursorValue = null;
+        Long nextCursorId = null;
+
+        if (hasNext && !pageItems.isEmpty()) {
+            BusinessPromotion lastPromotion =
+                    pageItems.get(pageItems.size() - 1);
+
+            nextCursorValue = lastPromotion.getCreatedAt();
+            nextCursorId = lastPromotion.getId();
+        }
+
+        return CursorResponse.of(
+                items,
+                nextCursorValue,
+                nextCursorId,
+                hasNext
+        );
+    }
+
+    @Override
+    public CursorResponse<BusinessPromotionResponse.Summary>
+    getBusinessPromotions(
+            Long userId,
+            String cursorValue,
+            Long cursorId,
+            Integer size,
+            PromotionCategory category,
+            PromotionSortType sort
+    ) {
+        BooleanBuilder condition = new BooleanBuilder();
+
+        condition.and(
+                qPromotion.status.eq(PromotionStatus.ACTIVE)
+        );
+
+        if (category != null) {
+            condition.and(qPromotion.promotionCategory.eq(category));
+        }
+
+        boolean firstPage = cursorValue == null && cursorId == null;
+
+        if (!firstPage && (cursorValue == null || cursorId == null)) {
+            throw new GeneralException(
+                    GeneralErrorCode.INVALID_REQUEST
+            );
+        }
+
+        List<BusinessPromotion> promotions = switch (sort) {
+            case RECOMMEND -> {
+                if (firstPage) {
+                    yield findRecommendedPromotions(
+                            condition,
+                            size
+                    );
+                }
+
+                RecommendedCursor recommendedCursor = parseRecommendedCursor(cursorValue);
+
+                yield findRecommendedPromotionsAfterCursor(
+                        condition,
+                        recommendedCursor.priority(),
+                        recommendedCursor.createdAt(),
+                        cursorId,
+                        size
+                );
+            }
+
+            case SAVED -> {
+                if (firstPage) {
+                    yield findSavedPromotions(
+                            condition,
+                            size
+                    );
+                }
+
+                SavedCursor savedCursor =
+                        parseSavedCursor(cursorValue);
+
+                yield findSavedPromotionsAfterCursor(
+                        condition,
+                        savedCursor.likeCount(),
+                        savedCursor.createdAt(),
+                        cursorId,
+                        size
+                );
+            }
+        };
+
+        boolean hasNext = promotions.size() > size;
+
+        List<BusinessPromotion> pageItems =
+                hasNext
+                        ? promotions.subList(0, size)
+                        : promotions;
+
+        List<Long> placeIds = pageItems.stream()
+                .map(promotion -> promotion.getPlace().getId())
+                .toList();
+
+        Set<Long> likedPlaceIds =
+                userId == null || placeIds.isEmpty()
+                        ? Set.of()
+                        : new HashSet<>(
+                        placeLikeRepository.findLikedPlaceIds(
+                                userId,
+                                placeIds
+                        )
+                );
+
+        List<Long> promotionIds = pageItems.stream()
+                .map(BusinessPromotion::getId)
+                .toList();
+
+        Map<Long, BusinessPromotionImage> thumbnailImageMap =
+                promotionIds.isEmpty()
+                        ? Map.of()
+                        : businessPromotionImageRepository
+                        .findAllByPromotion_IdInAndSortOrder(
+                                promotionIds,
+                                1
+                        )
+                        .stream()
+                        .collect(Collectors.toMap(
+                                image -> image.getPromotion().getId(),
+                                image -> image
+                        ));
+
+        Map<Long, Long> likeCountMap =
+                placeIds.isEmpty()
+                        ? Map.of()
+                        : placeLikeRepository.countByPlaceIds(placeIds)
+                        .stream()
+                        .collect(Collectors.toMap(
+                                PlaceLikeRepository.PlaceLikeCount::getPlaceId,
+                                PlaceLikeRepository.PlaceLikeCount::getLikeCount
+                        ));
+
+        List<BusinessPromotionResponse.Summary> items =
+                pageItems.stream()
+                        .map(promotion -> {
+                            Place place = promotion.getPlace();
+
+                            BusinessPromotionImage thumbnailImage =
+                                    thumbnailImageMap.get(promotion.getId());
+
+                            String thumbnailImageUrl =
+                                    thumbnailImage == null ? null : s3Service.getImageUrl(thumbnailImage.getImageKey());
+
+                            long likeCount =
+                                    likeCountMap.getOrDefault(place.getId(), 0L);
+
+                            boolean isLiked = likedPlaceIds.contains(place.getId());
+
+                            return BusinessPromotionConverter.toSummaryResponse(
+                                    promotion,
+                                    thumbnailImageUrl,
+                                    likeCount,
+                                    isLiked
+                            );
+                        })
+                        .toList();
+
+        String nextCursorValue = null;
+        Long nextCursorId = null;
+
+        if (hasNext && !pageItems.isEmpty()) {
+            BusinessPromotion lastPromotion = pageItems.get(pageItems.size() - 1);
+
+            switch (sort) {
+                case RECOMMEND ->
+                        nextCursorValue =
+                                lastPromotion.getRecommendationPriority()
+                                        + "|"
+                                        + lastPromotion.getCreatedAt();
+
+                case SAVED -> {
+                    Long lastLikeCount =
+                            likeCountMap.getOrDefault(
+                                    lastPromotion.getPlace().getId(),
+                                    0L
+                            );
+
+                    nextCursorValue =
+                            lastLikeCount
+                                    + "|"
+                                    + lastPromotion.getCreatedAt();
+                }
+            }
+            nextCursorId = lastPromotion.getId();
+        }
+
+        return CursorResponse.of(
+                items,
+                nextCursorValue,
+                nextCursorId,
+                hasNext
+        );
+    }
+
+    private List<BusinessPromotion> findRecommendedPromotions(
+            BooleanBuilder condition,
+            Integer size
+    ) {
+        return queryFactory
+                .selectFrom(qPromotion)
+                .join(qPromotion.place).fetchJoin()
+                .join(qPromotion.place.region).fetchJoin()
+                .where(condition)
+                .orderBy(
+                        qPromotion.recommendationPriority.desc(),
+                        qPromotion.createdAt.desc(),
+                        qPromotion.id.desc()
+                )
+                .limit(size + 1L)
+                .fetch();
+    }
+
+    private List<BusinessPromotion> findRecommendedPromotionsAfterCursor(
+            BooleanBuilder condition,
+            Integer cursorPriority,
+            LocalDateTime cursorCreatedAt,
+            Long cursorId,
+            Integer size
+    ) {
+        BooleanExpression cursorCondition =
+                qPromotion.recommendationPriority.lt(cursorPriority)
+                        .or(
+                                qPromotion.recommendationPriority
+                                        .eq(cursorPriority)
+                                        .and(
+                                                qPromotion.createdAt.lt(
+                                                        cursorCreatedAt
+                                                )
+                                        )
+                        )
+                        .or(
+                                qPromotion.recommendationPriority
+                                        .eq(cursorPriority)
+                                        .and(
+                                                qPromotion.createdAt.eq(
+                                                        cursorCreatedAt
+                                                )
+                                        )
+                                        .and(qPromotion.id.lt(cursorId))
+                        );
+
+        return queryFactory
+                .selectFrom(qPromotion)
+                .join(qPromotion.place).fetchJoin()
+                .join(qPromotion.place.region).fetchJoin()
+                .where(condition, cursorCondition)
+                .orderBy(
+                        qPromotion.recommendationPriority.desc(),
+                        qPromotion.createdAt.desc(),
+                        qPromotion.id.desc()
+                )
+                .limit(size + 1L)
+                .fetch();
+    }
+
+    private List<BusinessPromotion> findSavedPromotions(
+            BooleanBuilder condition,
+            Integer size
+    ) {
+        return queryFactory
+                .select(qPromotion)
+                .from(qPromotion)
+                .join(qPromotion.place).fetchJoin()
+                .join(qPromotion.place.region).fetchJoin()
+                .leftJoin(qPlaceLike)
+                .on(qPlaceLike.place.id.eq(qPromotion.place.id))
+                .where(condition)
+                .groupBy(qPromotion.id)
+                .orderBy(
+                        likeCountExpression.desc(),
+                        qPromotion.createdAt.desc(),
+                        qPromotion.id.desc()
+                )
+                .limit(size + 1L)
+                .fetch();
+    }
+
+    private List<BusinessPromotion> findSavedPromotionsAfterCursor(
+            BooleanBuilder condition,
+            Long cursorLikeCount,
+            LocalDateTime cursorCreatedAt,
+            Long cursorId,
+            Integer size
+    ) {
+        BooleanExpression cursorCondition =
+                likeCountExpression.lt(cursorLikeCount)
+                        .or(
+                                likeCountExpression.eq(cursorLikeCount)
+                                        .and(
+                                                qPromotion.createdAt.lt(
+                                                        cursorCreatedAt
+                                                )
+                                        )
+                        )
+                        .or(
+                                likeCountExpression.eq(cursorLikeCount)
+                                        .and(
+                                                qPromotion.createdAt.eq(
+                                                        cursorCreatedAt
+                                                )
+                                        )
+                                        .and(qPromotion.id.lt(cursorId))
+                        );
+
+        return queryFactory
+                .select(qPromotion)
+                .from(qPromotion)
+                .join(qPromotion.place).fetchJoin()
+                .join(qPromotion.place.region).fetchJoin()
+                .leftJoin(qPlaceLike)
+                .on(qPlaceLike.place.id.eq(qPromotion.place.id))
+                .where(condition)
+                .groupBy(qPromotion.id)
+                .having(cursorCondition)
+                .orderBy(
+                        likeCountExpression.desc(),
+                        qPromotion.createdAt.desc(),
+                        qPromotion.id.desc()
+                )
+                .limit(size + 1L)
+                .fetch();
+    }
+
+    private SavedCursor parseSavedCursor(String cursorValue) {
+        String[] cursorParts = cursorValue.split("\\|", 2);
+
+        if (cursorParts.length != 2) {
+            throw new GeneralException(
+                    GeneralErrorCode.INVALID_REQUEST
+            );
+        }
+
+        try {
+            return new SavedCursor(
+                    Long.parseLong(cursorParts[0]),
+                    LocalDateTime.parse(cursorParts[1])
+            );
+        } catch (NumberFormatException | DateTimeParseException exception) {
+            throw new GeneralException(
+                    GeneralErrorCode.INVALID_REQUEST
+            );
+        }
+    }
+
+    private RecommendedCursor parseRecommendedCursor(
+            String cursorValue
+    ) {
+        String[] cursorParts = cursorValue.split("\\|", 2);
+
+        if (cursorParts.length != 2) {
+            throw new GeneralException(
+                    GeneralErrorCode.INVALID_REQUEST
+            );
+        }
+
+        try {
+            return new RecommendedCursor(
+                    Integer.parseInt(cursorParts[0]),
+                    LocalDateTime.parse(cursorParts[1])
+            );
+        } catch (NumberFormatException | DateTimeParseException exception) {
+            throw new GeneralException(
+                    GeneralErrorCode.INVALID_REQUEST
+            );
+        }
+    }
+
+    private record RecommendedCursor(
+            Integer priority,
+            LocalDateTime createdAt
+    ) {
+    }
+
+    private record SavedCursor(
+            Long likeCount,
+            LocalDateTime createdAt
+    ) { }
 
     private Place getOrCreatePlace(
             BusinessPromotionRequest.Place request
@@ -101,7 +682,6 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
                                     source,
                                     region
                             );
-
                     return placeRepository.save(newPlace);
                 });
     }
@@ -128,6 +708,7 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
                         )
                 )
                 .toList();
+
         businessOperatingDayRepository.saveAll(operatingDays);
     }
 
@@ -177,6 +758,7 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
                     HashtagErrorCode.HASHTAG_NOT_FOUND
             );
         }
+
         List<BusinessPromotionHashtag> promotionHashtags = hashtags.stream()
                 .map(hashtag ->
                         BusinessPromotionConverter.toBusinessPromotionHashtag(
@@ -266,6 +848,12 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
                         GeneralErrorCode.INVALID_REQUEST
                 );
             }
+        }
+
+        if (!sortOrders.contains(1)) {
+            throw new GeneralException(
+                    GeneralErrorCode.INVALID_REQUEST
+            );
         }
     }
 }

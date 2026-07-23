@@ -58,7 +58,7 @@ public class BusinessPromotionResponse {
             String shortDescription,
 
             @Schema(description = "연결된 장소의 좋아요 수", example = "24")
-            Integer likeCount,
+            Long likeCount,
 
             @Schema(description = "현재 사용자의 장소 좋아요 여부", example = "true")
             Boolean isLiked,
@@ -100,8 +100,11 @@ public class BusinessPromotionResponse {
             @Schema(description = "홍보 이미지")
             List<ImageInfo> images,
 
+            @Schema(description = "작성자 정보")
+            Author author,
+
             @Schema(description = "연결된 장소의 좋아요 수", example = "24")
-            Integer likeCount,
+            Long likeCount,
 
             @Schema(description = "현재 사용자의 장소 좋아요 여부", example = "true")
             Boolean isLiked,
@@ -199,7 +202,7 @@ public class BusinessPromotionResponse {
             String status,
 
             @Schema(description = "연결된 장소의 좋아요 수", example = "24")
-            Integer likeCount,
+            Long likeCount,
 
             @Schema(description = "생성일시", example = "2026-07-05T10:30:00")
             LocalDateTime createdAt,
@@ -207,4 +210,20 @@ public class BusinessPromotionResponse {
             @Schema(description = "수정일시", example = "2026-07-05T12:00:00")
             LocalDateTime updatedAt
     ) { }
+
+    @Builder
+    @Schema(name = "BusinessPromotionAuthorResponse", description = "소상공인 홍보글 작성자 정보")
+    public record Author(
+
+            @Schema(description = "작성자 닉네임", example = "강릉 소상공인 A")
+            String nickname,
+
+            @Schema(
+                    description = "작성자 프로필 이미지 URL",
+                    nullable = true,
+                    example = "https://example.com/profile.jpg"
+            )
+            String profileImageUrl
+    ) {
+    }
 }
