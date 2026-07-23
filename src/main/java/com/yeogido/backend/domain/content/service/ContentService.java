@@ -21,11 +21,10 @@ public interface ContentService {
     //문화콘텐츠 수정
     ContentResDTO.ContentUpdateRes updateContent(Long contentId, ContentReqDTO.ContentCreateReq request);
 
-    //문화콘텐츠 좋아요 등록
-    ContentResDTO.ContentLikeRes likeContent(Long contentId);
-
     //문화콘텐츠 추천 대표 행사
     List<ContentResDTO.BannerRes> getBannerContents();
+
+    //문화콘텐츠 좋아요 등록
     ContentResDTO.ContentLikeRes likeContent(Long contentId, Long userId);
 
     //문화콘텐츠 좋아요 취소
