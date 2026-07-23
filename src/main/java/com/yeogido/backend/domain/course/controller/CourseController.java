@@ -100,9 +100,14 @@ public class CourseController {
     @Operation(summary = "인기 추천 코스 미리보기 조회", description = "추천 코스 홈 화면에 노출되는 인기 추천 코스 미리보기를 조회합니다.")
     @GetMapping("/popular")
     public ApiResponse<List<CourseResDTO.CoursePreview>> getPopularCourses(
+            @AuthenticationPrincipal AuthUser authUser,
             @Valid @ParameterObject @ModelAttribute CourseReqDTO.CoursePopularReq request
     ) {
-        List<CourseResDTO.CoursePreview> response = courseService.getPopularCourses(request);
+        Long userId = authUser == null
+                ? null
+                : authUser.userId();
+
+        List<CourseResDTO.CoursePreview> response = courseService.getPopularCourses(request, userId);
 
         return ApiResponse.onSuccess(SuccessCode.OK, response);
     }
