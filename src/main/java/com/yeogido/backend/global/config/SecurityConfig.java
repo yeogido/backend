@@ -48,7 +48,8 @@ public class SecurityConfig {
                                 "/api/v1/users/me",
                                 "/api/v1/users/me/**",
                                 "/api/v1/auth/logout",
-                                "/api/v1/contents/*/likes"
+                                "/api/v1/contents/*/likes",
+                                "/api/v1/places/*/likes"
                         ).authenticated()
 
                         .requestMatchers(
