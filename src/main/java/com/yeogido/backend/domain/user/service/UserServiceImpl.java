@@ -4,14 +4,17 @@ import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.DateTimePath;
 import com.querydsl.core.types.dsl.NumberPath;
 import com.querydsl.jpa.impl.JPAQueryFactory;
+import com.yeogido.backend.domain.content.entity.Content;
 import com.yeogido.backend.domain.content.entity.ContentLike;
 import com.yeogido.backend.domain.content.entity.QContentLike;
 import com.yeogido.backend.domain.content.repository.ContentHashtagRepository;
 import com.yeogido.backend.domain.content.repository.ContentLikeRepository;
+import com.yeogido.backend.domain.course.entity.Course;
 import com.yeogido.backend.domain.course.entity.CourseLike;
 import com.yeogido.backend.domain.course.entity.QCourseLike;
 import com.yeogido.backend.domain.course.repository.CourseHashtagRepository;
 import com.yeogido.backend.domain.course.repository.CourseLikeRepository;
+import com.yeogido.backend.domain.place.entity.Place;
 import com.yeogido.backend.domain.place.entity.PlaceLike;
 import com.yeogido.backend.domain.place.entity.QPlaceLike;
 import com.yeogido.backend.domain.place.repository.PlaceLikeRepository;
@@ -221,7 +224,6 @@ public class UserServiceImpl implements UserService{
         List<PlaceLike> placeLikes =
                 getPlaceLikes(user, cursorCreatedAt, cursorId, size);
 
-        // course hashtag 한번 조회
         Map<Long, List<String>> courseHashtagMap =
                 courseHashtagRepository.findByCourseIdIn(
                                 courseLikes.stream()
@@ -237,7 +239,6 @@ public class UserServiceImpl implements UserService{
                                 )
                         ));
 
-        // content hashtag 한번 조회
         Map<Long, List<String>> contentHashtagMap =
                 contentHashtagRepository.findByContentIdIn(
                                 contentLikes.stream()
@@ -254,6 +255,30 @@ public class UserServiceImpl implements UserService{
                         ));
 
         List<LikeItem> items = new ArrayList<>();
+
+        courseLikes.forEach(like ->
+                items.add(toCourseLikeItem(
+                        like,
+                        courseHashtagMap.getOrDefault(
+                                like.getCourse().getId(),
+                                List.of()
+                        )
+                ))
+        );
+
+        contentLikes.forEach(like ->
+                items.add(toContentLikeItem(
+                        like,
+                        contentHashtagMap.getOrDefault(
+                                like.getContent().getId(),
+                                List.of()
+                        )
+                ))
+        );
+
+        placeLikes.forEach(like ->
+                items.add(toPlaceLikeItem(like))
+        );
 
         items.sort(
                 Comparator.comparing(LikeItem::createdAt)
@@ -291,6 +316,69 @@ public class UserServiceImpl implements UserService{
             Long likeId,
             UserResDTO.LikedResponse response
     ) {}
+
+    private LikeItem toCourseLikeItem(CourseLike like, List<String> hashtags) {
+        Course course = like.getCourse();
+
+        return new LikeItem(
+                like.getCreatedAt(),
+                like.getId(),
+                new UserResDTO.LikedResponse(
+                        course.getId(),
+                        LikeCategory.COURSE,
+                        course.getTitle(),
+                        course.getThumbnailKey(),
+                        course.getDurationType() == null ? null : course.getDurationType().name(),
+                        null,
+                        null,
+                        course.getRegion().getName(),
+                        hashtags,
+                        like.getCreatedAt().toString()
+                )
+        );
+    }
+
+    private LikeItem toContentLikeItem(ContentLike like, List<String> hashtags) {
+        Content content = like.getContent();
+
+        return new LikeItem(
+                like.getCreatedAt(),
+                like.getId(),
+                new UserResDTO.LikedResponse(
+                        content.getId(),
+                        LikeCategory.CONTENT,
+                        content.getTitle(),
+                        content.getThumbnailImage(),
+                        null,
+                        content.getStartDate(),
+                        content.getEndDate(),
+                        content.getPlace().getRegion().getName(),
+                        hashtags,
+                        like.getCreatedAt().toString()
+                )
+        );
+    }
+
+    private LikeItem toPlaceLikeItem(PlaceLike like) {
+        Place place = like.getPlace();
+
+        return new LikeItem(
+                like.getCreatedAt(),
+                like.getId(),
+                new UserResDTO.LikedResponse(
+                        place.getId(),
+                        LikeCategory.PLACE,
+                        place.getName(),
+                        place.getThumbnailKey(),
+                        null,
+                        null,
+                        null,
+                        place.getRegion().getName(),
+                        List.of(),
+                        like.getCreatedAt().toString()
+                )
+        );
+    }
 
 
     private <T> CursorResponse<UserResDTO.LikedResponse> toCursorResponse(
