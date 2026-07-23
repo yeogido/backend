@@ -625,7 +625,7 @@ public class ContentServiceImpl implements ContentService{
     public List<ContentResDTO.BannerRes> getBannerContents() {
 
         List<Content> contents =
-                contentRepository.findAllByEndDateGreaterThanEqualOrderByEndDateAsc(LocalDate.now());
+                contentRepository.findTop5ByEndDateGreaterThanEqualOrderByEndDateAsc(LocalDate.now());
 
         return contents.stream()
                 .map(ContentConverter::toBannerRes)

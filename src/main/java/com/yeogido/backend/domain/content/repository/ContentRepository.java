@@ -10,6 +10,6 @@ import java.util.List;
 @Repository
 public interface ContentRepository extends JpaRepository<Content,Long> {
 
-    List<Content> findAllByEndDateGreaterThanEqualOrderByEndDateAsc(LocalDate today);
+    List<Content> findTop5ByEndDateGreaterThanEqualOrderByEndDateAsc(LocalDate today);
 
 }
