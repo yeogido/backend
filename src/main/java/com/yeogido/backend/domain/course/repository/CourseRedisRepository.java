@@ -22,36 +22,24 @@ public class CourseRedisRepository {
 
     private final StringRedisTemplate stringRedisTemplate;
 
-    public Long increaseViewCount(Long courseId) {
-        return increaseDailyViewCount(courseId, LocalDate.now());
+    public void increaseViewCount(Long courseId) {
+        increaseDailyViewCount(courseId, LocalDate.now());
     }
 
     public void increaseViewCount(Long courseId, LocalDate date) {
         increaseDailyViewCount(courseId, date);
     }
 
-    public Long increaseDailyViewCount(Long courseId, LocalDate date) {
-        return increaseDailyActivity(courseId, date, VIEWS);
+    public void increaseLikeCount(Long courseId) {
+        increaseDailyLikeCount(courseId, LocalDate.now());
     }
 
-    public Long increaseLikeCount(Long courseId) {
-        return increaseDailyLikeCount(courseId, LocalDate.now());
+    public void decreaseLikeCount(Long courseId) {
+        decreaseDailyLikeCount(courseId, LocalDate.now());
     }
 
-    public Long decreaseLikeCount(Long courseId) {
-        return decreaseDailyLikeCount(courseId, LocalDate.now());
-    }
-
-    public Long increaseDailyLikeCount(Long courseId, LocalDate date) {
-        return increaseDailyActivity(courseId, date, LIKES);
-    }
-
-    public Long decreaseDailyLikeCount(Long courseId, LocalDate date) {
-        return increaseDailyActivity(courseId, date, LIKES, -1);
-    }
-
-    public Long saveCreatedEvent(Long courseId, LocalDate date) {
-        return increaseDailyActivity(courseId, date, CREATES);
+    public void saveCreatedEvent(Long courseId, LocalDate date) {
+        increaseDailyActivity(courseId, date, CREATES);
     }
 
     public Long getViewCount(Long courseId) {
@@ -71,33 +59,38 @@ public class CourseRedisRepository {
     }
 
     public Set<String> getCreatedCourseIds(LocalDate date) {
-        return stringRedisTemplate.opsForZSet().range(activityKey(date, CREATES), 0, -1);
+        return stringRedisTemplate.opsForZSet()
+                .range(activityKey(date, CREATES), 0, -1);
     }
 
-    private Long increaseDailyActivity(Long courseId, LocalDate date, String eventType) {
-        return increaseDailyActivity(courseId, date, eventType, 1);
+    private void increaseDailyViewCount(Long courseId, LocalDate date) {
+        increaseDailyActivity(courseId, date, VIEWS);
     }
 
-    private Long increaseDailyActivity(Long courseId, LocalDate date, String eventType, int delta) {
+    private void increaseDailyLikeCount(Long courseId, LocalDate date) {
+        increaseDailyActivity(courseId, date, LIKES);
+    }
+
+    private void decreaseDailyLikeCount(Long courseId, LocalDate date) {
+        increaseDailyActivity(courseId, date, LIKES, -1);
+    }
+
+    private void increaseDailyActivity(Long courseId, LocalDate date, String eventType) {
+        increaseDailyActivity(courseId, date, eventType, 1);
+    }
+
+    private void increaseDailyActivity(Long courseId, LocalDate date, String eventType, int delta) {
         String key = activityKey(date, eventType);
-        Double score = stringRedisTemplate.opsForZSet().incrementScore(key, courseId.toString(), delta);
+        stringRedisTemplate.opsForZSet()
+                .incrementScore(key, courseId.toString(), delta);
         stringRedisTemplate.expire(key, ACTIVITY_TTL);
-
-        if (score == null) {
-            return 0L;
-        }
-
-        return score.longValue();
     }
 
     private Long getDailyActivityScore(Long courseId, LocalDate date, String eventType) {
-        Double score = stringRedisTemplate.opsForZSet().score(activityKey(date, eventType), courseId.toString());
+        Double score = stringRedisTemplate.opsForZSet()
+                .score(activityKey(date, eventType), courseId.toString());
 
-        if (score == null) {
-            return 0L;
-        }
-
-        return score.longValue();
+        return score == null ? 0L : score.longValue();
     }
 
     private String activityKey(LocalDate date, String eventType) {

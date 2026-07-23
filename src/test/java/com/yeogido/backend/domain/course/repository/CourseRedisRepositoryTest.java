@@ -1,5 +1,6 @@
 package com.yeogido.backend.domain.course.repository;
 
+import com.yeogido.backend.global.redis.RedisKey;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -27,44 +28,62 @@ class CourseRedisRepositoryTest {
     private CourseRedisRepository courseRedisRepository;
 
     @Test
-    void increaseDailyViewCountUsesActivityZSetAndTtl() {
+    void increaseViewCountUsesActivityZSetAndTtl() {
         LocalDate date = LocalDate.of(2026, 7, 23);
+        String key = RedisKey.dated("course", "activity", date, "views");
 
         when(stringRedisTemplate.opsForZSet()).thenReturn(zSetOperations);
-        when(zSetOperations.incrementScore("course:activity:20260723:views", "42", 1))
+        when(zSetOperations.incrementScore(key, "42", 1))
                 .thenReturn(1.0);
 
-        courseRedisRepository.increaseDailyViewCount(42L, date);
+        courseRedisRepository.increaseViewCount(42L, date);
 
-        verify(zSetOperations).incrementScore("course:activity:20260723:views", "42", 1);
-        verify(stringRedisTemplate).expire("course:activity:20260723:views", Duration.ofDays(8));
+        verify(zSetOperations).incrementScore(key, "42", 1);
+        verify(stringRedisTemplate).expire(key, Duration.ofDays(8));
     }
 
     @Test
-    void increaseDailyLikeCountUsesActivityZSetAndTtl() {
-        LocalDate date = LocalDate.of(2026, 7, 23);
+    void increaseLikeCountUsesActivityZSetAndTtl() {
+        LocalDate today = LocalDate.now();
+        String key = RedisKey.dated("course", "activity", today, "likes");
 
         when(stringRedisTemplate.opsForZSet()).thenReturn(zSetOperations);
-        when(zSetOperations.incrementScore("course:activity:20260723:likes", "42", 1))
+        when(zSetOperations.incrementScore(key, "42", 1))
                 .thenReturn(1.0);
 
-        courseRedisRepository.increaseDailyLikeCount(42L, date);
+        courseRedisRepository.increaseLikeCount(42L);
 
-        verify(zSetOperations).incrementScore("course:activity:20260723:likes", "42", 1);
-        verify(stringRedisTemplate).expire("course:activity:20260723:likes", Duration.ofDays(8));
+        verify(zSetOperations).incrementScore(key, "42", 1);
+        verify(stringRedisTemplate).expire(key, Duration.ofDays(8));
+    }
+
+    @Test
+    void decreaseLikeCountUsesActivityZSetAndTtl() {
+        LocalDate today = LocalDate.now();
+        String key = RedisKey.dated("course", "activity", today, "likes");
+
+        when(stringRedisTemplate.opsForZSet()).thenReturn(zSetOperations);
+        when(zSetOperations.incrementScore(key, "42", -1))
+                .thenReturn(0.0);
+
+        courseRedisRepository.decreaseLikeCount(42L);
+
+        verify(zSetOperations).incrementScore(key, "42", -1);
+        verify(stringRedisTemplate).expire(key, Duration.ofDays(8));
     }
 
     @Test
     void saveCreatedEventUsesActivityZSetAndTtl() {
         LocalDate date = LocalDate.of(2026, 7, 23);
+        String key = RedisKey.dated("course", "activity", date, "creates");
 
         when(stringRedisTemplate.opsForZSet()).thenReturn(zSetOperations);
-        when(zSetOperations.incrementScore("course:activity:20260723:creates", "42", 1))
+        when(zSetOperations.incrementScore(key, "42", 1))
                 .thenReturn(1.0);
 
         courseRedisRepository.saveCreatedEvent(42L, date);
 
-        verify(zSetOperations).incrementScore("course:activity:20260723:creates", "42", 1);
-        verify(stringRedisTemplate).expire("course:activity:20260723:creates", Duration.ofDays(8));
+        verify(zSetOperations).incrementScore(key, "42", 1);
+        verify(stringRedisTemplate).expire(key, Duration.ofDays(8));
     }
 }
