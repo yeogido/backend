@@ -56,4 +56,7 @@ public class Place extends BaseEntity {
 
     @Column(nullable = false, precision = 10, scale = 7)
     private BigDecimal longitude;
+
+    @Column(name = "thumbnail_key", length = 500)
+    private String thumbnailKey;
 }

@@ -1,0 +1,2 @@
+ALTER TABLE place
+ADD COLUMN thumbnail_key VARCHAR(500);

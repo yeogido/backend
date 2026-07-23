@@ -3,6 +3,8 @@ package com.yeogido.backend.domain.course.repository;
 import com.yeogido.backend.domain.course.entity.Course;
 import com.yeogido.backend.domain.course.entity.CourseLike;
 import com.yeogido.backend.domain.user.entity.User;
+
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
