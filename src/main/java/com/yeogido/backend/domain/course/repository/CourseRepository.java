@@ -68,6 +68,7 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
     select c.id
     from Course c
     where c.courseType = com.yeogido.backend.domain.course.enums.CourseType.OFFICIAL
+      and c.deletedAt is null
     order by c.createdAt desc
     """)
     List<Long> findLatestOfficialCourseIds(Pageable pageable);
@@ -77,6 +78,7 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
     from Course c
     where c.courseType = com.yeogido.backend.domain.course.enums.CourseType.OFFICIAL
       and c.region.id = :regionId
+      and c.deletedAt is null
     order by c.createdAt desc
     """)
     List<Long> findLatestOfficialRegionCourseIds(
@@ -88,6 +90,7 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
     select c.id
     from Course c
     where c.courseType = com.yeogido.backend.domain.course.enums.CourseType.LOCAL
+      and c.deletedAt is null
     order by c.createdAt desc
     """)
     List<Long> findLatestLocalCourseIds(Pageable pageable);
