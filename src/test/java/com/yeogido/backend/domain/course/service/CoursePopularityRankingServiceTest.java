@@ -51,18 +51,21 @@ class CoursePopularityRankingServiceTest {
                         1L,
                         CourseType.OFFICIAL,
                         10L,
+                        null,
                         LocalDateTime.of(2026, 7, 20, 10, 0)
                 ),
                 new RankingProjection(
                         2L,
                         CourseType.OFFICIAL,
                         10L,
+                        null,
                         LocalDateTime.of(2026, 7, 21, 10, 0)
                 ),
                 new RankingProjection(
                         3L,
                         CourseType.OFFICIAL,
                         20L,
+                        null,
                         LocalDateTime.of(2026, 7, 22, 10, 0)
                 )
         ));
@@ -96,6 +99,75 @@ class CoursePopularityRankingServiceTest {
     }
 
     @Test
+    void refreshPopularityRankingsIncludesChildCoursesInParentRegionRanking() {
+        when(coursePopularityScoreService.calculateRecentPopularityScores())
+                .thenReturn(Map.of(
+                        1L, 30L,
+                        2L, 40L,
+                        3L, 50L
+                ));
+
+        when(courseRepository.findRankingTargetsByCourseIds(Map.of(
+                1L, 30L,
+                2L, 40L,
+                3L, 50L
+        ).keySet())).thenReturn(List.of(
+                // 서울
+                new RankingProjection(
+                        1L,
+                        CourseType.OFFICIAL,
+                        1L,
+                        null,
+                        LocalDateTime.of(2026, 7, 20, 10, 0)
+                ),
+                // 종로구
+                new RankingProjection(
+                        2L,
+                        CourseType.OFFICIAL,
+                        10L,
+                        1L,
+                        LocalDateTime.of(2026, 7, 21, 10, 0)
+                ),
+                // 강남구
+                new RankingProjection(
+                        3L,
+                        CourseType.OFFICIAL,
+                        20L,
+                        1L,
+                        LocalDateTime.of(2026, 7, 22, 10, 0)
+                )
+        ));
+
+        coursePopularityRankingService.refreshPopularityRankings();
+
+        // 서울 랭킹에는 서울 + 종로 + 강남 모두 포함
+        verify(coursePopularityRankingRedisRepository).replaceOfficialRegionRanking(
+                1L,
+                List.of(
+                        new CoursePopularityRankingEntry(3L, 50L),
+                        new CoursePopularityRankingEntry(2L, 40L),
+                        new CoursePopularityRankingEntry(1L, 30L)
+                )
+        );
+
+        // 종로구 랭킹에는 종로만
+        verify(coursePopularityRankingRedisRepository).replaceOfficialRegionRanking(
+                10L,
+                List.of(
+                        new CoursePopularityRankingEntry(2L, 40L)
+                )
+        );
+
+        // 강남구 랭킹에는 강남만
+        verify(coursePopularityRankingRedisRepository).replaceOfficialRegionRanking(
+                20L,
+                List.of(
+                        new CoursePopularityRankingEntry(3L, 50L)
+                )
+        );
+    }
+
+    @Test
     void refreshPopularityRankingsStoresOnlyTotalRankingForLocalCourses() {
         when(coursePopularityScoreService.calculateRecentPopularityScores())
                 .thenReturn(Map.of(
@@ -111,12 +183,14 @@ class CoursePopularityRankingServiceTest {
                         1L,
                         CourseType.LOCAL,
                         10L,
+                        null,
                         LocalDateTime.of(2026, 7, 21, 10, 0)
                 ),
                 new RankingProjection(
                         2L,
                         CourseType.LOCAL,
                         20L,
+                        null,
                         LocalDateTime.of(2026, 7, 20, 10, 0)
                 )
         ));
@@ -155,12 +229,14 @@ class CoursePopularityRankingServiceTest {
                         1L,
                         CourseType.LOCAL,
                         10L,
+                        null,
                         LocalDateTime.of(2026, 7, 20, 10, 0)
                 ),
                 new RankingProjection(
                         2L,
                         CourseType.LOCAL,
                         10L,
+                        null,
                         LocalDateTime.of(2026, 7, 21, 10, 0)
                 )
         ));
@@ -177,6 +253,7 @@ class CoursePopularityRankingServiceTest {
             Long courseId,
             CourseType courseType,
             Long regionId,
+            Long parentRegionId,
             LocalDateTime createdAt
     ) implements CourseRepository.CourseRankingProjection {
 
@@ -193,6 +270,11 @@ class CoursePopularityRankingServiceTest {
         @Override
         public Long getRegionId() {
             return regionId;
+        }
+
+        @Override
+        public Long getParentRegionId() {
+            return parentRegionId;
         }
 
         @Override

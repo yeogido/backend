@@ -8,11 +8,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -54,6 +54,7 @@ public class CoursePopularityRankingService {
                 .map(course -> new CourseRankingTarget(
                         course.getCourseId(),
                         course.getRegionId(),
+                        course.getParentRegionId(),
                         scores.get(course.getCourseId()),
                         course.getCreatedAt()
                 ))
@@ -62,8 +63,23 @@ public class CoursePopularityRankingService {
     }
 
     private void replaceOfficialRegionRankings(List<CourseRankingTarget> officialTargets) {
-        Map<Long, List<CourseRankingTarget>> targetsByRegion = officialTargets.stream()
-                .collect(Collectors.groupingBy(CourseRankingTarget::regionId));
+
+        Map<Long, List<CourseRankingTarget>> targetsByRegion = new HashMap<>();
+
+        for (CourseRankingTarget target : officialTargets) {
+
+            // 자신의 지역
+            targetsByRegion
+                    .computeIfAbsent(target.regionId(), ignored -> new ArrayList<>())
+                    .add(target);
+
+            // 부모 지역(시/도)
+            if (target.parentRegionId() != null) {
+                targetsByRegion
+                        .computeIfAbsent(target.parentRegionId(), ignored -> new ArrayList<>())
+                        .add(target);
+            }
+        }
 
         targetsByRegion.forEach((regionId, targets) ->
                 coursePopularityRankingRedisRepository.replaceOfficialRegionRanking(
@@ -89,6 +105,7 @@ public class CoursePopularityRankingService {
     private record CourseRankingTarget(
             Long courseId,
             Long regionId,
+            Long parentRegionId,
             Long score,
             LocalDateTime createdAt
     ) {
