@@ -5,8 +5,6 @@ import com.yeogido.backend.global.entity.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.math.BigDecimal;
-
 @Entity
 @Getter
 @Builder
@@ -35,8 +33,8 @@ public class CourseReview extends BaseEntity {
     @JoinColumn(name = "course_id", nullable = false)
     private Course course;
 
-    @Column(nullable = false, precision = 2, scale = 1)
-    private BigDecimal rating;
+    @Column(nullable = false)
+    private Integer rating;
 
     @Column(columnDefinition = "TEXT")
     private String content;

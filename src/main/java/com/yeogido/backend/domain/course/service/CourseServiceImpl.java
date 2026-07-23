@@ -46,7 +46,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import java.math.BigDecimal;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -57,8 +56,6 @@ import java.util.stream.Collectors;
 public class CourseServiceImpl implements CourseService {
 
     private static final Long MOCK_MEMBER_ID = 1L;
-    private static final BigDecimal MIN_RATING = BigDecimal.ZERO;
-    private static final BigDecimal MAX_RATING = BigDecimal.valueOf(5);
 
     private final CourseRepository courseRepository;
     private final CourseLikeRepository courseLikeRepository;
