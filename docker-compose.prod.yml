@@ -12,6 +12,11 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: prod
       TZ: Asia/Seoul
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+
+    depends_on:
+      - redis
 
     ports:
       - "8080:8080"
@@ -21,3 +26,14 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: yeogido-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+
+volumes:
+  redis-data:
