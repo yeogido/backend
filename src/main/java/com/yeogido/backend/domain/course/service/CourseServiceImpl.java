@@ -11,25 +11,23 @@ import com.yeogido.backend.domain.course.entity.CourseHashtag;
 import com.yeogido.backend.domain.course.entity.CourseItem;
 import com.yeogido.backend.domain.course.entity.CourseLike;
 import com.yeogido.backend.domain.course.entity.CourseReview;
-import com.yeogido.backend.domain.course.enums.*;
+import com.yeogido.backend.domain.course.enums.CompanionType;
+import com.yeogido.backend.domain.course.enums.CourseItemType;
+import com.yeogido.backend.domain.course.enums.CourseType;
+import com.yeogido.backend.domain.course.enums.DurationType;
+import com.yeogido.backend.domain.course.enums.TransportType;
 import com.yeogido.backend.domain.course.exception.CourseErrorCode;
 import com.yeogido.backend.domain.course.repository.CourseHashtagRepository;
 import com.yeogido.backend.domain.course.repository.CourseItemRepository;
 import com.yeogido.backend.domain.course.repository.CourseLikeRepository;
 import com.yeogido.backend.domain.course.repository.CourseRedisRepository;
 import com.yeogido.backend.domain.course.repository.CourseRepository;
-import com.yeogido.backend.domain.course.enums.CompanionType;
-import com.yeogido.backend.domain.course.enums.CourseItemType;
-import com.yeogido.backend.domain.course.enums.CourseType;
-import com.yeogido.backend.domain.course.enums.DurationType;
-import com.yeogido.backend.domain.course.enums.TransportType;
+import com.yeogido.backend.domain.course.repository.CourseReviewRepository;
 import com.yeogido.backend.domain.file.service.S3Service;
 import com.yeogido.backend.domain.hashtag.entity.Hashtag;
 import com.yeogido.backend.domain.hashtag.exception.HashtagErrorCode;
 import com.yeogido.backend.domain.hashtag.repository.HashtagRepository;
-import com.yeogido.backend.domain.file.service.S3Service;
 import com.yeogido.backend.domain.place.entity.Place;
-import com.yeogido.backend.domain.course.repository.CourseReviewRepository;
 import com.yeogido.backend.domain.place.service.PlaceService;
 import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.region.exception.RegionErrorCode;
@@ -50,7 +48,6 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.function.Function;
@@ -63,8 +60,6 @@ import java.util.stream.Collectors;
 public class CourseServiceImpl implements CourseService {
 
     private static final Long MOCK_MEMBER_ID = 1L;
-    private static final BigDecimal MIN_RATING = BigDecimal.ZERO;
-    private static final BigDecimal MAX_RATING = BigDecimal.valueOf(5);
 
     private final CourseRepository courseRepository;
     private final CourseLikeRepository courseLikeRepository;

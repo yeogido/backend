@@ -1,7 +1,6 @@
 package com.yeogido.backend.domain.course.repository;
 
 import com.yeogido.backend.domain.course.entity.CourseReview;
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.springframework.data.domain.Pageable;
@@ -72,7 +71,7 @@ public interface CourseReviewRepository extends JpaRepository<CourseReview, Long
             order by cr.rating desc, cr.id desc
             """)
     List<CourseReview> findReviewsOrderByRatingAfterCursor(
-            @Param("cursorRating") BigDecimal cursorRating,
+            @Param("cursorRating") Integer cursorRating,
             @Param("cursorId") Long cursorId,
             Pageable pageable
     );

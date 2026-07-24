@@ -8,8 +8,6 @@ import com.yeogido.backend.domain.course.enums.DurationType;
 import com.yeogido.backend.domain.course.enums.TransportType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.DecimalMax;
-import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -209,10 +207,10 @@ public class CourseReqDTO {
     public record ReviewCreateReq(
 
             @NotNull(message = "별점은 필수입니다")
-            @DecimalMin(value = "0.0", message = "별점은 0 이상이어야 합니다")
-            @DecimalMax(value = "5.0", message = "별점은 5 이하여야 합니다")
+            @Min(value = 1, message = "별점은 1 이상이어야 합니다")
+            @Max(value = 5, message = "별점은 5 이하여야 합니다")
             @Schema(description = "별점", example = "5")
-            BigDecimal rating,
+            Integer rating,
 
             @Schema(description = "리뷰 내용", example = "지도 동선이 편하고 여행하기 좋았습니다.")
             String content
