@@ -6,23 +6,14 @@ import com.yeogido.backend.domain.content.repository.ContentRepository;
 import com.yeogido.backend.domain.course.converter.CourseConverter;
 import com.yeogido.backend.domain.course.dto.request.CourseReqDTO;
 import com.yeogido.backend.domain.course.dto.response.CourseResDTO;
-import com.yeogido.backend.domain.course.entity.Course;
-import com.yeogido.backend.domain.course.entity.CourseHashtag;
-import com.yeogido.backend.domain.course.entity.CourseItem;
-import com.yeogido.backend.domain.course.entity.CourseLike;
-import com.yeogido.backend.domain.course.entity.CourseReview;
+import com.yeogido.backend.domain.course.entity.*;
 import com.yeogido.backend.domain.course.enums.CompanionType;
 import com.yeogido.backend.domain.course.enums.CourseItemType;
 import com.yeogido.backend.domain.course.enums.CourseType;
 import com.yeogido.backend.domain.course.enums.DurationType;
 import com.yeogido.backend.domain.course.enums.TransportType;
 import com.yeogido.backend.domain.course.exception.CourseErrorCode;
-import com.yeogido.backend.domain.course.repository.CourseHashtagRepository;
-import com.yeogido.backend.domain.course.repository.CourseItemRepository;
-import com.yeogido.backend.domain.course.repository.CourseLikeRepository;
-import com.yeogido.backend.domain.course.repository.CourseRedisRepository;
-import com.yeogido.backend.domain.course.repository.CourseRepository;
-import com.yeogido.backend.domain.course.repository.CourseReviewRepository;
+import com.yeogido.backend.domain.course.repository.*;
 import com.yeogido.backend.domain.file.service.S3Service;
 import com.yeogido.backend.domain.hashtag.entity.Hashtag;
 import com.yeogido.backend.domain.hashtag.exception.HashtagErrorCode;
@@ -32,6 +23,7 @@ import com.yeogido.backend.domain.place.service.PlaceService;
 import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.region.exception.RegionErrorCode;
 import com.yeogido.backend.domain.region.repository.RegionRepository;
+import com.yeogido.backend.domain.review.exception.ReviewErrorCode;
 import com.yeogido.backend.domain.user.entity.User;
 import com.yeogido.backend.domain.user.enums.UserRole;
 import com.yeogido.backend.domain.user.enums.UserStatus;
@@ -65,6 +57,7 @@ public class CourseServiceImpl implements CourseService {
     private final CourseLikeRepository courseLikeRepository;
     private final CourseHashtagRepository courseHashtagRepository;
     private final CourseItemRepository courseItemRepository;
+    private final CourseReviewImageRepository courseReviewImageRepository;
     private final HashtagRepository hashtagRepository;
     private final PlaceService placeService;
     private final ContentRepository contentRepository;
@@ -203,14 +196,31 @@ public class CourseServiceImpl implements CourseService {
         // TODO: Spring Security 적용 후 로그인 사용자 정보로 변경
         User user = userRepository.getReferenceById(MOCK_MEMBER_ID);
 
-        CourseReview review = CourseReview.builder()
-                .user(user)
-                .course(course)
-                .rating(request.rating())
-                .content(request.content())
-                .build();
+        // 중복 리뷰 작성 검증
+        if (courseReviewRepository.existsByCourseAndUser(course, user)) {
+            throw new GeneralException(ReviewErrorCode.DUPLICATE_REVIEW);
+        }
 
+        // 리뷰 엔티티 생성 및 저장
+        CourseReview review = CourseConverter.toCourseReview(request, user, course);
         CourseReview savedReview = courseReviewRepository.save(review);
+
+        // 리뷰 이미지 저장 (선택)
+        if (request.images() != null && !request.images().isEmpty()) {
+            // 이미지 순서(order) 중복 검증
+            Set<Integer> imageOrders = new HashSet<>();
+            for (CourseReqDTO.ReviewImageReq image : request.images()) {
+                if (!imageOrders.add(image.order())) {
+                    throw new GeneralException(ReviewErrorCode.DUPLICATE_IMAGE_ORDER);
+                }
+            }
+
+            List<CourseReviewImage> reviewImages = request.images().stream()
+                    .map(imgReq -> CourseConverter.toCourseReviewImage(savedReview, imgReq))
+                    .toList();
+
+            courseReviewImageRepository.saveAll(reviewImages);
+        }
 
         return new CourseResDTO.ReviewCreateRes(savedReview.getId());
     }

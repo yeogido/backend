@@ -3,10 +3,7 @@ package com.yeogido.backend.domain.course.converter;
 import com.yeogido.backend.domain.content.entity.Content;
 import com.yeogido.backend.domain.course.dto.request.CourseReqDTO;
 import com.yeogido.backend.domain.course.dto.response.CourseResDTO;
-import com.yeogido.backend.domain.course.entity.Course;
-import com.yeogido.backend.domain.course.entity.CourseHashtag;
-import com.yeogido.backend.domain.course.entity.CourseItem;
-import com.yeogido.backend.domain.course.entity.CourseLike;
+import com.yeogido.backend.domain.course.entity.*;
 import com.yeogido.backend.domain.course.enums.CourseItemType;
 import com.yeogido.backend.domain.course.enums.CourseType;
 import com.yeogido.backend.domain.course.repository.CourseRepository;
@@ -171,5 +168,29 @@ public class CourseConverter {
                 summary.getTransportType(),
                 summary.getCompanionType()
         );
+    }
+
+    public static CourseReview toCourseReview(
+            CourseReqDTO.ReviewCreateReq request,
+            User user,
+            Course course
+    ) {
+        return CourseReview.builder()
+                .user(user)
+                .course(course)
+                .rating(request.rating())
+                .content(request.content())
+                .build();
+    }
+
+    public static CourseReviewImage toCourseReviewImage(
+            CourseReview courseReview,
+            CourseReqDTO.ReviewImageReq imageReq
+    ) {
+        return CourseReviewImage.builder()
+                .courseReview(courseReview)
+                .imageKey(imageReq.imageKey())
+                .imageOrder(imageReq.order())
+                .build();
     }
 }
