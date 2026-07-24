@@ -136,11 +136,12 @@ public class CourseController {
     @Operation(summary = "추천 코스 리뷰 작성", description = "추천 코스 리뷰를 작성합니다.")
     @PostMapping("/{courseId}/reviews")
     public ApiResponse<CourseResDTO.ReviewCreateRes> createCourseReview(
+            @AuthenticationPrincipal AuthUser authUser,
             @Parameter(description = "코스 ID", example = "1")
             @PathVariable Long courseId,
             @Valid @RequestBody CourseReqDTO.ReviewCreateReq request
     ) {
-        CourseResDTO.ReviewCreateRes response = courseService.createCourseReview(courseId, request);
+        CourseResDTO.ReviewCreateRes response = courseService.createCourseReview(authUser.userId(), courseId, request);
 
         return ApiResponse.onSuccess(SuccessCode.CREATED, response);
     }

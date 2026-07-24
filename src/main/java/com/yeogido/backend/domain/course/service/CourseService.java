@@ -22,7 +22,7 @@ public interface CourseService {
 
     CourseResDTO.CourseSummary getCourseSummary(Long courseId, Long userId);
 
-    CourseResDTO.ReviewCreateRes createCourseReview(Long courseId, CourseReqDTO.ReviewCreateReq request);
+    CourseResDTO.ReviewCreateRes createCourseReview(Long userId, Long courseId, CourseReqDTO.ReviewCreateReq request);
 
     CourseResDTO.CourseLikeRes createCourseLike(Long userId, Long courseId);
 

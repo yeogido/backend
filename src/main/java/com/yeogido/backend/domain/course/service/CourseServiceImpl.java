@@ -204,11 +204,9 @@ public class CourseServiceImpl implements CourseService {
 
     @Override
     @Transactional
-    public CourseResDTO.ReviewCreateRes createCourseReview(Long courseId, CourseReqDTO.ReviewCreateReq request) {
+    public CourseResDTO.ReviewCreateRes createCourseReview(Long userId, Long courseId, CourseReqDTO.ReviewCreateReq request) {
         Course course = getActiveCourse(courseId);
-
-        // TODO: Spring Security 적용 후 로그인 사용자 정보로 변경
-        User user = userRepository.getReferenceById(MOCK_MEMBER_ID);
+        User user = getCurrentUser(userId);
 
         CourseReview review = CourseReview.builder()
                 .user(user)
