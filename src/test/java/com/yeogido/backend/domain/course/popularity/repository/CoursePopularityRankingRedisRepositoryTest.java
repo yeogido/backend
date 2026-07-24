@@ -12,6 +12,7 @@ import org.springframework.data.redis.connection.RedisConnection;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.SetOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ZSetOperations;
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
@@ -38,11 +39,14 @@ class CoursePopularityRankingRedisRepositoryTest {
     @Mock
     private SetOperations<String, String> setOperations;
 
+    @Mock
+    private ZSetOperations<String, String> zSetOperations;
+
     @InjectMocks
     private CoursePopularityRankingRedisRepository repository;
 
     @Test
-    void replaceOfficialRankingDeletesOldRankingAndUsesPipeline() {
+    void replaceOfficialRankingStoresTempRankingAndAtomicallyRenames() {
         repository.replaceOfficialRanking(List.of(
                 new CoursePopularityRankingEntry(
                         10L,
@@ -58,12 +62,16 @@ class CoursePopularityRankingRedisRepositoryTest {
 
         InOrder inOrder = inOrder(stringRedisTemplate);
 
-        inOrder.verify(stringRedisTemplate).delete("course:ranking:official");
+        inOrder.verify(stringRedisTemplate).delete("course:ranking:official:tmp");
         inOrder.verify(stringRedisTemplate).executePipelined(any(RedisCallback.class));
+        inOrder.verify(stringRedisTemplate)
+                .rename("course:ranking:official:tmp", "course:ranking:official");
+
+        verify(stringRedisTemplate, never()).delete("course:ranking:official");
     }
 
     @Test
-    void replaceOfficialRegionRankingUsesRegionKey() {
+    void replaceOfficialRegionRankingStoresTempRegionRankingAndAtomicallyRenames() {
         when(stringRedisTemplate.opsForSet()).thenReturn(setOperations);
 
         repository.replaceOfficialRegionRanking(
@@ -77,15 +85,18 @@ class CoursePopularityRankingRedisRepositoryTest {
 
         InOrder inOrder = inOrder(stringRedisTemplate);
 
-        inOrder.verify(stringRedisTemplate).delete("course:ranking:official:3");
+        inOrder.verify(stringRedisTemplate).delete("course:ranking:official:3:tmp");
         inOrder.verify(stringRedisTemplate).executePipelined(any(RedisCallback.class));
+        inOrder.verify(stringRedisTemplate)
+                .rename("course:ranking:official:3:tmp", "course:ranking:official:3");
 
         verify(setOperations)
                 .add("course:ranking:official:regions", "3");
+        verify(stringRedisTemplate, never()).delete("course:ranking:official:3");
     }
 
     @Test
-    void replaceLocalRankingUsesLocalKey() {
+    void replaceLocalRankingStoresTempRankingAndAtomicallyRenames() {
         repository.replaceLocalRanking(
                 List.of(new CoursePopularityRankingEntry(
                         30L,
@@ -96,8 +107,12 @@ class CoursePopularityRankingRedisRepositoryTest {
 
         InOrder inOrder = inOrder(stringRedisTemplate);
 
-        inOrder.verify(stringRedisTemplate).delete("course:ranking:local");
+        inOrder.verify(stringRedisTemplate).delete("course:ranking:local:tmp");
         inOrder.verify(stringRedisTemplate).executePipelined(any(RedisCallback.class));
+        inOrder.verify(stringRedisTemplate)
+                .rename("course:ranking:local:tmp", "course:ranking:local");
+
+        verify(stringRedisTemplate, never()).delete("course:ranking:local");
     }
 
     @Test
@@ -160,7 +175,7 @@ class CoursePopularityRankingRedisRepositoryTest {
         String expectedMember = String.format("%020d:%d", createdAtMicros, 10L);
 
         verify(connection).zAdd(
-                eq("course:ranking:official".getBytes(StandardCharsets.UTF_8)),
+                eq("course:ranking:official:tmp".getBytes(StandardCharsets.UTF_8)),
                 eq(90.0d),
                 eq(expectedMember.getBytes(StandardCharsets.UTF_8))
         );

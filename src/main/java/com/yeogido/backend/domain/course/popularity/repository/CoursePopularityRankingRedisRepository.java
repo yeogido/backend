@@ -7,6 +7,7 @@ import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Repository;
 
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Locale;
@@ -23,6 +24,7 @@ public class CoursePopularityRankingRedisRepository {
     private static final String OFFICIAL = "official";
     private static final String LOCAL = "local";
     private static final String REGIONS = "regions";
+    private static final String TMP = "tmp";
 
     private final StringRedisTemplate stringRedisTemplate;
 
@@ -72,29 +74,29 @@ public class CoursePopularityRankingRedisRepository {
     }
 
     private void replaceRanking(String key, List<CoursePopularityRankingEntry> entries) {
-        // 최신 집계 결과로 전체 교체
-        stringRedisTemplate.delete(key);
+        String tmpKey = temporaryRankingKey(key);
+
+        // 이전 실패로 남아있을 수 있는 임시 Key만 초기화한다.
+        stringRedisTemplate.delete(tmpKey);
 
         // ZSet score는 인기 점수 그대로 유지하고,
         // member에 createdAt을 고정폭으로 포함해 동점 시 최신 코스가 먼저 오도록 한다.
-        // Pipeline으로 Redis 요청 일괄 처리
+        // Pipeline으로 임시 Key에 Redis 요청을 일괄 처리한다.
         stringRedisTemplate.executePipelined((RedisCallback<Object>) connection -> {
-            byte[] redisKey = stringRedisTemplate.getStringSerializer().serialize(key);
+            byte[] redisKey = serialize(tmpKey);
 
             for (CoursePopularityRankingEntry entry : entries) {
-                assert redisKey != null;
                 connection.zAdd(
                         redisKey,
                         entry.score(),
-                        Objects.requireNonNull(
-                                stringRedisTemplate.getStringSerializer()
-                                        .serialize(redisMember(entry))
-                        )
+                        serialize(redisMember(entry))
                 );
             }
 
             return null;
         });
+
+        stringRedisTemplate.rename(tmpKey, key);
     }
 
     private List<Long> findTopCourseIds(String key, int size) {
@@ -131,6 +133,14 @@ public class CoursePopularityRankingRedisRepository {
             return member;
         }
         return member.substring(separatorIndex + 1);
+    }
+
+    private byte[] serialize(String value) {
+        return value.getBytes(StandardCharsets.UTF_8);
+    }
+
+    private String temporaryRankingKey(String key) {
+        return key + ":" + TMP;
     }
 
     private String officialRankingKey() {
