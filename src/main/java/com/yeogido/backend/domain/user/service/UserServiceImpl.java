@@ -82,7 +82,7 @@ public class UserServiceImpl implements UserService{
                 boolean hasNext = likes.size() > size;
 
                 if (hasNext) {
-                    likes.remove(size);
+                    likes.remove(size.intValue());
                 }
 
                 LocalDateTime nextCreatedAt = null;
@@ -119,10 +119,11 @@ public class UserServiceImpl implements UserService{
                 Map<Long, List<String>> hashtagMap =
                         getContentHashtagMap(likes);
 
+
                 boolean hasNext = likes.size() > size;
 
                 if (hasNext) {
-                    likes.remove(size);
+                    likes.remove(size.intValue());
                 }
 
                 LocalDateTime nextCreatedAt = null;
@@ -159,7 +160,7 @@ public class UserServiceImpl implements UserService{
                 boolean hasNext = likes.size() > size;
 
                 if (hasNext) {
-                    likes.remove(size);
+                    likes.remove(size.intValue());
                 }
 
                 LocalDateTime nextCreatedAt = null;
