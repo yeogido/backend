@@ -3,7 +3,6 @@ package com.yeogido.backend.domain.review.dto.response;
 import com.yeogido.backend.domain.course.enums.DurationType;
 import com.yeogido.backend.domain.course.enums.TransportType;
 import io.swagger.v3.oas.annotations.media.Schema;
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -24,8 +23,8 @@ public class ReviewResDTO {
             @Schema(description = "리뷰 내용", example = "지도 동선이 너무 편했어요.")
             String content,
 
-            @Schema(description = "별점", example = "5.0")
-            BigDecimal rating,
+            @Schema(description = "별점", example = "5")
+            Integer rating,
 
             @Schema(description = "생성 일시", example = "2026-07-05T15:30:00")
             LocalDateTime createdAt,
@@ -56,8 +55,8 @@ public class ReviewResDTO {
             @Schema(description = "리뷰 내용", example = "지도 동선이 너무 편했어요.")
             String content,
 
-            @Schema(description = "별점", example = "5.0")
-            BigDecimal rating,
+            @Schema(description = "별점", example = "5")
+            Integer rating,
 
             @Schema(description = "생성 일시", example = "2026-07-05T15:30:00")
             LocalDateTime createdAt,

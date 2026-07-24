@@ -38,7 +38,7 @@ import com.yeogido.backend.domain.user.repository.UserRepository;
 import com.yeogido.backend.global.common.response.CursorResponse;
 import com.yeogido.backend.global.exception.GeneralErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -618,5 +618,17 @@ public class ContentServiceImpl implements ContentService{
                 false,
                 likeCount
         );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ContentResDTO.BannerRes> getBannerContents() {
+
+        List<Content> contents =
+                contentRepository.findTop5ByEndDateGreaterThanEqualOrderByEndDateAsc(LocalDate.now());
+
+        return contents.stream()
+                .map(ContentConverter::toBannerRes)
+                .toList();
     }
 }

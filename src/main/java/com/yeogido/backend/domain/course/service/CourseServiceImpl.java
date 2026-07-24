@@ -11,24 +11,23 @@ import com.yeogido.backend.domain.course.entity.CourseHashtag;
 import com.yeogido.backend.domain.course.entity.CourseItem;
 import com.yeogido.backend.domain.course.entity.CourseLike;
 import com.yeogido.backend.domain.course.entity.CourseReview;
-import com.yeogido.backend.domain.course.enums.*;
-import com.yeogido.backend.domain.course.exception.CourseErrorCode;
-import com.yeogido.backend.domain.course.repository.CourseHashtagRepository;
-import com.yeogido.backend.domain.course.repository.CourseItemRepository;
-import com.yeogido.backend.domain.course.repository.CourseLikeRepository;
-import com.yeogido.backend.domain.course.repository.CourseRepository;
 import com.yeogido.backend.domain.course.enums.CompanionType;
 import com.yeogido.backend.domain.course.enums.CourseItemType;
 import com.yeogido.backend.domain.course.enums.CourseType;
 import com.yeogido.backend.domain.course.enums.DurationType;
 import com.yeogido.backend.domain.course.enums.TransportType;
+import com.yeogido.backend.domain.course.exception.CourseErrorCode;
+import com.yeogido.backend.domain.course.repository.CourseHashtagRepository;
+import com.yeogido.backend.domain.course.repository.CourseItemRepository;
+import com.yeogido.backend.domain.course.repository.CourseLikeRepository;
+import com.yeogido.backend.domain.course.repository.CourseRedisRepository;
+import com.yeogido.backend.domain.course.repository.CourseRepository;
+import com.yeogido.backend.domain.course.repository.CourseReviewRepository;
 import com.yeogido.backend.domain.file.service.S3Service;
 import com.yeogido.backend.domain.hashtag.entity.Hashtag;
 import com.yeogido.backend.domain.hashtag.exception.HashtagErrorCode;
 import com.yeogido.backend.domain.hashtag.repository.HashtagRepository;
-import com.yeogido.backend.domain.file.service.S3Service;
 import com.yeogido.backend.domain.place.entity.Place;
-import com.yeogido.backend.domain.course.repository.CourseReviewRepository;
 import com.yeogido.backend.domain.place.service.PlaceService;
 import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.region.exception.RegionErrorCode;
@@ -42,23 +41,25 @@ import com.yeogido.backend.global.common.response.CursorResponse;
 import com.yeogido.backend.global.exception.GeneralErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
-import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class CourseServiceImpl implements CourseService {
 
     private static final Long MOCK_MEMBER_ID = 1L;
-    private static final BigDecimal MIN_RATING = BigDecimal.ZERO;
-    private static final BigDecimal MAX_RATING = BigDecimal.valueOf(5);
 
     private final CourseRepository courseRepository;
     private final CourseLikeRepository courseLikeRepository;
@@ -68,6 +69,7 @@ public class CourseServiceImpl implements CourseService {
     private final PlaceService placeService;
     private final ContentRepository contentRepository;
     private final CourseReviewRepository courseReviewRepository;
+    private final CourseRedisRepository courseRedisRepository;
     private final UserRepository userRepository;
     private final RegionRepository regionRepository;
     private final S3Service s3Service;
@@ -83,6 +85,7 @@ public class CourseServiceImpl implements CourseService {
 
         saveCourseHashtags(course, request.hashtagIds());
         saveCourseItems(course, request.courseItems());
+        saveCreatedEventAfterCommit(course.getId());
 
         return new CourseResDTO.CourseIdRes(course.getId());
     }
@@ -145,13 +148,11 @@ public class CourseServiceImpl implements CourseService {
     }
 
     @Override
-    @Transactional
     public CourseResDTO.CourseDetail getCourseDetail(Long courseId) {
         Course course = courseRepository.findCourseDetailByIdAndDeletedAtIsNull(courseId)
                 .orElseThrow(() -> new GeneralException(CourseErrorCode.COURSE_NOT_FOUND));
 
-        // TODO: 인기순 조회 성능 개선을 위해 Redis 기반 조회수 집계 방식으로 변경
-        course.increaseViewCount();
+        courseRedisRepository.increaseViewCount(courseId, LocalDate.now());
 
         // TODO: Spring Security 적용 후 인증 사용자 ID로 교체
         boolean isLiked = courseLikeRepository.existsByUserIdAndCourseId(MOCK_MEMBER_ID, courseId);
@@ -226,6 +227,7 @@ public class CourseServiceImpl implements CourseService {
             CourseLike courseLike = CourseConverter.toCourseLike(user, course);
 
             courseLikeRepository.save(courseLike);
+            courseRedisRepository.increaseLikeCount(courseId);
         }
 
         return new CourseResDTO.CourseLikeRes(
@@ -243,7 +245,10 @@ public class CourseServiceImpl implements CourseService {
         User user = userRepository.getReferenceById(MOCK_MEMBER_ID);
 
         courseLikeRepository.findByUserIdAndCourseId(user.getId(), courseId)
-                .ifPresent(courseLikeRepository::delete);
+                .ifPresent(courseLike -> {
+                    courseLikeRepository.delete(courseLike);
+                    courseRedisRepository.decreaseLikeCount(courseId);
+                });
 
         return new CourseResDTO.CourseLikeRes(
                 false,
@@ -259,6 +264,28 @@ public class CourseServiceImpl implements CourseService {
     private User getCurrentUser() {
         return userRepository.findById(MOCK_MEMBER_ID)
                 .orElseThrow(() -> new GeneralException(GeneralErrorCode.FORBIDDEN));
+    }
+
+    private void saveCreatedEventAfterCommit(Long courseId) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            saveCreatedEvent(courseId);
+            return;
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                saveCreatedEvent(courseId);
+            }
+        });
+    }
+
+    private void saveCreatedEvent(Long courseId) {
+        try {
+            courseRedisRepository.saveCreatedEvent(courseId, LocalDate.now());
+        } catch (RuntimeException exception) {
+            log.warn("Failed to save course created event. courseId={}", courseId, exception);
+        }
     }
 
     private User getCurrentUser(Long userId) {
