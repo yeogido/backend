@@ -10,9 +10,9 @@ public interface CourseService {
 
     CourseResDTO.CourseIdRes createCourse(Long userId, CourseReqDTO.CourseCreateReq request);
 
-    CourseResDTO.CourseIdRes updateCourse(Long courseId, CourseReqDTO.CourseUpdateReq request);
+    CourseResDTO.CourseIdRes updateCourse(Long userId, Long courseId, CourseReqDTO.CourseUpdateReq request);
 
-    void deleteCourse(Long courseId);
+    void deleteCourse(Long userId, Long courseId);
 
     CursorResponse<CourseResDTO.CoursePreview> getCourses(CourseReqDTO.CourseListReq request);
 

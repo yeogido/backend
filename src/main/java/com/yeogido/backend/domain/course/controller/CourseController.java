@@ -68,11 +68,12 @@ public class CourseController {
     @Operation(summary = "추천 코스 수정", description = "추천 코스를 수정합니다.")
     @PatchMapping("/{courseId}")
     public ApiResponse<CourseResDTO.CourseIdRes> updateCourse(
+            @AuthenticationPrincipal AuthUser authUser,
             @Parameter(description = "코스 ID", example = "15")
             @PathVariable Long courseId,
             @Valid @RequestBody CourseReqDTO.CourseUpdateReq request
     ) {
-        CourseResDTO.CourseIdRes response = courseService.updateCourse(courseId, request);
+        CourseResDTO.CourseIdRes response = courseService.updateCourse(authUser.userId(), courseId, request);
 
         return ApiResponse.onSuccess(SuccessCode.OK, response);
     }
@@ -80,10 +81,11 @@ public class CourseController {
     @Operation(summary = "추천 코스 삭제", description = "추천 코스를 삭제합니다.")
     @DeleteMapping("/{courseId}")
     public ApiResponse<Void> deleteCourse(
+            @AuthenticationPrincipal AuthUser authUser,
             @Parameter(description = "코스 ID", example = "15")
             @PathVariable Long courseId
     ) {
-        courseService.deleteCourse(courseId);
+        courseService.deleteCourse(authUser.userId(), courseId);
 
         return ApiResponse.onSuccess(SuccessCode.OK);
     }

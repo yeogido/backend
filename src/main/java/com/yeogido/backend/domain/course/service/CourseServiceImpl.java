@@ -99,9 +99,9 @@ public class CourseServiceImpl implements CourseService {
 
     @Override
     @Transactional
-    public CourseResDTO.CourseIdRes updateCourse(Long courseId, CourseReqDTO.CourseUpdateReq request) {
+    public CourseResDTO.CourseIdRes updateCourse(Long userId, Long courseId, CourseReqDTO.CourseUpdateReq request) {
         Course course = getActiveCourse(courseId);
-        User user = getCurrentUser();
+        User user = getCurrentUser(userId);
 
         validateCourseAuthority(course, user);
         validateCourseUpdateRequest(request);
@@ -130,9 +130,9 @@ public class CourseServiceImpl implements CourseService {
 
     @Override
     @Transactional
-    public void deleteCourse(Long courseId) {
+    public void deleteCourse(Long userId, Long courseId) {
         Course course = getActiveCourse(courseId);
-        User user = getCurrentUser();
+        User user = getCurrentUser(userId);
 
         validateCourseAuthority(course, user);
 

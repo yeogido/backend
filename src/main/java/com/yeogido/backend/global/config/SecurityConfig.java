@@ -59,6 +59,16 @@ public class SecurityConfig {
                         ).authenticated()
 
                         .requestMatchers(
+                                HttpMethod.PATCH,
+                                "/api/v1/courses/**"
+                        ).authenticated()
+
+                        .requestMatchers(
+                                HttpMethod.DELETE,
+                                "/api/v1/courses/**"
+                        ).authenticated()
+
+                        .requestMatchers(
                                 HttpMethod.POST,
                                 "/api/v1/business-promotions"
                         ).authenticated()
