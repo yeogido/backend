@@ -3,6 +3,7 @@ package com.yeogido.backend.domain.review.converter;
 import com.yeogido.backend.domain.course.entity.Course;
 import com.yeogido.backend.domain.course.entity.CourseReview;
 import com.yeogido.backend.domain.course.entity.CourseReviewImage;
+import com.yeogido.backend.domain.review.dto.request.ReviewReqDTO;
 import com.yeogido.backend.domain.review.dto.response.ReviewResDTO;
 import com.yeogido.backend.domain.user.entity.User;
 import java.time.Year;
@@ -46,6 +47,23 @@ public class ReviewConverter {
                         likedCourseIds,
                         imageUrlResolver
                 ))
+                .toList();
+    }
+
+    public static ReviewResDTO.UpdateResponse toUpdateResponse(CourseReview review) {
+        return new ReviewResDTO.UpdateResponse(review.getId());
+    }
+
+    public static List<CourseReviewImage> toCourseReviewImages(
+            CourseReview review,
+            List<ReviewReqDTO.ReviewImageRequest> images
+    ) {
+        return images.stream()
+                .map(image -> CourseReviewImage.builder()
+                        .courseReview(review)
+                        .imageKey(image.imageKey())
+                        .imageOrder(image.imageOrder())
+                        .build())
                 .toList();
     }
 

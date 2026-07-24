@@ -38,4 +38,9 @@ public class CourseReview extends BaseEntity {
 
     @Column(columnDefinition = "TEXT")
     private String content;
+
+    public void update(Integer rating, String content) {
+        this.rating = rating;
+        this.content = content;
+    }
 }

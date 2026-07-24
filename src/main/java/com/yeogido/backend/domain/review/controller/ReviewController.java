@@ -1,5 +1,6 @@
 package com.yeogido.backend.domain.review.controller;
 
+import com.yeogido.backend.domain.auth.security.AuthUser;
 import com.yeogido.backend.domain.review.dto.request.ReviewReqDTO;
 import com.yeogido.backend.domain.review.dto.response.ReviewResDTO;
 import com.yeogido.backend.domain.review.service.ReviewService;
@@ -10,9 +11,13 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 @Tag(name = "Review", description = "리뷰 관련 API")
@@ -42,6 +47,25 @@ public class ReviewController {
             @Valid @ModelAttribute ReviewReqDTO.ListRequest request
     ) {
         CursorResponse<ReviewResDTO.ReviewDetail> result = reviewService.getReviews(request);
+        return ApiResponse.onSuccess(SuccessCode.OK, result);
+    }
+
+    @Operation(
+            summary = "후기 수정",
+            description = "로그인한 사용자가 본인이 작성한 추천 코스 리뷰의 별점, 내용, 이미지를 수정합니다."
+    )
+    @PatchMapping("/{reviewId}")
+    public ApiResponse<ReviewResDTO.UpdateResponse> updateReview(
+            @PathVariable Long reviewId,
+            @AuthenticationPrincipal AuthUser authUser,
+            @Valid @RequestBody ReviewReqDTO.UpdateRequest request
+    ) {
+        ReviewResDTO.UpdateResponse result = reviewService.updateReview(
+                reviewId,
+                authUser.userId(),
+                request
+        );
+
         return ApiResponse.onSuccess(SuccessCode.OK, result);
     }
 }
