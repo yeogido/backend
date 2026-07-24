@@ -10,6 +10,7 @@ import com.yeogido.backend.domain.user.dto.UserResDTO;
 import com.yeogido.backend.domain.user.entity.User;
 import com.yeogido.backend.domain.user.service.UserServiceImpl;
 import com.yeogido.backend.domain.user.enums.LikeCategory;
+import com.yeogido.backend.global.util.DistanceUtil;
 
 import java.util.List;
 
@@ -45,10 +46,12 @@ public class UserConverter {
                 null,
                 null,
                 course.getRegion().getName(),
+                null,
                 hashtags,
                 like.getCreatedAt().toString()
         );
     }
+
 
     public static UserResDTO.LikedResponse toLikedResponse(
             ContentLike like,
@@ -65,15 +68,30 @@ public class UserConverter {
                 content.getStartDate(),
                 content.getEndDate(),
                 content.getPlace().getRegion().getName(),
+                null,
                 hashtags,
+
                 like.getCreatedAt().toString()
         );
     }
 
     public static UserResDTO.LikedResponse toLikedResponse(
-            PlaceLike like
+            PlaceLike like,
+            Double latitude,
+            Double longitude
     ) {
         Place place = like.getPlace();
+
+        Double distance = null;
+
+        if (latitude != null && longitude != null) {
+            distance = DistanceUtil.calculate(
+                    latitude,
+                    longitude,
+                    place.getLatitude().doubleValue(),
+                    place.getLongitude().doubleValue()
+            );
+        }
 
         return new UserResDTO.LikedResponse(
                 place.getId(),
@@ -84,6 +102,7 @@ public class UserConverter {
                 null,
                 null,
                 place.getRegion().getParent().getName(),
+                distance,
                 List.of(),
                 like.getCreatedAt().toString()
         );

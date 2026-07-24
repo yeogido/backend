@@ -38,6 +38,8 @@ public class UserController {
             @RequestParam(required = false) LocalDateTime cursorCreatedAt,
             @RequestParam(required = false) Long cursorId,
             @RequestParam(defaultValue = "6") Integer size,
+            @RequestParam(required = false) Double latitude,
+            @RequestParam(required = false) Double longitude,
             @AuthenticationPrincipal AuthUser authUser
     ) {
         CursorResponse<UserResDTO.LikedResponse> result =
@@ -47,7 +49,9 @@ public class UserController {
                         sort,
                         cursorCreatedAt,
                         cursorId,
-                        size
+                        size,
+                        latitude,
+                        longitude
                 );
 
         return ApiResponse.onSuccess(SuccessCode.OK, result);

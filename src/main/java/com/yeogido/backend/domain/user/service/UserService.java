@@ -17,7 +17,9 @@ public interface UserService {
             LikeSortType sort,
             LocalDateTime cursorCreatedAt,
             Long cursorId,
-            Integer size
+            Integer size,
+            Double latitude,
+            Double longitude
     );
 
     UserResDTO.Profile getMyPage(Long userId);

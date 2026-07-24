@@ -29,6 +29,7 @@ import com.yeogido.backend.domain.user.enums.LikeCategory;
 import com.yeogido.backend.global.common.response.CursorResponse;
 import com.yeogido.backend.global.exception.GeneralErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
+import com.yeogido.backend.global.util.DistanceUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -62,65 +63,132 @@ public class UserServiceImpl implements UserService{
             LikeSortType sort,
             LocalDateTime cursorCreatedAt,
             Long cursorId,
-            Integer size
+            Integer size,
+            Double latitude,
+            Double longitude
     ) {
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
 
         switch (category) {
-            case COURSE:{
+            case COURSE: {
                 List<CourseLike> likes =
                         getCourseLikes(user, sort, cursorCreatedAt, cursorId, size);
 
                 Map<Long, List<String>> hashtagMap =
                         getCourseHashtagMap(likes);
 
-                return toCursorResponse(
-                        likes,
-                        like -> UserConverter.toLikedResponse(
-                                like,
-                                hashtagMap.getOrDefault(
-                                        like.getCourse().getId(),
-                                        List.of()
-                                )
-                        ),
-                        CourseLike::getCreatedAt,
-                        CourseLike::getId,
-                        size
+                boolean hasNext = likes.size() > size;
+
+                if (hasNext) {
+                    likes.remove(size);
+                }
+
+                LocalDateTime nextCreatedAt = null;
+                Long nextCursorId = null;
+
+                if (!likes.isEmpty()) {
+                    CourseLike last = likes.get(likes.size() - 1);
+                    nextCreatedAt = last.getCreatedAt();
+                    nextCursorId = last.getId();
+                }
+
+                List<UserResDTO.LikedResponse> result =
+                        likes.stream()
+                                .map(like -> UserConverter.toLikedResponse(
+                                        like,
+                                        hashtagMap.getOrDefault(
+                                                like.getCourse().getId(),
+                                                List.of()
+                                        )
+                                ))
+                                .toList();
+
+                return CursorResponse.of(
+                        result,
+                        nextCreatedAt,
+                        nextCursorId,
+                        hasNext
                 );
             }
-            case CONTENT:{
+            case CONTENT: {
                 List<ContentLike> likes =
                         getContentLikes(user, sort, cursorCreatedAt, cursorId, size);
 
                 Map<Long, List<String>> hashtagMap =
                         getContentHashtagMap(likes);
 
-                return toCursorResponse(
-                        likes,
-                        like -> UserConverter.toLikedResponse(
-                                like,
-                                hashtagMap.getOrDefault(
-                                        like.getContent().getId(),
-                                        List.of()
-                                )
-                        ),
-                        ContentLike::getCreatedAt,
-                        ContentLike::getId,
-                        size
+                boolean hasNext = likes.size() > size;
+
+                if (hasNext) {
+                    likes.remove(size);
+                }
+
+                LocalDateTime nextCreatedAt = null;
+                Long nextCursorId = null;
+
+                if (!likes.isEmpty()) {
+                    ContentLike last = likes.get(likes.size() - 1);
+                    nextCreatedAt = last.getCreatedAt();
+                    nextCursorId = last.getId();
+                }
+
+                List<UserResDTO.LikedResponse> result =
+                        likes.stream()
+                                .map(like -> UserConverter.toLikedResponse(
+                                        like,
+                                        hashtagMap.getOrDefault(
+                                                like.getContent().getId(),
+                                                List.of()
+                                        )
+                                ))
+                                .toList();
+
+                return CursorResponse.of(
+                        result,
+                        nextCreatedAt,
+                        nextCursorId,
+                        hasNext
                 );
             }
-            case PLACE:
-                return toCursorResponse(
-                        getPlaceLikes(user, sort, cursorCreatedAt, cursorId, size),
-                        UserConverter::toLikedResponse,
-                        PlaceLike::getCreatedAt,
-                        PlaceLike::getId,
-                        size
+            case PLACE: {
+                List<PlaceLike> likes =
+                        getPlaceLikes(user, sort, cursorCreatedAt, cursorId, size);
+
+                boolean hasNext = likes.size() > size;
+
+                if (hasNext) {
+                    likes.remove(size);
+                }
+
+                LocalDateTime nextCreatedAt = null;
+                Long nextCursorId = null;
+
+                if (!likes.isEmpty()) {
+                    PlaceLike last = likes.get(likes.size() - 1);
+                    nextCreatedAt = last.getCreatedAt();
+                    nextCursorId = last.getId();
+                }
+
+                List<UserResDTO.LikedResponse> result =
+                        likes.stream()
+                                .map(like -> UserConverter.toLikedResponse(
+                                        like,
+                                        latitude,
+                                        longitude
+                                ))
+                                .toList();
+
+                return CursorResponse.of(
+                        result,
+                        nextCreatedAt,
+                        nextCursorId,
+                        hasNext
                 );
+            }
             case ALL:
-                return getAllLikes(user, sort, cursorCreatedAt, cursorId, size);
+                return getAllLikes(user, sort, cursorCreatedAt, cursorId, size, latitude, longitude);
         }
         throw new GeneralException(GeneralErrorCode.INTERNAL_SERVER_ERROR);
     }
@@ -219,6 +287,7 @@ public class UserServiceImpl implements UserService{
                         ? placeLike.id.desc()
                         : placeLike.id.asc();
 
+
         return queryFactory
                 .selectFrom(placeLike)
                 .join(placeLike.place).fetchJoin()
@@ -241,7 +310,9 @@ public class UserServiceImpl implements UserService{
             LikeSortType sort,
             LocalDateTime cursorCreatedAt,
             Long cursorId,
-            int size
+            int size,
+            Double latitude,
+            Double longitude
     ) {
         List<CourseLike> courseLikes =
                 getCourseLikes(user, sort, cursorCreatedAt, cursorId, size);
@@ -305,7 +376,7 @@ public class UserServiceImpl implements UserService{
         );
 
         placeLikes.forEach(like ->
-                items.add(toPlaceLikeItem(like))
+                items.add(toPlaceLikeItem(like,latitude, longitude))
         );
 
         Comparator<LikeItem> comparator =
@@ -364,6 +435,7 @@ public class UserServiceImpl implements UserService{
                         null,
                         null,
                         course.getRegion().getName(),
+                        null,
                         hashtags,
                         like.getCreatedAt().toString()
                 )
@@ -385,14 +457,30 @@ public class UserServiceImpl implements UserService{
                         content.getStartDate(),
                         content.getEndDate(),
                         content.getPlace().getRegion().getName(),
+                        null,
                         hashtags,
                         like.getCreatedAt().toString()
                 )
         );
     }
 
-    private LikeItem toPlaceLikeItem(PlaceLike like) {
+    private LikeItem toPlaceLikeItem(
+            PlaceLike like,
+            Double latitude,
+            Double longitude
+    ) {
         Place place = like.getPlace();
+
+        Double distance = null;
+
+        if (latitude != null && longitude != null) {
+            distance = DistanceUtil.calculate(
+                    latitude,
+                    longitude,
+                    place.getLatitude().doubleValue(),
+                    place.getLongitude().doubleValue()
+            );
+        }
 
         return new LikeItem(
                 like.getCreatedAt(),
@@ -406,6 +494,7 @@ public class UserServiceImpl implements UserService{
                         null,
                         null,
                         place.getRegion().getName(),
+                        distance,
                         List.of(),
                         like.getCreatedAt().toString()
                 )
@@ -413,41 +502,6 @@ public class UserServiceImpl implements UserService{
     }
 
 
-    private <T> CursorResponse<UserResDTO.LikedResponse> toCursorResponse(
-            List<T> likes,
-            Function<T, UserResDTO.LikedResponse> converter,
-            Function<T, LocalDateTime> createdAtGetter,
-            Function<T, Long> idGetter,
-            int size
-    ) {
-
-        boolean hasNext = likes.size() > size;
-
-        if (hasNext) {
-            likes.remove(size);
-        }
-
-        LocalDateTime nextCreatedAt = null;
-        Long nextCursorId = null;
-
-        if (!likes.isEmpty()) {
-            T last = likes.get(likes.size() - 1);
-            nextCreatedAt = createdAtGetter.apply(last);
-            nextCursorId = idGetter.apply(last);
-        }
-
-        List<UserResDTO.LikedResponse> result =
-                likes.stream()
-                        .map(converter)
-                        .toList();
-
-        return CursorResponse.of(
-                result,
-                nextCreatedAt,
-                nextCursorId,
-                hasNext
-        );
-    }
 
     private Map<Long, List<String>> getCourseHashtagMap(
             List<CourseLike> courseLikes

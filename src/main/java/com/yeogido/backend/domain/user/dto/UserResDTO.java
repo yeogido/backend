@@ -34,6 +34,9 @@ public class UserResDTO {
             @Schema(description = "위치")
             String location,
 
+            @Schema(description = "현위치와의 거리")
+            Double distance,
+
             @Schema(description = "해시태그")
             List<String> hashtags,
 
