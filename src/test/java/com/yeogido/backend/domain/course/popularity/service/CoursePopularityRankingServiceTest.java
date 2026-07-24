@@ -168,9 +168,9 @@ class CoursePopularityRankingServiceTest {
         verify(coursePopularityRankingRedisRepository).replaceOfficialRegionRanking(
                 1L,
                 List.of(
-                        new CoursePopularityRankingEntry(3L, 50L),
-                        new CoursePopularityRankingEntry(2L, 40L),
-                        new CoursePopularityRankingEntry(1L, 30L)
+                        new CoursePopularityRankingEntry(3L, 50L, LocalDateTime.of(2026, 7, 22, 10, 0)),
+                        new CoursePopularityRankingEntry(2L, 40L, LocalDateTime.of(2026, 7, 21, 10, 0)),
+                        new CoursePopularityRankingEntry(1L, 30L, LocalDateTime.of(2026, 7, 20, 10, 0))
                 )
         );
 
@@ -178,7 +178,7 @@ class CoursePopularityRankingServiceTest {
         verify(coursePopularityRankingRedisRepository).replaceOfficialRegionRanking(
                 10L,
                 List.of(
-                        new CoursePopularityRankingEntry(2L, 40L)
+                        new CoursePopularityRankingEntry(2L, 40L, LocalDateTime.of(2026, 7, 21, 10, 0))
                 )
         );
 
@@ -186,7 +186,7 @@ class CoursePopularityRankingServiceTest {
         verify(coursePopularityRankingRedisRepository).replaceOfficialRegionRanking(
                 20L,
                 List.of(
-                        new CoursePopularityRankingEntry(3L, 50L)
+                        new CoursePopularityRankingEntry(3L, 50L, LocalDateTime.of(2026, 7, 22, 10, 0))
                 )
         );
     }
@@ -228,7 +228,7 @@ class CoursePopularityRankingServiceTest {
         verify(coursePopularityRankingRedisRepository, never())
                 .replaceOfficialRegionRanking(
                         10L,
-                        List.of(new CoursePopularityRankingEntry(1L, 80L))
+                        List.of(new CoursePopularityRankingEntry(1L, 80L, LocalDateTime.of(2026, 7, 21, 10, 0)))
                 );
 
         verify(coursePopularityRankingRedisRepository).replaceLocalRanking(List.of(

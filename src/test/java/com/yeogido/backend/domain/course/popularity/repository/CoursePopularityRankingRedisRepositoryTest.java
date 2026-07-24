@@ -157,7 +157,7 @@ class CoursePopularityRankingRedisRepositoryTest {
     @Test
     void replaceRankingEncodesCreatedAtInRedisMemberAndKeepsPopularityScore() {
         RedisConnection connection = mock(RedisConnection.class);
-        when(stringRedisTemplate.executePipelined(any())).thenAnswer(invocation -> {
+        when(stringRedisTemplate.executePipelined(any(RedisCallback.class))).thenAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             RedisCallback<Object> callback = invocation.getArgument(0);
             callback.doInRedis(connection);
