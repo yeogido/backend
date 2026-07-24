@@ -23,13 +23,18 @@ import java.util.List;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class CourseConverter {
 
-    public static Course toCourse(CourseReqDTO.CourseCreateReq request, User user, Region region) {
+    public static Course toCourse(
+            CourseReqDTO.CourseCreateReq request,
+            User user,
+            Region region,
+            CourseType courseType
+    ) {
         return Course.builder()
                 .user(user)
                 .region(region)
                 .title(request.title())
                 .description(request.description())
-                .courseType(CourseType.LOCAL)
+                .courseType(courseType)
                 .durationType(request.durationType())
                 .transportType(request.transportType())
                 .companionType(request.companionType())

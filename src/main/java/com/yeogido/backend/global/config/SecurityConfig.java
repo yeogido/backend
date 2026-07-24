@@ -52,6 +52,12 @@ public class SecurityConfig {
                                 "/api/v1/places/*/likes"
                         ).authenticated()
 
+
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/v1/courses"
+                        ).authenticated()
+
                         .requestMatchers(
                                 HttpMethod.POST,
                                 "/api/v1/business-promotions"

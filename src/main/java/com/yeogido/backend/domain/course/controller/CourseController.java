@@ -48,9 +48,10 @@ public class CourseController {
     @Operation(summary = "추천 코스 등록", description = "추천 코스를 등록합니다.")
     @PostMapping
     public ApiResponse<CourseResDTO.CourseIdRes> createCourse(
+            @AuthenticationPrincipal AuthUser authUser,
             @Valid @RequestBody CourseReqDTO.CourseCreateReq request
     ) {
-        CourseResDTO.CourseIdRes response = courseService.createCourse(request);
+        CourseResDTO.CourseIdRes response = courseService.createCourse(authUser.userId(), request);
 
         return ApiResponse.onSuccess(SuccessCode.CREATED, response);
     }

@@ -76,12 +76,19 @@ public class CourseServiceImpl implements CourseService {
 
     @Override
     @Transactional
-    public CourseResDTO.CourseIdRes createCourse(CourseReqDTO.CourseCreateReq request) {
+    public CourseResDTO.CourseIdRes createCourse(Long userId, CourseReqDTO.CourseCreateReq request) {
         validateCourseCreateRequest(request);
 
-        User user = getCurrentUser();
+        User user = getCurrentUser(userId);
         Region courseRegion = getRegion(request.regionId());
-        Course course = courseRepository.save(CourseConverter.toCourse(request, user, courseRegion));
+
+        CourseType courseType = (user.getRole() == UserRole.ADMIN)
+                ? CourseType.OFFICIAL
+                : CourseType.LOCAL;
+
+        Course course = courseRepository.save(
+                CourseConverter.toCourse(request, user, courseRegion, courseType)
+        );
 
         saveCourseHashtags(course, request.hashtagIds());
         saveCourseItems(course, request.courseItems());

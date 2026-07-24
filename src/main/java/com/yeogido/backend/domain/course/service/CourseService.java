@@ -8,7 +8,7 @@ import java.util.List;
 
 public interface CourseService {
 
-    CourseResDTO.CourseIdRes createCourse(CourseReqDTO.CourseCreateReq request);
+    CourseResDTO.CourseIdRes createCourse(Long userId, CourseReqDTO.CourseCreateReq request);
 
     CourseResDTO.CourseIdRes updateCourse(Long courseId, CourseReqDTO.CourseUpdateReq request);
 
