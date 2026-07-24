@@ -20,6 +20,7 @@ import com.yeogido.backend.domain.user.exception.UserErrorCode;
 import com.yeogido.backend.domain.user.repository.UserRepository;
 import com.yeogido.backend.global.exception.GeneralException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -35,10 +36,31 @@ public class AuthServiceImpl implements AuthService {
   private final JwtTokenProvider jwtTokenProvider;
   private final UserRepository userRepository;
   private final RegionRepository regionRepository;
+  private final PasswordEncoder passwordEncoder;
 
   @Override
+  @Transactional
   public AuthResDTO.SignUp signUp(AuthReqDTO.SignUp request) {
-    return new AuthResDTO.SignUp(1L);
+    if (userRepository.existsByEmail(request.email())) {
+      throw new GeneralException(UserErrorCode.EMAIL_DUPLICATED);
+    }
+
+    Region region = regionRepository.findById(request.regionId())
+      .orElseThrow(() -> new GeneralException(RegionErrorCode.REGION_NOT_FOUND));
+
+    User user = userRepository.save(User.builder()
+      .nickname(request.nickname())
+      .email(request.email())
+      .password(passwordEncoder.encode(request.password()))
+      .gender(request.gender())
+      .birthYear(request.birthYear())
+      .region(region)
+      .role(UserRole.USER)
+      .status(UserStatus.ACTIVE)
+      .profileImage(null)
+      .build());
+
+    return new AuthResDTO.SignUp(user.getId());
   }
 
   @Override
