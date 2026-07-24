@@ -7,6 +7,9 @@ import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.util.Locale;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -72,7 +75,8 @@ public class CoursePopularityRankingRedisRepository {
         // 최신 집계 결과로 전체 교체
         stringRedisTemplate.delete(key);
 
-        // ZSet score를 인기 점수로 사용
+        // ZSet score는 인기 점수 그대로 유지하고,
+        // member에 createdAt을 고정폭으로 포함해 동점 시 최신 코스가 먼저 오도록 한다.
         // Pipeline으로 Redis 요청 일괄 처리
         stringRedisTemplate.executePipelined((RedisCallback<Object>) connection -> {
             byte[] redisKey = stringRedisTemplate.getStringSerializer().serialize(key);
@@ -84,7 +88,7 @@ public class CoursePopularityRankingRedisRepository {
                         entry.score(),
                         Objects.requireNonNull(
                                 stringRedisTemplate.getStringSerializer()
-                                        .serialize(entry.courseId().toString())
+                                        .serialize(redisMember(entry))
                         )
                 );
             }
@@ -107,8 +111,26 @@ public class CoursePopularityRankingRedisRepository {
         }
 
         return courseIds.stream()
+                .map(this::courseIdFromRedisMember)
                 .map(Long::valueOf)
                 .toList();
+    }
+
+    private String redisMember(CoursePopularityRankingEntry entry) {
+        LocalDateTime createdAt = Objects.requireNonNull(entry.createdAt());
+        long createdAtMicros = createdAt.toEpochSecond(ZoneOffset.UTC) * 1_000_000L
+                + createdAt.getNano() / 1_000L;
+
+        // 고정폭으로 패딩해야 Redis의 문자열 역순 정렬이 시간 역순과 일치한다.
+        return String.format(Locale.ROOT, "%020d:%d", createdAtMicros, entry.courseId());
+    }
+
+    private String courseIdFromRedisMember(String member) {
+        int separatorIndex = member.lastIndexOf(':');
+        if (separatorIndex < 0) {
+            return member;
+        }
+        return member.substring(separatorIndex + 1);
     }
 
     private String officialRankingKey() {

@@ -100,7 +100,11 @@ public class CoursePopularityRankingService {
                                         Comparator.reverseOrder()
                                 )
                 )
-                .map(target -> new CoursePopularityRankingEntry(target.courseId(), target.score()))
+                .map(target -> new CoursePopularityRankingEntry(
+                        target.courseId(),
+                        target.score(),
+                        target.createdAt()
+                ))
                 .toList();
     }
 

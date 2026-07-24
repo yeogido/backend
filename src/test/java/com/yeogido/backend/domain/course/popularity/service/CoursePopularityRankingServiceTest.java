@@ -73,9 +73,21 @@ class CoursePopularityRankingServiceTest {
         coursePopularityRankingService.refreshPopularityRankings();
 
         verify(coursePopularityRankingRedisRepository).replaceOfficialRanking(List.of(
-                new CoursePopularityRankingEntry(2L, 90L),
-                new CoursePopularityRankingEntry(3L, 50L),
-                new CoursePopularityRankingEntry(1L, 30L)
+                new CoursePopularityRankingEntry(
+                        2L,
+                        90L,
+                        LocalDateTime.of(2026, 7, 21, 10, 0)
+                ),
+                new CoursePopularityRankingEntry(
+                        3L,
+                        50L,
+                        LocalDateTime.of(2026, 7, 22, 10, 0)
+                ),
+                new CoursePopularityRankingEntry(
+                        1L,
+                        30L,
+                        LocalDateTime.of(2026, 7, 20, 10, 0)
+                )
         ));
 
         verify(coursePopularityRankingRedisRepository).deleteOfficialRegionRankings();
@@ -83,15 +95,27 @@ class CoursePopularityRankingServiceTest {
         verify(coursePopularityRankingRedisRepository).replaceOfficialRegionRanking(
                 10L,
                 List.of(
-                        new CoursePopularityRankingEntry(2L, 90L),
-                        new CoursePopularityRankingEntry(1L, 30L)
+                        new CoursePopularityRankingEntry(
+                                2L,
+                                90L,
+                                LocalDateTime.of(2026, 7, 21, 10, 0)
+                        ),
+                        new CoursePopularityRankingEntry(
+                                1L,
+                                30L,
+                                LocalDateTime.of(2026, 7, 20, 10, 0)
+                        )
                 )
         );
 
         verify(coursePopularityRankingRedisRepository).replaceOfficialRegionRanking(
                 20L,
                 List.of(
-                        new CoursePopularityRankingEntry(3L, 50L)
+                        new CoursePopularityRankingEntry(
+                                3L,
+                                50L,
+                                LocalDateTime.of(2026, 7, 22, 10, 0)
+                        )
                 )
         );
 
@@ -208,8 +232,16 @@ class CoursePopularityRankingServiceTest {
                 );
 
         verify(coursePopularityRankingRedisRepository).replaceLocalRanking(List.of(
-                new CoursePopularityRankingEntry(1L, 80L),
-                new CoursePopularityRankingEntry(2L, 20L)
+                new CoursePopularityRankingEntry(
+                        1L,
+                        80L,
+                        LocalDateTime.of(2026, 7, 21, 10, 0)
+                ),
+                new CoursePopularityRankingEntry(
+                        2L,
+                        20L,
+                        LocalDateTime.of(2026, 7, 20, 10, 0)
+                )
         ));
     }
 
@@ -244,8 +276,16 @@ class CoursePopularityRankingServiceTest {
         coursePopularityRankingService.refreshPopularityRankings();
 
         verify(coursePopularityRankingRedisRepository).replaceLocalRanking(List.of(
-                new CoursePopularityRankingEntry(2L, 100L),
-                new CoursePopularityRankingEntry(1L, 100L)
+                new CoursePopularityRankingEntry(
+                        2L,
+                        100L,
+                        LocalDateTime.of(2026, 7, 21, 10, 0)
+                ),
+                new CoursePopularityRankingEntry(
+                        1L,
+                        100L,
+                        LocalDateTime.of(2026, 7, 20, 10, 0)
+                )
         ));
     }
 
