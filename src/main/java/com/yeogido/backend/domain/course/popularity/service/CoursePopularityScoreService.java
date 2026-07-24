@@ -1,7 +1,7 @@
-package com.yeogido.backend.domain.course.service;
+package com.yeogido.backend.domain.course.popularity.service;
 
-import com.yeogido.backend.domain.course.dto.CoursePopularityActivity;
-import com.yeogido.backend.domain.course.repository.CoursePopularityRedisRepository;
+import com.yeogido.backend.domain.course.popularity.dto.CoursePopularityActivity;
+import com.yeogido.backend.domain.course.popularity.repository.CoursePopularityRedisRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 

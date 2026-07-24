@@ -1,5 +1,6 @@
-package com.yeogido.backend.domain.course.repository;
+package com.yeogido.backend.domain.course.popularity.repository;
 
+import com.yeogido.backend.domain.course.popularity.dto.CoursePopularityRankingEntry;
 import com.yeogido.backend.global.redis.RedisKey;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisCallback;

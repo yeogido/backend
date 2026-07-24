@@ -1,6 +1,6 @@
-package com.yeogido.backend.domain.course.scheduler;
+package com.yeogido.backend.domain.course.popularity.scheduler;
 
-import com.yeogido.backend.domain.course.service.CourseViewCountSyncService;
+import com.yeogido.backend.domain.course.popularity.service.CourseViewCountSyncService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;

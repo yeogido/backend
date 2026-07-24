@@ -1,4 +1,4 @@
-package com.yeogido.backend.domain.course.repository;
+package com.yeogido.backend.domain.course.popularity.dto;
 
 public record CoursePopularityRankingEntry(
         Long courseId,

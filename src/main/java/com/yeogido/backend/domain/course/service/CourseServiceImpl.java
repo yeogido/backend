@@ -20,7 +20,7 @@ import com.yeogido.backend.domain.course.exception.CourseErrorCode;
 import com.yeogido.backend.domain.course.repository.CourseHashtagRepository;
 import com.yeogido.backend.domain.course.repository.CourseItemRepository;
 import com.yeogido.backend.domain.course.repository.CourseLikeRepository;
-import com.yeogido.backend.domain.course.repository.CoursePopularityRankingRedisRepository;
+import com.yeogido.backend.domain.course.popularity.repository.CoursePopularityRankingRedisRepository;
 import com.yeogido.backend.domain.course.repository.CourseRedisRepository;
 import com.yeogido.backend.domain.course.repository.CourseRepository;
 import com.yeogido.backend.domain.course.repository.CourseReviewRepository;

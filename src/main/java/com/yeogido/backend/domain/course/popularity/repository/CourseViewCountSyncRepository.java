@@ -1,4 +1,4 @@
-package com.yeogido.backend.domain.course.repository;
+package com.yeogido.backend.domain.course.popularity.repository;
 
 import com.yeogido.backend.domain.course.entity.Course;
 import jakarta.transaction.Transactional;

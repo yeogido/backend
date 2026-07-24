@@ -1,6 +1,6 @@
-package com.yeogido.backend.domain.course.service;
+package com.yeogido.backend.domain.course.popularity.service;
 
-import com.yeogido.backend.domain.course.dto.CoursePopularityActivity;
+import com.yeogido.backend.domain.course.popularity.dto.CoursePopularityActivity;
 import org.springframework.stereotype.Component;
 
 @Component

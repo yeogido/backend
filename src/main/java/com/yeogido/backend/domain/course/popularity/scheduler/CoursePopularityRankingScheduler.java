@@ -1,6 +1,6 @@
-package com.yeogido.backend.domain.course.scheduler;
+package com.yeogido.backend.domain.course.popularity.scheduler;
 
-import com.yeogido.backend.domain.course.service.CoursePopularityRankingService;
+import com.yeogido.backend.domain.course.popularity.service.CoursePopularityRankingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Profile;
 import org.springframework.scheduling.annotation.Scheduled;

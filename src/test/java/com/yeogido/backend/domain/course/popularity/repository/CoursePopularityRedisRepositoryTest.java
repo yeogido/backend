@@ -1,6 +1,6 @@
-package com.yeogido.backend.domain.course.repository;
+package com.yeogido.backend.domain.course.popularity.repository;
 
-import com.yeogido.backend.domain.course.dto.CoursePopularityActivity;
+import com.yeogido.backend.domain.course.popularity.dto.CoursePopularityActivity;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;

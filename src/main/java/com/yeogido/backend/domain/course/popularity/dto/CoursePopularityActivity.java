@@ -1,4 +1,4 @@
-package com.yeogido.backend.domain.course.dto;
+package com.yeogido.backend.domain.course.popularity.dto;
 
 public record CoursePopularityActivity(
         long viewCount,
