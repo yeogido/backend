@@ -222,7 +222,8 @@ public class UserServiceImpl implements UserService{
                         cursorCondition(courseLike.createdAt,
                                 courseLike.id,
                                 cursorCreatedAt,
-                                cursorId)
+                                cursorId,
+                                sort)
                 )
                 .orderBy(createdAtOrder, idOrder)
                 .limit(size + 1)
@@ -259,7 +260,8 @@ public class UserServiceImpl implements UserService{
                         cursorCondition(contentLike.createdAt,
                                 contentLike.id,
                                 cursorCreatedAt,
-                                cursorId)
+                                cursorId,
+                                sort)
                 )
                 .orderBy(createdAtOrder, idOrder)
                 .limit(size + 1)
@@ -297,7 +299,8 @@ public class UserServiceImpl implements UserService{
                         cursorCondition(placeLike.createdAt,
                                placeLike.id,
                                 cursorCreatedAt,
-                                cursorId)
+                                cursorId,
+                                sort)
                 )
                 .orderBy(createdAtOrder, idOrder)
                 .limit(size + 1)
@@ -555,17 +558,26 @@ public class UserServiceImpl implements UserService{
             DateTimePath<LocalDateTime> createdAt,
             NumberPath<Long> id,
             LocalDateTime cursorCreatedAt,
-            Long cursorId
+            Long cursorId,
+            LikeSortType sort
     ) {
 
         if (cursorCreatedAt == null || cursorId == null) {
             return null;
         }
 
-        return createdAt.lt(cursorCreatedAt)
+        if (sort == LikeSortType.LATEST) {
+            return createdAt.lt(cursorCreatedAt)
+                    .or(
+                            createdAt.eq(cursorCreatedAt)
+                                    .and(id.lt(cursorId))
+                    );
+        }
+
+        return createdAt.gt(cursorCreatedAt)
                 .or(
                         createdAt.eq(cursorCreatedAt)
-                                .and(id.lt(cursorId))
+                                .and(id.gt(cursorId))
                 );
     }
 
