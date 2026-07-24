@@ -113,10 +113,12 @@ public class CourseController {
     @Operation(summary = "추천 코스 상세 조회", description = "추천 코스 상세 정보를 조회합니다.")
     @GetMapping("/{courseId}")
     public ApiResponse<CourseResDTO.CourseDetail> getCourse(
+            @AuthenticationPrincipal AuthUser authUser,
             @Parameter(description = "코스 ID", example = "1")
             @PathVariable Long courseId
     ) {
-        CourseResDTO.CourseDetail response = courseService.getCourseDetail(courseId);
+        Long userId = (authUser != null) ? authUser.userId() : null;
+        CourseResDTO.CourseDetail response = courseService.getCourseDetail(courseId, userId);
 
         return ApiResponse.onSuccess(SuccessCode.OK, response);
     }

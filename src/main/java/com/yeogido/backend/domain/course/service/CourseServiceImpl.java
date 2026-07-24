@@ -155,14 +155,13 @@ public class CourseServiceImpl implements CourseService {
     }
 
     @Override
-    public CourseResDTO.CourseDetail getCourseDetail(Long courseId) {
+    public CourseResDTO.CourseDetail getCourseDetail(Long courseId, Long userId) {
         Course course = courseRepository.findCourseDetailByIdAndDeletedAtIsNull(courseId)
                 .orElseThrow(() -> new GeneralException(CourseErrorCode.COURSE_NOT_FOUND));
 
         courseRedisRepository.increaseViewCount(courseId, LocalDate.now());
 
-        // TODO: Spring Security 적용 후 인증 사용자 ID로 교체
-        boolean isLiked = courseLikeRepository.existsByUserIdAndCourseId(MOCK_MEMBER_ID, courseId);
+        boolean isLiked = (userId != null) && courseLikeRepository.existsByUserIdAndCourseId(userId, courseId);
 
         List<String> tags = courseHashtagRepository.findByCourseId(courseId).stream()
                 .map(courseHashtag -> courseHashtag.getHashtag().getHashtagName())
