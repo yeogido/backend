@@ -148,10 +148,11 @@ public class CourseController {
     @Operation(summary = "추천 코스 좋아요 등록", description = "추천 코스에 좋아요를 등록합니다.")
     @PostMapping("/{courseId}/likes")
     public ApiResponse<CourseResDTO.CourseLikeRes> createCourseLike(
+            @AuthenticationPrincipal AuthUser authUser,
             @Parameter(description = "코스 ID", example = "1")
             @PathVariable Long courseId
     ) {
-        CourseResDTO.CourseLikeRes response = courseService.createCourseLike(courseId);
+        CourseResDTO.CourseLikeRes response = courseService.createCourseLike(authUser.userId(), courseId);
 
         return ApiResponse.onSuccess(SuccessCode.CREATED, response);
     }
@@ -159,10 +160,11 @@ public class CourseController {
     @Operation(summary = "추천 코스 좋아요 취소", description = "추천 코스 좋아요를 취소합니다.")
     @DeleteMapping("/{courseId}/likes")
     public ApiResponse<CourseResDTO.CourseLikeRes> deleteCourseLike(
+            @AuthenticationPrincipal AuthUser authUser,
             @Parameter(description = "코스 ID", example = "1")
             @PathVariable Long courseId
     ) {
-        CourseResDTO.CourseLikeRes response = courseService.deleteCourseLike(courseId);
+        CourseResDTO.CourseLikeRes response = courseService.deleteCourseLike(authUser.userId(), courseId);
 
         return ApiResponse.onSuccess(SuccessCode.OK, response);
     }

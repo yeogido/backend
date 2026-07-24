@@ -70,6 +70,16 @@ public class SecurityConfig {
 
                         .requestMatchers(
                                 HttpMethod.POST,
+                                "/api/v1/courses/*/likes"
+                        ).authenticated()
+
+                        .requestMatchers(
+                                HttpMethod.DELETE,
+                                "/api/v1/courses/*/likes"
+                        ).authenticated()
+
+                        .requestMatchers(
+                                HttpMethod.POST,
                                 "/api/v1/business-promotions"
                         ).authenticated()
 

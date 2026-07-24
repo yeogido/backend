@@ -224,11 +224,9 @@ public class CourseServiceImpl implements CourseService {
 
     @Override
     @Transactional
-    public CourseResDTO.CourseLikeRes createCourseLike(Long courseId) {
+    public CourseResDTO.CourseLikeRes createCourseLike(Long userId, Long courseId) {
         Course course = getActiveCourse(courseId);
-
-        // TODO: Spring Security 적용 후 로그인 사용자 정보로 변경
-        User user = userRepository.getReferenceById(MOCK_MEMBER_ID);
+        User user = getCurrentUser(userId);
 
         if (!courseLikeRepository.existsByUserIdAndCourseId(user.getId(), courseId)) {
             CourseLike courseLike = CourseConverter.toCourseLike(user, course);
@@ -245,11 +243,9 @@ public class CourseServiceImpl implements CourseService {
 
     @Override
     @Transactional
-    public CourseResDTO.CourseLikeRes deleteCourseLike(Long courseId) {
+    public CourseResDTO.CourseLikeRes deleteCourseLike(Long userId, Long courseId) {
         getActiveCourse(courseId);
-
-        // TODO: Spring Security 적용 후 로그인 사용자 정보로 변경
-        User user = userRepository.getReferenceById(MOCK_MEMBER_ID);
+        User user = getCurrentUser(userId);
 
         courseLikeRepository.findByUserIdAndCourseId(user.getId(), courseId)
                 .ifPresent(courseLike -> {
