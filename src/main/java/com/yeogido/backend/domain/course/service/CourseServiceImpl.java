@@ -196,11 +196,6 @@ public class CourseServiceImpl implements CourseService {
         // TODO: Spring Security 적용 후 로그인 사용자 정보로 변경
         User user = userRepository.getReferenceById(MOCK_MEMBER_ID);
 
-        // 중복 리뷰 작성 검증
-        if (courseReviewRepository.existsByCourseAndUser(course, user)) {
-            throw new GeneralException(ReviewErrorCode.DUPLICATE_REVIEW);
-        }
-
         // 리뷰 엔티티 생성 및 저장
         CourseReview review = CourseConverter.toCourseReview(request, user, course);
         CourseReview savedReview = courseReviewRepository.save(review);

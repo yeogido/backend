@@ -9,12 +9,6 @@ import org.springframework.http.HttpStatus;
 @RequiredArgsConstructor
 public enum ReviewErrorCode implements ErrorCode {
 
-    DUPLICATE_REVIEW(
-            HttpStatus.CONFLICT,
-            "REVIEW4091",
-            "이미 해당 코스에 리뷰를 작성했습니다."
-    ),
-
     DUPLICATE_IMAGE_ORDER(
             HttpStatus.BAD_REQUEST,
             "REVIEW4001",
