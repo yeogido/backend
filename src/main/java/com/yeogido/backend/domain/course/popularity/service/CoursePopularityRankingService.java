@@ -23,6 +23,7 @@ public class CoursePopularityRankingService {
     private final CoursePopularityRankingRedisRepository coursePopularityRankingRedisRepository;
 
     public void refreshPopularityRankings() {
+        // 조회용 랭킹 스냅샷 생성
         Map<Long, Long> scores = coursePopularityScoreService.calculateRecentPopularityScores();
 
         if (scores.isEmpty()) {
@@ -89,6 +90,7 @@ public class CoursePopularityRankingService {
     }
 
     private List<CoursePopularityRankingEntry> toRankingEntries(List<CourseRankingTarget> targets) {
+        // 점수 내림차순, 최신 코스 우선
         return targets.stream()
                 .sorted(
                         Comparator.comparing(CourseRankingTarget::score)

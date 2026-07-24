@@ -40,6 +40,7 @@ public class CoursePopularityRedisRepository {
             String key,
             ActivityType activityType
     ) {
+        // ZSet score 기반 활동량 조회
         Set<ZSetOperations.TypedTuple<String>> tuples = stringRedisTemplate.opsForZSet()
                 .rangeWithScores(key, 0, -1);
 
@@ -77,6 +78,7 @@ public class CoursePopularityRedisRepository {
     }
 
     private String activityKey(LocalDate date, String eventType) {
+        // 날짜별 활동량 Key
         return RedisKey.dated(DOMAIN, ACTIVITY, date, eventType);
     }
 

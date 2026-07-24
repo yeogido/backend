@@ -25,6 +25,7 @@ public class CourseViewCountSyncService {
     public void syncRecentViewCounts() {
         LocalDate today = LocalDate.now();
 
+        // 최근 7일 조회수 동기화
         for (int i = 0; i < SYNC_WINDOW_DAYS; i++) {
             LocalDate date = today.minusDays(i);
 
@@ -52,6 +53,7 @@ public class CourseViewCountSyncService {
             long delta = activityViewCount - syncedViewCount;
 
             try {
+                // delta만 DB 반영
                 transactionService.syncViewCount(
                         date,
                         courseId,

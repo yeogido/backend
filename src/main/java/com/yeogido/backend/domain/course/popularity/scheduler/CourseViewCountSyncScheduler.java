@@ -15,6 +15,7 @@ public class CourseViewCountSyncScheduler {
 
     @Scheduled(cron = "0 0 * * * *")
     public void syncCourseViewCounts() {
+        // Redis 조회수 배치 동기화
         courseViewCountSyncService.syncRecentViewCounts();
     }
 }

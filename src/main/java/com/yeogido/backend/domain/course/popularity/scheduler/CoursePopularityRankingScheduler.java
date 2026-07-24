@@ -15,6 +15,7 @@ public class CoursePopularityRankingScheduler {
 
     @Scheduled(cron = "0 0 * * * *")
     public void refreshPopularityRankings() {
+        // 조회용 인기 랭킹 갱신
         coursePopularityRankingService.refreshPopularityRankings();
     }
 }

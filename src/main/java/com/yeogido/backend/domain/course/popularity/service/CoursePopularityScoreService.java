@@ -25,6 +25,7 @@ public class CoursePopularityScoreService {
     }
 
     public Map<Long, Long> calculatePopularityScores(LocalDate baseDate) {
+        // 최근 7일 활동량 집계
         List<LocalDate> dates = recentDates(baseDate);
         Map<Long, CoursePopularityActivity> activities =
                 coursePopularityRedisRepository.getActivities(dates);
@@ -37,6 +38,7 @@ public class CoursePopularityScoreService {
     }
 
     private List<LocalDate> recentDates(LocalDate baseDate) {
+        // 최근 7일 조회 대상
         return IntStream.range(0, POPULARITY_WINDOW_DAYS)
                 .mapToObj(baseDate::minusDays)
                 .toList();

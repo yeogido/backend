@@ -6,6 +6,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class CoursePopularityScoreCalculator {
 
+    // 좋아요, 조회수 가중치
     public static final int VIEW_COUNT_WEIGHT = 4;
     public static final int LIKE_COUNT_WEIGHT = 6;
 

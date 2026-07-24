@@ -27,6 +27,8 @@ public class CourseViewCountSyncTransactionService {
             courseViewCountSyncRepository.increaseViewCount(courseId, delta);
         }
 
+        // 코스별 독립 트랜잭션
+        // 다음 동기화를 위한 기준값 갱신
         courseViewCountSyncRedisRepository.updateSyncViewCount(
                 date,
                 courseId,

@@ -34,6 +34,7 @@ public class CoursePopularityRankingRedisRepository {
     public void replaceOfficialRegionRanking(Long regionId, List<CoursePopularityRankingEntry> entries) {
         replaceRanking(officialRegionRankingKey(regionId), entries);
 
+        // 다음 재집계를 위한 지역별 Key 목록
         stringRedisTemplate.opsForSet()
                 .add(officialRegionSetKey(), regionId.toString());
     }
@@ -50,6 +51,7 @@ public class CoursePopularityRankingRedisRepository {
             return;
         }
 
+        // 이전 지역별 랭킹 Key 삭제
         List<String> keys = regionIds.stream()
                 .map(id -> officialRegionRankingKey(Long.valueOf(id)))
                 .toList();
@@ -67,8 +69,11 @@ public class CoursePopularityRankingRedisRepository {
     }
 
     private void replaceRanking(String key, List<CoursePopularityRankingEntry> entries) {
+        // 최신 집계 결과로 전체 교체
         stringRedisTemplate.delete(key);
 
+        // ZSet score를 인기 점수로 사용
+        // Pipeline으로 Redis 요청 일괄 처리
         stringRedisTemplate.executePipelined((RedisCallback<Object>) connection -> {
             byte[] redisKey = stringRedisTemplate.getStringSerializer().serialize(key);
 
@@ -93,6 +98,7 @@ public class CoursePopularityRankingRedisRepository {
             return List.of();
         }
 
+        // score 기준 인기순 조회
         Set<String> courseIds = stringRedisTemplate.opsForZSet()
                 .reverseRange(key, 0, size - 1L);
 
