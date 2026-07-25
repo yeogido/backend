@@ -1,6 +1,7 @@
 package com.yeogido.backend.domain.user.entity;
 
 import com.yeogido.backend.domain.region.entity.Region;
+import com.yeogido.backend.domain.user.enums.AgeGroup;
 import com.yeogido.backend.domain.user.enums.Gender;
 import com.yeogido.backend.domain.user.enums.UserRole;
 import com.yeogido.backend.domain.user.enums.UserStatus;
@@ -58,4 +59,8 @@ public class User extends BaseEntity {
 
     @Column(name = "profile_image", length = 255)
     private String profileImage;
+
+    public AgeGroup getAgeGroup() {
+        return AgeGroup.fromBirthYear(birthYear);
+    }
 }
