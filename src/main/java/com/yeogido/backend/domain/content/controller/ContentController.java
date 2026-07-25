@@ -54,7 +54,9 @@ public class ContentController {
             @PathVariable Long contentId,
             @AuthenticationPrincipal AuthUser authUser
     ){
-        ContentResDTO.ContentDetailRes result = contentService.getContentDetail(contentId,authUser.userId());
+        Long userId = authUser != null ? authUser.userId() : null;
+
+        ContentResDTO.ContentDetailRes result = contentService.getContentDetail(contentId,userId);
         return ApiResponse.onSuccess(SuccessCode.OK,result);
 
     }
