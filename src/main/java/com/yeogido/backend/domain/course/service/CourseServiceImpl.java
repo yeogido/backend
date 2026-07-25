@@ -322,11 +322,6 @@ public class CourseServiceImpl implements CourseService {
                 .orElseThrow(() -> new GeneralException(CourseErrorCode.COURSE_NOT_FOUND));
     }
 
-    private User getCurrentUser() {
-        return userRepository.findById(MOCK_MEMBER_ID)
-                .orElseThrow(() -> new GeneralException(GeneralErrorCode.FORBIDDEN));
-    }
-
     private void saveCreatedEventAfterCommit(Long courseId) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
             saveCreatedEvent(courseId);
