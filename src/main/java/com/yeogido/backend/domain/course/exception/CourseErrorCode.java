@@ -37,6 +37,12 @@ public enum CourseErrorCode implements ErrorCode {
             HttpStatus.BAD_REQUEST,
             "COURSE4004",
             "코스 구성 항목이 올바르지 않습니다."
+    ),
+
+    INVALID_POPULAR_COURSE_REGION(
+            HttpStatus.BAD_REQUEST,
+            "COURSE4005",
+            "LOCAL 인기 추천 코스는 지역 필터를 사용할 수 없습니다."
     );
 
     private final HttpStatus httpStatus;

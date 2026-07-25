@@ -200,7 +200,10 @@ public class CourseReqDTO {
 
             @NotNull(message = "코스 타입은 필수입니다")
             @Schema(description = "코스 타입", example = "OFFICIAL")
-            CourseType courseType
+            CourseType courseType,
+
+            @Schema(description = "지역 ID. OFFICIAL 코스에서만 사용할 수 있습니다.", example = "1")
+            Long regionId
     ) { }
 
     @Schema(name = "CourseReviewCreateRequest", description = "추천 코스 리뷰 작성 요청")

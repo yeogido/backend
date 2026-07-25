@@ -193,4 +193,23 @@ public class CourseConverter {
                 .imageOrder(imageReq.order())
                 .build();
     }
+
+    public static CourseResDTO.CoursePreview toPopularCoursePreview(
+            CourseRepository.CoursePopularProjection course,
+            String thumbnailUrl,
+            List<String> tags,
+            boolean isLiked
+    ) {
+        return new CourseResDTO.CoursePreview(
+                course.getCourseId(),
+                thumbnailUrl,
+                course.getTitle(),
+                course.getRegion(),
+                course.getDurationType(),
+                course.getTransportType(),
+                course.getCompanionType(),
+                tags,
+                isLiked
+        );
+    }
 }
