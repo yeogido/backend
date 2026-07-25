@@ -1,7 +1,7 @@
-package com.yeogido.backend.domain.course.service;
+package com.yeogido.backend.domain.course.popularity.service;
 
-import com.yeogido.backend.domain.course.repository.CourseViewCountSyncRedisRepository;
-import com.yeogido.backend.domain.course.repository.CourseViewCountSyncRepository;
+import com.yeogido.backend.domain.course.popularity.repository.CourseViewCountSyncRedisRepository;
+import com.yeogido.backend.domain.course.popularity.repository.CourseViewCountSyncRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InOrder;

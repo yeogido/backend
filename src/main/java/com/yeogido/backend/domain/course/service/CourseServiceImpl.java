@@ -11,25 +11,24 @@ import com.yeogido.backend.domain.course.entity.CourseHashtag;
 import com.yeogido.backend.domain.course.entity.CourseItem;
 import com.yeogido.backend.domain.course.entity.CourseLike;
 import com.yeogido.backend.domain.course.entity.CourseReview;
-import com.yeogido.backend.domain.course.enums.*;
-import com.yeogido.backend.domain.course.exception.CourseErrorCode;
-import com.yeogido.backend.domain.course.repository.CourseHashtagRepository;
-import com.yeogido.backend.domain.course.repository.CourseItemRepository;
-import com.yeogido.backend.domain.course.repository.CourseLikeRepository;
-import com.yeogido.backend.domain.course.repository.CourseRedisRepository;
-import com.yeogido.backend.domain.course.repository.CourseRepository;
 import com.yeogido.backend.domain.course.enums.CompanionType;
 import com.yeogido.backend.domain.course.enums.CourseItemType;
 import com.yeogido.backend.domain.course.enums.CourseType;
 import com.yeogido.backend.domain.course.enums.DurationType;
 import com.yeogido.backend.domain.course.enums.TransportType;
+import com.yeogido.backend.domain.course.exception.CourseErrorCode;
+import com.yeogido.backend.domain.course.repository.CourseHashtagRepository;
+import com.yeogido.backend.domain.course.repository.CourseItemRepository;
+import com.yeogido.backend.domain.course.repository.CourseLikeRepository;
+import com.yeogido.backend.domain.course.popularity.repository.CoursePopularityRankingRedisRepository;
+import com.yeogido.backend.domain.course.repository.CourseRedisRepository;
+import com.yeogido.backend.domain.course.repository.CourseRepository;
+import com.yeogido.backend.domain.course.repository.CourseReviewRepository;
 import com.yeogido.backend.domain.file.service.S3Service;
 import com.yeogido.backend.domain.hashtag.entity.Hashtag;
 import com.yeogido.backend.domain.hashtag.exception.HashtagErrorCode;
 import com.yeogido.backend.domain.hashtag.repository.HashtagRepository;
-import com.yeogido.backend.domain.file.service.S3Service;
 import com.yeogido.backend.domain.place.entity.Place;
-import com.yeogido.backend.domain.course.repository.CourseReviewRepository;
 import com.yeogido.backend.domain.place.service.PlaceService;
 import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.region.exception.RegionErrorCode;
@@ -44,13 +43,14 @@ import com.yeogido.backend.global.exception.GeneralErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.function.Function;
@@ -63,8 +63,7 @@ import java.util.stream.Collectors;
 public class CourseServiceImpl implements CourseService {
 
     private static final Long MOCK_MEMBER_ID = 1L;
-    private static final BigDecimal MIN_RATING = BigDecimal.ZERO;
-    private static final BigDecimal MAX_RATING = BigDecimal.valueOf(5);
+    private static final int POPULAR_COURSE_SIZE = 2;
 
     private final CourseRepository courseRepository;
     private final CourseLikeRepository courseLikeRepository;
@@ -75,6 +74,7 @@ public class CourseServiceImpl implements CourseService {
     private final ContentRepository contentRepository;
     private final CourseReviewRepository courseReviewRepository;
     private final CourseRedisRepository courseRedisRepository;
+    private final CoursePopularityRankingRedisRepository coursePopularityRankingRedisRepository;
     private final UserRepository userRepository;
     private final RegionRepository regionRepository;
     private final S3Service s3Service;
@@ -144,12 +144,44 @@ public class CourseServiceImpl implements CourseService {
     }
 
     @Override
-    public List<CourseResDTO.CoursePreview> getPopularCourses(CourseReqDTO.CoursePopularReq request) {
-        // TODO: 인기 추천 코스 미리보기 조회 로직 구현
-        return List.of(
-                createFirstMockCourse(),
-                createSecondMockCourse()
-        );
+    public List<CourseResDTO.CoursePreview> getPopularCourses(
+            CourseReqDTO.CoursePopularReq request,
+            Long userId
+    ) {
+        List<Long> courseIds = getPopularCourseIds(request);
+
+        if (courseIds.isEmpty()) {
+            courseIds = getLatestCourseIds(
+                    request.courseType(),
+                    request.regionId()
+            );
+        }
+
+        if (courseIds.isEmpty()) {
+            return List.of();
+        }
+
+        Map<Long, CourseRepository.CoursePopularProjection> courseMap =
+                courseRepository.findPopularCoursesByCourseIds(courseIds)
+                        .stream()
+                        .collect(Collectors.toMap(
+                                CourseRepository.CoursePopularProjection::getCourseId,
+                                Function.identity()
+                        ));
+
+        Map<Long, List<String>> tagMap = getPopularCourseTagMap(courseIds);
+        Set<Long> likedCourseIds = getLikedCourseIds(userId, courseIds);
+
+        return courseIds.stream()
+                .map(courseMap::get)
+                .filter(Objects::nonNull)
+                .map(course -> CourseConverter.toPopularCoursePreview(
+                        course,
+                        s3Service.getImageUrl(course.getThumbnailKey()),
+                        tagMap.getOrDefault(course.getCourseId(), List.of()),
+                        likedCourseIds.contains(course.getCourseId())
+                ))
+                .toList();
     }
 
     @Override
@@ -468,6 +500,68 @@ public class CourseServiceImpl implements CourseService {
         }
 
         return contentMap;
+    }
+
+    private List<Long> getPopularCourseIds(CourseReqDTO.CoursePopularReq request) {
+        return switch (request.courseType()) {
+            case OFFICIAL -> request.regionId() == null
+                    ? coursePopularityRankingRedisRepository.findTopOfficialCourseIds(POPULAR_COURSE_SIZE)
+                    : coursePopularityRankingRedisRepository.findTopOfficialRegionCourseIds(
+                            request.regionId(),
+                            POPULAR_COURSE_SIZE
+                    );
+            case LOCAL -> {
+                if (request.regionId() != null) {
+                    throw new GeneralException(CourseErrorCode.INVALID_POPULAR_COURSE_REGION);
+                }
+
+                yield coursePopularityRankingRedisRepository.findTopLocalCourseIds(POPULAR_COURSE_SIZE);
+            }
+        };
+    }
+
+    private Map<Long, List<String>> getPopularCourseTagMap(List<Long> courseIds) {
+        if (courseIds.isEmpty()) {
+            return Map.of();
+        }
+
+        return courseHashtagRepository.findByCourseIdIn(courseIds)
+                .stream()
+                .collect(Collectors.groupingBy(
+                        courseHashtag -> courseHashtag.getCourse().getId(),
+                        Collectors.mapping(
+                                courseHashtag -> courseHashtag.getHashtag().getHashtagName(),
+                                Collectors.toList()
+                        )
+                ));
+    }
+
+    private Set<Long> getLikedCourseIds(Long userId, List<Long> courseIds) {
+        if (userId == null || courseIds.isEmpty()) {
+            return Set.of();
+        }
+
+        return new HashSet<>(courseLikeRepository.findLikedCourseIdsByUserIdAndCourseIdIn(
+                userId,
+                courseIds
+        ));
+    }
+
+    private List<Long> getLatestCourseIds(
+            CourseType courseType,
+            Long regionId
+    ) {
+        Pageable pageable = PageRequest.of(0, 2);
+
+        if (courseType == CourseType.LOCAL) {
+            return courseRepository.findLatestLocalCourseIds(pageable);
+        }
+
+        if (regionId == null) {
+            return courseRepository.findLatestOfficialCourseIds(pageable);
+        }
+
+        return courseRepository.findLatestOfficialRegionCourseIds(regionId, pageable);
     }
 
     private CourseResDTO.CoursePreview createFirstMockCourse() {

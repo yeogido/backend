@@ -1,4 +1,4 @@
-package com.yeogido.backend.domain.course.repository;
+package com.yeogido.backend.domain.course.popularity.repository;
 
 import com.yeogido.backend.global.redis.RedisKey;
 import lombok.RequiredArgsConstructor;
@@ -35,10 +35,12 @@ public class CourseViewCountSyncRedisRepository {
     public void updateSyncViewCount(LocalDate date, Long courseId, long viewCount) {
         String key = syncKey(date);
         stringRedisTemplate.opsForZSet().add(key, courseId.toString(), viewCount);
+        // 최근 7일 기준값 유지
         stringRedisTemplate.expire(key, TTL);
     }
 
     private Map<Long, Long> getViewCounts(String key) {
+        // 활동량과 Sync 기준값의 delta 계산
         Set<ZSetOperations.TypedTuple<String>> tuples = stringRedisTemplate.opsForZSet()
                 .rangeWithScores(key, 0, -1);
 
@@ -55,10 +57,12 @@ public class CourseViewCountSyncRedisRepository {
     }
 
     private String activityKey(LocalDate date) {
+        // 활동량 원본 Key
         return RedisKey.dated(DOMAIN, ACTIVITY, date, VIEWS);
     }
 
     private String syncKey(LocalDate date) {
+        // 날짜별 Sync 기준값 Key
         return RedisKey.dated(DOMAIN, VIEW_SYNC, date);
     }
 }

@@ -1,6 +1,6 @@
-package com.yeogido.backend.domain.course.scheduler;
+package com.yeogido.backend.domain.course.popularity.scheduler;
 
-import com.yeogido.backend.domain.course.service.CourseViewCountSyncService;
+import com.yeogido.backend.domain.course.popularity.service.CourseViewCountSyncService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Profile;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -15,6 +15,7 @@ public class CourseViewCountSyncScheduler {
 
     @Scheduled(cron = "0 0 * * * *")
     public void syncCourseViewCounts() {
+        // Redis 조회수 배치 동기화
         courseViewCountSyncService.syncRecentViewCounts();
     }
 }

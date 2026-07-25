@@ -1,4 +1,4 @@
-package com.yeogido.backend.domain.course.repository;
+package com.yeogido.backend.domain.course.popularity.repository;
 
 import com.yeogido.backend.domain.course.entity.Course;
 import jakarta.transaction.Transactional;
@@ -9,6 +9,8 @@ import org.springframework.data.repository.query.Param;
 
 public interface CourseViewCountSyncRepository extends JpaRepository<Course, Long> {
 
+    // Redis 누적 조회수(delta)만 반영
+    // 삭제된 코스 제외
     @Modifying
     @Transactional
     @Query("""
