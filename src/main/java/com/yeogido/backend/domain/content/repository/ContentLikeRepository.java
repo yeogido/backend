@@ -19,5 +19,7 @@ public interface ContentLikeRepository extends JpaRepository<ContentLike,Long> {
 
     Optional<ContentLike> findByUserAndContent(User user, Content content);
 
+    void deleteByContent(Content content);
+
 
 }

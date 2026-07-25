@@ -16,10 +16,13 @@ public interface ContentService {
     ContentResDTO.ContentDetailRes getContentDetail(Long contentId);
 
     //문화콘텐츠 등록
-    ContentResDTO.ContentCreateRes createContent(ContentReqDTO.ContentCreateReq request);
+    ContentResDTO.ContentCreateRes createContent(ContentReqDTO.ContentCreateReq request, Long userId);
 
     //문화콘텐츠 수정
-    ContentResDTO.ContentUpdateRes updateContent(Long contentId, ContentReqDTO.ContentCreateReq request);
+    ContentResDTO.ContentUpdateRes updateContent(Long contentId, ContentReqDTO.ContentCreateReq request, Long userId);
+
+    //문화콘텐츠 삭제
+    void deleteContent(Long contentId, Long userId);
 
     //문화콘텐츠 추천 대표 행사
     List<ContentResDTO.BannerRes> getBannerContents();
