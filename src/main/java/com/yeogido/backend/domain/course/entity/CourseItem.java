@@ -52,4 +52,9 @@ public class CourseItem extends BaseEntity {
 
     @Column(name = "image_key", length = 255)
     private String imageKey;
+
+    public void updateOrderNo(Integer orderNo) {
+        this.orderNo = orderNo;
+    }
 }
+

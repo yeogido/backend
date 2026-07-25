@@ -20,4 +20,5 @@ public interface ContentHashtagRepository extends JpaRepository<ContentHashtag,L
     List<ContentHashtag> findByContent(Content content);
 
     List<ContentHashtag> findByContentIdIn(List<Long> courseIds);
+    void deleteByContent(Content content);
 }

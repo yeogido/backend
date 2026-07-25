@@ -14,6 +14,14 @@ public interface CourseHashtagRepository extends JpaRepository<CourseHashtag, Lo
     @EntityGraph(attributePaths = "hashtag")
     List<CourseHashtag> findByCourseId(Long courseId);
 
+    @Query("""
+            select ch
+            from CourseHashtag ch
+            join fetch ch.hashtag
+            where ch.course.id in :courseIds
+            """)
+    List<CourseHashtag> findByCourseIdIn(@Param("courseIds") List<Long> courseIds);
+
     @Modifying
     @Query("delete from CourseHashtag ch where ch.course.id = :courseId")
     void deleteAllByCourseId(@Param("courseId") Long courseId);
