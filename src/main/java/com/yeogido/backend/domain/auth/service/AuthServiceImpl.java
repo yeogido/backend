@@ -70,12 +70,18 @@ public class AuthServiceImpl implements AuthService {
   }
 
   @Override
+  @Transactional(readOnly = true)
   public AuthResDTO.Token login(AuthReqDTO.Login request) {
-    return new AuthResDTO.Token(
-      1L,
-      "mock_access_token_for_" + request.email(),
-      "mock_refresh_token_for_" + request.email()
-    );
+    User user = userRepository.findByEmail(request.email())
+      .filter(foundUser -> foundUser.getStatus() == UserStatus.ACTIVE)
+      .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
+
+    if (!StringUtils.hasText(user.getPassword())
+      || !passwordEncoder.matches(request.password(), user.getPassword())) {
+      throw new GeneralException(AuthErrorCode.PASSWORD_MISMATCH);
+    }
+
+    return jwtTokenProvider.issueToken(user);
   }
 
   @Override
@@ -153,8 +159,9 @@ public class AuthServiceImpl implements AuthService {
   }
 
   @Override
+  @Transactional(readOnly = true)
   public AuthResDTO.EmailCheck checkEmail(String email) {
-    return new AuthResDTO.EmailCheck(true);
+    return new AuthResDTO.EmailCheck(!userRepository.existsByEmail(email));
   }
 
   @Override

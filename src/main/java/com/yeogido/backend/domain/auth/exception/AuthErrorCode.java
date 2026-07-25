@@ -39,6 +39,12 @@ public enum AuthErrorCode implements ErrorCode {
     "이미 가입된 소셜 계정입니다."
   ),
 
+  PASSWORD_MISMATCH(
+    HttpStatus.UNAUTHORIZED,
+    "AUTH4012",
+    "비밀번호가 일치하지 않습니다."
+  ),
+
   LOGIN_REQUIRED(
     HttpStatus.UNAUTHORIZED,
     "AUTH4011",
