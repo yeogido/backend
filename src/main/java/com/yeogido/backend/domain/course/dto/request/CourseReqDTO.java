@@ -212,6 +212,7 @@ public class CourseReqDTO {
             @Schema(description = "별점", example = "5")
             Integer rating,
 
+            @Size(max = 300, message = "리뷰 내용은 최대 300자까지 입력할 수 있습니다.")
             @Schema(description = "리뷰 내용", example = "지도 동선이 편하고 여행하기 좋았습니다.")
             String content,
 
