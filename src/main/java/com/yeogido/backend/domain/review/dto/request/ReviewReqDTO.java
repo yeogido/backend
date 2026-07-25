@@ -36,7 +36,7 @@ public class ReviewReqDTO {
             @Schema(description = "별점", example = "4")
             Integer rating,
 
-            @NotBlank(message = "리뷰 내용은 필수입니다.")
+            @Size(max = 300, message = "리뷰 내용은 최대 300자까지 입력할 수 있습니다.")
             @Schema(description = "리뷰 내용", example = "동선이 편해서 여행하기 좋았습니다. 다음에도 이용하고 싶어요.")
             String content,
 

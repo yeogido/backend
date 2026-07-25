@@ -9,6 +9,12 @@ import org.springframework.http.HttpStatus;
 @RequiredArgsConstructor
 public enum ReviewErrorCode implements ErrorCode {
 
+    DUPLICATE_REVIEW_IMAGE_ORDER(
+            HttpStatus.BAD_REQUEST,
+            "REVIEW4001",
+            "리뷰 이미지 순서는 중복될 수 없습니다."
+    ),
+
     REVIEW_ACCESS_DENIED(
             HttpStatus.FORBIDDEN,
             "REVIEW4031",

@@ -41,6 +41,9 @@ public class CourseReview extends BaseEntity {
 
     public void update(Integer rating, String content) {
         this.rating = rating;
-        this.content = content;
+
+        if (content != null) {
+            this.content = content;
+        }
     }
 }

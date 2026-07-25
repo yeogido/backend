@@ -202,7 +202,7 @@ public class ReviewServiceImpl implements ReviewService {
 
         for (ReviewReqDTO.ReviewImageRequest image : images) {
             if (!imageOrders.add(image.imageOrder())) {
-                throw new GeneralException(GeneralErrorCode.INVALID_REQUEST);
+                throw new GeneralException(ReviewErrorCode.DUPLICATE_REVIEW_IMAGE_ORDER);
             }
         }
     }
