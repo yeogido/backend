@@ -200,7 +200,10 @@ public class CourseReqDTO {
 
             @NotNull(message = "코스 타입은 필수입니다")
             @Schema(description = "코스 타입", example = "OFFICIAL")
-            CourseType courseType
+            CourseType courseType,
+
+            @Schema(description = "지역 ID. OFFICIAL 코스에서만 사용할 수 있습니다.", example = "1")
+            Long regionId
     ) { }
 
     @Schema(name = "CourseReviewCreateRequest", description = "추천 코스 리뷰 작성 요청")
@@ -212,7 +215,25 @@ public class CourseReqDTO {
             @Schema(description = "별점", example = "5")
             Integer rating,
 
+            @Size(max = 300, message = "리뷰 내용은 최대 300자까지 입력할 수 있습니다.")
             @Schema(description = "리뷰 내용", example = "지도 동선이 편하고 여행하기 좋았습니다.")
-            String content
+            String content,
+
+            @Valid
+            @Size(max = 5, message = "리뷰 이미지는 최대 5장까지 등록할 수 있습니다.")
+            @Schema(description = "리뷰 이미지 목록 (선택, 최대 5개)", nullable = true)
+            List<@NotNull(message = "리뷰 이미지 정보가 올바르지 않습니다.") ReviewImageReq> images
+    ) { }
+
+    @Schema(name = "CourseReviewImageRequest", description = "추천 코스 리뷰 이미지 요청")
+    public record ReviewImageReq(
+            @NotBlank(message = "이미지 key는 필수입니다.")
+            @Schema(description = "리뷰 이미지 S3 key", example = "reviews/abc.jpg")
+            String imageKey,
+
+            @NotNull(message = "이미지 순서는 필수입니다.")
+            @Min(value = 1, message = "이미지 순서는 1 이상이어야 합니다.")
+            @Schema(description = "리뷰 이미지 순서", example = "1")
+            Integer order
     ) { }
 }

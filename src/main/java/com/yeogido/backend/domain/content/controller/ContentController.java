@@ -8,10 +8,12 @@ import com.yeogido.backend.global.common.code.SuccessCode;
 import com.yeogido.backend.global.common.response.ApiResponse;
 import com.yeogido.backend.global.common.response.CursorResponse;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import com.yeogido.backend.domain.auth.security.AuthUser;
@@ -67,10 +69,11 @@ public class ContentController {
     )
     @PostMapping
     public ApiResponse<ContentResDTO.ContentCreateRes> createContent(
-            @RequestBody @Valid ContentReqDTO.ContentCreateReq request
+            @RequestBody @Valid ContentReqDTO.ContentCreateReq request,
+            @AuthenticationPrincipal AuthUser authUser
 
     ){
-        ContentResDTO.ContentCreateRes result = contentService.createContent(request);
+        ContentResDTO.ContentCreateRes result = contentService.createContent(request, authUser.userId());
         return ApiResponse.onSuccess(SuccessCode.CREATED, result);
     }
 
@@ -83,10 +86,26 @@ public class ContentController {
     @PatchMapping("/{contentId}")
     public ApiResponse<ContentResDTO.ContentUpdateRes> updateContent(
             @PathVariable Long contentId,
-            @RequestBody @Valid ContentReqDTO.ContentCreateReq request
+            @RequestBody @Valid ContentReqDTO.ContentCreateReq request,
+            @AuthenticationPrincipal AuthUser authUser
     ){
-        ContentResDTO.ContentUpdateRes result = contentService.updateContent(contentId,request);
+        ContentResDTO.ContentUpdateRes result = contentService.updateContent(contentId,request, authUser.userId());
         return ApiResponse.onSuccess(SuccessCode.OK,result);
+    }
+
+    // 문화콘텐츠 삭제
+    @Operation(
+            summary = "문화콘텐츠 삭제",
+            description = "문화콘텐츠를 삭제합니다."
+    )
+    @DeleteMapping("/{contentId}")
+    public ApiResponse<Void> deleteContent(
+            @PathVariable Long contentId,
+            @AuthenticationPrincipal AuthUser authUser
+    ){
+        contentService.deleteContent(contentId, authUser.userId());
+
+        return ApiResponse.onSuccess(SuccessCode.OK, null);
     }
 
 

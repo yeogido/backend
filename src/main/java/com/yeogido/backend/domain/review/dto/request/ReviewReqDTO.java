@@ -7,7 +7,6 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import java.util.List;
 
@@ -16,11 +15,11 @@ public class ReviewReqDTO {
     @Schema(name = "ReviewListRequest", description = "최근 후기 목록 조회 요청")
     public record ListRequest(
             @Schema(description = "마지막으로 조회한 리뷰 ID", example = "101")
-            @Positive(message = "cursor는 양수여야 합니다.")
+            @Min(value = 1, message = "cursor는 1 이상이어야 합니다.")
             Long cursor,
 
             @Schema(description = "조회할 리뷰 개수", example = "10", defaultValue = "10")
-            @Positive(message = "size는 양수여야 합니다.")
+            @Min(value = 1, message = "size는 1 이상이어야 합니다.")
             Integer size,
 
             @Schema(description = "정렬 기준", example = "LATEST", allowableValues = {"LATEST", "RATING"}, defaultValue = "LATEST")
@@ -54,7 +53,7 @@ public class ReviewReqDTO {
             String imageKey,
 
             @NotNull(message = "이미지 순서는 필수입니다.")
-            @Positive(message = "이미지 순서는 양수여야 합니다.")
+            @Min(value = 1, message = "이미지 순서는 1 이상이어야 합니다.")
             @Schema(description = "리뷰 이미지 순서", example = "1")
             Integer imageOrder
     ) {

@@ -19,7 +19,14 @@ public enum UserErrorCode implements ErrorCode {
     HttpStatus.NOT_FOUND,
     "USER4041",
     "존재하지 않는 회원입니다."
+  ),
+
+  FORBIDDEN(
+          HttpStatus.FORBIDDEN,
+        "USER4031",
+                "관리자 권한이 필요합니다."
   );
+
 
   private final HttpStatus httpStatus;
   private final String code;

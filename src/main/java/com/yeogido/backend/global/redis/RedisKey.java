@@ -5,6 +5,9 @@ import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.Objects;
 
+/**
+ * Redis key를 domain:scope:date:detail 형태로 생성
+ */
 public final class RedisKey {
 
     private static final String DELIMITER = ":";
@@ -32,6 +35,7 @@ public final class RedisKey {
 
         String[] dateParts = new String[parts.length + 2];
         dateParts[0] = scope;
+        // 날짜별 Key 구성
         dateParts[1] = DATE_FORMATTER.format(date);
         System.arraycopy(parts, 0, dateParts, 2, parts.length);
 
@@ -59,6 +63,7 @@ public final class RedisKey {
         }
 
         if (part.contains(DELIMITER)) {
+            // Prefix 조회를 위한 구분자 제한
             throw new IllegalArgumentException("Redis key part must not contain ':'");
         }
 

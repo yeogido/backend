@@ -6,20 +6,18 @@ import com.yeogido.backend.domain.content.repository.ContentRepository;
 import com.yeogido.backend.domain.course.converter.CourseConverter;
 import com.yeogido.backend.domain.course.dto.request.CourseReqDTO;
 import com.yeogido.backend.domain.course.dto.response.CourseResDTO;
-import com.yeogido.backend.domain.course.entity.Course;
-import com.yeogido.backend.domain.course.entity.CourseHashtag;
-import com.yeogido.backend.domain.course.entity.CourseItem;
-import com.yeogido.backend.domain.course.entity.CourseLike;
-import com.yeogido.backend.domain.course.entity.CourseReview;
+import com.yeogido.backend.domain.course.entity.*;
 import com.yeogido.backend.domain.course.enums.CompanionType;
 import com.yeogido.backend.domain.course.enums.CourseItemType;
 import com.yeogido.backend.domain.course.enums.CourseType;
 import com.yeogido.backend.domain.course.enums.DurationType;
 import com.yeogido.backend.domain.course.enums.TransportType;
 import com.yeogido.backend.domain.course.exception.CourseErrorCode;
+import com.yeogido.backend.domain.course.repository.*;
 import com.yeogido.backend.domain.course.repository.CourseHashtagRepository;
 import com.yeogido.backend.domain.course.repository.CourseItemRepository;
 import com.yeogido.backend.domain.course.repository.CourseLikeRepository;
+import com.yeogido.backend.domain.course.popularity.repository.CoursePopularityRankingRedisRepository;
 import com.yeogido.backend.domain.course.repository.CourseRedisRepository;
 import com.yeogido.backend.domain.course.repository.CourseRepository;
 import com.yeogido.backend.domain.course.repository.CourseReviewRepository;
@@ -32,6 +30,7 @@ import com.yeogido.backend.domain.place.service.PlaceService;
 import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.region.exception.RegionErrorCode;
 import com.yeogido.backend.domain.region.repository.RegionRepository;
+import com.yeogido.backend.domain.review.exception.ReviewErrorCode;
 import com.yeogido.backend.domain.user.entity.User;
 import com.yeogido.backend.domain.user.enums.UserRole;
 import com.yeogido.backend.domain.user.enums.UserStatus;
@@ -42,6 +41,8 @@ import com.yeogido.backend.global.exception.GeneralErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -60,28 +61,38 @@ import java.util.stream.Collectors;
 public class CourseServiceImpl implements CourseService {
 
     private static final Long MOCK_MEMBER_ID = 1L;
+    private static final int POPULAR_COURSE_SIZE = 2;
 
     private final CourseRepository courseRepository;
     private final CourseLikeRepository courseLikeRepository;
     private final CourseHashtagRepository courseHashtagRepository;
     private final CourseItemRepository courseItemRepository;
+    private final CourseReviewImageRepository courseReviewImageRepository;
     private final HashtagRepository hashtagRepository;
     private final PlaceService placeService;
     private final ContentRepository contentRepository;
     private final CourseReviewRepository courseReviewRepository;
     private final CourseRedisRepository courseRedisRepository;
+    private final CoursePopularityRankingRedisRepository coursePopularityRankingRedisRepository;
     private final UserRepository userRepository;
     private final RegionRepository regionRepository;
     private final S3Service s3Service;
 
     @Override
     @Transactional
-    public CourseResDTO.CourseIdRes createCourse(CourseReqDTO.CourseCreateReq request) {
+    public CourseResDTO.CourseIdRes createCourse(Long userId, CourseReqDTO.CourseCreateReq request) {
         validateCourseCreateRequest(request);
 
-        User user = getCurrentUser();
+        User user = getCurrentUser(userId);
         Region courseRegion = getRegion(request.regionId());
-        Course course = courseRepository.save(CourseConverter.toCourse(request, user, courseRegion));
+
+        CourseType courseType = (user.getRole() == UserRole.ADMIN)
+                ? CourseType.OFFICIAL
+                : CourseType.LOCAL;
+
+        Course course = courseRepository.save(
+                CourseConverter.toCourse(request, user, courseRegion, courseType)
+        );
 
         saveCourseHashtags(course, request.hashtagIds());
         saveCourseItems(course, request.courseItems());
@@ -92,9 +103,9 @@ public class CourseServiceImpl implements CourseService {
 
     @Override
     @Transactional
-    public CourseResDTO.CourseIdRes updateCourse(Long courseId, CourseReqDTO.CourseUpdateReq request) {
+    public CourseResDTO.CourseIdRes updateCourse(Long userId, Long courseId, CourseReqDTO.CourseUpdateReq request) {
         Course course = getActiveCourse(courseId);
-        User user = getCurrentUser();
+        User user = getCurrentUser(userId);
 
         validateCourseAuthority(course, user);
         validateCourseUpdateRequest(request);
@@ -123,9 +134,9 @@ public class CourseServiceImpl implements CourseService {
 
     @Override
     @Transactional
-    public void deleteCourse(Long courseId) {
+    public void deleteCourse(Long userId, Long courseId) {
         Course course = getActiveCourse(courseId);
-        User user = getCurrentUser();
+        User user = getCurrentUser(userId);
 
         validateCourseAuthority(course, user);
 
@@ -139,23 +150,54 @@ public class CourseServiceImpl implements CourseService {
     }
 
     @Override
-    public List<CourseResDTO.CoursePreview> getPopularCourses(CourseReqDTO.CoursePopularReq request) {
-        // TODO: 인기 추천 코스 미리보기 조회 로직 구현
-        return List.of(
-                createFirstMockCourse(),
-                createSecondMockCourse()
-        );
+    public List<CourseResDTO.CoursePreview> getPopularCourses(
+            CourseReqDTO.CoursePopularReq request,
+            Long userId
+    ) {
+        List<Long> courseIds = getPopularCourseIds(request);
+
+        if (courseIds.isEmpty()) {
+            courseIds = getLatestCourseIds(
+                    request.courseType(),
+                    request.regionId()
+            );
+        }
+
+        if (courseIds.isEmpty()) {
+            return List.of();
+        }
+
+        Map<Long, CourseRepository.CoursePopularProjection> courseMap =
+                courseRepository.findPopularCoursesByCourseIds(courseIds)
+                        .stream()
+                        .collect(Collectors.toMap(
+                                CourseRepository.CoursePopularProjection::getCourseId,
+                                Function.identity()
+                        ));
+
+        Map<Long, List<String>> tagMap = getPopularCourseTagMap(courseIds);
+        Set<Long> likedCourseIds = getLikedCourseIds(userId, courseIds);
+
+        return courseIds.stream()
+                .map(courseMap::get)
+                .filter(Objects::nonNull)
+                .map(course -> CourseConverter.toPopularCoursePreview(
+                        course,
+                        s3Service.getImageUrl(course.getThumbnailKey()),
+                        tagMap.getOrDefault(course.getCourseId(), List.of()),
+                        likedCourseIds.contains(course.getCourseId())
+                ))
+                .toList();
     }
 
     @Override
-    public CourseResDTO.CourseDetail getCourseDetail(Long courseId) {
+    public CourseResDTO.CourseDetail getCourseDetail(Long courseId, Long userId) {
         Course course = courseRepository.findCourseDetailByIdAndDeletedAtIsNull(courseId)
                 .orElseThrow(() -> new GeneralException(CourseErrorCode.COURSE_NOT_FOUND));
 
         courseRedisRepository.increaseViewCount(courseId, LocalDate.now());
 
-        // TODO: Spring Security 적용 후 인증 사용자 ID로 교체
-        boolean isLiked = courseLikeRepository.existsByUserIdAndCourseId(MOCK_MEMBER_ID, courseId);
+        boolean isLiked = (userId != null) && courseLikeRepository.existsByUserIdAndCourseId(userId, courseId);
 
         List<String> tags = courseHashtagRepository.findByCourseId(courseId).stream()
                 .map(courseHashtag -> courseHashtag.getHashtag().getHashtagName())
@@ -197,31 +239,33 @@ public class CourseServiceImpl implements CourseService {
 
     @Override
     @Transactional
-    public CourseResDTO.ReviewCreateRes createCourseReview(Long courseId, CourseReqDTO.ReviewCreateReq request) {
+    public CourseResDTO.ReviewCreateRes createCourseReview(Long userId, Long courseId, CourseReqDTO.ReviewCreateReq request) {
         Course course = getActiveCourse(courseId);
+        User user = getCurrentUser(userId);
 
-        // TODO: Spring Security 적용 후 로그인 사용자 정보로 변경
-        User user = userRepository.getReferenceById(MOCK_MEMBER_ID);
+        validateReviewImages(request.images());
 
-        CourseReview review = CourseReview.builder()
-                .user(user)
-                .course(course)
-                .rating(request.rating())
-                .content(request.content())
-                .build();
-
+        // 리뷰 엔티티 생성 및 저장
+        CourseReview review = CourseConverter.toCourseReview(request, user, course);
         CourseReview savedReview = courseReviewRepository.save(review);
+
+        // 리뷰 이미지 저장 (선택)
+        if (request.images() != null && !request.images().isEmpty()) {
+            List<CourseReviewImage> reviewImages = request.images().stream()
+                    .map(imgReq -> CourseConverter.toCourseReviewImage(savedReview, imgReq))
+                    .toList();
+
+            courseReviewImageRepository.saveAll(reviewImages);
+        }
 
         return new CourseResDTO.ReviewCreateRes(savedReview.getId());
     }
 
     @Override
     @Transactional
-    public CourseResDTO.CourseLikeRes createCourseLike(Long courseId) {
+    public CourseResDTO.CourseLikeRes createCourseLike(Long userId, Long courseId) {
         Course course = getActiveCourse(courseId);
-
-        // TODO: Spring Security 적용 후 로그인 사용자 정보로 변경
-        User user = userRepository.getReferenceById(MOCK_MEMBER_ID);
+        User user = getCurrentUser(userId);
 
         if (!courseLikeRepository.existsByUserIdAndCourseId(user.getId(), courseId)) {
             CourseLike courseLike = CourseConverter.toCourseLike(user, course);
@@ -238,11 +282,9 @@ public class CourseServiceImpl implements CourseService {
 
     @Override
     @Transactional
-    public CourseResDTO.CourseLikeRes deleteCourseLike(Long courseId) {
+    public CourseResDTO.CourseLikeRes deleteCourseLike(Long userId, Long courseId) {
         getActiveCourse(courseId);
-
-        // TODO: Spring Security 적용 후 로그인 사용자 정보로 변경
-        User user = userRepository.getReferenceById(MOCK_MEMBER_ID);
+        User user = getCurrentUser(userId);
 
         courseLikeRepository.findByUserIdAndCourseId(user.getId(), courseId)
                 .ifPresent(courseLike -> {
@@ -256,14 +298,28 @@ public class CourseServiceImpl implements CourseService {
         );
     }
 
+    private void validateReviewImages(List<CourseReqDTO.ReviewImageReq> images) {
+        if (images == null || images.isEmpty()) {
+            return;
+        }
+
+        Set<Integer> imageOrders = new HashSet<>();
+        for (CourseReqDTO.ReviewImageReq image : images) {
+            if (!imageOrders.add(image.order())) {
+                throw new GeneralException(ReviewErrorCode.DUPLICATE_IMAGE_ORDER);
+            }
+        }
+
+        for (int order = 1; order <= images.size(); order++) {
+            if (!imageOrders.contains(order)) {
+                throw new GeneralException(ReviewErrorCode.INVALID_IMAGE_ORDER);
+            }
+        }
+    }
+
     private Course getActiveCourse(Long courseId) {
         return courseRepository.findByIdAndDeletedAtIsNull(courseId)
                 .orElseThrow(() -> new GeneralException(CourseErrorCode.COURSE_NOT_FOUND));
-    }
-
-    private User getCurrentUser() {
-        return userRepository.findById(MOCK_MEMBER_ID)
-                .orElseThrow(() -> new GeneralException(GeneralErrorCode.FORBIDDEN));
     }
 
     private void saveCreatedEventAfterCommit(Long courseId) {
@@ -463,6 +519,68 @@ public class CourseServiceImpl implements CourseService {
         }
 
         return contentMap;
+    }
+
+    private List<Long> getPopularCourseIds(CourseReqDTO.CoursePopularReq request) {
+        return switch (request.courseType()) {
+            case OFFICIAL -> request.regionId() == null
+                    ? coursePopularityRankingRedisRepository.findTopOfficialCourseIds(POPULAR_COURSE_SIZE)
+                    : coursePopularityRankingRedisRepository.findTopOfficialRegionCourseIds(
+                            request.regionId(),
+                            POPULAR_COURSE_SIZE
+                    );
+            case LOCAL -> {
+                if (request.regionId() != null) {
+                    throw new GeneralException(CourseErrorCode.INVALID_POPULAR_COURSE_REGION);
+                }
+
+                yield coursePopularityRankingRedisRepository.findTopLocalCourseIds(POPULAR_COURSE_SIZE);
+            }
+        };
+    }
+
+    private Map<Long, List<String>> getPopularCourseTagMap(List<Long> courseIds) {
+        if (courseIds.isEmpty()) {
+            return Map.of();
+        }
+
+        return courseHashtagRepository.findByCourseIdIn(courseIds)
+                .stream()
+                .collect(Collectors.groupingBy(
+                        courseHashtag -> courseHashtag.getCourse().getId(),
+                        Collectors.mapping(
+                                courseHashtag -> courseHashtag.getHashtag().getHashtagName(),
+                                Collectors.toList()
+                        )
+                ));
+    }
+
+    private Set<Long> getLikedCourseIds(Long userId, List<Long> courseIds) {
+        if (userId == null || courseIds.isEmpty()) {
+            return Set.of();
+        }
+
+        return new HashSet<>(courseLikeRepository.findLikedCourseIdsByUserIdAndCourseIdIn(
+                userId,
+                courseIds
+        ));
+    }
+
+    private List<Long> getLatestCourseIds(
+            CourseType courseType,
+            Long regionId
+    ) {
+        Pageable pageable = PageRequest.of(0, 2);
+
+        if (courseType == CourseType.LOCAL) {
+            return courseRepository.findLatestLocalCourseIds(pageable);
+        }
+
+        if (regionId == null) {
+            return courseRepository.findLatestOfficialCourseIds(pageable);
+        }
+
+        return courseRepository.findLatestOfficialRegionCourseIds(regionId, pageable);
     }
 
     private CourseResDTO.CoursePreview createFirstMockCourse() {

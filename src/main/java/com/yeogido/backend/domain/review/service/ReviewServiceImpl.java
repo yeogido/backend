@@ -184,7 +184,7 @@ public class ReviewServiceImpl implements ReviewService {
             return;
         }
 
-        validateDuplicateImageOrder(images);
+        validateImageOrder(images);
 
         courseReviewImageRepository.deleteAllByCourseReview_Id(review.getId());
 
@@ -197,12 +197,18 @@ public class ReviewServiceImpl implements ReviewService {
         );
     }
 
-    private void validateDuplicateImageOrder(List<ReviewReqDTO.ReviewImageRequest> images) {
+    private void validateImageOrder(List<ReviewReqDTO.ReviewImageRequest> images) {
         Set<Integer> imageOrders = new HashSet<>();
 
         for (ReviewReqDTO.ReviewImageRequest image : images) {
             if (!imageOrders.add(image.imageOrder())) {
-                throw new GeneralException(ReviewErrorCode.DUPLICATE_REVIEW_IMAGE_ORDER);
+                throw new GeneralException(ReviewErrorCode.DUPLICATE_IMAGE_ORDER);
+            }
+        }
+
+        for (int order = 1; order <= images.size(); order++) {
+            if (!imageOrders.contains(order)) {
+                throw new GeneralException(ReviewErrorCode.INVALID_IMAGE_ORDER);
             }
         }
     }

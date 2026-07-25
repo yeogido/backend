@@ -20,6 +20,7 @@ import com.yeogido.backend.domain.content.enums.ContentSource;
 import com.yeogido.backend.domain.content.exception.ContentErrorCode;
 import com.yeogido.backend.domain.content.repository.ContentHashtagRepository;
 import com.yeogido.backend.domain.content.repository.ContentRepository;
+import com.yeogido.backend.domain.course.entity.CourseItem;
 import com.yeogido.backend.domain.hashtag.entity.Hashtag;
 import com.yeogido.backend.domain.hashtag.exception.HashtagErrorCode;
 import com.yeogido.backend.domain.hashtag.repository.HashtagRepository;
@@ -32,12 +33,14 @@ import com.yeogido.backend.domain.course.entity.Course;
 import com.yeogido.backend.domain.course.repository.CourseItemRepository;
 import com.yeogido.backend.domain.course.repository.CourseLikeRepository;
 import com.yeogido.backend.domain.user.entity.User;
+import com.yeogido.backend.domain.user.enums.UserRole;
 import com.yeogido.backend.domain.user.exception.UserErrorCode;
 import com.yeogido.backend.domain.user.repository.UserRepository;
 
 import com.yeogido.backend.global.common.response.CursorResponse;
 import com.yeogido.backend.global.exception.GeneralErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
+import jdk.jshell.spi.ExecutionControl;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -70,6 +73,7 @@ public class ContentServiceImpl implements ContentService{
     private final CourseItemRepository courseItemRepository;
     private final CourseLikeRepository courseLikeRepository;
     private final UserRepository userRepository;
+
 
     @Override
     public CursorResponse<ContentResDTO.ContentInfo> getContents(ContentReqDTO.ContentListReq request){
@@ -499,7 +503,14 @@ public class ContentServiceImpl implements ContentService{
 
     @Override
     @Transactional
-    public ContentResDTO.ContentCreateRes createContent(ContentReqDTO.ContentCreateReq request) {
+    public ContentResDTO.ContentCreateRes createContent(ContentReqDTO.ContentCreateReq request, Long userId) {
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
+
+        if (user.getRole() != UserRole.ADMIN) {
+            throw new GeneralException(GeneralErrorCode.FORBIDDEN);
+        }
 
         Place place = placeService.getOrCreatePlace(request.place());
 
@@ -530,7 +541,15 @@ public class ContentServiceImpl implements ContentService{
 
     @Transactional
     @Override
-    public ContentResDTO.ContentUpdateRes updateContent(Long contentId, ContentReqDTO.ContentCreateReq request){
+    public ContentResDTO.ContentUpdateRes updateContent(Long contentId, ContentReqDTO.ContentCreateReq request, Long userId){
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
+
+        if (user.getRole() != UserRole.ADMIN) {
+            throw new GeneralException(GeneralErrorCode.FORBIDDEN);
+        }
+
         Content content = contentRepository.findById(contentId)
                 .orElseThrow(() -> new GeneralException(ContentErrorCode.CONTENT_NOT_FOUND));
 
@@ -572,6 +591,47 @@ public class ContentServiceImpl implements ContentService{
 
         return new ContentResDTO.ContentUpdateRes(content.getId());
     }
+
+
+    @Override
+    @Transactional
+    public void deleteContent(Long contentId, Long userId) {
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
+
+        if (user.getRole() != UserRole.ADMIN) {
+            throw new GeneralException(GeneralErrorCode.FORBIDDEN);
+        }
+
+        Content content = contentRepository.findById(contentId)
+                .orElseThrow(() -> new GeneralException(ContentErrorCode.CONTENT_NOT_FOUND));
+
+        List<CourseItem> courseItems =
+                courseItemRepository.findByContentOrderByOrderNoAsc(content);
+
+        for (CourseItem courseItem : courseItems) {
+
+            Long courseId = courseItem.getCourse().getId();
+            Integer deletedOrder = courseItem.getOrderNo();
+
+            courseItemRepository.delete(courseItem);
+
+            List<CourseItem> remainItems =
+                    courseItemRepository.findByCourseIdOrderByOrderNoAsc(courseId);
+
+            for (CourseItem item : remainItems) {
+                if (item.getOrderNo() > deletedOrder) {
+                    item.updateOrderNo(item.getOrderNo() - 1);
+                }
+            }
+        }
+
+        contentHashtagRepository.deleteByContent(content);
+        contentLikeRepository.deleteByContent(content);
+        contentRepository.delete(content);
+    }
+
 
     @Override
     public ContentResDTO.ContentLikeRes likeContent(Long contentId, Long userId){

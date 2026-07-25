@@ -10,15 +10,7 @@ import lombok.*;
 @Builder
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
-@Table(
-        name = "course_review",
-        uniqueConstraints = {
-                @UniqueConstraint(
-                        name = "uk_course_review_user_course",
-                        columnNames = {"user_id", "course_id"}
-                )
-        }
-)
+@Table(name = "course_review")
 public class CourseReview extends BaseEntity {
 
     @Id
