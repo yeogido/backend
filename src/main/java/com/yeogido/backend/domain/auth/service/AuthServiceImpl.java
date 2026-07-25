@@ -20,6 +20,8 @@ import com.yeogido.backend.domain.user.exception.UserErrorCode;
 import com.yeogido.backend.domain.user.repository.UserRepository;
 import com.yeogido.backend.global.exception.GeneralException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -35,19 +37,51 @@ public class AuthServiceImpl implements AuthService {
   private final JwtTokenProvider jwtTokenProvider;
   private final UserRepository userRepository;
   private final RegionRepository regionRepository;
+  private final PasswordEncoder passwordEncoder;
 
   @Override
+  @Transactional
   public AuthResDTO.SignUp signUp(AuthReqDTO.SignUp request) {
-    return new AuthResDTO.SignUp(1L);
+    if (userRepository.existsByEmail(request.email())) {
+      throw new GeneralException(UserErrorCode.EMAIL_DUPLICATED);
+    }
+
+    Region region = regionRepository.findById(request.regionId())
+      .orElseThrow(() -> new GeneralException(RegionErrorCode.REGION_NOT_FOUND));
+
+    User user;
+    try {
+      user = userRepository.saveAndFlush(User.builder()
+        .nickname(request.nickname())
+        .email(request.email())
+        .password(passwordEncoder.encode(request.password()))
+        .gender(request.gender())
+        .birthYear(request.birthYear())
+        .region(region)
+        .role(UserRole.USER)
+        .status(UserStatus.ACTIVE)
+        .profileImage(null)
+        .build());
+    } catch (DataIntegrityViolationException e) {
+      throw new GeneralException(UserErrorCode.EMAIL_DUPLICATED);
+    }
+
+    return new AuthResDTO.SignUp(user.getId());
   }
 
   @Override
+  @Transactional(readOnly = true)
   public AuthResDTO.Token login(AuthReqDTO.Login request) {
-    return new AuthResDTO.Token(
-      1L,
-      "mock_access_token_for_" + request.email(),
-      "mock_refresh_token_for_" + request.email()
-    );
+    User user = userRepository.findByEmail(request.email())
+      .filter(foundUser -> foundUser.getStatus() == UserStatus.ACTIVE)
+      .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
+
+    if (!StringUtils.hasText(user.getPassword())
+      || !passwordEncoder.matches(request.password(), user.getPassword())) {
+      throw new GeneralException(AuthErrorCode.PASSWORD_MISMATCH);
+    }
+
+    return jwtTokenProvider.issueToken(user);
   }
 
   @Override
@@ -125,8 +159,9 @@ public class AuthServiceImpl implements AuthService {
   }
 
   @Override
+  @Transactional(readOnly = true)
   public AuthResDTO.EmailCheck checkEmail(String email) {
-    return new AuthResDTO.EmailCheck(true);
+    return new AuthResDTO.EmailCheck(!userRepository.existsByEmail(email));
   }
 
   @Override

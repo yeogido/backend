@@ -7,6 +7,7 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Positive;
 
 public class AuthReqDTO {
 
@@ -25,17 +26,23 @@ public class AuthReqDTO {
     )
     String password,
 
-    @Schema(description = "이름", example = "홍길동")
-    @NotBlank(message = "이름은 필수 입력값입니다.")
-    String name,
-
     @Schema(description = "닉네임", example = "길동이")
     @NotBlank(message = "닉네임은 필수 입력값입니다.")
     String nickname,
 
-    @Schema(description = "지역", example = "서울")
-    @NotBlank(message = "지역은 필수 입력값입니다.")
-    String region
+    @Schema(description = "성별", example = "MALE", allowableValues = {"MALE", "FEMALE"})
+    @NotNull(message = "성별은 필수 입력값입니다.")
+    Gender gender,
+
+    @Schema(description = "출생연도", example = "2001")
+    @NotBlank(message = "출생연도는 필수 입력값입니다.")
+    @Pattern(regexp = "^\\d{4}$", message = "출생연도는 4자리 숫자여야 합니다.")
+    String birthYear,
+
+    @Schema(description = "지역 ID", example = "1")
+    @NotNull(message = "지역 ID는 필수 입력값입니다.")
+    @Positive(message = "지역 ID는 양수여야 합니다.")
+    Long regionId
   ) {}
 
   @Schema(name = "AuthLoginReq", description = "이메일 로그인 요청")
