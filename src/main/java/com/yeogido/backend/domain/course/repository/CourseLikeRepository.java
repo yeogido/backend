@@ -29,4 +29,16 @@ public interface CourseLikeRepository extends JpaRepository<CourseLike, Long> {
             @Param("userId") Long userId,
             @Param("courseIds") List<Long> courseIds
     );
+
+
+    @Query("""
+        select cl.course.id
+        from CourseLike cl
+        where cl.user = :user
+        and cl.course.id in :courseIds
+    """)
+    List<Long> findLikedCourseIds(
+            @Param("user") User user,
+            @Param("courseIds") List<Long> courseIds
+    );
 }

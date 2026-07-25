@@ -13,7 +13,7 @@ public interface ContentService {
     CursorResponse<ContentResDTO.ContentInfo> getContents(ContentReqDTO.ContentListReq request);
 
     //문화콘텐츠 상세 조회
-    ContentResDTO.ContentDetailRes getContentDetail(Long contentId);
+    ContentResDTO.ContentDetailRes getContentDetail(Long contentId, Long userId);
 
     //문화콘텐츠 등록
     ContentResDTO.ContentCreateRes createContent(ContentReqDTO.ContentCreateReq request);

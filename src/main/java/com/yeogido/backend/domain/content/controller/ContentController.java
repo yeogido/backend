@@ -51,9 +51,10 @@ public class ContentController {
     )
     @GetMapping("/{contentId}")
     public ApiResponse<ContentResDTO.ContentDetailRes> getContentDetail(
-            @PathVariable Long contentId
+            @PathVariable Long contentId,
+            @AuthenticationPrincipal AuthUser authUser
     ){
-        ContentResDTO.ContentDetailRes result = contentService.getContentDetail(contentId);
+        ContentResDTO.ContentDetailRes result = contentService.getContentDetail(contentId,authUser.userId());
         return ApiResponse.onSuccess(SuccessCode.OK,result);
 
     }
