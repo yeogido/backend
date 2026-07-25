@@ -21,6 +21,8 @@ public interface CourseService {
             Long userId
     );
 
+    List<CourseResDTO.CourseRecommendedPreview> getRecommendedCourses();
+
     CourseResDTO.CourseDetail getCourseDetail(Long courseId, Long userId);
 
     CourseResDTO.CourseSummary getCourseSummary(Long courseId, Long userId);

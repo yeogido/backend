@@ -217,4 +217,18 @@ public class CourseConverter {
                 isLiked
         );
     }
+
+    public static CourseResDTO.CourseRecommendedPreview toRecommendedCoursePreview(
+            CourseRepository.CourseRecommendedProjection course,
+            String thumbnailUrl
+    ) {
+        return new CourseResDTO.CourseRecommendedPreview(
+                course.getCourseId(),
+                course.getTitle(),
+                course.getDescription(),
+                thumbnailUrl,
+                course.getDurationType(),
+                course.getTransportType()
+        );
+    }
 }
