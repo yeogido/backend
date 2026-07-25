@@ -20,6 +20,7 @@ import com.yeogido.backend.domain.content.enums.ContentSource;
 import com.yeogido.backend.domain.content.exception.ContentErrorCode;
 import com.yeogido.backend.domain.content.repository.ContentHashtagRepository;
 import com.yeogido.backend.domain.content.repository.ContentRepository;
+import com.yeogido.backend.domain.course.entity.CourseItem;
 import com.yeogido.backend.domain.hashtag.entity.Hashtag;
 import com.yeogido.backend.domain.hashtag.exception.HashtagErrorCode;
 import com.yeogido.backend.domain.hashtag.repository.HashtagRepository;
@@ -508,7 +509,7 @@ public class ContentServiceImpl implements ContentService{
                 .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
 
         if (user.getRole() != UserRole.ADMIN) {
-            throw new GeneralException(UserErrorCode.FORBIDDEN);
+            throw new GeneralException(GeneralErrorCode.FORBIDDEN);
         }
 
         Place place = placeService.getOrCreatePlace(request.place());
@@ -546,7 +547,7 @@ public class ContentServiceImpl implements ContentService{
                 .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
 
         if (user.getRole() != UserRole.ADMIN) {
-            throw new GeneralException(UserErrorCode.FORBIDDEN);
+            throw new GeneralException(GeneralErrorCode.FORBIDDEN);
         }
 
         Content content = contentRepository.findById(contentId)
@@ -600,11 +601,31 @@ public class ContentServiceImpl implements ContentService{
                 .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
 
         if (user.getRole() != UserRole.ADMIN) {
-            throw new GeneralException(UserErrorCode.FORBIDDEN);
+            throw new GeneralException(GeneralErrorCode.FORBIDDEN);
         }
 
         Content content = contentRepository.findById(contentId)
                 .orElseThrow(() -> new GeneralException(ContentErrorCode.CONTENT_NOT_FOUND));
+
+        List<CourseItem> courseItems =
+                courseItemRepository.findByContentOrderByOrderNoAsc(content);
+
+        for (CourseItem courseItem : courseItems) {
+
+            Long courseId = courseItem.getCourse().getId();
+            Integer deletedOrder = courseItem.getOrderNo();
+
+            courseItemRepository.delete(courseItem);
+
+            List<CourseItem> remainItems =
+                    courseItemRepository.findByCourseIdOrderByOrderNoAsc(courseId);
+
+            for (CourseItem item : remainItems) {
+                if (item.getOrderNo() > deletedOrder) {
+                    item.updateOrderNo(item.getOrderNo() - 1);
+                }
+            }
+        }
 
         contentHashtagRepository.deleteByContent(content);
         contentLikeRepository.deleteByContent(content);
