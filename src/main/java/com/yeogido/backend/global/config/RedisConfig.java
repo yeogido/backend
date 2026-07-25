@@ -11,6 +11,9 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 @Configuration
 public class RedisConfig {
 
+    /**
+     * JSON 객체용 RedisTemplate
+     */
     @Bean
     public RedisTemplate<String, Object> redisTemplate(
             RedisConnectionFactory redisConnectionFactory,
@@ -18,6 +21,8 @@ public class RedisConfig {
     ) {
         RedisTemplate<String, Object> redisTemplate = new RedisTemplate<>();
         StringRedisSerializer stringRedisSerializer = new StringRedisSerializer();
+
+        // 객체 저장용 Serializer
         GenericJackson2JsonRedisSerializer jsonRedisSerializer =
                 new GenericJackson2JsonRedisSerializer(objectMapper);
 
