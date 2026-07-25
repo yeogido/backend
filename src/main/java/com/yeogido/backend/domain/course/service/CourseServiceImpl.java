@@ -196,20 +196,14 @@ public class CourseServiceImpl implements CourseService {
         // TODO: Spring Security 적용 후 로그인 사용자 정보로 변경
         User user = userRepository.getReferenceById(MOCK_MEMBER_ID);
 
+        validateReviewImages(request.images());
+
         // 리뷰 엔티티 생성 및 저장
         CourseReview review = CourseConverter.toCourseReview(request, user, course);
         CourseReview savedReview = courseReviewRepository.save(review);
 
         // 리뷰 이미지 저장 (선택)
         if (request.images() != null && !request.images().isEmpty()) {
-            // 이미지 순서(order) 중복 검증
-            Set<Integer> imageOrders = new HashSet<>();
-            for (CourseReqDTO.ReviewImageReq image : request.images()) {
-                if (!imageOrders.add(image.order())) {
-                    throw new GeneralException(ReviewErrorCode.DUPLICATE_IMAGE_ORDER);
-                }
-            }
-
             List<CourseReviewImage> reviewImages = request.images().stream()
                     .map(imgReq -> CourseConverter.toCourseReviewImage(savedReview, imgReq))
                     .toList();
@@ -259,6 +253,25 @@ public class CourseServiceImpl implements CourseService {
                 false,
                 courseLikeRepository.countByCourseId(courseId)
         );
+    }
+
+    private void validateReviewImages(List<CourseReqDTO.ReviewImageReq> images) {
+        if (images == null || images.isEmpty()) {
+            return;
+        }
+
+        Set<Integer> imageOrders = new HashSet<>();
+        for (CourseReqDTO.ReviewImageReq image : images) {
+            if (!imageOrders.add(image.order())) {
+                throw new GeneralException(ReviewErrorCode.DUPLICATE_IMAGE_ORDER);
+            }
+        }
+
+        for (int order = 1; order <= images.size(); order++) {
+            if (!imageOrders.contains(order)) {
+                throw new GeneralException(ReviewErrorCode.INVALID_IMAGE_ORDER);
+            }
+        }
     }
 
     private Course getActiveCourse(Long courseId) {

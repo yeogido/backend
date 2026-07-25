@@ -13,6 +13,12 @@ public enum ReviewErrorCode implements ErrorCode {
             HttpStatus.BAD_REQUEST,
             "REVIEW4001",
             "리뷰 이미지 순서에 중복이 존재합니다."
+    ),
+
+    INVALID_IMAGE_ORDER(
+            HttpStatus.BAD_REQUEST,
+            "REVIEW4002",
+            "리뷰 이미지 순서는 1부터 연속된 값이어야 합니다."
     );
 
     private final HttpStatus httpStatus;
