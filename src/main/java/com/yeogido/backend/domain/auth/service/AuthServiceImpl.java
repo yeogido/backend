@@ -20,6 +20,7 @@ import com.yeogido.backend.domain.user.exception.UserErrorCode;
 import com.yeogido.backend.domain.user.repository.UserRepository;
 import com.yeogido.backend.global.exception.GeneralException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -48,17 +49,22 @@ public class AuthServiceImpl implements AuthService {
     Region region = regionRepository.findById(request.regionId())
       .orElseThrow(() -> new GeneralException(RegionErrorCode.REGION_NOT_FOUND));
 
-    User user = userRepository.save(User.builder()
-      .nickname(request.nickname())
-      .email(request.email())
-      .password(passwordEncoder.encode(request.password()))
-      .gender(request.gender())
-      .birthYear(request.birthYear())
-      .region(region)
-      .role(UserRole.USER)
-      .status(UserStatus.ACTIVE)
-      .profileImage(null)
-      .build());
+    User user;
+    try {
+      user = userRepository.saveAndFlush(User.builder()
+        .nickname(request.nickname())
+        .email(request.email())
+        .password(passwordEncoder.encode(request.password()))
+        .gender(request.gender())
+        .birthYear(request.birthYear())
+        .region(region)
+        .role(UserRole.USER)
+        .status(UserStatus.ACTIVE)
+        .profileImage(null)
+        .build());
+    } catch (DataIntegrityViolationException e) {
+      throw new GeneralException(UserErrorCode.EMAIL_DUPLICATED);
+    }
 
     return new AuthResDTO.SignUp(user.getId());
   }
