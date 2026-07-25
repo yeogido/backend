@@ -1,10 +1,12 @@
 package com.yeogido.backend.domain.course.service;
 
+import com.yeogido.backend.domain.content.repository.ContentRepository;
 import com.yeogido.backend.domain.course.dto.request.CourseReqDTO;
 import com.yeogido.backend.domain.course.dto.response.CourseResDTO;
 import com.yeogido.backend.domain.course.entity.Course;
 import com.yeogido.backend.domain.course.enums.CompanionType;
 import com.yeogido.backend.domain.course.enums.CourseItemType;
+import com.yeogido.backend.domain.course.enums.CourseType;
 import com.yeogido.backend.domain.course.enums.DurationType;
 import com.yeogido.backend.domain.course.enums.TransportType;
 import com.yeogido.backend.domain.course.repository.CourseHashtagRepository;
@@ -21,7 +23,6 @@ import com.yeogido.backend.domain.place.service.PlaceService;
 import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.region.enums.RegionType;
 import com.yeogido.backend.domain.region.repository.RegionRepository;
-import com.yeogido.backend.domain.content.repository.ContentRepository;
 import com.yeogido.backend.domain.user.entity.User;
 import com.yeogido.backend.domain.user.enums.Gender;
 import com.yeogido.backend.domain.user.enums.UserRole;
@@ -116,7 +117,7 @@ class CourseServiceImplTest {
         when(placeService.getPlaceMap(request.courseItems())).thenReturn(Map.of());
         when(placeService.getOrCreatePlace(any(), any())).thenReturn(createPlace());
 
-        CourseResDTO.CourseIdRes response = courseService.createCourse(request);
+        CourseResDTO.CourseIdRes response = courseService.createCourse(1L, request);
 
         assertThat(response.courseId()).isEqualTo(10L);
         verify(courseRedisRepository, never()).saveCreatedEvent(anyLong(), any());
@@ -147,10 +148,56 @@ class CourseServiceImplTest {
                 .when(courseRedisRepository)
                 .saveCreatedEvent(anyLong(), any());
 
-        CourseResDTO.CourseIdRes response = courseService.createCourse(request);
+        CourseResDTO.CourseIdRes response = courseService.createCourse(1L, request);
 
         assertThat(response.courseId()).isEqualTo(10L);
         verify(courseRedisRepository).saveCreatedEvent(anyLong(), any());
+    }
+
+    @Test
+    void createCourse_WhenUserRoleIsUser_CreatesLocalCourse() {
+        CourseReqDTO.CourseCreateReq request = createRequest();
+        User user = createUser();
+        Course course = createCourse(10L);
+        Hashtag hashtag = Hashtag.builder()
+                .hashtagName("sea")
+                .build();
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(regionRepository.findById(1L)).thenReturn(Optional.of(createRegion()));
+        when(courseRepository.save(any(Course.class))).thenReturn(course);
+        when(hashtagRepository.findAllById(List.of(1L))).thenReturn(List.of(hashtag));
+        when(placeService.getPlaceMap(request.courseItems())).thenReturn(Map.of());
+        when(placeService.getOrCreatePlace(any(), any())).thenReturn(createPlace());
+
+        courseService.createCourse(1L, request);
+
+        ArgumentCaptor<Course> courseCaptor = ArgumentCaptor.forClass(Course.class);
+        verify(courseRepository).save(courseCaptor.capture());
+        assertThat(courseCaptor.getValue().getCourseType()).isEqualTo(CourseType.LOCAL);
+    }
+
+    @Test
+    void createCourse_WhenUserRoleIsAdmin_CreatesOfficialCourse() {
+        CourseReqDTO.CourseCreateReq request = createRequest();
+        User adminUser = createAdmin();
+        Course course = createCourse(10L);
+        Hashtag hashtag = Hashtag.builder()
+                .hashtagName("sea")
+                .build();
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(adminUser));
+        when(regionRepository.findById(1L)).thenReturn(Optional.of(createRegion()));
+        when(courseRepository.save(any(Course.class))).thenReturn(course);
+        when(hashtagRepository.findAllById(List.of(1L))).thenReturn(List.of(hashtag));
+        when(placeService.getPlaceMap(request.courseItems())).thenReturn(Map.of());
+        when(placeService.getOrCreatePlace(any(), any())).thenReturn(createPlace());
+
+        courseService.createCourse(1L, request);
+
+        ArgumentCaptor<Course> courseCaptor = ArgumentCaptor.forClass(Course.class);
+        verify(courseRepository).save(courseCaptor.capture());
+        assertThat(courseCaptor.getValue().getCourseType()).isEqualTo(CourseType.OFFICIAL);
     }
 
     private CourseReqDTO.CourseCreateReq createRequest() {
@@ -207,6 +254,19 @@ class CourseServiceImplTest {
                 .birthYear("2000")
                 .region(createRegion())
                 .role(UserRole.USER)
+                .status(UserStatus.ACTIVE)
+                .build();
+    }
+
+    private User createAdmin() {
+        return User.builder()
+                .id(1L)
+                .nickname("admin")
+                .email("admin@example.com")
+                .gender(Gender.MALE)
+                .birthYear("2000")
+                .region(createRegion())
+                .role(UserRole.ADMIN)
                 .status(UserStatus.ACTIVE)
                 .build();
     }

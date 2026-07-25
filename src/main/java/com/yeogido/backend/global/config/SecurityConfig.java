@@ -54,6 +54,37 @@ public class SecurityConfig {
                                 "/api/v1/places/*/likes"
                         ).authenticated()
 
+
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/v1/courses"
+                        ).authenticated()
+
+                        .requestMatchers(
+                                HttpMethod.PATCH,
+                                "/api/v1/courses/**"
+                        ).authenticated()
+
+                        .requestMatchers(
+                                HttpMethod.DELETE,
+                                "/api/v1/courses/**"
+                        ).authenticated()
+
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/v1/courses/*/reviews"
+                        ).authenticated()
+
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/v1/courses/*/likes"
+                        ).authenticated()
+
+                        .requestMatchers(
+                                HttpMethod.DELETE,
+                                "/api/v1/courses/*/likes"
+                        ).authenticated()
+
                         .requestMatchers(
                                 HttpMethod.POST,
                                 "/api/v1/business-promotions"

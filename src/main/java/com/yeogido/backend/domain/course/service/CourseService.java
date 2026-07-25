@@ -8,11 +8,11 @@ import java.util.List;
 
 public interface CourseService {
 
-    CourseResDTO.CourseIdRes createCourse(CourseReqDTO.CourseCreateReq request);
+    CourseResDTO.CourseIdRes createCourse(Long userId, CourseReqDTO.CourseCreateReq request);
 
-    CourseResDTO.CourseIdRes updateCourse(Long courseId, CourseReqDTO.CourseUpdateReq request);
+    CourseResDTO.CourseIdRes updateCourse(Long userId, Long courseId, CourseReqDTO.CourseUpdateReq request);
 
-    void deleteCourse(Long courseId);
+    void deleteCourse(Long userId, Long courseId);
 
     CursorResponse<CourseResDTO.CoursePreview> getCourses(CourseReqDTO.CourseListReq request);
 
@@ -21,13 +21,13 @@ public interface CourseService {
             Long userId
     );
 
-    CourseResDTO.CourseDetail getCourseDetail(Long courseId);
+    CourseResDTO.CourseDetail getCourseDetail(Long courseId, Long userId);
 
     CourseResDTO.CourseSummary getCourseSummary(Long courseId, Long userId);
 
-    CourseResDTO.ReviewCreateRes createCourseReview(Long courseId, CourseReqDTO.ReviewCreateReq request);
+    CourseResDTO.ReviewCreateRes createCourseReview(Long userId, Long courseId, CourseReqDTO.ReviewCreateReq request);
 
-    CourseResDTO.CourseLikeRes createCourseLike(Long courseId);
+    CourseResDTO.CourseLikeRes createCourseLike(Long userId, Long courseId);
 
-    CourseResDTO.CourseLikeRes deleteCourseLike(Long courseId);
+    CourseResDTO.CourseLikeRes deleteCourseLike(Long userId, Long courseId);
 }
