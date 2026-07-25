@@ -16,7 +16,10 @@ public interface CourseService {
 
     CursorResponse<CourseResDTO.CoursePreview> getCourses(CourseReqDTO.CourseListReq request);
 
-    List<CourseResDTO.CoursePreview> getPopularCourses(CourseReqDTO.CoursePopularReq request);
+    List<CourseResDTO.CoursePreview> getPopularCourses(
+            CourseReqDTO.CoursePopularReq request,
+            Long userId
+    );
 
     CourseResDTO.CourseDetail getCourseDetail(Long courseId, Long userId);
 
