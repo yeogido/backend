@@ -62,6 +62,7 @@ public class CourseServiceImpl implements CourseService {
 
     private static final Long MOCK_MEMBER_ID = 1L;
     private static final int POPULAR_COURSE_SIZE = 2;
+    private static final int COURSE_REVIEW_PREVIEW_SIZE = 4;
 
     private final CourseRepository courseRepository;
     private final CourseLikeRepository courseLikeRepository;
@@ -234,6 +235,25 @@ public class CourseServiceImpl implements CourseService {
         return CourseConverter.toCourseSummary(
                 summary,
                 s3Service.getImageUrl(summary.getThumbnailKey())
+        );
+    }
+
+    @Override
+    public List<CourseResDTO.ReviewPreview> getCourseReviews(Long courseId) {
+        if (!courseRepository.existsByIdAndDeletedAtIsNull(courseId)) {
+            throw new GeneralException(CourseErrorCode.COURSE_NOT_FOUND);
+        }
+
+        List<CourseReview> reviews = courseReviewRepository.findLatestReviewsByCourseId(
+                courseId,
+                PageRequest.of(0, COURSE_REVIEW_PREVIEW_SIZE)
+        );
+        Map<Long, List<CourseReviewImage>> imageMap = getCourseReviewImageMap(reviews);
+
+        return CourseConverter.toReviewPreviews(
+                reviews,
+                imageMap,
+                s3Service::getImageUrl
         );
     }
 
@@ -553,6 +573,21 @@ public class CourseServiceImpl implements CourseService {
                                 Collectors.toList()
                         )
                 ));
+    }
+
+    private Map<Long, List<CourseReviewImage>> getCourseReviewImageMap(List<CourseReview> reviews) {
+        List<Long> reviewIds = reviews.stream()
+                .map(CourseReview::getId)
+                .toList();
+
+        if (reviewIds.isEmpty()) {
+            return Map.of();
+        }
+
+        return courseReviewImageRepository
+                .findAllByCourseReview_IdInOrderByCourseReview_IdAscImageOrderAsc(reviewIds)
+                .stream()
+                .collect(Collectors.groupingBy(image -> image.getCourseReview().getId()));
     }
 
     private Set<Long> getLikedCourseIds(Long userId, List<Long> courseIds) {
