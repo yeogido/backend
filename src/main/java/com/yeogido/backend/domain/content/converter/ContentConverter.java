@@ -54,7 +54,7 @@ public class  ContentConverter {
         return Place.builder()
                 .region(region)
                 .externalPlaceId(request.externalPlaceId())
-                .source(PlaceSource.valueOf(request.source()))
+                .source(request.source())
                 .name(request.name())
                 .roadAddress(request.roadAddress())
                 .lotAddress(request.lotAddress())
@@ -68,7 +68,7 @@ public class  ContentConverter {
             Place place
     ) {
         ContentSource contentSource =
-                switch (PlaceSource.valueOf(request.place().source())) {
+                switch (request.place().source()) {
                     case KAKAO -> ContentSource.ADMIN;
                     case TOUR_API -> ContentSource.TOUR_API;
                 };
@@ -85,7 +85,7 @@ public class  ContentConverter {
                 .endDate(request.endDate())
                 .contactPhone(request.contactPhone())
                 .officialUrl(request.officialUrl())
-                .category(ContentCategory.valueOf(request.category()))
+                .category(request.category())
                 .build();
     }
     public static ContentResDTO.PlaceInfo toPlaceInfo(
