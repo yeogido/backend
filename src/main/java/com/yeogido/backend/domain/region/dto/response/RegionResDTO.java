@@ -28,6 +28,19 @@ public class RegionResDTO {
     ) { }
 
     @Builder
+    @Schema(name = "RegionDetailResponse", description = "지역 상세 조회 응답")
+    public record RegionDetailRes(
+            @Schema(description = "지역 ID", example = "1")
+            Long regionId,
+
+            @Schema(description = "지역명", example = "서울")
+            String name,
+
+            @Schema(description = "지역 대표 이미지 URL", example = "https://bucket.s3.ap-northeast-2.amazonaws.com/regions/seoul.jpg")
+            String imageUrl
+    ) { }
+
+    @Builder
     @Schema(name = "SubRegionPreview", description = "하위 지역 미리보기 응답")
     public record SubRegionPreview(
             @Schema(description = "하위 지역 ID", example = "1")
