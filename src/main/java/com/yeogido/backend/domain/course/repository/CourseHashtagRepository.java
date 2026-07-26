@@ -26,5 +26,4 @@ public interface CourseHashtagRepository extends JpaRepository<CourseHashtag, Lo
     @Query("delete from CourseHashtag ch where ch.course.id = :courseId")
     void deleteAllByCourseId(@Param("courseId") Long courseId);
 
-    List<CourseHashtag> findByCourseIdIn(List<Long> courseIds);
 }

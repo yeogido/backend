@@ -19,6 +19,7 @@ import com.yeogido.backend.domain.place.entity.Place;
 import com.yeogido.backend.domain.place.entity.PlaceLike;
 import com.yeogido.backend.domain.place.entity.QPlaceLike;
 import com.yeogido.backend.domain.place.repository.PlaceLikeRepository;
+import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.user.converter.UserConverter;
 import com.yeogido.backend.domain.user.dto.UserResDTO;
 import com.yeogido.backend.domain.user.entity.User;
@@ -70,6 +71,25 @@ public class UserServiceImpl implements UserService{
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
+
+        Double tempLatitude = latitude;
+        Double tempLongitude = longitude;
+
+        if (tempLatitude == null || tempLongitude == null) {
+            Region region = user.getRegion();
+
+            if (region != null
+                    && region.getLatitude() != null
+                    && region.getLongitude() != null) {
+
+                tempLatitude = region.getLatitude().doubleValue();
+                tempLongitude = region.getLongitude().doubleValue();
+            }
+        }
+
+        final Double resolvedLatitude = tempLatitude;
+        final Double resolvedLongitude = tempLongitude;
+
 
         switch (category) {
             case COURSE: {
@@ -176,8 +196,8 @@ public class UserServiceImpl implements UserService{
                         likes.stream()
                                 .map(like -> UserConverter.toLikedResponse(
                                         like,
-                                        latitude,
-                                        longitude
+                                        resolvedLatitude,
+                                        resolvedLongitude
                                 ))
                                 .toList();
 
@@ -189,7 +209,7 @@ public class UserServiceImpl implements UserService{
                 );
             }
             case ALL:
-                return getAllLikes(user, sort, cursorCreatedAt, cursorId, size, latitude, longitude);
+                return getAllLikes(user, sort, cursorCreatedAt, cursorId, size, resolvedLatitude, resolvedLongitude);
         }
         throw new GeneralException(GeneralErrorCode.INTERNAL_SERVER_ERROR);
     }
@@ -434,8 +454,8 @@ public class UserServiceImpl implements UserService{
                         course.getId(),
                         LikeCategory.COURSE,
                         course.getTitle(),
-                        course.getThumbnailKey(),
                         course.getDurationType() == null ? null : course.getDurationType().name(),
+                        null,
                         null,
                         null,
                         course.getRegion().getName(),
@@ -456,7 +476,7 @@ public class UserServiceImpl implements UserService{
                         content.getId(),
                         LikeCategory.CONTENT,
                         content.getTitle(),
-                        content.getThumbnailImage(),
+                        null,
                         null,
                         content.getStartDate(),
                         content.getEndDate(),
@@ -493,7 +513,7 @@ public class UserServiceImpl implements UserService{
                         place.getId(),
                         LikeCategory.PLACE,
                         place.getName(),
-                        place.getThumbnailKey(),
+                        place.getExternalPlaceId(),
                         null,
                         null,
                         null,

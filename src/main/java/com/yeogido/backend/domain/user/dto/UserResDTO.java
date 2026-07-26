@@ -19,8 +19,8 @@ public class UserResDTO {
             @Schema(description = "제목")
             String title,
 
-            @Schema(description = "대표사진 URL")
-            String thumbnailUrl,
+            @Schema(description = "여러출처 장소ID")
+            String externalPlaceId,
 
             @Schema(description = "여행 기간")
             String duration,

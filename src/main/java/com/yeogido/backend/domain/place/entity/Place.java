@@ -51,12 +51,10 @@ public class Place extends BaseEntity {
     @Column(name = "lot_address", length = 255)
     private String lotAddress;
 
-    @Column(nullable = false, precision = 10, scale = 7)
+    @Column(name = "latitude", precision = 10, scale = 7)
     private BigDecimal latitude;
 
-    @Column(nullable = false, precision = 10, scale = 7)
+    @Column(name = "longitude", precision = 10, scale = 7)
     private BigDecimal longitude;
 
-    @Column(name = "thumbnail_key", length = 500)
-    private String thumbnailKey;
 }
