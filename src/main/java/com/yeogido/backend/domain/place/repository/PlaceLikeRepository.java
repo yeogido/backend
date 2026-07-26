@@ -1,8 +1,11 @@
 package com.yeogido.backend.domain.place.repository;
 
 import com.yeogido.backend.domain.place.entity.PlaceLike;
-import org.springframework.data.repository.query.Param;
+import com.yeogido.backend.domain.user.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.time.LocalDateTime;
+import org.springframework.data.repository.query.Param;
 import org.springframework.data.jpa.repository.Query;
 import java.util.List;
 import java.util.Optional;

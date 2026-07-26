@@ -5,6 +5,8 @@ import com.yeogido.backend.global.entity.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
+
 @Entity
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -37,4 +39,8 @@ public class Region extends BaseEntity {
 
     @Column(name = "image_key", length = 255)
     private String imageKey;
+
+    private BigDecimal latitude;
+
+    private BigDecimal longitude;
 }
