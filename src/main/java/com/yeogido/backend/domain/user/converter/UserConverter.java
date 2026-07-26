@@ -101,7 +101,7 @@ public class UserConverter {
                 null,
                 null,
                 null,
-                place.getRegion().getParent().getName(),
+                place.getRegion().getFullName(),
                 distance,
                 List.of(),
                 like.getCreatedAt().toString()

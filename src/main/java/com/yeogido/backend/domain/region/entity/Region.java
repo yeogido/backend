@@ -40,9 +40,7 @@ public class Region extends BaseEntity {
     @Column(name = "image_key", length = 255)
     private String imageKey;
 
-    @Column(name = "")
     private BigDecimal latitude;
 
-    @Column(name = "")
     private BigDecimal longitude;
 }

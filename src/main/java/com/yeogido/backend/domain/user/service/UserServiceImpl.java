@@ -72,6 +72,8 @@ public class UserServiceImpl implements UserService{
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
 
+
+        // 위치 정보가 없는 경우 온보딩에서 선택한 지역의 중심 좌표를 기준으로 거리 계산
         Double tempLatitude = latitude;
         Double tempLongitude = longitude;
 
@@ -93,12 +95,15 @@ public class UserServiceImpl implements UserService{
 
         switch (category) {
             case COURSE: {
+                // 사용자가 좋아요한 코스 조회
                 List<CourseLike> likes =
                         getCourseLikes(user, sort, cursorCreatedAt, cursorId, size);
 
+                // 코스별 해시태그를 한 번에 조회
                 Map<Long, List<String>> hashtagMap =
                         getCourseHashtagMap(likes);
 
+                // size + 1 조회 결과를 이용해 다음 페이지 존재 여부 확인
                 boolean hasNext = likes.size() > size;
 
                 if (hasNext) {
@@ -133,9 +138,11 @@ public class UserServiceImpl implements UserService{
                 );
             }
             case CONTENT: {
+                // 사용자가 좋아요한 콘텐츠 조회
                 List<ContentLike> likes =
                         getContentLikes(user, sort, cursorCreatedAt, cursorId, size);
 
+                // 콘텐츠별 해시태그를 한 번에 조회
                 Map<Long, List<String>> hashtagMap =
                         getContentHashtagMap(likes);
 
@@ -174,6 +181,7 @@ public class UserServiceImpl implements UserService{
                 );
             }
             case PLACE: {
+                // 사용자가 좋아요한 장소 조회
                 List<PlaceLike> likes =
                         getPlaceLikes(user, sort, cursorCreatedAt, cursorId, size);
 
@@ -338,6 +346,7 @@ public class UserServiceImpl implements UserService{
             Double latitude,
             Double longitude
     ) {
+        // 카테고리별 좋아요 목록 조회
         List<CourseLike> courseLikes =
                 getCourseLikes(user, sort, cursorCreatedAt, cursorId, size);
 
@@ -347,36 +356,15 @@ public class UserServiceImpl implements UserService{
         List<PlaceLike> placeLikes =
                 getPlaceLikes(user, sort, cursorCreatedAt, cursorId, size);
 
+        // 해시태그 조회
         Map<Long, List<String>> courseHashtagMap =
-                courseHashtagRepository.findByCourseIdIn(
-                                courseLikes.stream()
-                                        .map(like -> like.getCourse().getId())
-                                        .toList()
-                        )
-                        .stream()
-                        .collect(Collectors.groupingBy(
-                                ch -> ch.getCourse().getId(),
-                                Collectors.mapping(
-                                        ch -> ch.getHashtag().getHashtagName(),
-                                        Collectors.toList()
-                                )
-                        ));
+                getCourseHashtagMap(courseLikes);
 
         Map<Long, List<String>> contentHashtagMap =
-                contentHashtagRepository.findByContentIdIn(
-                                contentLikes.stream()
-                                        .map(like -> like.getContent().getId())
-                                        .toList()
-                        )
-                        .stream()
-                        .collect(Collectors.groupingBy(
-                                ch -> ch.getContent().getId(),
-                                Collectors.mapping(
-                                        ch -> ch.getHashtag().getHashtagName(),
-                                        Collectors.toList()
-                                )
-                        ));
+                getContentHashtagMap(contentLikes);
 
+
+        // 하나의 리스트로 병합
         List<LikeItem> items = new ArrayList<>();
 
         courseLikes.forEach(like ->
@@ -411,6 +399,7 @@ public class UserServiceImpl implements UserService{
             comparator = comparator.reversed();
         }
 
+        // 최신순/오래된순 정렬
         items.sort(comparator);
 
         boolean hasNext = items.size() > size;
@@ -444,83 +433,37 @@ public class UserServiceImpl implements UserService{
             UserResDTO.LikedResponse response
     ) {}
 
+    // CourseLike를 통합 정렬을 위한 LikeItem으로 변환
     private LikeItem toCourseLikeItem(CourseLike like, List<String> hashtags) {
-        Course course = like.getCourse();
-
         return new LikeItem(
                 like.getCreatedAt(),
                 like.getId(),
-                new UserResDTO.LikedResponse(
-                        course.getId(),
-                        LikeCategory.COURSE,
-                        course.getTitle(),
-                        course.getDurationType() == null ? null : course.getDurationType().name(),
-                        null,
-                        null,
-                        null,
-                        course.getRegion().getName(),
-                        null,
-                        hashtags,
-                        like.getCreatedAt().toString()
-                )
+                UserConverter.toLikedResponse(like, hashtags)
         );
     }
 
+    // ContentLike를 통합 정렬을 위한 LikeItem으로 변환
     private LikeItem toContentLikeItem(ContentLike like, List<String> hashtags) {
-        Content content = like.getContent();
-
         return new LikeItem(
                 like.getCreatedAt(),
                 like.getId(),
-                new UserResDTO.LikedResponse(
-                        content.getId(),
-                        LikeCategory.CONTENT,
-                        content.getTitle(),
-                        null,
-                        null,
-                        content.getStartDate(),
-                        content.getEndDate(),
-                        content.getPlace().getRegion().getName(),
-                        null,
-                        hashtags,
-                        like.getCreatedAt().toString()
-                )
+                UserConverter.toLikedResponse(like, hashtags)
         );
     }
 
+    // PlaceLike를 통합 정렬을 위한 LikeItem으로 변환
     private LikeItem toPlaceLikeItem(
             PlaceLike like,
             Double latitude,
             Double longitude
     ) {
-        Place place = like.getPlace();
-
-        Double distance = null;
-
-        if (latitude != null && longitude != null) {
-            distance = DistanceUtil.calculate(
-                    latitude,
-                    longitude,
-                    place.getLatitude().doubleValue(),
-                    place.getLongitude().doubleValue()
-            );
-        }
-
         return new LikeItem(
                 like.getCreatedAt(),
                 like.getId(),
-                new UserResDTO.LikedResponse(
-                        place.getId(),
-                        LikeCategory.PLACE,
-                        place.getName(),
-                        place.getExternalPlaceId(),
-                        null,
-                        null,
-                        null,
-                        place.getRegion().getName(),
-                        distance,
-                        List.of(),
-                        like.getCreatedAt().toString()
+                UserConverter.toLikedResponse(
+                        like,
+                        latitude,
+                        longitude
                 )
         );
     }

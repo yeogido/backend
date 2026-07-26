@@ -51,10 +51,10 @@ public class Place extends BaseEntity {
     @Column(name = "lot_address", length = 255)
     private String lotAddress;
 
-    @Column(name = "latitude", precision = 10, scale = 7)
+    @Column(nullable = false, precision = 10, scale = 7)
     private BigDecimal latitude;
 
-    @Column(name = "longitude", precision = 10, scale = 7)
+    @Column(nullable = false, precision = 10, scale = 7)
     private BigDecimal longitude;
 
 }
