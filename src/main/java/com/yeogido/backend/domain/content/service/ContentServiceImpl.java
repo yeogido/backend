@@ -47,10 +47,7 @@ import org.springframework.stereotype.Service;
 
 import java.net.ContentHandler;
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -446,13 +443,17 @@ public class ContentServiceImpl implements ContentService{
 
 
     @Override
-    public ContentResDTO.ContentDetailRes getContentDetail(Long contentId){
+    public ContentResDTO.ContentDetailRes getContentDetail(Long contentId, Long userId){
 
         Content content = contentRepository.findById(contentId)
                 .orElseThrow(()-> new GeneralException(ContentErrorCode.CONTENT_NOT_FOUND));
 
-        //TODO : 로그인 유저 가져오기
         User currentUser = null;
+
+        if (userId != null) {
+            currentUser = userRepository.findById(userId)
+                    .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
+        }
 
         List<String> hashtags = contentHashtagRepository.findByContent(content)
                 .stream()
@@ -468,27 +469,37 @@ public class ContentServiceImpl implements ContentService{
         ContentResDTO.PlaceInfo placeInfo =
                 ContentConverter.toPlaceInfo(content.getPlace());
 
+        List<CourseItem> courseItems =
+                courseItemRepository.findByContentOrderByOrderNoAsc(content);
+
+        final Set<Long> likedCourseIds;
+
+        if (currentUser != null && !courseItems.isEmpty()) {
+
+            List<Long> courseIds = courseItems.stream()
+                    .map(courseItem -> courseItem.getCourse().getId())
+                    .toList();
+
+            likedCourseIds = new HashSet<>(
+                    courseLikeRepository.findLikedCourseIds(currentUser, courseIds)
+            );
+
+        } else {
+            likedCourseIds = Collections.emptySet();
+        }
 
         List<ContentResDTO.CourseInfo> courses =
-                courseItemRepository.findByContentOrderByOrderNoAsc(content)
-                        .stream()
+                courseItems.stream()
                         .map(courseItem -> {
 
                             Course course = courseItem.getCourse();
 
-                            boolean courseLiked = false;
-
-                            if (currentUser != null) {
-                                courseLiked =
-                                        courseLikeRepository.existsByCourseAndUser(course, currentUser);
-                            }
-
+                            boolean courseLiked =
+                                    likedCourseIds.contains(course.getId());
 
                             return ContentConverter.toCourseInfo(course, courseLiked);
-
                         })
                         .toList();
-
 
         return ContentConverter.toContentDetailRes(
                 content,
