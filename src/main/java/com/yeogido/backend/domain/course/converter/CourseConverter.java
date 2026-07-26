@@ -124,13 +124,19 @@ public class CourseConverter {
         );
     }
 
-    public static CourseResDTO.CourseItem toCourseItem(CourseItem courseItem) {
+    public static CourseResDTO.CourseItem toCourseItem(
+            CourseItem courseItem,
+            boolean isLiked
+    ) {
         Place place = resolvePlace(courseItem);
         Content content = courseItem.getContent();
 
         return new CourseResDTO.CourseItem(
                 courseItem.getOrderNo(),
                 courseItem.getItemType(),
+                courseItem.getItemType() == CourseItemType.PLACE ? place.getId() : null,
+                courseItem.getItemType() == CourseItemType.CONTENT ? content.getId() : null,
+                isLiked,
                 place.getSource(),
                 place.getExternalPlaceId(),
                 content == null ? place.getName() : content.getTitle(),

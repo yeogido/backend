@@ -154,6 +154,15 @@ public class CourseResDTO {
             @Schema(description = "코스 항목 타입", example = "PLACE")
             CourseItemType type,
 
+            @Schema(description = "장소 ID. type이 PLACE인 경우 반환", nullable = true, example = "10")
+            Long placeId,
+
+            @Schema(description = "콘텐츠 ID. type이 CONTENT인 경우 반환", nullable = true, example = "20")
+            Long contentId,
+
+            @Schema(description = "현재 사용자의 장소/콘텐츠 좋아요 여부", example = "true")
+            Boolean isLiked,
+
             @Schema(description = "장소 정보 출처", example = "KAKAO")
             PlaceSource source,
 
