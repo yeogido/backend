@@ -2,6 +2,7 @@ package com.yeogido.backend.domain.auth.controller;
 
 import com.yeogido.backend.domain.auth.dto.AuthResDTO;
 import com.yeogido.backend.domain.auth.service.JwtTokenProvider;
+import com.yeogido.backend.domain.auth.service.RefreshTokenService;
 import com.yeogido.backend.domain.user.entity.User;
 import com.yeogido.backend.domain.user.exception.UserErrorCode;
 import com.yeogido.backend.domain.user.repository.UserRepository;
@@ -26,6 +27,7 @@ public class LocalAuthTestController {
 
     private final UserRepository userRepository;
     private final JwtTokenProvider jwtTokenProvider;
+    private final RefreshTokenService refreshTokenService;
 
     @Operation(summary = "로컬 테스트용 토큰 발급 API", description = "local 프로필에서만 사용할 수 있는 테스트 사용자 Access/Refresh Token을 발급합니다.")
     @PostMapping("/token")
@@ -33,11 +35,8 @@ public class LocalAuthTestController {
         User user = userRepository.findByEmail(LocalDataInitializer.TEST_USER_EMAIL)
                 .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
 
-        AuthResDTO.Token response = new AuthResDTO.Token(
-                user.getId(),
-                jwtTokenProvider.issueAccessToken(user),
-                jwtTokenProvider.issueRefreshToken(user)
-        );
+        AuthResDTO.Token response = jwtTokenProvider.issueToken(user);
+        refreshTokenService.save(user.getId(), response.refreshToken());
 
         return ApiResponse.onSuccess(SuccessCode.OK, response);
     }

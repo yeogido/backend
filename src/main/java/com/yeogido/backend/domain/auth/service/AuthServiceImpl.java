@@ -35,6 +35,7 @@ public class AuthServiceImpl implements AuthService {
   private final SocialAccountRepository socialAccountRepository;
   private final SocialSignupTokenService socialSignupTokenService;
   private final JwtTokenProvider jwtTokenProvider;
+  private final RefreshTokenService refreshTokenService;
   private final UserRepository userRepository;
   private final RegionRepository regionRepository;
   private final PasswordEncoder passwordEncoder;
@@ -81,7 +82,7 @@ public class AuthServiceImpl implements AuthService {
       throw new GeneralException(AuthErrorCode.PASSWORD_MISMATCH);
     }
 
-    return jwtTokenProvider.issueToken(user);
+    return issueAndSaveToken(user);
   }
 
   @Override
@@ -110,7 +111,7 @@ public class AuthServiceImpl implements AuthService {
   }
 
   private AuthResDTO.SocialLogin createExistingSocialLoginResponse(SocialAccount socialAccount) {
-    AuthResDTO.Token token = jwtTokenProvider.issueToken(socialAccount.getUser());
+    AuthResDTO.Token token = issueAndSaveToken(socialAccount.getUser());
     return AuthConverter.toExistingSocialLoginResponse(token);
   }
 
@@ -155,7 +156,7 @@ public class AuthServiceImpl implements AuthService {
 
     socialSignupTokenService.deleteToken(request.temporaryToken());
 
-    return jwtTokenProvider.issueToken(user);
+    return issueAndSaveToken(user);
   }
 
   @Override
@@ -165,7 +166,14 @@ public class AuthServiceImpl implements AuthService {
   }
 
   @Override
-  public void logout(String authorization) {
+  public void logout(Long userId) {
+    refreshTokenService.delete(userId);
+  }
+
+  private AuthResDTO.Token issueAndSaveToken(User user) {
+    AuthResDTO.Token token = jwtTokenProvider.issueToken(user);
+    refreshTokenService.save(user.getId(), token.refreshToken());
+    return token;
   }
 
   @Override
