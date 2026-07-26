@@ -72,6 +72,22 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
     );
 
     @Query("""
+            select
+                c.id as courseId,
+                c.title as title,
+                c.description as description,
+                c.thumbnailKey as thumbnailKey,
+                c.durationType as durationType,
+                c.transportType as transportType
+            from Course c
+            where c.courseType = com.yeogido.backend.domain.course.enums.CourseType.OFFICIAL
+              and c.recommendOrder is not null
+              and c.deletedAt is null
+            order by c.recommendOrder asc
+            """)
+    List<CourseRecommendedProjection> findRecommendedCourses(Pageable pageable);
+
+    @Query("""
             select c.id
             from Course c
             where c.courseType = com.yeogido.backend.domain.course.enums.CourseType.OFFICIAL
@@ -148,5 +164,20 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
         TransportType getTransportType();
 
         CompanionType getCompanionType();
+    }
+
+    interface CourseRecommendedProjection {
+
+        Long getCourseId();
+
+        String getTitle();
+
+        String getDescription();
+
+        String getThumbnailKey();
+
+        DurationType getDurationType();
+
+        TransportType getTransportType();
     }
 }

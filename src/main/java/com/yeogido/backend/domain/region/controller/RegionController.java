@@ -5,6 +5,7 @@ import com.yeogido.backend.domain.region.service.RegionService;
 import com.yeogido.backend.global.common.code.SuccessCode;
 import com.yeogido.backend.global.common.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -29,6 +30,20 @@ public class RegionController {
     @GetMapping
     public ApiResponse<RegionResDTO.RegionListResponse> getRegions() {
         RegionResDTO.RegionListResponse response = regionService.getRegions();
+
+        return ApiResponse.onSuccess(SuccessCode.OK, response);
+    }
+
+    @Operation(
+            summary = "지역 상세 조회",
+            description = "지역 ID로 지역 상세 정보를 조회합니다."
+    )
+    @GetMapping("/{regionId}")
+    public ApiResponse<RegionResDTO.RegionDetailRes> getRegion(
+            @Parameter(description = "지역 ID", example = "1")
+            @PathVariable Long regionId
+    ) {
+        RegionResDTO.RegionDetailRes response = regionService.getRegionDetail(regionId);
 
         return ApiResponse.onSuccess(SuccessCode.OK, response);
     }

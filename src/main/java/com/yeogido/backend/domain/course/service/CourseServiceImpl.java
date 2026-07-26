@@ -63,6 +63,7 @@ public class CourseServiceImpl implements CourseService {
     private static final Long MOCK_MEMBER_ID = 1L;
     private static final int POPULAR_COURSE_SIZE = 2;
     private static final int COURSE_REVIEW_PREVIEW_SIZE = 4;
+    private static final int RECOMMENDED_COURSE_SIZE = 5;
 
     private final CourseRepository courseRepository;
     private final CourseLikeRepository courseLikeRepository;
@@ -187,6 +188,19 @@ public class CourseServiceImpl implements CourseService {
                         s3Service.getImageUrl(course.getThumbnailKey()),
                         tagMap.getOrDefault(course.getCourseId(), List.of()),
                         likedCourseIds.contains(course.getCourseId())
+                ))
+                .toList();
+    }
+
+    @Override
+    public List<CourseResDTO.CourseRecommendedPreview> getRecommendedCourses() {
+        Pageable pageable = PageRequest.of(0, RECOMMENDED_COURSE_SIZE);
+
+        return courseRepository.findRecommendedCourses(pageable)
+                .stream()
+                .map(course -> CourseConverter.toRecommendedCoursePreview(
+                        course,
+                        s3Service.getImageUrl(course.getThumbnailKey())
                 ))
                 .toList();
     }

@@ -115,6 +115,14 @@ public class CourseController {
         return ApiResponse.onSuccess(SuccessCode.OK, response);
     }
 
+    @Operation(summary = "여기도 코스 추천순 조회", description = "메인 화면 배너에 노출되는 여기도 추천 코스를 조회합니다.")
+    @GetMapping("/recommended")
+    public ApiResponse<List<CourseResDTO.CourseRecommendedPreview>> getRecommendedCourses() {
+        List<CourseResDTO.CourseRecommendedPreview> response = courseService.getRecommendedCourses();
+
+        return ApiResponse.onSuccess(SuccessCode.OK, response);
+    }
+
     @Operation(summary = "추천 코스 상세 조회", description = "추천 코스 상세 정보를 조회합니다.")
     @GetMapping("/{courseId}")
     public ApiResponse<CourseResDTO.CourseDetail> getCourse(

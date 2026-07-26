@@ -54,6 +54,28 @@ public class CourseResDTO {
             Boolean isLiked
     ) { }
 
+    @Schema(name = "CourseRecommendedPreviewResponse", description = "메인 배너 추천 코스 정보")
+    public record CourseRecommendedPreview(
+
+            @Schema(description = "코스 ID", example = "1")
+            Long courseId,
+
+            @Schema(description = "코스 제목", example = "강릉 혼자 여행 코스")
+            String title,
+
+            @Schema(description = "코스 설명", example = "바다를 따라 걷고, 감성 가득한 카페와 로컬 맛집을 즐기는 강릉 여행 코스입니다.")
+            String description,
+
+            @Schema(description = "대표 이미지 URL", example = "https://example.com/course1.jpg")
+            String thumbnailUrl,
+
+            @Schema(description = "여행 기간", example = "DAY_TRIP")
+            DurationType durationType,
+
+            @Schema(description = "이동 수단", example = "CAR")
+            TransportType transportType
+    ) { }
+
     @Schema(name = "CourseDetailResponse", description = "추천 코스 상세 조회 응답")
     public record CourseDetail(
 
