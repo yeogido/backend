@@ -2,6 +2,7 @@ package com.yeogido.backend.domain.auth.controller;
 
 import com.yeogido.backend.domain.auth.dto.AuthReqDTO;
 import com.yeogido.backend.domain.auth.dto.AuthResDTO;
+import com.yeogido.backend.domain.auth.security.AuthUser;
 import com.yeogido.backend.domain.auth.service.AuthService;
 import com.yeogido.backend.global.common.code.SuccessCode;
 import com.yeogido.backend.global.common.response.ApiResponse;
@@ -11,6 +12,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -63,10 +65,10 @@ public class AuthController {
     return ApiResponse.onSuccess(SuccessCode.OK, response);
   }
 
-  @Operation(summary = "로그아웃 API", description = "현재 로그인된 기기에서 인증 토큰을 무효화합니다.")
+  @Operation(summary = "로그아웃 API", description = "인증된 사용자의 Refresh Token을 삭제하여 토큰 재발급을 차단합니다.")
   @PostMapping("/logout")
-  public ApiResponse<Void> logout(@RequestHeader(value = "Authorization", required = false) String authorization) {
-    authService.logout(authorization);
+  public ApiResponse<Void> logout(@AuthenticationPrincipal AuthUser authUser) {
+    authService.logout(authUser.userId());
     return ApiResponse.onSuccess(SuccessCode.OK);
   }
 

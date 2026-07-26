@@ -15,7 +15,7 @@ public interface AuthService {
 
   AuthResDTO.EmailCheck checkEmail(String email);
 
-  void logout(String authorization);
+  void logout(Long userId);
 
   void sendResetCode(AuthReqDTO.PasswordSendCode request);
 
