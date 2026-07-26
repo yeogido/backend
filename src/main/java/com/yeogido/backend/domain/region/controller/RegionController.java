@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -30,6 +31,20 @@ public class RegionController {
     @GetMapping
     public ApiResponse<RegionResDTO.RegionListResponse> getRegions() {
         RegionResDTO.RegionListResponse response = regionService.getRegions();
+
+        return ApiResponse.onSuccess(SuccessCode.OK, response);
+    }
+
+    @Operation(
+            summary = "지역 검색",
+            description = "keyword를 포함하는 지역을 Region.name 기준 LIKE 검색으로 조회합니다."
+    )
+    @GetMapping("/search")
+    public ApiResponse<List<RegionResDTO.RegionSearchRes>> searchRegions(
+            @Parameter(description = "검색 키워드", example = "강남", required = true)
+            @RequestParam String keyword
+    ) {
+        List<RegionResDTO.RegionSearchRes> response = regionService.searchRegions(keyword);
 
         return ApiResponse.onSuccess(SuccessCode.OK, response);
     }
