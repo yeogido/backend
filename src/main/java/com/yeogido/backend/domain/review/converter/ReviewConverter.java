@@ -5,14 +5,12 @@ import com.yeogido.backend.domain.course.entity.CourseReview;
 import com.yeogido.backend.domain.course.entity.CourseReviewImage;
 import com.yeogido.backend.domain.review.dto.response.ReviewResDTO;
 import com.yeogido.backend.domain.user.entity.User;
-import java.time.Year;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
-import org.springframework.util.StringUtils;
 
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class ReviewConverter {
@@ -98,7 +96,7 @@ public class ReviewConverter {
     private static ReviewResDTO.Author toAuthor(User user) {
         return new ReviewResDTO.Author(
                 user.getNickname(),
-                resolveAgeGroup(user.getBirthYear()),
+                user.getAgeGroup(),
                 user.getProfileImage()
         );
     }
@@ -116,35 +114,5 @@ public class ReviewConverter {
                 course.getTransportType(),
                 isLiked
         );
-    }
-
-    private static String resolveAgeGroup(String birthYear) {
-        if (!StringUtils.hasText(birthYear)) {
-            return null;
-        }
-
-        try {
-            int age = Year.now().getValue() - Integer.parseInt(birthYear) + 1;
-
-            if (age < 20) {
-                return "TEEN";
-            }
-
-            if (age < 30) {
-                return "TWENTIES";
-            }
-
-            if (age < 40) {
-                return "THIRTIES";
-            }
-
-            if (age < 50) {
-                return "FORTIES";
-            }
-
-            return "FIFTIES_PLUS";
-        } catch (NumberFormatException e) {
-            return null;
-        }
     }
 }

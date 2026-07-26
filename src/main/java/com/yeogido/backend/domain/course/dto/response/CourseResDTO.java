@@ -7,9 +7,11 @@ import com.yeogido.backend.domain.course.enums.CourseType;
 import com.yeogido.backend.domain.course.enums.DurationType;
 import com.yeogido.backend.domain.course.enums.TransportType;
 import com.yeogido.backend.domain.place.enums.PlaceSource;
+import com.yeogido.backend.domain.user.enums.AgeGroup;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 
 public class CourseResDTO {
@@ -189,6 +191,41 @@ public class CourseResDTO {
 
             @Schema(description = "리뷰 ID", example = "1")
             Long reviewId
+    ) { }
+
+    @Schema(name = "CourseReviewPreviewResponse", description = "추천 코스 리뷰 목록 정보")
+    public record ReviewPreview(
+
+            @Schema(description = "리뷰 ID", example = "1")
+            Long reviewId,
+
+            @Schema(description = "작성자 정보")
+            ReviewAuthor author,
+
+            @Schema(description = "별점", example = "5")
+            Integer rating,
+
+            @Schema(description = "리뷰 내용", example = "동선이 편하고 장소 구성이 좋았어요.")
+            String content,
+
+            @Schema(description = "리뷰 이미지 URL 목록")
+            List<String> imageUrls,
+
+            @Schema(description = "생성일", example = "2026-07-26")
+            LocalDate createdAt
+    ) { }
+
+    @Schema(name = "CourseReviewAuthorResponse", description = "추천 코스 리뷰 작성자 정보")
+    public record ReviewAuthor(
+
+            @Schema(description = "닉네임", example = "민지")
+            String nickname,
+
+            @Schema(description = "연령대", example = "TWENTIES")
+            AgeGroup ageGroup,
+
+            @Schema(description = "프로필 이미지 URL", example = "https://example.com/profile.png")
+            String profileImageUrl
     ) { }
 
     @Schema(name = "CourseLikeResponse", description = "추천 코스 좋아요 등록 응답")

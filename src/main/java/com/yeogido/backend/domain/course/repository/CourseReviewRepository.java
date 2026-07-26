@@ -26,6 +26,20 @@ public interface CourseReviewRepository extends JpaRepository<CourseReview, Long
             from CourseReview cr
             join fetch cr.user
             join fetch cr.course c
+            where c.id = :courseId
+              and c.deletedAt is null
+            order by cr.createdAt desc, cr.id desc
+            """)
+    List<CourseReview> findLatestReviewsByCourseId(
+            @Param("courseId") Long courseId,
+            Pageable pageable
+    );
+
+    @Query("""
+            select cr
+            from CourseReview cr
+            join fetch cr.user
+            join fetch cr.course c
             where c.deletedAt is null
             order by cr.createdAt desc, cr.id desc
             """)

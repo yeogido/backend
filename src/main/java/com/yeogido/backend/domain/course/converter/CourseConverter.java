@@ -16,6 +16,8 @@ import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class CourseConverter {
@@ -216,6 +218,56 @@ public class CourseConverter {
                 tags,
                 isLiked
         );
+    }
+
+    public static List<CourseResDTO.ReviewPreview> toReviewPreviews(
+            List<CourseReview> reviews,
+            Map<Long, List<CourseReviewImage>> imageMap,
+            Function<String, String> imageUrlResolver
+    ) {
+        return reviews.stream()
+                .map(review -> toReviewPreview(
+                        review,
+                        imageMap.getOrDefault(review.getId(), List.of()),
+                        imageUrlResolver
+                ))
+                .toList();
+    }
+
+    private static CourseResDTO.ReviewPreview toReviewPreview(
+            CourseReview review,
+            List<CourseReviewImage> images,
+            Function<String, String> imageUrlResolver
+    ) {
+        return new CourseResDTO.ReviewPreview(
+                review.getId(),
+                toReviewAuthor(review.getUser(), imageUrlResolver),
+                review.getRating(),
+                review.getContent(),
+                toReviewImageUrls(images, imageUrlResolver),
+                review.getCreatedAt().toLocalDate()
+        );
+    }
+
+    private static CourseResDTO.ReviewAuthor toReviewAuthor(
+            User user,
+            Function<String, String> imageUrlResolver
+    ) {
+        return new CourseResDTO.ReviewAuthor(
+                user.getNickname(),
+                user.getAgeGroup(),
+                imageUrlResolver.apply(user.getProfileImage())
+        );
+    }
+
+    private static List<String> toReviewImageUrls(
+            List<CourseReviewImage> images,
+            Function<String, String> imageUrlResolver
+    ) {
+        return images.stream()
+                .map(CourseReviewImage::getImageKey)
+                .map(imageUrlResolver)
+                .toList();
     }
 
     public static CourseResDTO.CourseRecommendedPreview toRecommendedCoursePreview(
