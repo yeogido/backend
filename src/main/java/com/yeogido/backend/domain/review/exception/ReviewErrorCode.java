@@ -27,6 +27,12 @@ public enum ReviewErrorCode implements ErrorCode {
             "본인이 작성한 리뷰만 수정할 수 있습니다."
     ),
 
+    REVIEW_DELETE_ACCESS_DENIED(
+            HttpStatus.FORBIDDEN,
+            "REVIEW4032",
+            "본인이 작성한 리뷰만 삭제할 수 있습니다."
+    ),
+
     REVIEW_NOT_FOUND(
             HttpStatus.NOT_FOUND,
             "REVIEW4041",

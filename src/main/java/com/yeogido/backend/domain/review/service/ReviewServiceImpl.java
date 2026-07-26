@@ -97,12 +97,24 @@ public class ReviewServiceImpl implements ReviewService {
         CourseReview review = courseReviewRepository.findById(reviewId)
                 .orElseThrow(() -> new GeneralException(ReviewErrorCode.REVIEW_NOT_FOUND));
 
-        validateReviewOwner(review, userId);
+        validateReviewOwner(review, userId, ReviewErrorCode.REVIEW_ACCESS_DENIED);
 
         review.update(request.rating(), request.content());
         updateImagesIfRequested(review, request.images());
 
         return ReviewConverter.toUpdateResponse(review);
+    }
+
+    @Override
+    @Transactional
+    public void deleteReview(Long reviewId, Long userId) {
+        CourseReview review = courseReviewRepository.findById(reviewId)
+                .orElseThrow(() -> new GeneralException(ReviewErrorCode.REVIEW_NOT_FOUND));
+
+        validateReviewOwner(review, userId, ReviewErrorCode.REVIEW_DELETE_ACCESS_DENIED);
+
+        courseReviewImageRepository.deleteAllByCourseReview_Id(review.getId());
+        courseReviewRepository.delete(review);
     }
 
     private List<CourseReview> findReviews(
@@ -170,9 +182,13 @@ public class ReviewServiceImpl implements ReviewService {
         ));
     }
 
-    private void validateReviewOwner(CourseReview review, Long userId) {
+    private void validateReviewOwner(
+            CourseReview review,
+            Long userId,
+            ReviewErrorCode errorCode
+    ) {
         if (!review.getUser().getId().equals(userId)) {
-            throw new GeneralException(ReviewErrorCode.REVIEW_ACCESS_DENIED);
+            throw new GeneralException(errorCode);
         }
     }
 
