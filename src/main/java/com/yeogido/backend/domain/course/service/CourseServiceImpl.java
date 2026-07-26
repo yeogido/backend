@@ -62,6 +62,7 @@ public class CourseServiceImpl implements CourseService {
 
     private static final Long MOCK_MEMBER_ID = 1L;
     private static final int POPULAR_COURSE_SIZE = 2;
+    private static final int RECOMMENDED_COURSE_SIZE = 5;
 
     private final CourseRepository courseRepository;
     private final CourseLikeRepository courseLikeRepository;
@@ -80,12 +81,19 @@ public class CourseServiceImpl implements CourseService {
 
     @Override
     @Transactional
-    public CourseResDTO.CourseIdRes createCourse(CourseReqDTO.CourseCreateReq request) {
+    public CourseResDTO.CourseIdRes createCourse(Long userId, CourseReqDTO.CourseCreateReq request) {
         validateCourseCreateRequest(request);
 
-        User user = getCurrentUser();
+        User user = getCurrentUser(userId);
         Region courseRegion = getRegion(request.regionId());
-        Course course = courseRepository.save(CourseConverter.toCourse(request, user, courseRegion));
+
+        CourseType courseType = (user.getRole() == UserRole.ADMIN)
+                ? CourseType.OFFICIAL
+                : CourseType.LOCAL;
+
+        Course course = courseRepository.save(
+                CourseConverter.toCourse(request, user, courseRegion, courseType)
+        );
 
         saveCourseHashtags(course, request.hashtagIds());
         saveCourseItems(course, request.courseItems());
@@ -96,9 +104,9 @@ public class CourseServiceImpl implements CourseService {
 
     @Override
     @Transactional
-    public CourseResDTO.CourseIdRes updateCourse(Long courseId, CourseReqDTO.CourseUpdateReq request) {
+    public CourseResDTO.CourseIdRes updateCourse(Long userId, Long courseId, CourseReqDTO.CourseUpdateReq request) {
         Course course = getActiveCourse(courseId);
-        User user = getCurrentUser();
+        User user = getCurrentUser(userId);
 
         validateCourseAuthority(course, user);
         validateCourseUpdateRequest(request);
@@ -127,9 +135,9 @@ public class CourseServiceImpl implements CourseService {
 
     @Override
     @Transactional
-    public void deleteCourse(Long courseId) {
+    public void deleteCourse(Long userId, Long courseId) {
         Course course = getActiveCourse(courseId);
-        User user = getCurrentUser();
+        User user = getCurrentUser(userId);
 
         validateCourseAuthority(course, user);
 
@@ -184,14 +192,26 @@ public class CourseServiceImpl implements CourseService {
     }
 
     @Override
-    public CourseResDTO.CourseDetail getCourseDetail(Long courseId) {
+    public List<CourseResDTO.CourseRecommendedPreview> getRecommendedCourses() {
+        Pageable pageable = PageRequest.of(0, RECOMMENDED_COURSE_SIZE);
+
+        return courseRepository.findRecommendedCourses(pageable)
+                .stream()
+                .map(course -> CourseConverter.toRecommendedCoursePreview(
+                        course,
+                        s3Service.getImageUrl(course.getThumbnailKey())
+                ))
+                .toList();
+    }
+
+    @Override
+    public CourseResDTO.CourseDetail getCourseDetail(Long courseId, Long userId) {
         Course course = courseRepository.findCourseDetailByIdAndDeletedAtIsNull(courseId)
                 .orElseThrow(() -> new GeneralException(CourseErrorCode.COURSE_NOT_FOUND));
 
         courseRedisRepository.increaseViewCount(courseId, LocalDate.now());
 
-        // TODO: Spring Security 적용 후 인증 사용자 ID로 교체
-        boolean isLiked = courseLikeRepository.existsByUserIdAndCourseId(MOCK_MEMBER_ID, courseId);
+        boolean isLiked = (userId != null) && courseLikeRepository.existsByUserIdAndCourseId(userId, courseId);
 
         List<String> tags = courseHashtagRepository.findByCourseId(courseId).stream()
                 .map(courseHashtag -> courseHashtag.getHashtag().getHashtagName())
@@ -233,11 +253,9 @@ public class CourseServiceImpl implements CourseService {
 
     @Override
     @Transactional
-    public CourseResDTO.ReviewCreateRes createCourseReview(Long courseId, CourseReqDTO.ReviewCreateReq request) {
+    public CourseResDTO.ReviewCreateRes createCourseReview(Long userId, Long courseId, CourseReqDTO.ReviewCreateReq request) {
         Course course = getActiveCourse(courseId);
-
-        // TODO: Spring Security 적용 후 로그인 사용자 정보로 변경
-        User user = userRepository.getReferenceById(MOCK_MEMBER_ID);
+        User user = getCurrentUser(userId);
 
         validateReviewImages(request.images());
 
@@ -259,11 +277,9 @@ public class CourseServiceImpl implements CourseService {
 
     @Override
     @Transactional
-    public CourseResDTO.CourseLikeRes createCourseLike(Long courseId) {
+    public CourseResDTO.CourseLikeRes createCourseLike(Long userId, Long courseId) {
         Course course = getActiveCourse(courseId);
-
-        // TODO: Spring Security 적용 후 로그인 사용자 정보로 변경
-        User user = userRepository.getReferenceById(MOCK_MEMBER_ID);
+        User user = getCurrentUser(userId);
 
         if (!courseLikeRepository.existsByUserIdAndCourseId(user.getId(), courseId)) {
             CourseLike courseLike = CourseConverter.toCourseLike(user, course);
@@ -280,11 +296,9 @@ public class CourseServiceImpl implements CourseService {
 
     @Override
     @Transactional
-    public CourseResDTO.CourseLikeRes deleteCourseLike(Long courseId) {
+    public CourseResDTO.CourseLikeRes deleteCourseLike(Long userId, Long courseId) {
         getActiveCourse(courseId);
-
-        // TODO: Spring Security 적용 후 로그인 사용자 정보로 변경
-        User user = userRepository.getReferenceById(MOCK_MEMBER_ID);
+        User user = getCurrentUser(userId);
 
         courseLikeRepository.findByUserIdAndCourseId(user.getId(), courseId)
                 .ifPresent(courseLike -> {
@@ -320,11 +334,6 @@ public class CourseServiceImpl implements CourseService {
     private Course getActiveCourse(Long courseId) {
         return courseRepository.findByIdAndDeletedAtIsNull(courseId)
                 .orElseThrow(() -> new GeneralException(CourseErrorCode.COURSE_NOT_FOUND));
-    }
-
-    private User getCurrentUser() {
-        return userRepository.findById(MOCK_MEMBER_ID)
-                .orElseThrow(() -> new GeneralException(GeneralErrorCode.FORBIDDEN));
     }
 
     private void saveCreatedEventAfterCommit(Long courseId) {

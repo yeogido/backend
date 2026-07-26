@@ -48,9 +48,10 @@ public class CourseController {
     @Operation(summary = "추천 코스 등록", description = "추천 코스를 등록합니다.")
     @PostMapping
     public ApiResponse<CourseResDTO.CourseIdRes> createCourse(
+            @AuthenticationPrincipal AuthUser authUser,
             @Valid @RequestBody CourseReqDTO.CourseCreateReq request
     ) {
-        CourseResDTO.CourseIdRes response = courseService.createCourse(request);
+        CourseResDTO.CourseIdRes response = courseService.createCourse(authUser.userId(), request);
 
         return ApiResponse.onSuccess(SuccessCode.CREATED, response);
     }
@@ -67,11 +68,12 @@ public class CourseController {
     @Operation(summary = "추천 코스 수정", description = "추천 코스를 수정합니다.")
     @PatchMapping("/{courseId}")
     public ApiResponse<CourseResDTO.CourseIdRes> updateCourse(
+            @AuthenticationPrincipal AuthUser authUser,
             @Parameter(description = "코스 ID", example = "15")
             @PathVariable Long courseId,
             @Valid @RequestBody CourseReqDTO.CourseUpdateReq request
     ) {
-        CourseResDTO.CourseIdRes response = courseService.updateCourse(courseId, request);
+        CourseResDTO.CourseIdRes response = courseService.updateCourse(authUser.userId(), courseId, request);
 
         return ApiResponse.onSuccess(SuccessCode.OK, response);
     }
@@ -79,10 +81,11 @@ public class CourseController {
     @Operation(summary = "추천 코스 삭제", description = "추천 코스를 삭제합니다.")
     @DeleteMapping("/{courseId}")
     public ApiResponse<Void> deleteCourse(
+            @AuthenticationPrincipal AuthUser authUser,
             @Parameter(description = "코스 ID", example = "15")
             @PathVariable Long courseId
     ) {
-        courseService.deleteCourse(courseId);
+        courseService.deleteCourse(authUser.userId(), courseId);
 
         return ApiResponse.onSuccess(SuccessCode.OK);
     }
@@ -112,13 +115,23 @@ public class CourseController {
         return ApiResponse.onSuccess(SuccessCode.OK, response);
     }
 
+    @Operation(summary = "여기도 코스 추천순 조회", description = "메인 화면 배너에 노출되는 여기도 추천 코스를 조회합니다.")
+    @GetMapping("/recommended")
+    public ApiResponse<List<CourseResDTO.CourseRecommendedPreview>> getRecommendedCourses() {
+        List<CourseResDTO.CourseRecommendedPreview> response = courseService.getRecommendedCourses();
+
+        return ApiResponse.onSuccess(SuccessCode.OK, response);
+    }
+
     @Operation(summary = "추천 코스 상세 조회", description = "추천 코스 상세 정보를 조회합니다.")
     @GetMapping("/{courseId}")
     public ApiResponse<CourseResDTO.CourseDetail> getCourse(
+            @AuthenticationPrincipal AuthUser authUser,
             @Parameter(description = "코스 ID", example = "1")
             @PathVariable Long courseId
     ) {
-        CourseResDTO.CourseDetail response = courseService.getCourseDetail(courseId);
+        Long userId = (authUser != null) ? authUser.userId() : null;
+        CourseResDTO.CourseDetail response = courseService.getCourseDetail(courseId, userId);
 
         return ApiResponse.onSuccess(SuccessCode.OK, response);
     }
@@ -138,11 +151,12 @@ public class CourseController {
     @Operation(summary = "추천 코스 리뷰 작성", description = "추천 코스 리뷰를 작성합니다.")
     @PostMapping("/{courseId}/reviews")
     public ApiResponse<CourseResDTO.ReviewCreateRes> createCourseReview(
+            @AuthenticationPrincipal AuthUser authUser,
             @Parameter(description = "코스 ID", example = "1")
             @PathVariable Long courseId,
             @Valid @RequestBody CourseReqDTO.ReviewCreateReq request
     ) {
-        CourseResDTO.ReviewCreateRes response = courseService.createCourseReview(courseId, request);
+        CourseResDTO.ReviewCreateRes response = courseService.createCourseReview(authUser.userId(), courseId, request);
 
         return ApiResponse.onSuccess(SuccessCode.CREATED, response);
     }
@@ -150,10 +164,11 @@ public class CourseController {
     @Operation(summary = "추천 코스 좋아요 등록", description = "추천 코스에 좋아요를 등록합니다.")
     @PostMapping("/{courseId}/likes")
     public ApiResponse<CourseResDTO.CourseLikeRes> createCourseLike(
+            @AuthenticationPrincipal AuthUser authUser,
             @Parameter(description = "코스 ID", example = "1")
             @PathVariable Long courseId
     ) {
-        CourseResDTO.CourseLikeRes response = courseService.createCourseLike(courseId);
+        CourseResDTO.CourseLikeRes response = courseService.createCourseLike(authUser.userId(), courseId);
 
         return ApiResponse.onSuccess(SuccessCode.CREATED, response);
     }
@@ -161,10 +176,11 @@ public class CourseController {
     @Operation(summary = "추천 코스 좋아요 취소", description = "추천 코스 좋아요를 취소합니다.")
     @DeleteMapping("/{courseId}/likes")
     public ApiResponse<CourseResDTO.CourseLikeRes> deleteCourseLike(
+            @AuthenticationPrincipal AuthUser authUser,
             @Parameter(description = "코스 ID", example = "1")
             @PathVariable Long courseId
     ) {
-        CourseResDTO.CourseLikeRes response = courseService.deleteCourseLike(courseId);
+        CourseResDTO.CourseLikeRes response = courseService.deleteCourseLike(authUser.userId(), courseId);
 
         return ApiResponse.onSuccess(SuccessCode.OK, response);
     }

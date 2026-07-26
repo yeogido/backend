@@ -8,6 +8,8 @@ public interface RegionService {
 
     RegionResDTO.RegionListResponse getRegions();
 
+    RegionResDTO.RegionDetailRes getRegionDetail(Long regionId);
+
     RegionResDTO.SubRegionListResponse getSubRegions(Long regionId);
 
     List<RegionResDTO.PopularRegionRes> getPopularRegions();
