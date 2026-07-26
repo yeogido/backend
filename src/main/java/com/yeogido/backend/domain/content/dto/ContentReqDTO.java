@@ -2,6 +2,7 @@ package com.yeogido.backend.domain.content.dto;
 
 import com.yeogido.backend.domain.content.enums.ContentCategory;
 import com.yeogido.backend.domain.content.enums.ContentSort;
+import com.yeogido.backend.domain.place.enums.PlaceSource;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
@@ -57,7 +58,7 @@ public class ContentReqDTO {
             String description,
 
             @Schema(description = "카테고리")
-            String category,
+            ContentCategory category,
 
             @Schema(description = "행사 시작일")
             LocalDate startDate,
@@ -85,7 +86,7 @@ public class ContentReqDTO {
                 String externalPlaceId,
 
                 @Schema(description = "장소 데이터 출처")
-                String source,
+                PlaceSource source,
 
                 @Schema(description = "장소명")
                 String name,

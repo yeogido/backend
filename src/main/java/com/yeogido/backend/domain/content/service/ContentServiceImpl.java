@@ -576,8 +576,8 @@ public class ContentServiceImpl implements ContentService{
                 request.endDate(),
                 request.contactPhone(),
                 request.officialUrl(),
-                ContentCategory.valueOf(request.category()),
-                PlaceSource.valueOf(request.place().source()) == PlaceSource.KAKAO
+                request.category(),
+                request.place().source() == PlaceSource.KAKAO
                         ? ContentSource.ADMIN
                         : ContentSource.TOUR_API
         );
