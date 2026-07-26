@@ -33,7 +33,8 @@ public class UserConverter {
 
     public static UserResDTO.LikedResponse toLikedResponse(
             CourseLike like,
-            List<String> hashtags
+            List<String> hashtags,
+            String thumbnailImage
     ) {
         Course course = like.getCourse();
 
@@ -42,7 +43,7 @@ public class UserConverter {
                 LikeCategory.COURSE,
                 course.getTitle(),
                 null,
-                course.getThumbnailKey(),
+                thumbnailImage,
                 course.getDurationType().name(),
                 null,
                 null,
@@ -56,7 +57,8 @@ public class UserConverter {
 
     public static UserResDTO.LikedResponse toLikedResponse(
             ContentLike like,
-            List<String> hashtags
+            List<String> hashtags,
+            String thumbnailImage
     ) {
         Content content = like.getContent();
 
@@ -65,7 +67,7 @@ public class UserConverter {
                 LikeCategory.CONTENT,
                 content.getTitle(),
                 null,
-                content.getThumbnailImage(),
+                thumbnailImage,
                 null,
                 content.getStartDate(),
                 content.getEndDate(),

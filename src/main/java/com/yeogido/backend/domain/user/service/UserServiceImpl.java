@@ -15,6 +15,7 @@ import com.yeogido.backend.domain.course.entity.CourseLike;
 import com.yeogido.backend.domain.course.entity.QCourseLike;
 import com.yeogido.backend.domain.course.repository.CourseHashtagRepository;
 import com.yeogido.backend.domain.course.repository.CourseLikeRepository;
+import com.yeogido.backend.domain.file.service.S3Service;
 import com.yeogido.backend.domain.place.entity.Place;
 import com.yeogido.backend.domain.place.entity.PlaceLike;
 import com.yeogido.backend.domain.place.entity.QPlaceLike;
@@ -53,6 +54,7 @@ public class UserServiceImpl implements UserService{
     private final PlaceLikeRepository placeLikeRepository;
     private final CourseHashtagRepository courseHashtagRepository;
     private final ContentHashtagRepository contentHashtagRepository;
+    private final S3Service s3Service;
 
     private final JPAQueryFactory queryFactory;
 
@@ -126,7 +128,8 @@ public class UserServiceImpl implements UserService{
                                         hashtagMap.getOrDefault(
                                                 like.getCourse().getId(),
                                                 List.of()
-                                        )
+                                        ),
+                                        s3Service.getImageUrl(like.getCourse().getThumbnailKey())
                                 ))
                                 .toList();
 
@@ -169,7 +172,8 @@ public class UserServiceImpl implements UserService{
                                         hashtagMap.getOrDefault(
                                                 like.getContent().getId(),
                                                 List.of()
-                                        )
+                                        ),
+                                        s3Service.getImageUrl(like.getContent().getThumbnailImage())
                                 ))
                                 .toList();
 
@@ -438,7 +442,11 @@ public class UserServiceImpl implements UserService{
         return new LikeItem(
                 like.getCreatedAt(),
                 like.getId(),
-                UserConverter.toLikedResponse(like, hashtags)
+                UserConverter.toLikedResponse(
+                        like,
+                        hashtags,
+                        s3Service.getImageUrl(like.getCourse().getThumbnailKey())
+                )
         );
     }
 
@@ -447,7 +455,11 @@ public class UserServiceImpl implements UserService{
         return new LikeItem(
                 like.getCreatedAt(),
                 like.getId(),
-                UserConverter.toLikedResponse(like, hashtags)
+                UserConverter.toLikedResponse(
+                        like,
+                        hashtags,
+                        s3Service.getImageUrl(like.getContent().getThumbnailImage())
+                )
         );
     }
 
