@@ -22,6 +22,9 @@ public class UserResDTO {
             @Schema(description = "여러출처 장소ID")
             String externalPlaceId,
 
+            @Schema(description = "대표 사진")
+            String thumbnailImage,
+
             @Schema(description = "여행 기간")
             String duration,
 
