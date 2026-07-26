@@ -16,6 +16,13 @@ public class ReviewResDTO {
     ) {
     }
 
+    @Schema(name = "ReviewUpdateResponse", description = "추천 코스 리뷰 수정 응답")
+    public record UpdateResponse(
+            @Schema(description = "수정된 리뷰 ID", example = "1")
+            Long reviewId
+    ) {
+    }
+
     @Schema(name = "RecentReview", description = "최근 후기 정보")
     public record RecentReview(
             @Schema(description = "리뷰 ID", example = "101")

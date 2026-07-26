@@ -11,4 +11,10 @@ public interface ReviewService {
     CursorResponse<ReviewResDTO.ReviewDetail> getReviews(
             ReviewReqDTO.ListRequest request
     );
+
+    ReviewResDTO.UpdateResponse updateReview(
+            Long reviewId,
+            Long userId,
+            ReviewReqDTO.UpdateRequest request
+    );
 }

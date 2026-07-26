@@ -11,4 +11,6 @@ public interface CourseReviewImageRepository extends JpaRepository<CourseReviewI
     List<CourseReviewImage> findAllByCourseReview_IdInOrderByCourseReview_IdAscImageOrderAsc(
             List<Long> courseReviewIds
     );
+
+    void deleteAllByCourseReview_Id(Long courseReviewId);
 }
