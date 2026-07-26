@@ -2,6 +2,7 @@ package com.yeogido.backend.domain.content.entity;
 
 import com.yeogido.backend.domain.content.enums.ContentCategory;
 import com.yeogido.backend.domain.content.enums.ContentSource;
+import com.yeogido.backend.domain.content.enums.ContentStatus;
 import com.yeogido.backend.domain.place.entity.Place;
 import com.yeogido.backend.global.entity.BaseEntity;
 import jakarta.persistence.*;
@@ -54,6 +55,19 @@ public class Content extends BaseEntity {
     @Enumerated(EnumType.STRING)
     private ContentCategory category;
 
+    public ContentStatus getEventStatus() {
+        LocalDate today = LocalDate.now();
+
+        if (startDate != null && today.isBefore(startDate)) {
+            return ContentStatus.BEFORE;
+        }
+
+        if (endDate != null && today.isAfter(endDate)) {
+            return ContentStatus.AFTER;
+        }
+
+        return ContentStatus.ONGOING;
+    }
 
     public void update(
             Place place,
@@ -81,4 +95,3 @@ public class Content extends BaseEntity {
         this.source = source;
     }
 }
-
