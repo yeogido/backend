@@ -87,6 +87,11 @@ public class SecurityConfig {
 
                         .requestMatchers(
                                 HttpMethod.POST,
+                                "/api/v1/users/business-verify"
+                        ).authenticated()
+
+                        .requestMatchers(
+                                HttpMethod.POST,
                                 "/api/v1/business-promotions"
                         ).authenticated()
 
