@@ -33,6 +33,7 @@ public class RegionConverter {
         return new RegionResDTO.RegionDetailRes(
                 region.getId(),
                 region.getName(),
+                region.getFullName(),
                 imageUrl
         );
     }
