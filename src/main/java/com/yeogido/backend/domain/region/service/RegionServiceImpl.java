@@ -1,6 +1,7 @@
 package com.yeogido.backend.domain.region.service;
 
 import com.yeogido.backend.domain.file.service.S3Service;
+import com.yeogido.backend.domain.region.converter.RegionConverter;
 import com.yeogido.backend.domain.region.dto.response.RegionResDTO;
 import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.region.enums.RegionType;
@@ -23,10 +24,24 @@ public class RegionServiceImpl implements RegionService {
     public RegionResDTO.RegionListResponse getRegions() {
         List<RegionResDTO.RegionPreview> regions = regionRepository.findByTypeAndParentIsNullOrderByIdAsc(RegionType.REGION)
                 .stream()
-                .map(this::toRegionPreview)
+                .map(region -> RegionConverter.toRegionPreview(
+                        region,
+                        s3Service.getImageUrl(region.getImageKey())
+                ))
                 .toList();
 
         return new RegionResDTO.RegionListResponse(regions);
+    }
+
+    @Override
+    public RegionResDTO.RegionDetailRes getRegionDetail(Long regionId) {
+        Region region = regionRepository.findById(regionId)
+                .orElseThrow(() -> new GeneralException(RegionErrorCode.REGION_NOT_FOUND));
+
+        return RegionConverter.toRegionDetailRes(
+                region,
+                s3Service.getImageUrl(region.getImageKey())
+        );
     }
 
     @Override
@@ -39,7 +54,7 @@ public class RegionServiceImpl implements RegionService {
                         RegionType.SUB_REGION
                 )
                 .stream()
-                .map(this::toSubRegionPreview)
+                .map(RegionConverter::toSubRegionPreview)
                 .toList();
 
         return new RegionResDTO.SubRegionListResponse(subRegions);
@@ -88,18 +103,4 @@ public class RegionServiceImpl implements RegionService {
         );
     }
 
-    private RegionResDTO.RegionPreview toRegionPreview(Region region) {
-        return new RegionResDTO.RegionPreview(
-                region.getId(),
-                region.getName(),
-                s3Service.getImageUrl(region.getImageKey())
-        );
-    }
-
-    private RegionResDTO.SubRegionPreview toSubRegionPreview(Region region) {
-        return new RegionResDTO.SubRegionPreview(
-                region.getId(),
-                region.getName()
-        );
-    }
 }
