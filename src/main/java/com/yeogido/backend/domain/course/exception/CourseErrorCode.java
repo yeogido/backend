@@ -43,6 +43,18 @@ public enum CourseErrorCode implements ErrorCode {
             HttpStatus.BAD_REQUEST,
             "COURSE4005",
             "LOCAL 인기 추천 코스는 지역 필터를 사용할 수 없습니다."
+    ),
+
+    LOCATION_REQUIRED_FOR_DISTANCE_SORT(
+            HttpStatus.BAD_REQUEST,
+            "COURSE4006",
+            "비로그인 사용자는 거리순 조회 시 위도와 경도를 입력해야 합니다."
+    ),
+
+    REGION_COORDINATE_NOT_FOUND(
+            HttpStatus.BAD_REQUEST,
+            "COURSE4007",
+            "거리순 조회에 사용할 지역 중심 좌표가 없습니다."
     );
 
     private final HttpStatus httpStatus;
