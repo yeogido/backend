@@ -5,5 +5,11 @@ public enum CourseSortType {
     DISTANCE,
     LATEST,
     SAVED,
-    REVIEW
+    REVIEW;
+
+    public static CourseSortType resolve(CourseSortType sort) {
+        return sort == null
+                ? LATEST
+                : sort;
+    }
 }

@@ -156,7 +156,7 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
     }
 
     private BooleanExpression distanceSortRegionCoordinateExists(CourseReqDTO.CourseListReq request) {
-        if (resolveSort(request.sort()) != CourseSortType.DISTANCE) {
+        if (CourseSortType.resolve(request.sort()) != CourseSortType.DISTANCE) {
             return null;
         }
 
@@ -170,7 +170,7 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
             NumberExpression<Long> reviewCount,
             NumberExpression<Double> distance
     ) {
-        return switch (resolveSort(sort)) {
+        return switch (CourseSortType.resolve(sort)) {
             case DISTANCE -> new OrderSpecifier<?>[] {
                     distance.asc(),
                     course.id.desc()
@@ -205,7 +205,7 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
             return null;
         }
 
-        return switch (resolveSort(request.sort())) {
+        return switch (CourseSortType.resolve(request.sort())) {
             case DISTANCE -> distanceCursor(distance, request.cursorValue(), request.cursorId());
             case SAVED -> descendingNumberCursor(savedCount, Long.valueOf(request.cursorValue()), request.cursorId());
             case REVIEW -> descendingNumberCursor(reviewCount, Long.valueOf(request.cursorValue()), request.cursorId());
@@ -286,9 +286,4 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
         );
     }
 
-    private CourseSortType resolveSort(CourseSortType sort) {
-        return sort == null
-                ? CourseSortType.RECOMMEND
-                : sort;
-    }
 }

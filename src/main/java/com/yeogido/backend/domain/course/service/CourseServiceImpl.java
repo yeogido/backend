@@ -695,9 +695,7 @@ public class CourseServiceImpl implements CourseService {
             CourseSortType sort,
             String cursorValue
     ) {
-        CourseSortType resolvedSort = sort == null
-                ? CourseSortType.RECOMMEND
-                : sort;
+        CourseSortType resolvedSort = CourseSortType.resolve(sort);
 
         try {
             switch (resolvedSort) {
@@ -750,9 +748,7 @@ public class CourseServiceImpl implements CourseService {
             return null;
         }
 
-        CourseSortType resolvedSort = sort == null
-                ? CourseSortType.RECOMMEND
-                : sort;
+        CourseSortType resolvedSort = CourseSortType.resolve(sort);
 
         return switch (resolvedSort) {
             case DISTANCE -> row.distance();

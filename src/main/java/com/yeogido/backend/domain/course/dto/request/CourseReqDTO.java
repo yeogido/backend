@@ -179,7 +179,7 @@ public class CourseReqDTO {
             @Schema(description = "동행 유형", example = "SOLO")
             CompanionType companionType,
 
-            @Schema(description = "정렬 기준", example = "RECOMMEND")
+            @Schema(description = "정렬 기준", example = "LATEST")
             CourseSortType sort,
 
             @Schema(description = "현재 위치 위도. sort=DISTANCE일 때 사용합니다.", example = "37.5665")
