@@ -20,4 +20,6 @@ public interface RegionRepository extends JpaRepository<Region, Long> {
 
     List<Region> findByParentIdAndTypeOrderByIdAsc(Long parentId, RegionType type);
 
+    List<Region> findByNameContainingOrderByIdAsc(String keyword);
+
 }

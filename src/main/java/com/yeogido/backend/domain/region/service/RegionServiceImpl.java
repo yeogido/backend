@@ -45,6 +45,14 @@ public class RegionServiceImpl implements RegionService {
     }
 
     @Override
+    public List<RegionResDTO.RegionSearchRes> searchRegions(String keyword) {
+        return regionRepository.findByNameContainingOrderByIdAsc(keyword)
+                .stream()
+                .map(RegionConverter::toRegionSearchRes)
+                .toList();
+    }
+
+    @Override
     public RegionResDTO.SubRegionListResponse getSubRegions(Long regionId) {
         regionRepository.findByIdAndType(regionId, RegionType.REGION)
                 .orElseThrow(() -> new GeneralException(RegionErrorCode.REGION_NOT_FOUND));
