@@ -65,9 +65,13 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
                         distance
                 ))
                 .from(course)
-                .join(course.region, region)
-                .leftJoin(region.parent, parentRegion)
-                .leftJoin(courseLike).on(courseLike.course.eq(course))
+                .join(course.region, region);
+
+        if (hasKeyword(request.keyword())) {
+            query.leftJoin(region.parent, parentRegion);
+        }
+
+        query.leftJoin(courseLike).on(courseLike.course.eq(course))
                 .leftJoin(courseReview).on(courseReview.course.eq(course))
                 .where(baseCondition(request))
                 .groupBy(
@@ -134,7 +138,7 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
     }
 
     private BooleanExpression keywordContains(String keyword) {
-        if (!StringUtils.hasText(keyword)) {
+        if (!hasKeyword(keyword)) {
             return null;
         }
 
@@ -145,6 +149,10 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
                 .or(region.fullName.containsIgnoreCase(normalizedKeyword))
                 .or(parentRegion.name.containsIgnoreCase(normalizedKeyword))
                 .or(parentRegion.fullName.containsIgnoreCase(normalizedKeyword));
+    }
+
+    private boolean hasKeyword(String keyword) {
+        return StringUtils.hasText(keyword);
     }
 
     private BooleanExpression regionCoordinateExists(CourseReqDTO.CourseListReq request) {
