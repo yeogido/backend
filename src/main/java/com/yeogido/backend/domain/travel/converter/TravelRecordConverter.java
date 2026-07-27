@@ -3,12 +3,15 @@ package com.yeogido.backend.domain.travel.converter;
 import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.travel.dto.request.TravelRecordReqDTO;
 import com.yeogido.backend.domain.travel.dto.response.TravelRecordResDTO;
+import com.yeogido.backend.domain.travel.entity.Sticker;
 import com.yeogido.backend.domain.travel.entity.TravelRecord;
 import com.yeogido.backend.domain.travel.entity.TravelRecordPhoto;
+import com.yeogido.backend.domain.travel.entity.TravelRecordSticker;
 import com.yeogido.backend.domain.travel.enums.FolderTheme;
 import com.yeogido.backend.domain.user.entity.User;
-import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 
 public class TravelRecordConverter {
 
@@ -46,6 +49,24 @@ public class TravelRecordConverter {
                 .toList();
     }
 
+    public static List<TravelRecordSticker> toTravelRecordStickers(
+            TravelRecord travelRecord,
+            List<TravelRecordReqDTO.StickerRequest> stickers,
+            Map<Long, Sticker> stickerMap
+    ) {
+        return stickers.stream()
+                .map(sticker -> TravelRecordSticker.builder()
+                        .travelRecord(travelRecord)
+                        .sticker(stickerMap.get(sticker.stickerId()))
+                        .positionX(sticker.positionX())
+                        .positionY(sticker.positionY())
+                        .rotation(sticker.rotation())
+                        .scale(sticker.scale())
+                        .zIndex(sticker.zIndex())
+                        .build())
+                .toList();
+    }
+
     public static TravelRecordResDTO.TravelRecordSummary toTravelRecordSummary(
             TravelRecord travelRecord
     ) {
@@ -63,10 +84,16 @@ public class TravelRecordConverter {
 
     public static TravelRecordResDTO.DetailResponse toDetailResponse(
             TravelRecord travelRecord,
-            List<TravelRecordPhoto> photos
+            List<TravelRecordPhoto> photos,
+            List<TravelRecordSticker> stickers,
+            Function<String, String> imageUrlResolver
     ) {
         List<TravelRecordResDTO.ImageResponse> images = photos.stream()
                 .map(TravelRecordConverter::toImageResponse)
+                .toList();
+
+        List<TravelRecordResDTO.StickerResponse> stickerResponses = stickers.stream()
+                .map(sticker -> toStickerResponse(sticker, imageUrlResolver))
                 .toList();
 
         return new TravelRecordResDTO.DetailResponse(
@@ -78,7 +105,7 @@ public class TravelRecordConverter {
                 travelRecord.getCoverImageKey(),
                 travelRecord.getFolderTheme() == null ? null : travelRecord.getFolderTheme().name(),
                 images,
-                Collections.emptyList(),
+                stickerResponses,
                 travelRecord.getCreatedAt(),
                 travelRecord.getUpdatedAt()
         );
@@ -91,6 +118,24 @@ public class TravelRecordConverter {
                 photo.getId(),
                 photo.getImageKey(),
                 photo.getImageOrder()
+        );
+    }
+
+    public static TravelRecordResDTO.StickerResponse toStickerResponse(
+            TravelRecordSticker recordSticker,
+            Function<String, String> imageUrlResolver
+    ) {
+        Sticker sticker = recordSticker.getSticker();
+
+        return new TravelRecordResDTO.StickerResponse(
+                recordSticker.getId(),
+                sticker.getId(),
+                imageUrlResolver.apply(sticker.getImageKey()),
+                recordSticker.getPositionX(),
+                recordSticker.getPositionY(),
+                recordSticker.getRotation(),
+                recordSticker.getScale(),
+                recordSticker.getZIndex()
         );
     }
 

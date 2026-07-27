@@ -61,6 +61,12 @@ public enum TravelRecordErrorCode implements ErrorCode {
             HttpStatus.NOT_FOUND,
             "TRAVEL_RECORD4041",
             "여행 기록을 찾을 수 없습니다."
+    ),
+
+    STICKER_NOT_FOUND(
+            HttpStatus.NOT_FOUND,
+            "STICKER4042",
+            "선택한 스티커를 찾을 수 없습니다."
     );
 
     private final HttpStatus httpStatus;

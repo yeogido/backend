@@ -97,8 +97,11 @@ public class TravelRecordResDTO {
             @Schema(description = "기록 스티커 ID", example = "1")
             Long recordStickerId,
 
-            @Schema(description = "스티커 이미지 key", example = "stickers/heart.png")
-            String stickerKey,
+            @Schema(description = "스티커 ID", example = "1")
+            Long stickerId,
+
+            @Schema(description = "스티커 이미지 URL", example = "https://example-bucket.s3.ap-northeast-2.amazonaws.com/stickers/heart.png")
+            String imageUrl,
 
             @Schema(description = "스티커 X 좌표", example = "120.5")
             Double positionX,
