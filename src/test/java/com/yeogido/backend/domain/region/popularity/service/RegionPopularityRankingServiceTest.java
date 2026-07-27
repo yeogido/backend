@@ -3,9 +3,11 @@ package com.yeogido.backend.domain.region.popularity.service;
 import com.yeogido.backend.domain.course.popularity.dto.CoursePopularityActivity;
 import com.yeogido.backend.domain.course.popularity.repository.CoursePopularityRedisRepository;
 import com.yeogido.backend.domain.course.repository.CourseRepository;
+import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.region.enums.RegionType;
 import com.yeogido.backend.domain.region.popularity.dto.RegionPopularityRankingEntry;
 import com.yeogido.backend.domain.region.popularity.repository.RegionPopularityRankingRedisRepository;
+import com.yeogido.backend.domain.region.repository.RegionRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -21,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -34,6 +37,9 @@ class RegionPopularityRankingServiceTest {
     private CourseRepository courseRepository;
 
     @Mock
+    private RegionRepository regionRepository;
+
+    @Mock
     private RegionPopularityScoreCalculator regionPopularityScoreCalculator;
 
     @Mock
@@ -43,11 +49,17 @@ class RegionPopularityRankingServiceTest {
     private RegionPopularityRankingService regionPopularityRankingService;
 
     @Test
-    void refreshPopularityRankingsAggregatesCourseActivitiesByCityCountyRegion() {
+    void refreshPopularityRankingsAggregatesCourseActivitiesAndIncludesZeroScoreRegions() {
         LocalDate baseDate = LocalDate.of(2026, 7, 24);
         CoursePopularityActivity firstActivity = new CoursePopularityActivity(10L, 2L, 1L);
         CoursePopularityActivity secondActivity = new CoursePopularityActivity(4L, 1L, 1L);
         CoursePopularityActivity thirdActivity = new CoursePopularityActivity(6L, 4L, 1L);
+
+        when(regionRepository.findAll()).thenReturn(List.of(
+                region(20L),
+                region(30L),
+                region(40L)
+        ));
 
         when(coursePopularityRedisRepository.getActivities(List.of(
                 baseDate,
@@ -75,11 +87,14 @@ class RegionPopularityRankingServiceTest {
 
         when(regionPopularityScoreCalculator.calculate(firstActivity)).thenReturn(42L);
         when(regionPopularityScoreCalculator.calculate(secondActivity)).thenReturn(19L);
+        when(regionPopularityScoreCalculator.calculate(thirdActivity)).thenReturn(31L);
 
         regionPopularityRankingService.refreshPopularityRankings(baseDate);
 
         verify(regionPopularityRankingRedisRepository).replaceRanking(List.of(
-                new RegionPopularityRankingEntry(20L, 61L)
+                new RegionPopularityRankingEntry(20L, 61L),
+                new RegionPopularityRankingEntry(30L, 31L),
+                new RegionPopularityRankingEntry(40L, 0L)
         ));
     }
 
@@ -88,6 +103,7 @@ class RegionPopularityRankingServiceTest {
         RegionPopularityRankingService service = new RegionPopularityRankingService(
                 coursePopularityRedisRepository,
                 courseRepository,
+                regionRepository,
                 regionPopularityScoreCalculator,
                 regionPopularityRankingRedisRepository
         ) {
@@ -101,6 +117,13 @@ class RegionPopularityRankingServiceTest {
         CoursePopularityActivity secondActivity = new CoursePopularityActivity(2L, 0L, 0L);
         CoursePopularityActivity thirdActivity = new CoursePopularityActivity(3L, 0L, 0L);
         CoursePopularityActivity fourthActivity = new CoursePopularityActivity(4L, 0L, 0L);
+
+        when(regionRepository.findAll()).thenReturn(List.of(
+                region(50L),
+                region(10L),
+                region(20L),
+                region(30L)
+        ));
 
         when(coursePopularityRedisRepository.getActivities(List.of(
                 baseDate,
@@ -150,6 +173,10 @@ class RegionPopularityRankingServiceTest {
         CoursePopularityActivity firstActivity = new CoursePopularityActivity(1L, 0L, 0L);
         CoursePopularityActivity secondActivity = new CoursePopularityActivity(1L, 0L, 0L);
 
+        when(regionRepository.findAll()).thenReturn(List.of(
+                region(50L),
+                region(10L)
+        ));
         when(coursePopularityRedisRepository.getActivities(any())).thenReturn(Map.of(
                 1L, firstActivity,
                 2L, secondActivity
@@ -185,9 +212,26 @@ class RegionPopularityRankingServiceTest {
     }
 
     @Test
-    void refreshPopularityRankingsStoresEmptyRankingWhenActivityIsEmpty() {
+    void refreshPopularityRankingsStoresAllRegionsWithZeroScoreWhenActivityIsEmpty() {
+        RegionPopularityRankingService service = new RegionPopularityRankingService(
+                coursePopularityRedisRepository,
+                courseRepository,
+                regionRepository,
+                regionPopularityScoreCalculator,
+                regionPopularityRankingRedisRepository
+        ) {
+            @Override
+            void shuffleEqualScoreGroup(List<RegionPopularityRankingEntry> entries) {
+                Collections.reverse(entries);
+            }
+        };
         LocalDate baseDate = LocalDate.of(2026, 7, 24);
 
+        when(regionRepository.findAll()).thenReturn(List.of(
+                region(10L),
+                region(20L),
+                region(30L)
+        ));
         when(coursePopularityRedisRepository.getActivities(List.of(
                 baseDate,
                 baseDate.minusDays(1),
@@ -198,9 +242,68 @@ class RegionPopularityRankingServiceTest {
                 baseDate.minusDays(6)
         ))).thenReturn(Map.of());
 
-        regionPopularityRankingService.refreshPopularityRankings(baseDate);
+        service.refreshPopularityRankings(baseDate);
 
-        verify(regionPopularityRankingRedisRepository).replaceRanking(List.of());
+        verify(regionPopularityRankingRedisRepository).replaceRanking(List.of(
+                new RegionPopularityRankingEntry(30L, 0L),
+                new RegionPopularityRankingEntry(20L, 0L),
+                new RegionPopularityRankingEntry(10L, 0L)
+        ));
+        verify(courseRepository, never()).findRegionPopularityTargetsByCourseIds(any());
+    }
+
+    @Test
+    void refreshPopularityRankingsIncludesEveryRegionInEqualScoreGroups() {
+        RegionPopularityRankingService service = new RegionPopularityRankingService(
+                coursePopularityRedisRepository,
+                courseRepository,
+                regionRepository,
+                regionPopularityScoreCalculator,
+                regionPopularityRankingRedisRepository
+        ) {
+            @Override
+            void shuffleEqualScoreGroup(List<RegionPopularityRankingEntry> entries) {
+                Collections.reverse(entries);
+            }
+        };
+        LocalDate baseDate = LocalDate.of(2026, 7, 24);
+        CoursePopularityActivity firstActivity = new CoursePopularityActivity(1L, 0L, 0L);
+        CoursePopularityActivity secondActivity = new CoursePopularityActivity(2L, 0L, 0L);
+
+        when(regionRepository.findAll()).thenReturn(List.of(
+                region(10L),
+                region(20L),
+                region(30L),
+                region(40L)
+        ));
+        when(coursePopularityRedisRepository.getActivities(any())).thenReturn(Map.of(
+                1L, firstActivity,
+                2L, secondActivity
+        ));
+        when(courseRepository.findRegionPopularityTargetsByCourseIds(any())).thenReturn(List.of(
+                new TargetProjection(1L, 10L, "서울특별시", "서울특별시", RegionType.REGION),
+                new TargetProjection(2L, 20L, "부산광역시", "부산광역시", RegionType.REGION)
+        ));
+        when(regionPopularityScoreCalculator.calculate(firstActivity)).thenReturn(30L);
+        when(regionPopularityScoreCalculator.calculate(secondActivity)).thenReturn(30L);
+
+        service.refreshPopularityRankings(baseDate);
+
+        verify(regionPopularityRankingRedisRepository).replaceRanking(List.of(
+                new RegionPopularityRankingEntry(20L, 30L),
+                new RegionPopularityRankingEntry(10L, 30L),
+                new RegionPopularityRankingEntry(40L, 0L),
+                new RegionPopularityRankingEntry(30L, 0L)
+        ));
+    }
+
+    private Region region(Long id) {
+        return Region.builder()
+                .id(id)
+                .name("region-" + id)
+                .fullName("region-" + id)
+                .type(RegionType.REGION)
+                .build();
     }
 
     private record TargetProjection(
