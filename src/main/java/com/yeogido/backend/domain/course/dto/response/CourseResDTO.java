@@ -1,6 +1,7 @@
 package com.yeogido.backend.domain.course.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.yeogido.backend.domain.content.enums.ContentStatus;
 import com.yeogido.backend.domain.course.enums.CompanionType;
 import com.yeogido.backend.domain.course.enums.CourseItemType;
 import com.yeogido.backend.domain.course.enums.CourseType;
@@ -145,14 +146,48 @@ public class CourseResDTO {
             CompanionType companionType
     ) { }
 
-    @Schema(name = "CourseItemResponse", description = "코스 구성 항목")
-    public record CourseItem(
+    @Schema(
+            name = "CourseItemResponse",
+            description = "코스 구성 항목",
+            oneOf = {PlaceCourseItem.class, ContentCourseItem.class}
+    )
+    public sealed interface CourseItem permits PlaceCourseItem, ContentCourseItem {
+
+        Integer order();
+
+        CourseItemType type();
+
+        Boolean isLiked();
+
+        PlaceSource source();
+
+        String externalPlaceId();
+
+        String name();
+
+        String roadAddress();
+
+        String lotAddress();
+
+        BigDecimal latitude();
+
+        BigDecimal longitude();
+    }
+
+    @Schema(name = "PlaceCourseItemResponse", description = "장소 코스 구성 항목")
+    public record PlaceCourseItem(
 
             @Schema(description = "코스 내 순서", example = "1")
             Integer order,
 
             @Schema(description = "코스 항목 타입", example = "PLACE")
             CourseItemType type,
+
+            @Schema(description = "장소 ID", example = "10")
+            Long placeId,
+
+            @Schema(description = "현재 사용자의 장소 좋아요 여부", example = "true")
+            Boolean isLiked,
 
             @Schema(description = "장소 정보 출처", example = "KAKAO")
             PlaceSource source,
@@ -174,7 +209,47 @@ public class CourseResDTO {
 
             @Schema(description = "경도", example = "128.8211111")
             BigDecimal longitude
-    ) { }
+    ) implements CourseItem { }
+
+    @Schema(name = "ContentCourseItemResponse", description = "문화 콘텐츠 코스 구성 항목")
+    public record ContentCourseItem(
+
+            @Schema(description = "코스 내 순서", example = "2")
+            Integer order,
+
+            @Schema(description = "코스 항목 타입", example = "CONTENT")
+            CourseItemType type,
+
+            @Schema(description = "콘텐츠 ID", example = "20")
+            Long contentId,
+
+            @Schema(description = "현재 사용자의 콘텐츠 좋아요 여부", example = "true")
+            Boolean isLiked,
+
+            @Schema(description = "콘텐츠 진행 상태", example = "ONGOING")
+            ContentStatus contentStatus,
+
+            @Schema(description = "장소 정보 출처", example = "KAKAO")
+            PlaceSource source,
+
+            @Schema(description = "외부 장소 ID", example = "123456789")
+            String externalPlaceId,
+
+            @Schema(description = "콘텐츠명", example = "강릉 커피 축제")
+            String name,
+
+            @Schema(description = "도로명 주소", example = "강원특별자치도 강릉시 해안로 1609")
+            String roadAddress,
+
+            @Schema(description = "지번 주소", example = "강원특별자치도 강릉시 주문진읍 향호리")
+            String lotAddress,
+
+            @Schema(description = "위도", example = "37.9111111")
+            BigDecimal latitude,
+
+            @Schema(description = "경도", example = "128.8211111")
+            BigDecimal longitude
+    ) implements CourseItem { }
 
     @Schema(name = "CourseAuthorResponse", description = "코스 작성자 정보")
     public record Author(

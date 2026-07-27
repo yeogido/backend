@@ -2,6 +2,7 @@ package com.yeogido.backend.domain.course.service;
 
 import com.yeogido.backend.domain.content.entity.Content;
 import com.yeogido.backend.domain.content.exception.ContentErrorCode;
+import com.yeogido.backend.domain.content.repository.ContentLikeRepository;
 import com.yeogido.backend.domain.content.repository.ContentRepository;
 import com.yeogido.backend.domain.course.converter.CourseConverter;
 import com.yeogido.backend.domain.course.dto.request.CourseReqDTO;
@@ -26,6 +27,7 @@ import com.yeogido.backend.domain.hashtag.entity.Hashtag;
 import com.yeogido.backend.domain.hashtag.exception.HashtagErrorCode;
 import com.yeogido.backend.domain.hashtag.repository.HashtagRepository;
 import com.yeogido.backend.domain.place.entity.Place;
+import com.yeogido.backend.domain.place.repository.PlaceLikeRepository;
 import com.yeogido.backend.domain.place.service.PlaceService;
 import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.region.exception.RegionErrorCode;
@@ -73,6 +75,8 @@ public class CourseServiceImpl implements CourseService {
     private final HashtagRepository hashtagRepository;
     private final PlaceService placeService;
     private final ContentRepository contentRepository;
+    private final PlaceLikeRepository placeLikeRepository;
+    private final ContentLikeRepository contentLikeRepository;
     private final CourseReviewRepository courseReviewRepository;
     private final CourseRedisRepository courseRedisRepository;
     private final CoursePopularityRankingRedisRepository coursePopularityRankingRedisRepository;
@@ -218,10 +222,15 @@ public class CourseServiceImpl implements CourseService {
                 .map(courseHashtag -> courseHashtag.getHashtag().getHashtagName())
                 .toList();
 
-        List<CourseResDTO.CourseItem> courseItems = courseItemRepository
-                .findByCourseIdOrderByOrderNoAsc(courseId)
-                .stream()
-                .map(CourseConverter::toCourseItem)
+        List<CourseItem> courseItemEntities = courseItemRepository.findByCourseIdOrderByOrderNoAsc(courseId);
+        Set<Long> likedPlaceIds = getLikedPlaceIds(userId, courseItemEntities);
+        Set<Long> likedContentIds = getLikedContentIds(userId, courseItemEntities);
+
+        List<CourseResDTO.CourseItem> courseItems = courseItemEntities.stream()
+                .map(courseItem -> CourseConverter.toCourseItem(
+                        courseItem,
+                        isCourseItemLiked(courseItem, likedPlaceIds, likedContentIds)
+                ))
                 .toList();
 
         String profileImageUrl = null;
@@ -613,6 +622,62 @@ public class CourseServiceImpl implements CourseService {
                 userId,
                 courseIds
         ));
+    }
+
+    private Set<Long> getLikedPlaceIds(Long userId, List<CourseItem> courseItems) {
+        if (userId == null || courseItems.isEmpty()) {
+            return Set.of();
+        }
+
+        List<Long> placeIds = courseItems.stream()
+                .filter(courseItem -> courseItem.getItemType() == CourseItemType.PLACE)
+                .map(CourseItem::getPlace)
+                .filter(Objects::nonNull)
+                .map(Place::getId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+
+        if (placeIds.isEmpty()) {
+            return Set.of();
+        }
+
+        return new HashSet<>(placeLikeRepository.findLikedPlaceIds(userId, placeIds));
+    }
+
+    private Set<Long> getLikedContentIds(Long userId, List<CourseItem> courseItems) {
+        if (userId == null || courseItems.isEmpty()) {
+            return Set.of();
+        }
+
+        List<Long> contentIds = courseItems.stream()
+                .filter(courseItem -> courseItem.getItemType() == CourseItemType.CONTENT)
+                .map(CourseItem::getContent)
+                .filter(Objects::nonNull)
+                .map(Content::getId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+
+        if (contentIds.isEmpty()) {
+            return Set.of();
+        }
+
+        return new HashSet<>(contentLikeRepository.findLikedContentIds(userId, contentIds));
+    }
+
+    private boolean isCourseItemLiked(
+            CourseItem courseItem,
+            Set<Long> likedPlaceIds,
+            Set<Long> likedContentIds
+    ) {
+        if (courseItem.getItemType() == CourseItemType.PLACE) {
+            Place place = courseItem.getPlace();
+            return place != null && likedPlaceIds.contains(place.getId());
+        }
+
+        Content content = courseItem.getContent();
+        return content != null && likedContentIds.contains(content.getId());
     }
 
     private List<Long> getLatestCourseIds(
