@@ -118,7 +118,8 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
     private BooleanExpression regionIdEq(Long regionId) {
         return regionId == null
                 ? null
-                : region.id.eq(regionId);
+                : region.id.eq(regionId)
+                        .or(region.parent.id.eq(regionId));
     }
 
     private BooleanExpression transportTypeEq(CourseReqDTO.CourseListReq request) {
@@ -147,7 +148,8 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
         String normalizedKeyword = keyword.trim();
 
         return course.title.containsIgnoreCase(normalizedKeyword)
-                .or(region.name.containsIgnoreCase(normalizedKeyword));
+                .or(region.name.containsIgnoreCase(normalizedKeyword))
+                .or(region.fullName.containsIgnoreCase(normalizedKeyword));
     }
 
     private boolean hasKeyword(String keyword) {
