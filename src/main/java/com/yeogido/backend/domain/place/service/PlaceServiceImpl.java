@@ -108,7 +108,7 @@ public class PlaceServiceImpl implements PlaceService {
     @Transactional
     public Place getOrCreatePlace(ContentReqDTO.PlaceReq request) {
 
-        PlaceSource source = PlaceSource.valueOf(request.source());
+        PlaceSource source = request.source();
 
         Optional<Place> optionalPlace =
                 placeRepository.findBySourceAndExternalPlaceId(

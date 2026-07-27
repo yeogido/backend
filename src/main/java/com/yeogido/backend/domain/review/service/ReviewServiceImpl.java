@@ -10,6 +10,7 @@ import com.yeogido.backend.domain.review.converter.ReviewConverter;
 import com.yeogido.backend.domain.review.dto.request.ReviewReqDTO;
 import com.yeogido.backend.domain.review.dto.response.ReviewResDTO;
 import com.yeogido.backend.domain.review.enums.ReviewSortType;
+import com.yeogido.backend.domain.review.exception.ReviewErrorCode;
 import com.yeogido.backend.global.common.response.CursorResponse;
 import com.yeogido.backend.global.exception.GeneralErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
@@ -86,6 +87,36 @@ public class ReviewServiceImpl implements ReviewService {
         return CursorResponse.of(items, cursorValue, cursorId, hasNext);
     }
 
+    @Override
+    @Transactional
+    public ReviewResDTO.UpdateResponse updateReview(
+            Long reviewId,
+            Long userId,
+            ReviewReqDTO.UpdateRequest request
+    ) {
+        CourseReview review = courseReviewRepository.findById(reviewId)
+                .orElseThrow(() -> new GeneralException(ReviewErrorCode.REVIEW_NOT_FOUND));
+
+        validateReviewOwner(review, userId, ReviewErrorCode.REVIEW_ACCESS_DENIED);
+
+        review.update(request.rating(), request.content());
+        updateImagesIfRequested(review, request.images());
+
+        return ReviewConverter.toUpdateResponse(review);
+    }
+
+    @Override
+    @Transactional
+    public void deleteReview(Long reviewId, Long userId) {
+        CourseReview review = courseReviewRepository.findById(reviewId)
+                .orElseThrow(() -> new GeneralException(ReviewErrorCode.REVIEW_NOT_FOUND));
+
+        validateReviewOwner(review, userId, ReviewErrorCode.REVIEW_DELETE_ACCESS_DENIED);
+
+        courseReviewImageRepository.deleteAllByCourseReview_Id(review.getId());
+        courseReviewRepository.delete(review);
+    }
+
     private List<CourseReview> findReviews(
             Long cursor,
             ReviewSortType sort,
@@ -149,6 +180,53 @@ public class ReviewServiceImpl implements ReviewService {
                 getCurrentUserId(),
                 courseIds
         ));
+    }
+
+    private void validateReviewOwner(
+            CourseReview review,
+            Long userId,
+            ReviewErrorCode errorCode
+    ) {
+        if (!review.getUser().getId().equals(userId)) {
+            throw new GeneralException(errorCode);
+        }
+    }
+
+    private void updateImagesIfRequested(
+            CourseReview review,
+            List<ReviewReqDTO.ReviewImageRequest> images
+    ) {
+        if (images == null) {
+            return;
+        }
+
+        validateImageOrder(images);
+
+        courseReviewImageRepository.deleteAllByCourseReview_Id(review.getId());
+
+        if (images.isEmpty()) {
+            return;
+        }
+
+        courseReviewImageRepository.saveAll(
+                ReviewConverter.toCourseReviewImages(review, images)
+        );
+    }
+
+    private void validateImageOrder(List<ReviewReqDTO.ReviewImageRequest> images) {
+        Set<Integer> imageOrders = new HashSet<>();
+
+        for (ReviewReqDTO.ReviewImageRequest image : images) {
+            if (!imageOrders.add(image.imageOrder())) {
+                throw new GeneralException(ReviewErrorCode.DUPLICATE_IMAGE_ORDER);
+            }
+        }
+
+        for (int order = 1; order <= images.size(); order++) {
+            if (!imageOrders.contains(order)) {
+                throw new GeneralException(ReviewErrorCode.INVALID_IMAGE_ORDER);
+            }
+        }
     }
 
     private Long getCurrentUserId() {

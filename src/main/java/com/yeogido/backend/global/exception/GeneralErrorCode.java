@@ -32,6 +32,12 @@ public enum GeneralErrorCode implements ErrorCode {
             "필수 입력값이 누락되었습니다."
     ),
 
+    RESOURCE_NOT_FOUND(
+            HttpStatus.NOT_FOUND,
+            "COMMON4041",
+            "요청한 리소스를 찾을 수 없습니다."
+    ),
+
     FORBIDDEN(
             HttpStatus.FORBIDDEN,
             "COMMON4031",

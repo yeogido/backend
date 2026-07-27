@@ -1,8 +1,10 @@
 package com.yeogido.backend.domain.user.controller;
 
 import com.yeogido.backend.domain.user.dto.UserResDTO;
+import com.yeogido.backend.domain.user.enums.LikeSortType;
 import com.yeogido.backend.domain.user.service.UserService;
 import com.yeogido.backend.global.common.code.SuccessCode;
+import com.yeogido.backend.domain.user.enums.LikeCategory;
 import com.yeogido.backend.global.common.response.ApiResponse;
 import com.yeogido.backend.global.common.response.CursorResponse;
 import com.yeogido.backend.domain.auth.security.AuthUser;
@@ -14,6 +16,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.time.LocalDateTime;
 
 @Tag(name = "사용자 API", description = "사용자 관련 API")
 @RestController
@@ -29,11 +33,27 @@ public class UserController {
     )
     @GetMapping("/me/likes")
     public ApiResponse<CursorResponse<UserResDTO.LikedResponse>> getLikedList(
-            @RequestParam String category,
-            @RequestParam Long cursor,
-            @RequestParam Integer size
+            @RequestParam LikeCategory category,
+            @RequestParam(defaultValue = "LATEST") LikeSortType sort,
+            @RequestParam(required = false) LocalDateTime cursorCreatedAt,
+            @RequestParam(required = false) Long cursorId,
+            @RequestParam(defaultValue = "6") Integer size,
+            @RequestParam(required = false) Double latitude,
+            @RequestParam(required = false) Double longitude,
+            @AuthenticationPrincipal AuthUser authUser
     ) {
-        CursorResponse<UserResDTO.LikedResponse> result = userService.getLikedList(category, cursor, size);
+        CursorResponse<UserResDTO.LikedResponse> result =
+                userService.getLikedList(
+                        authUser.userId(),
+                        category,
+                        sort,
+                        cursorCreatedAt,
+                        cursorId,
+                        size,
+                        latitude,
+                        longitude
+                );
+
         return ApiResponse.onSuccess(SuccessCode.OK, result);
     }
 

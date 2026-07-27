@@ -56,4 +56,5 @@ public class Place extends BaseEntity {
 
     @Column(nullable = false, precision = 10, scale = 7)
     private BigDecimal longitude;
+
 }

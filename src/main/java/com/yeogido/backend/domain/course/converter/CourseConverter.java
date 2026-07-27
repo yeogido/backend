@@ -124,16 +124,38 @@ public class CourseConverter {
         );
     }
 
-    public static CourseResDTO.CourseItem toCourseItem(CourseItem courseItem) {
+    public static CourseResDTO.CourseItem toCourseItem(
+            CourseItem courseItem,
+            boolean isLiked
+    ) {
         Place place = resolvePlace(courseItem);
         Content content = courseItem.getContent();
 
-        return new CourseResDTO.CourseItem(
+        if (courseItem.getItemType() == CourseItemType.PLACE) {
+            return new CourseResDTO.PlaceCourseItem(
+                    courseItem.getOrderNo(),
+                    courseItem.getItemType(),
+                    place.getId(),
+                    isLiked,
+                    place.getSource(),
+                    place.getExternalPlaceId(),
+                    place.getName(),
+                    place.getRoadAddress(),
+                    place.getLotAddress(),
+                    place.getLatitude(),
+                    place.getLongitude()
+            );
+        }
+
+        return new CourseResDTO.ContentCourseItem(
                 courseItem.getOrderNo(),
                 courseItem.getItemType(),
+                content.getId(),
+                isLiked,
+                content.getEventStatus(),
                 place.getSource(),
                 place.getExternalPlaceId(),
-                content == null ? place.getName() : content.getTitle(),
+                content.getTitle(),
                 place.getRoadAddress(),
                 place.getLotAddress(),
                 place.getLatitude(),
