@@ -9,8 +9,12 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.Collections;
 import java.util.List;
@@ -29,6 +33,39 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(errorCode.getHttpStatus())
                 .body(ApiResponse.onFailure(errorCode));
+    }
+
+    @ExceptionHandler({
+            NoResourceFoundException.class,
+            NoHandlerFoundException.class
+    })
+    public ResponseEntity<ApiResponse<Void>> handleApiNotFound(
+            Exception e
+    ) {
+
+        return ResponseEntity
+                .status(GeneralErrorCode.RESOURCE_NOT_FOUND.getHttpStatus())
+                .body(ApiResponse.onFailure(GeneralErrorCode.RESOURCE_NOT_FOUND));
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMethodArgumentTypeMismatchException(
+            MethodArgumentTypeMismatchException e
+    ) {
+
+        return ResponseEntity
+                .status(GeneralErrorCode.INVALID_PARAMETER.getHttpStatus())
+                .body(ApiResponse.onFailure(GeneralErrorCode.INVALID_PARAMETER));
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMissingServletRequestParameterException(
+            MissingServletRequestParameterException e
+    ) {
+
+        return ResponseEntity
+                .status(GeneralErrorCode.REQUIRED_FIELD_MISSING.getHttpStatus())
+                .body(ApiResponse.onFailure(GeneralErrorCode.REQUIRED_FIELD_MISSING));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
