@@ -54,6 +54,9 @@ public class Content extends BaseEntity {
     @Enumerated(EnumType.STRING)
     private ContentCategory category;
 
+    @Column(name = "recommend_priority")
+    private Integer recommendPriority;
+
 
     public void update(
             Place place,
@@ -79,6 +82,10 @@ public class Content extends BaseEntity {
         this.officialUrl = officialUrl;
         this.category = category;
         this.source = source;
+    }
+
+    public void updateRecommendPriority(Integer recommendPriority) {
+        this.recommendPriority = recommendPriority;
     }
 }
 

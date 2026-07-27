@@ -4,6 +4,7 @@ import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.core.types.dsl.NumberExpression;
+import com.querydsl.jpa.impl.JPAQuery;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import com.yeogido.backend.domain.content.converter.ContentConverter;
 import com.yeogido.backend.domain.content.dto.ContentReqDTO;
@@ -21,6 +22,7 @@ import com.yeogido.backend.domain.content.exception.ContentErrorCode;
 import com.yeogido.backend.domain.content.repository.ContentHashtagRepository;
 import com.yeogido.backend.domain.content.repository.ContentRepository;
 import com.yeogido.backend.domain.course.entity.CourseItem;
+import com.yeogido.backend.domain.file.service.S3Service;
 import com.yeogido.backend.domain.hashtag.entity.Hashtag;
 import com.yeogido.backend.domain.hashtag.exception.HashtagErrorCode;
 import com.yeogido.backend.domain.hashtag.repository.HashtagRepository;
@@ -32,6 +34,8 @@ import com.yeogido.backend.domain.content.repository.ContentLikeRepository;
 import com.yeogido.backend.domain.course.entity.Course;
 import com.yeogido.backend.domain.course.repository.CourseItemRepository;
 import com.yeogido.backend.domain.course.repository.CourseLikeRepository;
+import com.yeogido.backend.domain.region.entity.Region;
+import com.yeogido.backend.domain.region.repository.RegionRepository;
 import com.yeogido.backend.domain.user.entity.User;
 import com.yeogido.backend.domain.user.enums.UserRole;
 import com.yeogido.backend.domain.user.exception.UserErrorCode;
@@ -47,6 +51,7 @@ import org.springframework.stereotype.Service;
 
 import java.net.ContentHandler;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -70,6 +75,9 @@ public class ContentServiceImpl implements ContentService{
     private final CourseItemRepository courseItemRepository;
     private final CourseLikeRepository courseLikeRepository;
     private final UserRepository userRepository;
+    private final RegionRepository regionRepository;
+
+    private final S3Service s3Service;
 
 
     @Override
@@ -89,6 +97,9 @@ public class ContentServiceImpl implements ContentService{
         Object nextCursorValue = null;
         Long nextCursorId = null;
 
+        Integer cursorRecommendPriority = null;
+        LocalDateTime nextCursorCreatedAt = null;
+
         if (request.regionId() != null
                 && request.sort() != ContentSort.DISTANCE) {
             builder.and(qContent.place.region.id.eq(request.regionId()));
@@ -99,18 +110,22 @@ public class ContentServiceImpl implements ContentService{
         }
 
         if (request.keyword() != null && !request.keyword().isBlank()) {
-            builder.and(qContent.title.containsIgnoreCase(request.keyword()));
+            builder.and(
+                    qContent.title.containsIgnoreCase(request.keyword())
+                            .or(qContent.place.name.containsIgnoreCase(request.keyword()))
+                            .or(qContent.place.region.fullName.containsIgnoreCase(request.keyword()))
+            );
         }
-
-        //TODO : 검색 로직 구현
 
         List<ContentResDTO.ContentInfo> result = new ArrayList<>();
         List<Content> contents=new ArrayList<>();
         boolean hasNext = false;
 
+        ContentSort sort =
+                request.sort() == null ? ContentSort.RECOMMEND : request.sort();
 
         // 정렬 기준
-        switch (request.sort()) {
+        switch (sort) {
 
             case LIKE ->{
 
@@ -139,11 +154,29 @@ public class ContentServiceImpl implements ContentService{
                     nextCursorId = lastTuple.get(qContent).getId();
                 }
 
+                contents = tuples.stream()
+                        .map(tuple -> tuple.get(qContent))
+                        .toList();
+
+                List<ContentHashtag> contentHashtags =
+                        contentHashtagRepository.findAllByContentIn(contents);
+
+                Map<Long, List<String>> hashtagMap =
+                        contentHashtags.stream()
+                                .collect(Collectors.groupingBy(
+                                        ch -> ch.getContent().getId(),
+                                        Collectors.mapping(
+                                                ch -> ch.getHashtag().getHashtagName(),
+                                                Collectors.toList()
+                                        )
+                                ));
+
                 result = tuples.stream()
                         .map(tuple -> ContentConverter.toContentInfo(
                                 tuple,
                                 qContent,
-                                likeCountExpression
+                                likeCountExpression,
+                                hashtagMap
                         ))
                         .toList();
             }
@@ -171,11 +204,31 @@ public class ContentServiceImpl implements ContentService{
 
                 Map<Long, Long> likeCountMap = getLikeCountMap(contents);
 
+                List<ContentHashtag> contentHashtags =
+                        contentHashtagRepository.findAllByContentIn(contents);
+
+                Map<Long, List<String>> hashtagMap =
+                        contentHashtags.stream()
+                                .collect(Collectors.groupingBy(
+                                        ch -> ch.getContent().getId(),
+                                        Collectors.mapping(
+                                                ch -> ch.getHashtag().getHashtagName(),
+                                                Collectors.toList()
+                                        )
+                                ));
+
                 result = contents.stream()
-                        .map(content -> ContentConverter.toContentInfo(
-                                content,
-                                likeCountMap.getOrDefault(content.getId(), 0L)
-                        ))
+                        .map(content -> {
+                            String imageUrl =
+                                    s3Service.getImageUrl(content.getThumbnailImage());
+
+                            return ContentConverter.toContentInfo(
+                                    content,
+                                    imageUrl,
+                                    likeCountMap.getOrDefault(content.getId(), 0L),
+                                    hashtagMap.getOrDefault(content.getId(), List.of())
+                            );
+                        })
                         .toList();
 
             }
@@ -206,19 +259,90 @@ public class ContentServiceImpl implements ContentService{
 
                 Map<Long, Long> likeCountMap = getLikeCountMap(contents);
 
+                List<ContentHashtag> contentHashtags =
+                        contentHashtagRepository.findAllByContentIn(contents);
+
+                Map<Long, List<String>> hashtagMap =
+                        contentHashtags.stream()
+                                .collect(Collectors.groupingBy(
+                                        ch -> ch.getContent().getId(),
+                                        Collectors.mapping(
+                                                ch -> ch.getHashtag().getHashtagName(),
+                                                Collectors.toList()
+                                        )
+                                ));
+
                 result = contents.stream()
-                        .map(content -> ContentConverter.toContentInfo(
-                                content,
-                                likeCountMap.getOrDefault(content.getId(), 0L)
-                        ))
+                        .map(content -> {
+                            String imageUrl =
+                                    s3Service.getImageUrl(content.getThumbnailImage());
+
+                            return ContentConverter.toContentInfo(
+                                    content,
+                                    imageUrl,
+                                    likeCountMap.getOrDefault(content.getId(), 0L),
+                                    hashtagMap.getOrDefault(content.getId(), List.of())
+                            );
+                        })
                         .toList();
 
             }
 
             case RECOMMEND -> {
-                contents = getRecommendedContents(builder,size);
+                if (request.cursorValue() != null) {
+                    cursorRecommendPriority = Integer.valueOf(request.cursorValue());
+                }
 
-                //TODO : 추천순 nextCursor 구현
+
+                contents = getRecommendedContents(
+                        builder,
+                        size,
+                        cursorRecommendPriority,
+                        cursorId
+                );
+
+                hasNext = contents.size() > size;
+
+                if (hasNext) {
+                    contents.remove(contents.size() - 1);
+                }
+
+                if (!contents.isEmpty()) {
+                    Content last = contents.get(contents.size() - 1);
+
+                    nextCursorValue = last.getRecommendPriority();
+                    nextCursorCreatedAt = last.getCreatedAt();
+                    nextCursorId = last.getId();
+                }
+
+                List<ContentHashtag> contentHashtags =
+                        contentHashtagRepository.findAllByContentIn(contents);
+
+                Map<Long, List<String>> hashtagMap =
+                        contentHashtags.stream()
+                                .collect(Collectors.groupingBy(
+                                        ch -> ch.getContent().getId(),
+                                        Collectors.mapping(
+                                                ch -> ch.getHashtag().getHashtagName(),
+                                                Collectors.toList()
+                                        )
+                                ));
+
+                Map<Long, Long> likeCountMap = getLikeCountMap(contents);
+
+                result = contents.stream()
+                        .map(content -> {
+                            String imageUrl =
+                                    s3Service.getImageUrl(content.getThumbnailImage());
+
+                            return ContentConverter.toContentInfo(
+                                    content,
+                                    imageUrl,
+                                    likeCountMap.getOrDefault(content.getId(), 0L),
+                                    hashtagMap.getOrDefault(content.getId(), List.of())
+                            );
+                        })
+                        .toList();
             }
         }
 
@@ -321,20 +445,15 @@ public class ContentServiceImpl implements ContentService{
             }
 
             //GPS 미허용 시 선택한 지역 중심 기준
-            Tuple center = queryFactory
-                    .select(avgLatitude, avgLongitude)
-                    .from(qPlace)
-                    .where(qPlace.region.id.eq(request.regionId()))
-                    .fetchOne();
+            Region region = regionRepository.findById(request.regionId())
+                    .orElseThrow(() -> new GeneralException(GeneralErrorCode.INVALID_PARAMETER));
 
-            if (center == null
-                    || center.get(avgLatitude) == null
-                    || center.get(avgLongitude) == null) {
+            if (region.getLatitude() == null || region.getLongitude() == null) {
                 throw new GeneralException(GeneralErrorCode.INVALID_PARAMETER);
             }
 
-            baseLatitude = center.get(avgLatitude);
-            baseLongitude = center.get(avgLongitude);
+            baseLatitude = region.getLatitude().doubleValue();
+            baseLongitude = region.getLongitude().doubleValue();
         }
 
         NumberExpression<Double> distance =
@@ -383,16 +502,28 @@ public class ContentServiceImpl implements ContentService{
     // 추천순
     private List<Content> getRecommendedContents(
             BooleanBuilder builder,
-            int size
+            int size,
+            Integer cursorPriority,
+            Long cursorId
     ) {
 
-        // TODO : 추천순 로직 구현
-
-        return queryFactory
+        JPAQuery<Content> query = queryFactory
                 .selectFrom(qContent)
-                .where(builder)
+                .where(builder);
+
+        if (cursorPriority != null && cursorId != null) {
+            query.where(
+                    qContent.recommendPriority.gt(cursorPriority)
+                            .or(
+                                    qContent.recommendPriority.eq(cursorPriority)
+                                            .and(qContent.id.gt(cursorId))
+                            )
+            );
+        }
+
+        return query
                 .orderBy(
-                        qContent.createdAt.desc(),
+                        qContent.recommendPriority.asc().nullsLast(),
                         qContent.id.asc()
                 )
                 .limit(size + 1)
