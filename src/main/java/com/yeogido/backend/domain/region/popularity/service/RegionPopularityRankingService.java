@@ -10,6 +10,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -89,14 +92,31 @@ public class RegionPopularityRankingService {
     }
 
     private List<RegionPopularityRankingEntry> toRankingEntries(Map<Long, Long> scoresByRegion) {
-        return scoresByRegion.entrySet()
+        List<RegionPopularityRankingEntry> entries = scoresByRegion.entrySet()
                 .stream()
-                .sorted(
-                        Map.Entry.<Long, Long>comparingByValue()
-                                .reversed()
-                                .thenComparing(Map.Entry.comparingByKey())
-                )
                 .map(entry -> new RegionPopularityRankingEntry(entry.getKey(), entry.getValue()))
                 .toList();
+
+        List<RegionPopularityRankingEntry> sortedEntries = new ArrayList<>(entries);
+        sortedEntries.sort(Comparator.comparing(RegionPopularityRankingEntry::score).reversed());
+
+        int groupStart = 0;
+        while (groupStart < sortedEntries.size()) {
+            int groupEnd = groupStart + 1;
+            long score = sortedEntries.get(groupStart).score();
+
+            while (groupEnd < sortedEntries.size() && sortedEntries.get(groupEnd).score() == score) {
+                groupEnd++;
+            }
+
+            shuffleEqualScoreGroup(sortedEntries.subList(groupStart, groupEnd));
+            groupStart = groupEnd;
+        }
+
+        return sortedEntries;
+    }
+
+    void shuffleEqualScoreGroup(List<RegionPopularityRankingEntry> entries) {
+        Collections.shuffle(entries);
     }
 }

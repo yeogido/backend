@@ -7,21 +7,18 @@ import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.redis.connection.RedisConnection;
-import org.springframework.data.redis.core.RedisCallback;
+import org.springframework.data.redis.RedisSystemException;
+import org.springframework.data.redis.core.ListOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
 
-import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.inOrder;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -33,6 +30,9 @@ class RegionPopularityRankingRedisRepositoryTest {
     private StringRedisTemplate stringRedisTemplate;
 
     @Mock
+    private ListOperations<String, String> listOperations;
+
+    @Mock
     private ZSetOperations<String, String> zSetOperations;
 
     @InjectMocks
@@ -40,6 +40,8 @@ class RegionPopularityRankingRedisRepositoryTest {
 
     @Test
     void replaceRankingStoresPopularRegionRankingAndAtomicallyRenames() {
+        when(stringRedisTemplate.opsForList()).thenReturn(listOperations);
+
         repository.replaceRanking(List.of(
                 new RegionPopularityRankingEntry(10L, 90L)
         ));
@@ -47,9 +49,10 @@ class RegionPopularityRankingRedisRepositoryTest {
         InOrder inOrder = inOrder(stringRedisTemplate);
 
         inOrder.verify(stringRedisTemplate).delete("region:ranking:popular:tmp");
-        inOrder.verify(stringRedisTemplate).executePipelined(any(RedisCallback.class));
+        inOrder.verify(stringRedisTemplate).opsForList();
         inOrder.verify(stringRedisTemplate)
                 .rename("region:ranking:popular:tmp", "region:ranking:popular");
+        verify(listOperations).rightPushAll("region:ranking:popular:tmp", List.of("10"));
     }
 
     @Test
@@ -58,35 +61,39 @@ class RegionPopularityRankingRedisRepositoryTest {
 
         verify(stringRedisTemplate).delete("region:ranking:popular:tmp");
         verify(stringRedisTemplate).delete("region:ranking:popular");
-        verify(stringRedisTemplate, never()).executePipelined(any(RedisCallback.class));
+        verify(stringRedisTemplate, never()).opsForList();
         verify(stringRedisTemplate, never()).rename(any(), any());
     }
 
     @Test
-    void replaceRankingEncodesRegionIdTieBreakerForAscendingRegionId() {
-        RedisConnection connection = mock(RedisConnection.class);
-        when(stringRedisTemplate.executePipelined(any(RedisCallback.class))).thenAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            RedisCallback<Object> callback = invocation.getArgument(0);
-            callback.doInRedis(connection);
-            return List.of();
-        });
+    void replaceRankingStoresRegionIdsInInputOrderWithoutTieBreakerMember() {
+        when(stringRedisTemplate.opsForList()).thenReturn(listOperations);
 
         repository.replaceRanking(List.of(
-                new RegionPopularityRankingEntry(2L, 90L)
+                new RegionPopularityRankingEntry(20L, 90L),
+                new RegionPopularityRankingEntry(10L, 90L)
         ));
 
-        String expectedMember = String.format("%019d:%d", Long.MAX_VALUE - 2L, 2L);
-
-        verify(connection).zAdd(
-                eq("region:ranking:popular:tmp".getBytes(StandardCharsets.UTF_8)),
-                eq(90.0d),
-                eq(expectedMember.getBytes(StandardCharsets.UTF_8))
-        );
+        verify(listOperations).rightPushAll("region:ranking:popular:tmp", List.of("20", "10"));
     }
 
     @Test
-    void findTopRegionIdsSupportsCompositeRedisMembers() {
+    void findTopRegionIdsReturnsStoredListOrder() {
+        when(stringRedisTemplate.opsForList()).thenReturn(listOperations);
+
+        when(listOperations.range("region:ranking:popular", 0, 1L))
+                .thenReturn(List.of("20", "10"));
+
+        List<Long> result = repository.findTopRegionIds(2);
+
+        assertThat(result).containsExactly(20L, 10L);
+    }
+
+    @Test
+    void findTopRegionIdsFallsBackToLegacyZSetDuringRedisTypeMigration() {
+        when(stringRedisTemplate.opsForList()).thenReturn(listOperations);
+        when(listOperations.range("region:ranking:popular", 0, 1L))
+                .thenThrow(new RedisSystemException("WRONGTYPE Operation against a key", null));
         when(stringRedisTemplate.opsForZSet()).thenReturn(zSetOperations);
 
         Set<String> members = new LinkedHashSet<>();

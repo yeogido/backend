@@ -13,9 +13,14 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDate;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -79,10 +84,23 @@ class RegionPopularityRankingServiceTest {
     }
 
     @Test
-    void refreshPopularityRankingsIncludesJejuRegionAndSortsTieByRegionIdAsc() {
+    void refreshPopularityRankingsIncludesJejuRegionAndShufflesOnlyEqualScoreGroups() {
+        RegionPopularityRankingService service = new RegionPopularityRankingService(
+                coursePopularityRedisRepository,
+                courseRepository,
+                regionPopularityScoreCalculator,
+                regionPopularityRankingRedisRepository
+        ) {
+            @Override
+            void shuffleEqualScoreGroup(List<RegionPopularityRankingEntry> entries) {
+                Collections.reverse(entries);
+            }
+        };
         LocalDate baseDate = LocalDate.of(2026, 7, 24);
         CoursePopularityActivity firstActivity = new CoursePopularityActivity(1L, 0L, 0L);
-        CoursePopularityActivity secondActivity = new CoursePopularityActivity(1L, 0L, 0L);
+        CoursePopularityActivity secondActivity = new CoursePopularityActivity(2L, 0L, 0L);
+        CoursePopularityActivity thirdActivity = new CoursePopularityActivity(3L, 0L, 0L);
+        CoursePopularityActivity fourthActivity = new CoursePopularityActivity(4L, 0L, 0L);
 
         when(coursePopularityRedisRepository.getActivities(List.of(
                 baseDate,
@@ -94,26 +112,76 @@ class RegionPopularityRankingServiceTest {
                 baseDate.minusDays(6)
         ))).thenReturn(Map.of(
                 1L, firstActivity,
-                2L, secondActivity
+                2L, secondActivity,
+                3L, thirdActivity,
+                4L, fourthActivity
         ));
 
         when(courseRepository.findRegionPopularityTargetsByCourseIds(Map.of(
                 1L, firstActivity,
-                2L, secondActivity
+                2L, secondActivity,
+                3L, thirdActivity,
+                4L, fourthActivity
         ).keySet())).thenReturn(List.of(
                 new TargetProjection(1L, 50L, "제주", "제주특별자치도", RegionType.REGION),
-                new TargetProjection(2L, 10L, "여수시", "여수시", RegionType.SUB_REGION)
+                new TargetProjection(2L, 10L, "여수시", "여수시", RegionType.SUB_REGION),
+                new TargetProjection(3L, 20L, "전주시", "전주시", RegionType.SUB_REGION),
+                new TargetProjection(4L, 30L, "강릉시", "강릉시", RegionType.SUB_REGION)
         ));
 
         when(regionPopularityScoreCalculator.calculate(firstActivity)).thenReturn(30L);
         when(regionPopularityScoreCalculator.calculate(secondActivity)).thenReturn(30L);
+        when(regionPopularityScoreCalculator.calculate(thirdActivity)).thenReturn(50L);
+        when(regionPopularityScoreCalculator.calculate(fourthActivity)).thenReturn(50L);
 
-        regionPopularityRankingService.refreshPopularityRankings(baseDate);
+        service.refreshPopularityRankings(baseDate);
 
         verify(regionPopularityRankingRedisRepository).replaceRanking(List.of(
+                new RegionPopularityRankingEntry(30L, 50L),
+                new RegionPopularityRankingEntry(20L, 50L),
                 new RegionPopularityRankingEntry(10L, 30L),
                 new RegionPopularityRankingEntry(50L, 30L)
         ));
+    }
+
+    @Test
+    void refreshPopularityRankingsPassesTieGroupToShuffleBeforeSaving() {
+        LocalDate baseDate = LocalDate.of(2026, 7, 24);
+        CoursePopularityActivity firstActivity = new CoursePopularityActivity(1L, 0L, 0L);
+        CoursePopularityActivity secondActivity = new CoursePopularityActivity(1L, 0L, 0L);
+
+        when(coursePopularityRedisRepository.getActivities(any())).thenReturn(Map.of(
+                1L, firstActivity,
+                2L, secondActivity
+        ));
+        when(courseRepository.findRegionPopularityTargetsByCourseIds(any())).thenReturn(List.of(
+                new TargetProjection(1L, 50L, "제주", "제주특별자치도", RegionType.REGION),
+                new TargetProjection(2L, 10L, "여수시", "여수시", RegionType.SUB_REGION)
+        ));
+        when(regionPopularityScoreCalculator.calculate(firstActivity)).thenReturn(30L);
+        when(regionPopularityScoreCalculator.calculate(secondActivity)).thenReturn(30L);
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            List<RegionPopularityRankingEntry> entries = invocation.getArgument(0);
+            assertThat(entries)
+                    .containsExactlyInAnyOrder(
+                            new RegionPopularityRankingEntry(50L, 30L),
+                            new RegionPopularityRankingEntry(10L, 30L)
+                    );
+            return null;
+        }).when(regionPopularityRankingRedisRepository).replaceRanking(any());
+
+        regionPopularityRankingService.refreshPopularityRankings(baseDate);
+
+        verify(coursePopularityRedisRepository).getActivities(eq(List.of(
+                baseDate,
+                baseDate.minusDays(1),
+                baseDate.minusDays(2),
+                baseDate.minusDays(3),
+                baseDate.minusDays(4),
+                baseDate.minusDays(5),
+                baseDate.minusDays(6)
+        )));
     }
 
     @Test
