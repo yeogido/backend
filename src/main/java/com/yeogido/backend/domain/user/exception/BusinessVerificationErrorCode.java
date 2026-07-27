@@ -34,7 +34,7 @@ public enum BusinessVerificationErrorCode implements ErrorCode {
     ),
 
     BUSINESS_VERIFICATION_API_ERROR(
-            HttpStatus.INTERNAL_SERVER_ERROR,
+            HttpStatus.SERVICE_UNAVAILABLE,
             "BUSINESS_VERIFY5001",
             "국세청 외부 연동 중 오류가 발생했습니다"
     );
