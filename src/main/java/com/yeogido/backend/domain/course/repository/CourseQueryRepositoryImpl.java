@@ -29,7 +29,6 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
 
     private final QCourse course = QCourse.course;
     private final QRegion region = QRegion.region;
-    private final QRegion parentRegion = new QRegion("parentRegion");
     private final QCourseLike courseLike = QCourseLike.courseLike;
     private final QCourseReview courseReview = QCourseReview.courseReview;
 
@@ -66,10 +65,6 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
                 ))
                 .from(course)
                 .join(course.region, region);
-
-        if (hasKeyword(request.keyword())) {
-            query.leftJoin(region.parent, parentRegion);
-        }
 
         query.leftJoin(courseLike).on(courseLike.course.eq(course))
                 .leftJoin(courseReview).on(courseReview.course.eq(course))
@@ -110,6 +105,7 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
 
         builder.and(course.courseType.eq(request.courseType()));
         builder.and(course.deletedAt.isNull());
+        builder.and(regionIdEq(request.regionId()));
         builder.and(transportTypeEq(request));
         builder.and(durationTypeEq(request));
         builder.and(companionTypeEq(request));
@@ -117,6 +113,12 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
         builder.and(distanceSortRegionCoordinateExists(request));
 
         return builder;
+    }
+
+    private BooleanExpression regionIdEq(Long regionId) {
+        return regionId == null
+                ? null
+                : region.id.eq(regionId);
     }
 
     private BooleanExpression transportTypeEq(CourseReqDTO.CourseListReq request) {
@@ -145,10 +147,7 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
         String normalizedKeyword = keyword.trim();
 
         return course.title.containsIgnoreCase(normalizedKeyword)
-                .or(region.name.containsIgnoreCase(normalizedKeyword))
-                .or(region.fullName.containsIgnoreCase(normalizedKeyword))
-                .or(parentRegion.name.containsIgnoreCase(normalizedKeyword))
-                .or(parentRegion.fullName.containsIgnoreCase(normalizedKeyword));
+                .or(region.name.containsIgnoreCase(normalizedKeyword));
     }
 
     private boolean hasKeyword(String keyword) {

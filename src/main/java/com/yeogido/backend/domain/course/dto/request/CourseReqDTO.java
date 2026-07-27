@@ -170,6 +170,9 @@ public class CourseReqDTO {
             @Schema(description = "검색어", example = "강릉")
             String keyword,
 
+            @Schema(description = "지역 ID", nullable = true, example = "1")
+            Long regionId,
+
             @Schema(description = "이동 수단", example = "CAR")
             TransportType transportType,
 
