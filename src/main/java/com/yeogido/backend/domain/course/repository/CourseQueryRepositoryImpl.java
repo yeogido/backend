@@ -73,7 +73,7 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
 
         query.leftJoin(courseLike).on(courseLike.course.eq(course))
                 .leftJoin(courseReview).on(courseReview.course.eq(course))
-                .where(baseCondition(request))
+                .where(courseListCondition(request))
                 .groupBy(
                         course.id,
                         course.thumbnailKey,
@@ -90,7 +90,7 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
                 .orderBy(orderSpecifiers(request.sort(), savedCount, reviewCount, distance))
                 .limit(limit);
 
-        BooleanExpression cursorCondition = cursorCondition(
+        BooleanExpression cursorHavingCondition = cursorHavingCondition(
                 request,
                 recommendOrder,
                 savedCount,
@@ -98,14 +98,14 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
                 distance
         );
 
-        if (cursorCondition != null) {
-            query.having(cursorCondition);
+        if (cursorHavingCondition != null) {
+            query.having(cursorHavingCondition);
         }
 
         return query.fetch();
     }
 
-    private BooleanBuilder baseCondition(CourseReqDTO.CourseListReq request) {
+    private BooleanBuilder courseListCondition(CourseReqDTO.CourseListReq request) {
         BooleanBuilder builder = new BooleanBuilder();
 
         builder.and(course.courseType.eq(request.courseType()));
@@ -113,8 +113,8 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
         builder.and(transportTypeEq(request));
         builder.and(durationTypeEq(request));
         builder.and(companionTypeEq(request));
-        builder.and(keywordContains(request.keyword()));
-        builder.and(regionCoordinateExists(request));
+        builder.and(keywordSearchCondition(request.keyword()));
+        builder.and(distanceSortRegionCoordinateExists(request));
 
         return builder;
     }
@@ -137,7 +137,7 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
                 : course.companionType.eq(request.companionType());
     }
 
-    private BooleanExpression keywordContains(String keyword) {
+    private BooleanExpression keywordSearchCondition(String keyword) {
         if (!hasKeyword(keyword)) {
             return null;
         }
@@ -155,7 +155,7 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
         return StringUtils.hasText(keyword);
     }
 
-    private BooleanExpression regionCoordinateExists(CourseReqDTO.CourseListReq request) {
+    private BooleanExpression distanceSortRegionCoordinateExists(CourseReqDTO.CourseListReq request) {
         if (resolveSort(request.sort()) != CourseSortType.DISTANCE) {
             return null;
         }
@@ -194,7 +194,7 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
         };
     }
 
-    private BooleanExpression cursorCondition(
+    private BooleanExpression cursorHavingCondition(
             CourseReqDTO.CourseListReq request,
             NumberExpression<Integer> recommendOrder,
             NumberExpression<Long> savedCount,
