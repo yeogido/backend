@@ -29,7 +29,7 @@ public class RegionServiceImpl implements RegionService {
 
     @Override
     public RegionResDTO.RegionListResponse getRegions() {
-        List<RegionResDTO.RegionPreview> regions = regionRepository.findByTypeAndParentIsNullOrderByIdAsc(RegionType.REGION)
+        List<RegionResDTO.RegionPreview> regions = regionRepository.findTopRegionsByDisplayOrder(RegionType.REGION)
                 .stream()
                 .map(region -> RegionConverter.toRegionPreview(
                         region,
