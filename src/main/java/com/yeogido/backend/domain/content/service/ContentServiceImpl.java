@@ -172,12 +172,20 @@ public class ContentServiceImpl implements ContentService{
                                 ));
 
                 result = tuples.stream()
-                        .map(tuple -> ContentConverter.toContentInfo(
-                                tuple,
-                                qContent,
-                                likeCountExpression,
-                                hashtagMap
-                        ))
+                        .map(tuple -> {
+                            Content content = tuple.get(qContent);
+
+                            String imageUrl =
+                                    s3Service.getImageUrl(content.getThumbnailImage());
+
+                            return ContentConverter.toContentInfo(
+                                    tuple,
+                                    qContent,
+                                    likeCountExpression,
+                                    hashtagMap,
+                                    imageUrl
+                            );
+                        })
                         .toList();
             }
 

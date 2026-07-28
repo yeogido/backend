@@ -43,14 +43,15 @@ public class  ContentConverter {
             Tuple tuple,
             QContent qContent,
             NumberExpression<Long> likeCountExpression,
-            Map<Long, List<String>> hashtagMap
+            Map<Long, List<String>> hashtagMap,
+            String thumbnailImageUrl
     ) {
         Content content = tuple.get(qContent);
         Long likeCount = tuple.get(likeCountExpression);
 
         return toContentInfo(
                 content,
-                content.getThumbnailImage(),
+                thumbnailImageUrl,
                 likeCount,
                 hashtagMap.getOrDefault(content.getId(), List.of()));
     }
