@@ -16,20 +16,23 @@ import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import java.util.List;
+import java.util.Map;
 
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class  ContentConverter {
     public static ContentResDTO.ContentInfo toContentInfo(
             Content content,
-            Long likeCount
+            String thumbnailImageUrl,
+            Long likeCount,
+            List<String> hashtags
     ) {
-        // TODO : 반환값에 해시태그 추가
         return new ContentResDTO.ContentInfo(
                 content.getId(),
                 content.getPlace().getId(),
                 content.getTitle(),
-                content.getThumbnailImage(),
+                thumbnailImageUrl,
                 content.getPlace().getRegion().getName(),
+                hashtags,
                 likeCount,
                 content.getStartDate(),
                 content.getEndDate()
@@ -39,12 +42,18 @@ public class  ContentConverter {
     public static ContentResDTO.ContentInfo toContentInfo(
             Tuple tuple,
             QContent qContent,
-            NumberExpression<Long> likeCountExpression
+            NumberExpression<Long> likeCountExpression,
+            Map<Long, List<String>> hashtagMap,
+            String thumbnailImageUrl
     ) {
         Content content = tuple.get(qContent);
         Long likeCount = tuple.get(likeCountExpression);
 
-        return toContentInfo(content, likeCount);
+        return toContentInfo(
+                content,
+                thumbnailImageUrl,
+                likeCount,
+                hashtagMap.getOrDefault(content.getId(), List.of()));
     }
 
     public static Place toPlace(

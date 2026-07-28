@@ -9,6 +9,7 @@ import jakarta.validation.constraints.Positive;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 public class ContentReqDTO {
@@ -42,7 +43,6 @@ public class ContentReqDTO {
             @Schema(description = "조회 개수")
             @Positive
             Integer size
-
     ){}
 
     public record ContentCreateReq(
