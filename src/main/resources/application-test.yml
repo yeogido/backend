@@ -16,6 +16,11 @@ spring:
   flyway:
     enabled: false
 
+management:
+  health:
+    redis:
+      enabled: false
+
 logging:
   level:
     org.hibernate.SQL: debug

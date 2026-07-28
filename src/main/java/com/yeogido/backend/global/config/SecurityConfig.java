@@ -45,6 +45,9 @@ public class SecurityConfig {
                         })
                 )
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
+                        .requestMatchers("/actuator", "/actuator/**").denyAll()
+
                         .requestMatchers(HttpMethod.GET, "/api/v1/courses/*/summary").authenticated()
                         .requestMatchers(
                                 "/api/v1/users/me",
@@ -83,6 +86,21 @@ public class SecurityConfig {
                         .requestMatchers(
                                 HttpMethod.DELETE,
                                 "/api/v1/courses/*/likes"
+                        ).authenticated()
+
+                        .requestMatchers(
+                                HttpMethod.PATCH,
+                                "/api/v1/reviews/**"
+                        ).authenticated()
+
+                        .requestMatchers(
+                                HttpMethod.DELETE,
+                                "/api/v1/reviews/**"
+                        ).authenticated()
+
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/v1/users/business-verify"
                         ).authenticated()
 
                         .requestMatchers(

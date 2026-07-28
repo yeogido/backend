@@ -12,6 +12,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -67,5 +68,19 @@ public class ReviewController {
         );
 
         return ApiResponse.onSuccess(SuccessCode.OK, result);
+    }
+
+    @Operation(
+            summary = "후기 삭제",
+            description = "로그인한 사용자가 본인이 작성한 추천 코스 리뷰를 삭제합니다."
+    )
+    @DeleteMapping("/{reviewId}")
+    public ApiResponse<Void> deleteReview(
+            @PathVariable Long reviewId,
+            @AuthenticationPrincipal AuthUser authUser
+    ) {
+        reviewService.deleteReview(reviewId, authUser.userId());
+
+        return ApiResponse.onSuccess(SuccessCode.NO_CONTENT);
     }
 }
