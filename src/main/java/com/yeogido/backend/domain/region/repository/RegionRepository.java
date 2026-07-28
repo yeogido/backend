@@ -2,6 +2,7 @@ package com.yeogido.backend.domain.region.repository;
 
 import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.region.enums.RegionType;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -19,6 +20,8 @@ public interface RegionRepository extends JpaRepository<Region, Long> {
     List<Region> findByTypeAndParentIsNullOrderByIdAsc(RegionType type);
 
     List<Region> findByParentIdAndTypeOrderByIdAsc(Long parentId, RegionType type);
+
+    List<Region> findByIdIn(Collection<Long> ids);
 
     List<Region> findByNameContainingOrderByIdAsc(String keyword);
 

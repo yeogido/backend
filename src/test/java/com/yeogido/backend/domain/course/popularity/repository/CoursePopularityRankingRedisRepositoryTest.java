@@ -71,6 +71,16 @@ class CoursePopularityRankingRedisRepositoryTest {
     }
 
     @Test
+    void replaceOfficialRankingDeletesRankingAndSkipsRenameWhenEntriesAreEmpty() {
+        repository.replaceOfficialRanking(List.of());
+
+        verify(stringRedisTemplate).delete("course:ranking:official");
+        verify(stringRedisTemplate, never()).delete("course:ranking:official:tmp");
+        verify(stringRedisTemplate, never()).executePipelined(any(RedisCallback.class));
+        verify(stringRedisTemplate, never()).rename(any(), any());
+    }
+
+    @Test
     void replaceOfficialRegionRankingStoresTempRegionRankingAndAtomicallyRenames() {
         when(stringRedisTemplate.opsForSet()).thenReturn(setOperations);
 

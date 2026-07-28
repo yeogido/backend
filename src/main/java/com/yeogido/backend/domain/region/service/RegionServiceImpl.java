@@ -6,18 +6,25 @@ import com.yeogido.backend.domain.region.dto.response.RegionResDTO;
 import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.region.enums.RegionType;
 import com.yeogido.backend.domain.region.exception.RegionErrorCode;
+import com.yeogido.backend.domain.region.popularity.repository.RegionPopularityRankingRedisRepository;
 import com.yeogido.backend.domain.region.repository.RegionRepository;
 import com.yeogido.backend.global.exception.GeneralException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class RegionServiceImpl implements RegionService {
 
+    private static final int POPULAR_REGION_SIZE = 6;
+
     private final RegionRepository regionRepository;
+    private final RegionPopularityRankingRedisRepository regionPopularityRankingRedisRepository;
     private final S3Service s3Service;
 
     @Override
@@ -70,45 +77,24 @@ public class RegionServiceImpl implements RegionService {
 
     @Override
     public List<RegionResDTO.PopularRegionRes> getPopularRegions() {
-        // TODO: 인기 지역 조회 로직 구현
-        return List.of(
-                new RegionResDTO.PopularRegionRes(
-                        1L,
-                        "전주",
-                        "전라북도",
-                        "https://example.com/regions/jeonju.jpg"
-                ),
-                new RegionResDTO.PopularRegionRes(
-                        2L,
-                        "부산",
-                        "부산광역시",
-                        "https://example.com/regions/busan.jpg"
-                ),
-                new RegionResDTO.PopularRegionRes(
-                        3L,
-                        "강릉",
-                        "강원특별자치도",
-                        "https://example.com/regions/gangneung.jpg"
-                ),
-                new RegionResDTO.PopularRegionRes(
-                        4L,
-                        "경주",
-                        "경상북도",
-                        "https://example.com/regions/gyeongju.jpg"
-                ),
-                new RegionResDTO.PopularRegionRes(
-                        5L,
-                        "제주",
-                        "제주특별자치도",
-                        "https://example.com/regions/jeju.jpg"
-                ),
-                new RegionResDTO.PopularRegionRes(
-                        6L,
-                        "여수",
-                        "전라남도",
-                        "https://example.com/regions/yeosu.jpg"
-                )
-        );
+        List<Long> regionIds = regionPopularityRankingRedisRepository.findTopRegionIds(POPULAR_REGION_SIZE);
+
+        if (regionIds.isEmpty()) {
+            return List.of();
+        }
+
+        Map<Long, Region> regionMap = regionRepository.findByIdIn(regionIds)
+                .stream()
+                .collect(Collectors.toMap(Region::getId, Function.identity()));
+
+        return regionIds.stream()
+                .map(regionMap::get)
+                .filter(region -> region != null)
+                .map(region -> RegionConverter.toPopularRegionRes(
+                        region,
+                        s3Service.getImageUrl(region.getImageKey())
+                ))
+                .toList();
     }
 
 }

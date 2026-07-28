@@ -41,22 +41,28 @@ class CoursePopularityRedisRepositoryTest {
                 .thenReturn(Set.of(typedTuple("1", 10.0), typedTuple("2", 3.0)));
         when(zSetOperations.rangeWithScores("course:activity:20260724:likes", 0, -1))
                 .thenReturn(Set.of(typedTuple("1", 2.0)));
+        when(zSetOperations.rangeWithScores("course:activity:20260724:creates", 0, -1))
+                .thenReturn(Set.of(typedTuple("2", 1.0)));
         when(zSetOperations.rangeWithScores("course:activity:20260723:views", 0, -1))
                 .thenReturn(Set.of(typedTuple("1", 4.0)));
         when(zSetOperations.rangeWithScores("course:activity:20260723:likes", 0, -1))
                 .thenReturn(Set.of(typedTuple("2", 5.0)));
+        when(zSetOperations.rangeWithScores("course:activity:20260723:creates", 0, -1))
+                .thenReturn(Set.of(typedTuple("1", 1.0)));
 
         Map<Long, CoursePopularityActivity> result =
                 coursePopularityRedisRepository.getActivities(List.of(today, yesterday));
 
         assertThat(result)
-                .containsEntry(1L, new CoursePopularityActivity(14L, 2L))
-                .containsEntry(2L, new CoursePopularityActivity(3L, 5L));
+                .containsEntry(1L, new CoursePopularityActivity(14L, 2L, 1L))
+                .containsEntry(2L, new CoursePopularityActivity(3L, 5L, 1L));
 
         verify(zSetOperations).rangeWithScores("course:activity:20260724:views", 0, -1);
         verify(zSetOperations).rangeWithScores("course:activity:20260724:likes", 0, -1);
+        verify(zSetOperations).rangeWithScores("course:activity:20260724:creates", 0, -1);
         verify(zSetOperations).rangeWithScores("course:activity:20260723:views", 0, -1);
         verify(zSetOperations).rangeWithScores("course:activity:20260723:likes", 0, -1);
+        verify(zSetOperations).rangeWithScores("course:activity:20260723:creates", 0, -1);
     }
 
     private ZSetOperations.TypedTuple<String> typedTuple(String value, Double score) {
