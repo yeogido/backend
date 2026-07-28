@@ -17,4 +17,6 @@ public interface ReviewService {
             Long userId,
             ReviewReqDTO.UpdateRequest request
     );
+
+    void deleteReview(Long reviewId, Long userId);
 }

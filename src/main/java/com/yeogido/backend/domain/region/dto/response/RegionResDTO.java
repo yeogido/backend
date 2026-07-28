@@ -44,6 +44,19 @@ public class RegionResDTO {
     ) { }
 
     @Builder
+    @Schema(name = "RegionSearchResponse", description = "지역 검색 응답")
+    public record RegionSearchRes(
+            @Schema(description = "지역 ID", example = "1")
+            Long regionId,
+
+            @Schema(description = "지역명", example = "강남구")
+            String name,
+
+            @Schema(description = "전체 지역명", example = "서울특별시 강남구")
+            String fullName
+    ) { }
+
+    @Builder
     @Schema(name = "SubRegionPreview", description = "하위 지역 미리보기 응답")
     public record SubRegionPreview(
             @Schema(description = "하위 지역 ID", example = "1")

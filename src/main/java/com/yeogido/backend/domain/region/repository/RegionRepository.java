@@ -23,4 +23,6 @@ public interface RegionRepository extends JpaRepository<Region, Long> {
 
     List<Region> findByIdIn(Collection<Long> ids);
 
+    List<Region> findByNameContainingOrderByIdAsc(String keyword);
+
 }

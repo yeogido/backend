@@ -38,6 +38,14 @@ public class RegionConverter {
         );
     }
 
+    public static RegionResDTO.RegionSearchRes toRegionSearchRes(Region region) {
+        return new RegionResDTO.RegionSearchRes(
+                region.getId(),
+                region.getName(),
+                region.getFullName()
+        );
+    }
+
     public static RegionResDTO.PopularRegionRes toPopularRegionRes(
             Region region,
             String imageUrl
