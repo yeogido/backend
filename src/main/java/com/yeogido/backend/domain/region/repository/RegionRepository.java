@@ -31,7 +31,7 @@ public interface RegionRepository extends JpaRepository<Region, Long> {
             """)
     List<Region> findTopRegionsByDisplayOrder(@Param("type") RegionType type);
 
-    List<Region> findByParentIdAndTypeOrderByIdAsc(Long parentId, RegionType type);
+    List<Region> findByParentIdAndTypeOrderByNameAsc(Long parentId, RegionType type);
 
     List<Region> findByIdIn(Collection<Long> ids);
 
