@@ -1,0 +1,10 @@
+# k6 output
+result.json
+summary.json
+report.html
+*.summary.json
+
+# Personal/local environment
+.env
+.env.*
+*.local
