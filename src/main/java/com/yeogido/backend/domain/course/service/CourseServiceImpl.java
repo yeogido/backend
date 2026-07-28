@@ -673,6 +673,11 @@ public class CourseServiceImpl implements CourseService {
     }
 
     private void validateCourseListRequest(CourseReqDTO.CourseListReq request) {
+        if (request.courseType() == CourseType.LOCAL
+                && CourseSortType.resolve(request.sort()) == CourseSortType.RECOMMEND) {
+            throw new GeneralException(CourseErrorCode.INVALID_COURSE_LIST_SORT);
+        }
+
         boolean firstPage = request.cursorValue() == null && request.cursorId() == null;
         if (!firstPage && (request.cursorValue() == null || request.cursorId() == null)) {
             throw new GeneralException(GeneralErrorCode.INVALID_PARAMETER);

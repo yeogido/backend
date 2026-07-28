@@ -55,6 +55,12 @@ public enum CourseErrorCode implements ErrorCode {
             HttpStatus.BAD_REQUEST,
             "COURSE4007",
             "거리순 조회에 사용할 지역 중심 좌표가 없습니다."
+    ),
+
+    INVALID_COURSE_LIST_SORT(
+            HttpStatus.BAD_REQUEST,
+            "COURSE4008",
+            "LOCAL 추천 코스 목록은 추천순 정렬을 지원하지 않습니다."
     );
 
     private final HttpStatus httpStatus;
