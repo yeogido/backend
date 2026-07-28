@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import com.yeogido.backend.global.common.response.ApiResponse;
 import com.yeogido.backend.global.common.response.ValidationError;
 import com.yeogido.backend.global.common.response.ValidationErrorResponse;
+import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -81,6 +82,35 @@ public class GlobalExceptionHandler {
                         getRejectedValue(error),
                         error.getDefaultMessage()
                 ))
+                .toList();
+
+        return ResponseEntity
+                .status(GeneralErrorCode.INVALID_REQUEST.getHttpStatus())
+                .body(ApiResponse.<ValidationErrorResponse>builder()
+                        .isSuccess(false)
+                        .code(GeneralErrorCode.INVALID_REQUEST.getCode())
+                        .message(GeneralErrorCode.INVALID_REQUEST.getMessage())
+                        .result(new ValidationErrorResponse(errors))
+                        .build());
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<ApiResponse<ValidationErrorResponse>> handleConstraintViolationException(
+            ConstraintViolationException e
+    ) {
+
+        List<ValidationError> errors = e.getConstraintViolations()
+                .stream()
+                .map(violation -> {
+                    String field = violation.getPropertyPath().toString();
+                    field = field.substring(field.lastIndexOf('.') + 1);
+
+                    return new ValidationError(
+                            field,
+                            violation.getInvalidValue(),
+                            violation.getMessage()
+                    );
+                })
                 .toList();
 
         return ResponseEntity

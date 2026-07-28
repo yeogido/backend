@@ -21,6 +21,7 @@ public class CoursePopularityRedisRepository {
     private static final String ACTIVITY = "activity";
     private static final String VIEWS = "views";
     private static final String LIKES = "likes";
+    private static final String CREATES = "creates";
 
     private final StringRedisTemplate stringRedisTemplate;
 
@@ -30,6 +31,7 @@ public class CoursePopularityRedisRepository {
         for (LocalDate date : dates) {
             addActivityCounts(activities, activityKey(date, VIEWS), ActivityType.VIEW);
             addActivityCounts(activities, activityKey(date, LIKES), ActivityType.LIKE);
+            addActivityCounts(activities, activityKey(date, CREATES), ActivityType.CREATE);
         }
 
         return toActivities(activities);
@@ -62,7 +64,12 @@ public class CoursePopularityRedisRepository {
                         return;
                     }
 
-                    activity.addLikeCount(count);
+                    if (activityType == ActivityType.LIKE) {
+                        activity.addLikeCount(count);
+                        return;
+                    }
+
+                    activity.addCreateCount(count);
                 });
     }
 
@@ -84,13 +91,15 @@ public class CoursePopularityRedisRepository {
 
     private enum ActivityType {
         VIEW,
-        LIKE
+        LIKE,
+        CREATE
     }
 
     private static class MutableCoursePopularityActivity {
 
         private long viewCount;
         private long likeCount;
+        private long createCount;
 
         void addViewCount(long viewCount) {
             this.viewCount += viewCount;
@@ -100,8 +109,12 @@ public class CoursePopularityRedisRepository {
             this.likeCount += likeCount;
         }
 
+        void addCreateCount(long createCount) {
+            this.createCount += createCount;
+        }
+
         CoursePopularityActivity toActivity() {
-            return new CoursePopularityActivity(viewCount, likeCount);
+            return new CoursePopularityActivity(viewCount, likeCount, createCount);
         }
     }
 }

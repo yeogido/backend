@@ -33,6 +33,9 @@ public class ContentResDTO {
             @Schema(description = "지역명")
             String regionName,
 
+            @Schema(description = "해시태그")
+            List<String> hashtags,
+
             @Schema(description = "좋아요 수")
             Long likeCount,
 

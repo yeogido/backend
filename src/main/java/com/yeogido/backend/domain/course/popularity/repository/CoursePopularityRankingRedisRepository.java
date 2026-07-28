@@ -74,6 +74,11 @@ public class CoursePopularityRankingRedisRepository {
     }
 
     private void replaceRanking(String key, List<CoursePopularityRankingEntry> entries) {
+        if (entries.isEmpty()) {
+            stringRedisTemplate.delete(key);
+            return;
+        }
+
         String tmpKey = temporaryRankingKey(key);
 
         // 이전 실패로 남아있을 수 있는 임시 Key만 초기화한다.

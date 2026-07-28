@@ -5,6 +5,7 @@ import com.yeogido.backend.domain.course.enums.CompanionType;
 import com.yeogido.backend.domain.course.enums.CourseType;
 import com.yeogido.backend.domain.course.enums.DurationType;
 import com.yeogido.backend.domain.course.enums.TransportType;
+import com.yeogido.backend.domain.region.enums.RegionType;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -16,7 +17,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
-public interface CourseRepository extends JpaRepository<Course, Long> {
+public interface CourseRepository extends JpaRepository<Course, Long>, CourseQueryRepository {
 
     Optional<Course> findByIdAndDeletedAtIsNull(Long id);
 
@@ -68,6 +69,21 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
               and c.deletedAt is null
             """)
     List<CoursePopularProjection> findPopularCoursesByCourseIds(
+            @Param("courseIds") Collection<Long> courseIds
+    );
+
+    @Query("""
+            select
+                c.id as courseId,
+                c.region.id as regionId,
+                c.region.name as regionName,
+                c.region.fullName as regionFullName,
+                c.region.type as regionType
+            from Course c
+            where c.id in :courseIds
+              and c.deletedAt is null
+            """)
+    List<RegionPopularityTargetProjection> findRegionPopularityTargetsByCourseIds(
             @Param("courseIds") Collection<Long> courseIds
     );
 
@@ -164,6 +180,19 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
         TransportType getTransportType();
 
         CompanionType getCompanionType();
+    }
+
+    interface RegionPopularityTargetProjection {
+
+        Long getCourseId();
+
+        Long getRegionId();
+
+        String getRegionName();
+
+        String getRegionFullName();
+
+        RegionType getRegionType();
     }
 
     interface CourseRecommendedProjection {

@@ -14,7 +14,10 @@ public interface CourseService {
 
     void deleteCourse(Long userId, Long courseId);
 
-    CursorResponse<CourseResDTO.CoursePreview> getCourses(CourseReqDTO.CourseListReq request);
+    CursorResponse<CourseResDTO.CoursePreview> getCourses(
+            CourseReqDTO.CourseListReq request,
+            Long userId
+    );
 
     List<CourseResDTO.CoursePreview> getPopularCourses(
             CourseReqDTO.CoursePopularReq request,

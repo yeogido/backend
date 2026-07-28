@@ -60,6 +60,12 @@ public class User extends BaseEntity {
     @Column(name = "profile_image", length = 255)
     private String profileImage;
 
+    public void promoteToBusiness() {
+        if (this.role == UserRole.USER) {
+            this.role = UserRole.BUSINESS;
+        }
+    }
+
     public AgeGroup getAgeGroup() {
         return AgeGroup.fromBirthYear(birthYear);
     }
