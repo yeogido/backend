@@ -72,6 +72,13 @@ public class AuthController {
     return ApiResponse.onSuccess(SuccessCode.OK);
   }
 
+  @Operation(summary = "토큰 재발급 API", description = "Refresh Token을 검증하고 새로운 Access Token과 Refresh Token을 발급합니다.")
+  @PostMapping("/reissue")
+  public ApiResponse<AuthResDTO.Token> reissue(@Valid @RequestBody AuthReqDTO.Reissue request) {
+    AuthResDTO.Token response = authService.reissue(request);
+    return ApiResponse.onSuccess(SuccessCode.OK, response);
+  }
+
   @Operation(summary = "비밀번호 찾기 인증번호 발송 API", description = "비밀번호를 재설정하려는 사용자의 이메일로 6자리 인증번호를 발송합니다.")
   @PostMapping("/password/send-code")
   public ApiResponse<Void> sendResetCode(@Valid @RequestBody AuthReqDTO.PasswordSendCode request) {

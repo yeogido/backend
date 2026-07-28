@@ -92,6 +92,13 @@ public class AuthReqDTO {
     Long regionId
   ) {}
 
+  @Schema(name = "AuthReissueReq", description = "토큰 재발급 요청")
+  public record Reissue(
+    @Schema(description = "리프레시 토큰", example = "eyJhbGciOiJIUzI1NiJ9.xyz...")
+    @NotBlank(message = "리프레시 토큰은 필수 입력값입니다.")
+    String refreshToken
+  ) {}
+
   @Schema(name = "AuthPasswordSendCodeReq", description = "비밀번호 찾기 인증번호 발송 요청")
   public record PasswordSendCode(
     @Schema(description = "이메일", example = "abc@example.com")
