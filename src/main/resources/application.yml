@@ -58,3 +58,14 @@ springdoc:
   swagger-ui:
     operations-sorter: method
     tags-sorter: alpha
+
+management:
+  endpoints:
+    enabled-by-default: false
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      enabled: true
+      show-details: never
