@@ -88,9 +88,7 @@ docker run --rm \
 
 ## 지역 검색 API 시나리오
 
-환경 확인용 단일 요청 시나리오입니다. 기본값은 VU 1, iteration 1이며,
-`부`, `서울`, `강남` 등 사전 정의된 키워드 중 하나를 랜덤으로 선택해
-`GET /api/v1/regions/search?keyword={keyword}`를 호출합니다.
+환경 확인용 단일 요청 시나리오입니다. 기본값은 VU 1, iteration 1이며, `keyword=군`으로 고정하여 `GET /api/v1/regions/search?keyword={군}`을 호출합니다.
 `ACCESS_TOKEN`이 있으면 `Authorization` 헤더를 포함하고, 없으면 인증 헤더 없이 실행합니다.
 응답 상태 코드와 응답 시간을 확인하려면 `DEBUG=true`를 전달합니다.
 
