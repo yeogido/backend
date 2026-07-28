@@ -11,10 +11,14 @@ import com.yeogido.backend.domain.hashtag.entity.Hashtag;
 import com.yeogido.backend.domain.place.entity.Place;
 import com.yeogido.backend.domain.place.enums.PlaceSource;
 import com.yeogido.backend.domain.region.entity.Region;
+import com.yeogido.backend.domain.user.dto.UserResDTO;
 import com.yeogido.backend.domain.user.entity.User;
+import com.yeogido.backend.domain.user.enums.Gender;
+import com.yeogido.backend.domain.user.enums.PostCategory;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -305,4 +309,75 @@ public class CourseConverter {
                 course.getTransportType()
         );
     }
+
+    public static UserResDTO.MyCourseResponse toMyCourseResponse(
+            Course course,
+            String thumbnailUrl,
+            List<String> hashtags
+    ) {
+        return new UserResDTO.MyCourseResponse(
+                course.getId(),
+                course.getTitle(),
+                thumbnailUrl,
+                course.getDurationType().name(),
+                course.getTransportType().name(),
+                course.getCompanionType().name(),
+                hashtags,
+                course.getCreatedAt()
+        );
+    }
+
+    public static UserResDTO.MyReviewResponse toMyReviewResponse(
+            CourseReview review,
+            String profileImageUrl
+    ) {
+        User user = review.getUser();
+
+        return new UserResDTO.MyReviewResponse(
+                review.getId(),
+                user.getNickname(),
+                profileImageUrl,
+                getProfileInfo(user),
+                review.getRating(),
+                review.getContent(),
+                review.getCreatedAt()
+        );
+    }
+
+    private static String getProfileInfo(User user) {
+        return getAgeGroup(user.getBirthYear()) + " " + getGenderText(user.getGender());
+    }
+
+    private static String getAgeGroup(String birthYear) {
+        if (birthYear == null || birthYear.isBlank()) {
+            return "";
+        }
+
+        int age = LocalDate.now().getYear() - Integer.parseInt(birthYear) + 1;
+
+        if (age < 20) return "10대";
+        if (age < 30) return "20대";
+        if (age < 40) return "30대";
+        if (age < 50) return "40대";
+        if (age < 60) return "50대";
+        return "60대+";
+    }
+
+    private static String getGenderText(Gender gender) {
+        return gender == Gender.FEMALE ? "여" : "남";
+    }
+
+
+    public static UserResDTO.MyPostResponse toMyPostResponse(
+            UserResDTO.MyCourseResponse course,
+            UserResDTO.MyReviewResponse review
+    ) {
+        return new UserResDTO.MyPostResponse(
+                course,
+                review
+        );
+    }
+
+
+
 }

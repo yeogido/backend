@@ -1,10 +1,13 @@
 package com.yeogido.backend.domain.user.dto;
 
 import com.yeogido.backend.domain.user.enums.LikeCategory;
+import com.yeogido.backend.domain.user.enums.PostCategory;
 import com.yeogido.backend.domain.user.enums.UserRole;
 import io.swagger.v3.oas.annotations.media.Schema;
+import lombok.Builder;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 public class UserResDTO {
@@ -72,4 +75,64 @@ public class UserResDTO {
     ) {}
 
 
+    public record MyCourseResponse(
+            @Schema(description = "게시물 ID")
+            Long id,
+
+            @Schema(description = "게시물 제목")
+            String title,
+
+            @Schema(description = "게시물 내용")
+            String content,
+
+            @Schema(description = "게시물 썸네일 이미지 URL")
+            String thumbnailUrl,
+
+            @Schema(description = "이동 수단")
+            String transportType,
+
+            @Schema(description = "동행 유형")
+            String companionType,
+
+            @Schema(description = "해시태그")
+            List<String> hashtags,
+
+            @Schema(description = "게시물 등록 일시")
+            LocalDateTime createdAt
+    ) {}
+
+
+    public record MyReviewResponse(
+
+            @Schema(description = "후기 ID")
+            Long reviewId,
+
+            @Schema(description = "작성자 이름")
+            String reviewerName,
+
+            @Schema(description = "작성자 프로필 이미지 URL")
+            String reviewerProfileImage,
+
+            @Schema(description = "프로필 정보")
+            String profileInfo,
+
+            @Schema(description = "평점")
+            Integer rating,
+
+            @Schema(description = "후기 내용")
+            String content,
+
+            @Schema(description = "후기 작성일")
+            LocalDateTime createdAt
+
+    ) {}
+
+
+    public record MyPostResponse(
+
+            MyCourseResponse course,
+
+            MyReviewResponse review
+
+    ) {}
 }

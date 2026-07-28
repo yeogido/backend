@@ -1,18 +1,19 @@
 package com.yeogido.backend.domain.user.service;
 
+import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.DateTimePath;
 import com.querydsl.core.types.dsl.NumberPath;
+import com.querydsl.core.types.dsl.StringPath;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import com.yeogido.backend.domain.content.entity.Content;
 import com.yeogido.backend.domain.content.entity.ContentLike;
 import com.yeogido.backend.domain.content.entity.QContentLike;
 import com.yeogido.backend.domain.content.repository.ContentHashtagRepository;
 import com.yeogido.backend.domain.content.repository.ContentLikeRepository;
-import com.yeogido.backend.domain.course.entity.Course;
-import com.yeogido.backend.domain.course.entity.CourseLike;
-import com.yeogido.backend.domain.course.entity.QCourseLike;
+import com.yeogido.backend.domain.course.converter.CourseConverter;
+import com.yeogido.backend.domain.course.entity.*;
 import com.yeogido.backend.domain.course.repository.CourseHashtagRepository;
 import com.yeogido.backend.domain.course.repository.CourseLikeRepository;
 import com.yeogido.backend.domain.file.service.S3Service;
@@ -24,7 +25,8 @@ import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.user.converter.UserConverter;
 import com.yeogido.backend.domain.user.dto.UserResDTO;
 import com.yeogido.backend.domain.user.entity.User;
-import com.yeogido.backend.domain.user.enums.LikeSortType;
+import com.yeogido.backend.domain.user.enums.PostCategory;
+import com.yeogido.backend.domain.user.enums.SortType;
 import com.yeogido.backend.domain.user.exception.UserErrorCode;
 import com.yeogido.backend.domain.user.repository.UserRepository;
 import com.yeogido.backend.domain.user.enums.LikeCategory;
@@ -33,6 +35,7 @@ import com.yeogido.backend.global.exception.GeneralErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
 import com.yeogido.backend.global.util.DistanceUtil;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,6 +46,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import static com.yeogido.backend.domain.course.entity.QCourse.course;
 
 @Service
 @RequiredArgsConstructor
@@ -63,7 +68,7 @@ public class UserServiceImpl implements UserService{
     public CursorResponse<UserResDTO.LikedResponse> getLikedList(
             Long userId,
             LikeCategory category,
-            LikeSortType sort,
+            SortType sort,
             LocalDateTime cursorCreatedAt,
             Long cursorId,
             Integer size,
@@ -229,7 +234,7 @@ public class UserServiceImpl implements UserService{
 
     private List<CourseLike> getCourseLikes(
             User user,
-            LikeSortType sort,
+            SortType sort,
             LocalDateTime cursorCreatedAt,
             Long cursorId,
             int size
@@ -237,12 +242,12 @@ public class UserServiceImpl implements UserService{
         QCourseLike courseLike = QCourseLike.courseLike;
 
         OrderSpecifier<?> createdAtOrder =
-                sort == LikeSortType.LATEST
+                sort == SortType.LATEST
                         ? courseLike.createdAt.desc()
                         : courseLike.createdAt.asc();
 
         OrderSpecifier<?> idOrder =
-                sort == LikeSortType.LATEST
+                sort == SortType.LATEST
                         ? courseLike.id.desc()
                         : courseLike.id.asc();
 
@@ -267,7 +272,7 @@ public class UserServiceImpl implements UserService{
 
     private List<ContentLike> getContentLikes(
             User user,
-            LikeSortType sort,
+            SortType sort,
             LocalDateTime cursorCreatedAt,
             Long cursorId,
             int size
@@ -275,12 +280,12 @@ public class UserServiceImpl implements UserService{
         QContentLike contentLike = QContentLike.contentLike;
 
         OrderSpecifier<?> createdAtOrder =
-                sort == LikeSortType.LATEST
+                sort == SortType.LATEST
                         ? contentLike.createdAt.desc()
                         : contentLike.createdAt.asc();
 
         OrderSpecifier<?> idOrder =
-                sort == LikeSortType.LATEST
+                sort == SortType.LATEST
                         ? contentLike.id.desc()
                         : contentLike.id.asc();
 
@@ -305,7 +310,7 @@ public class UserServiceImpl implements UserService{
 
     private List<PlaceLike> getPlaceLikes(
             User user,
-            LikeSortType sort,
+            SortType sort,
             LocalDateTime cursorCreatedAt,
             Long cursorId,
             int size
@@ -313,12 +318,12 @@ public class UserServiceImpl implements UserService{
         QPlaceLike placeLike = QPlaceLike.placeLike;
 
         OrderSpecifier<?> createdAtOrder =
-                sort == LikeSortType.LATEST
+                sort == SortType.LATEST
                         ? placeLike.createdAt.desc()
                         : placeLike.createdAt.asc();
 
         OrderSpecifier<?> idOrder =
-                sort == LikeSortType.LATEST
+                sort == SortType.LATEST
                         ? placeLike.id.desc()
                         : placeLike.id.asc();
 
@@ -343,7 +348,7 @@ public class UserServiceImpl implements UserService{
 
     private CursorResponse<UserResDTO.LikedResponse> getAllLikes(
             User user,
-            LikeSortType sort,
+            SortType sort,
             LocalDateTime cursorCreatedAt,
             Long cursorId,
             int size,
@@ -399,7 +404,7 @@ public class UserServiceImpl implements UserService{
                 Comparator.comparing(LikeItem::createdAt)
                         .thenComparing(LikeItem::likeId);
 
-        if (sort == LikeSortType.LATEST) {
+        if (sort == SortType.LATEST) {
             comparator = comparator.reversed();
         }
 
@@ -535,14 +540,14 @@ public class UserServiceImpl implements UserService{
             NumberPath<Long> id,
             LocalDateTime cursorCreatedAt,
             Long cursorId,
-            LikeSortType sort
+            SortType sort
     ) {
 
         if (cursorCreatedAt == null || cursorId == null) {
             return null;
         }
 
-        if (sort == LikeSortType.LATEST) {
+        if (sort == SortType.LATEST) {
             return createdAt.lt(cursorCreatedAt)
                     .or(
                             createdAt.eq(cursorCreatedAt)
@@ -557,6 +562,13 @@ public class UserServiceImpl implements UserService{
                 );
     }
 
+    private BooleanExpression keywordCondition(StringPath title, String keyword) {
+        if (keyword == null || keyword.isBlank()) {
+            return null;
+        }
+        return title.containsIgnoreCase(keyword);
+    }
+
     @Override
     @Transactional(readOnly = true)
     public UserResDTO.Profile getMyPage(Long userId) {
@@ -565,5 +577,295 @@ public class UserServiceImpl implements UserService{
 
         return UserConverter.toProfile(user);
     }
+
+
+    @Override
+    public CursorResponse<UserResDTO.MyPostResponse> getMyPosts(
+            Long userId,
+            PostCategory category,
+            String keyword,
+            SortType sort,
+            LocalDateTime cursorCreatedAt,
+            Long cursorId,
+            Integer size
+    ) {
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
+
+        switch (category) {
+
+            case COURSE:{
+                CursorResponse<UserResDTO.MyCourseResponse> response =
+                        getMyCourses(user, keyword, sort, cursorCreatedAt, cursorId, size);
+
+                List<UserResDTO.MyPostResponse> items = response.getItems().stream()
+                        .map(course -> CourseConverter.toMyPostResponse(course, null))
+                        .toList();
+
+                return CursorResponse.of(
+                        items,
+                        response.getCursorValue(),
+                        response.getCursorId(),
+                        response.isHasNext()
+                );
+            }
+
+            case REVIEW: {
+                CursorResponse<UserResDTO.MyReviewResponse> response =
+                        getMyReviews(user, keyword, sort, cursorCreatedAt, cursorId, size);
+
+                List<UserResDTO.MyPostResponse> items = response.getItems().stream()
+                        .map(review -> CourseConverter.toMyPostResponse(null, review))
+                        .toList();
+
+                return CursorResponse.of(
+                        items,
+                        response.getCursorValue(),
+                        response.getCursorId(),
+                        response.isHasNext()
+                );
+            }
+            case ALL:
+                return getAllMyPosts(
+                        user,
+                        keyword,
+                        sort,
+                        cursorCreatedAt,
+                        cursorId,
+                        size
+                );
+            default:
+                throw new GeneralException(GeneralErrorCode.INVALID_PARAMETER);
+        }
+    }
+
+    private CursorResponse<UserResDTO.MyCourseResponse> getMyCourses(
+            User user,
+            String keyword,
+            SortType sort,
+            LocalDateTime cursorCreatedAt,
+            Long cursorId,
+            Integer size
+    ) {
+
+        QCourse course = QCourse.course;
+        QCourseHashtag courseHashtag = QCourseHashtag.courseHashtag;
+
+        OrderSpecifier<?> createdAtOrder =
+                sort == SortType.LATEST ? course.createdAt.desc() : course.createdAt.asc();
+
+        OrderSpecifier<?> idOrder =
+                sort == SortType.LATEST ? course.id.desc() : course.id.asc();
+
+
+
+        List<Course> courses = queryFactory
+                .selectFrom(course)
+                .where(
+                        course.user.eq(user),
+                        keywordCondition(course.title, keyword),
+                        cursorCondition(
+                                course.createdAt,
+                                course.id,
+                                cursorCreatedAt,
+                                cursorId,
+                                sort
+                        )
+                )
+                .orderBy(createdAtOrder, idOrder)
+                .limit(size + 1)
+                .fetch();
+
+        boolean hasNext = courses.size() > size;
+
+        if (hasNext) {
+            courses.remove(size.intValue());
+        }
+
+        List<UserResDTO.MyCourseResponse> items = courses.stream()
+                .map(c -> {
+                    List<String> hashtags = queryFactory
+                            .select(courseHashtag.hashtag.hashtagName)
+                            .from(courseHashtag)
+                            .where(courseHashtag.course.eq(c))
+                            .fetch();
+
+                    String thumbnailUrl = s3Service.getImageUrl(c.getThumbnailKey());
+
+                    return CourseConverter.toMyCourseResponse(
+                            c,
+                            thumbnailUrl,
+                            hashtags
+                    );
+                })
+                .toList();
+
+        Object nextCursorValue = null;
+        Long nextCursorId = null;
+
+        if (!items.isEmpty()) {
+            UserResDTO.MyCourseResponse last = items.get(items.size() - 1);
+            nextCursorValue = last.createdAt();
+            nextCursorId = last.id();
+        }
+
+        return CursorResponse.of(
+                items,
+                nextCursorValue,
+                nextCursorId,
+                hasNext
+        );
+    }
+
+
+    private CursorResponse<UserResDTO.MyReviewResponse> getMyReviews(
+            User user,
+            String keyword,
+            SortType sort,
+            LocalDateTime cursorCreatedAt,
+            Long cursorId,
+            Integer size
+    ) {
+
+        QCourseReview review = QCourseReview.courseReview;
+
+        OrderSpecifier<?> createdAtOrder =
+                sort == SortType.LATEST ? review.createdAt.desc() : review.createdAt.asc();
+
+        OrderSpecifier<?> idOrder =
+                sort == SortType.LATEST ? review.id.desc() : review.id.asc();
+
+        List<CourseReview> reviews = queryFactory
+                .selectFrom(review)
+                .join(review.user).fetchJoin()
+                .join(review.course).fetchJoin()
+                .where(
+                        review.user.eq(user),
+                        keywordCondition(review.content, keyword),
+                        cursorCondition(
+                                review.createdAt,
+                                review.id,
+                                cursorCreatedAt,
+                                cursorId,
+                                sort
+                        )
+                )
+                .orderBy(createdAtOrder, idOrder)
+                .limit(size + 1)
+                .fetch();
+
+        boolean hasNext = reviews.size() > size;
+
+        if (hasNext) {
+            reviews.remove(size.intValue());
+        }
+
+        List<UserResDTO.MyReviewResponse> items = reviews.stream()
+                .map(r -> CourseConverter.toMyReviewResponse(
+                        r,
+                        s3Service.getImageUrl(r.getUser().getProfileImage())
+                ))
+                .toList();
+
+        Object nextCursorValue = null;
+        Long nextCursorId = null;
+
+        if (!items.isEmpty()) {
+            UserResDTO.MyReviewResponse last = items.get(items.size() - 1);
+            nextCursorValue = last.createdAt();
+            nextCursorId = last.reviewId();
+        }
+
+        return CursorResponse.of(
+                items,
+                nextCursorValue,
+                nextCursorId,
+                hasNext
+        );
+
+
+    }
+
+    private CursorResponse<UserResDTO.MyPostResponse> getAllMyPosts(
+            User user,
+            String keyword,
+            SortType sort,
+            LocalDateTime cursorCreatedAt,
+            Long cursorId,
+            Integer size
+    ) {
+
+        CursorResponse<UserResDTO.MyCourseResponse> courseResponse =
+                getMyCourses(user, keyword, sort, cursorCreatedAt, cursorId, size);
+
+        CursorResponse<UserResDTO.MyReviewResponse> reviewResponse =
+                getMyReviews(user, keyword, sort, cursorCreatedAt, cursorId, size);
+
+        List<MyPostItem> items = new ArrayList<>();
+
+        courseResponse.getItems().forEach(course ->
+                items.add(
+                        new MyPostItem(
+                                course.createdAt(),
+                                course.id(),
+                                CourseConverter.toMyPostResponse(course, null)
+                        )
+                )
+        );
+
+        reviewResponse.getItems().forEach(review ->
+                items.add(
+                        new MyPostItem(
+                                review.createdAt(),
+                                review.reviewId(),
+                                CourseConverter.toMyPostResponse(null, review)
+                        )
+                )
+        );
+
+        Comparator<MyPostItem> comparator =
+                Comparator.comparing(MyPostItem::createdAt)
+                        .thenComparing(MyPostItem::id);
+
+        if (sort == SortType.LATEST) {
+            comparator = comparator.reversed();
+        }
+
+        items.sort(comparator);
+
+        boolean hasNext = items.size() > size;
+
+        List<MyPostItem> resultItems = hasNext
+                ? new ArrayList<>(items.subList(0, size))
+                : items;
+
+        LocalDateTime nextCreatedAt = null;
+        Long nextCursorId = null;
+
+        if (!resultItems.isEmpty()) {
+            MyPostItem last = resultItems.get(resultItems.size() - 1);
+            nextCreatedAt = last.createdAt();
+            nextCursorId = last.id();
+        }
+
+        return CursorResponse.of(
+                resultItems.stream()
+                        .map(MyPostItem::response)
+                        .toList(),
+                nextCreatedAt,
+                nextCursorId,
+                hasNext
+        );
+    }
+
+
+
+
+    private record MyPostItem(
+            LocalDateTime createdAt,
+            Long id,
+            UserResDTO.MyPostResponse response
+    ) {}
 
 }

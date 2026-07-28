@@ -1,6 +1,6 @@
 package com.yeogido.backend.domain.user.enums;
 
-public enum LikeSortType {
+public enum SortType {
     LATEST,
     OLDEST
 }
