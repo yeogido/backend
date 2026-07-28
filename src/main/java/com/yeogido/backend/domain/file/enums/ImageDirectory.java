@@ -10,7 +10,8 @@ public enum ImageDirectory {
     CONTENT("contents"),
     BUSINESS("businesses"),
     PROFILE("profiles"),
-    TRAVEL_RECORD("travel-records");
+    TRAVEL_RECORD("travel-records"),
+    STICKER("stickers");
 
     private final String path;
 }

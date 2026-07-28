@@ -3,22 +3,34 @@ package com.yeogido.backend.domain.travel.service;
 import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.region.exception.RegionErrorCode;
 import com.yeogido.backend.domain.region.repository.RegionRepository;
+import com.yeogido.backend.domain.file.service.S3Service;
 import com.yeogido.backend.domain.travel.converter.TravelRecordConverter;
 import com.yeogido.backend.domain.travel.dto.request.TravelRecordReqDTO;
 import com.yeogido.backend.domain.travel.dto.response.TravelRecordResDTO;
+import com.yeogido.backend.domain.travel.entity.Sticker;
 import com.yeogido.backend.domain.travel.entity.TravelRecord;
 import com.yeogido.backend.domain.travel.entity.TravelRecordPhoto;
+import com.yeogido.backend.domain.travel.entity.TravelRecordSticker;
 import com.yeogido.backend.domain.travel.enums.FolderTheme;
+import com.yeogido.backend.domain.travel.enums.StickerType;
 import com.yeogido.backend.domain.travel.exception.TravelRecordErrorCode;
+import com.yeogido.backend.domain.travel.repository.StickerRepository;
 import com.yeogido.backend.domain.travel.repository.TravelRecordPhotoRepository;
 import com.yeogido.backend.domain.travel.repository.TravelRecordRepository;
+import com.yeogido.backend.domain.travel.repository.TravelRecordStickerRepository;
 import com.yeogido.backend.domain.user.entity.User;
 import com.yeogido.backend.domain.user.repository.UserRepository;
 import com.yeogido.backend.global.common.response.CursorResponse;
 import com.yeogido.backend.global.exception.GeneralException;
 import java.time.LocalDate;
 import java.time.Year;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -36,8 +48,11 @@ public class TravelRecordServiceImpl implements TravelRecordService {
 
     private final TravelRecordRepository travelRecordRepository;
     private final TravelRecordPhotoRepository travelRecordPhotoRepository;
+    private final TravelRecordStickerRepository travelRecordStickerRepository;
+    private final StickerRepository stickerRepository;
     private final UserRepository userRepository;
     private final RegionRepository regionRepository;
+    private final S3Service s3Service;
 
     @Override
     public CursorResponse<TravelRecordResDTO.TravelRecordSummary> getMyTravelRecords(
@@ -93,8 +108,15 @@ public class TravelRecordServiceImpl implements TravelRecordService {
         // 사진 순서는 화면 표시와 직접 연결되므로 imageOrder 오름차순을 보장
         List<TravelRecordPhoto> photos =
                 travelRecordPhotoRepository.findByTravelRecordIdOrderByImageOrderAsc(travelRecordId);
+        List<TravelRecordSticker> stickers =
+                travelRecordStickerRepository.findByTravelRecordIdOrderByZIndexAsc(travelRecordId);
 
-        return TravelRecordConverter.toDetailResponse(travelRecord, photos);
+        return TravelRecordConverter.toDetailResponse(
+                travelRecord,
+                photos,
+                stickers,
+                s3Service::getImageUrl
+        );
     }
 
     @Override
@@ -127,7 +149,24 @@ public class TravelRecordServiceImpl implements TravelRecordService {
 
         travelRecordPhotoRepository.saveAll(photos);
 
-        // 스티커 요청값은 현재 범위에서는 저장 로직을 구현하지 않음
+        List<TravelRecordReqDTO.StickerRequest> stickerRequests = resolveStickers(request.stickers());
+        if (!stickerRequests.isEmpty()) {
+            validateStickerZIndex(stickerRequests);
+
+            Map<Long, Sticker> stickerMap = getAvailableStickerMap(
+                    stickerRequests,
+                    user.getId()
+            );
+
+            List<TravelRecordSticker> stickers = TravelRecordConverter.toTravelRecordStickers(
+                    savedTravelRecord,
+                    stickerRequests,
+                    stickerMap
+            );
+
+            travelRecordStickerRepository.saveAll(stickers);
+        }
+
         return TravelRecordConverter.toCreateResponse(savedTravelRecord);
     }
 
@@ -231,5 +270,57 @@ public class TravelRecordServiceImpl implements TravelRecordService {
                 .findFirst()
                 .map(TravelRecordReqDTO.ImageRequest::imageKey)
                 .orElse(images.get(0).imageKey());
+    }
+
+    private List<TravelRecordReqDTO.StickerRequest> resolveStickers(
+            List<TravelRecordReqDTO.StickerRequest> stickers
+    ) {
+        if (stickers == null) {
+            return List.of();
+        }
+
+        return stickers;
+    }
+
+    private void validateStickerZIndex(List<TravelRecordReqDTO.StickerRequest> stickers) {
+        Set<Integer> zIndexes = new HashSet<>();
+
+        for (TravelRecordReqDTO.StickerRequest sticker : stickers) {
+            if (!zIndexes.add(sticker.zIndex())) {
+                throw new GeneralException(TravelRecordErrorCode.INVALID_STICKER_POSITION);
+            }
+        }
+    }
+
+    private Map<Long, Sticker> getAvailableStickerMap(
+            List<TravelRecordReqDTO.StickerRequest> stickerRequests,
+            Long userId
+    ) {
+        List<Long> stickerIds = stickerRequests.stream()
+                .map(TravelRecordReqDTO.StickerRequest::stickerId)
+                .distinct()
+                .toList();
+
+        Map<Long, Sticker> stickerMap = stickerRepository.findByIdIn(stickerIds).stream()
+                .filter(isAvailableSticker(userId))
+                .collect(Collectors.toMap(Sticker::getId, Function.identity()));
+
+        if (stickerMap.size() != stickerIds.size()) {
+            throw new GeneralException(TravelRecordErrorCode.STICKER_NOT_FOUND);
+        }
+
+        return stickerMap;
+    }
+
+    private Predicate<Sticker> isAvailableSticker(Long userId) {
+        return sticker -> {
+            if (sticker.getStickerType() == StickerType.DEFAULT) {
+                return true;
+            }
+
+            return sticker.getDeletedAt() == null
+                    && sticker.getUser() != null
+                    && sticker.getUser().getId().equals(userId);
+        };
     }
 }

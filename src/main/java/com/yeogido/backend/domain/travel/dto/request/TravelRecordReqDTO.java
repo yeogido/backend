@@ -78,9 +78,10 @@ public class TravelRecordReqDTO {
 
     @Schema(name = "TravelRecordStickerRequest", description = "여행 기록 스티커 요청")
     public record StickerRequest(
-            @Schema(description = "스티커 이미지 key", example = "stickers/heart.png")
-            @NotBlank(message = "스티커 이미지 key는 필수입니다.")
-            String stickerKey,
+            @Schema(description = "스티커 ID", example = "1")
+            @NotNull(message = "스티커 ID는 필수입니다.")
+            @Positive(message = "스티커 ID는 양수여야 합니다.")
+            Long stickerId,
 
             @Schema(description = "스티커 X 좌표", example = "120.5")
             @NotNull(message = "스티커 X 좌표는 필수입니다.")
@@ -93,12 +94,16 @@ public class TravelRecordReqDTO {
             Double positionY,
 
             @Schema(description = "스티커 회전값", example = "15.0", defaultValue = "0")
+            @NotNull(message = "스티커 회전값은 필수입니다.")
             Double rotation,
 
             @Schema(description = "스티커 크기 비율", example = "1.2", defaultValue = "1")
+            @NotNull(message = "스티커 크기 비율은 필수입니다.")
+            @Positive(message = "스티커 크기 비율은 양수여야 합니다.")
             Double scale,
 
             @Schema(description = "스티커 겹침 순서", example = "1", defaultValue = "0")
+            @NotNull(message = "스티커 겹침 순서는 필수입니다.")
             @PositiveOrZero(message = "스티커 겹침 순서는 0 이상이어야 합니다.")
             Integer zIndex
     ) {
