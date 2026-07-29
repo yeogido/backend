@@ -1,8 +1,6 @@
 package com.yeogido.backend.domain.user.dto;
 
-import com.yeogido.backend.domain.user.enums.LikeCategory;
-import com.yeogido.backend.domain.user.enums.PostCategory;
-import com.yeogido.backend.domain.user.enums.UserRole;
+import com.yeogido.backend.domain.user.enums.*;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 
@@ -113,8 +111,11 @@ public class UserResDTO {
             @Schema(description = "작성자 프로필 이미지 URL")
             String reviewerProfileImage,
 
-            @Schema(description = "프로필 정보")
-            String profileInfo,
+            @Schema(description = "연령대")
+            AgeGroup ageGroup,
+
+            @Schema(description = "성별")
+            Gender gender,
 
             @Schema(description = "평점")
             Integer rating,

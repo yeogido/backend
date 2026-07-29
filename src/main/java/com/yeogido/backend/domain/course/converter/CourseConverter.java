@@ -337,16 +337,14 @@ public class CourseConverter {
                 review.getId(),
                 user.getNickname(),
                 profileImageUrl,
-                getProfileInfo(user),
+                user.getAgeGroup(),
+                user.getGender(),
                 review.getRating(),
                 review.getContent(),
                 review.getCreatedAt()
         );
     }
 
-    private static String getProfileInfo(User user) {
-        return user.getAgeGroup() + " " + user.getGender();
-    }
 
     public static UserResDTO.MyPostResponse toMyPostResponse(
             UserResDTO.MyCourseResponse course,
