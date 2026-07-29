@@ -64,6 +64,11 @@ public class SecurityConfig {
                         ).authenticated()
 
                         .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/v1/files/presigned-url"
+                        ).authenticated()
+
+                        .requestMatchers(
                                 HttpMethod.PATCH,
                                 "/api/v1/courses/**"
                         ).authenticated()
