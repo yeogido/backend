@@ -71,7 +71,9 @@ public class S3Service {
     }
 
     public String moveToDirectory(String tempKey, ImageDirectory directory) {
-        validateTempKey(tempKey);
+        if (tempKey == null || tempKey.isBlank() || !tempKey.startsWith(TEMP_PREFIX)) {
+            return tempKey;
+        }
 
         String objectKey = createObjectKey(directory, tempKey);
 
@@ -111,12 +113,6 @@ public class S3Service {
                 .build();
 
         s3Client.deleteObject(deleteObjectRequest);
-    }
-
-    private void validateTempKey(String tempKey) {
-        if (tempKey == null || !tempKey.startsWith(TEMP_PREFIX)) {
-            throw new GeneralException(GeneralErrorCode.INVALID_REQUEST);
-        }
     }
 
     private String extractExtension(String fileName) {
