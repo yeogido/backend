@@ -77,11 +77,12 @@ class S3ServiceTest {
     }
 
     @Test
-    void moveToDirectoryRejectsNonTempKey() {
-        assertThatThrownBy(() -> s3Service.moveToDirectory("courses/image.jpg", ImageDirectory.COURSE))
-                .isInstanceOf(GeneralException.class)
-                .extracting("errorCode")
-                .isEqualTo(GeneralErrorCode.INVALID_REQUEST);
+    void moveToDirectoryReturnsOriginalKeyForNonTempKey() {
+        String objectKey = "courses/image.jpg";
+
+        String result = s3Service.moveToDirectory(objectKey, ImageDirectory.COURSE);
+
+        assertThat(result).isEqualTo(objectKey);
 
         verify(s3Client, never()).copyObject(any(CopyObjectRequest.class));
         verify(s3Client, never()).deleteObject(any(DeleteObjectRequest.class));
