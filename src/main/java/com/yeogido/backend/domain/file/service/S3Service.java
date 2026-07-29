@@ -1,11 +1,17 @@
 package com.yeogido.backend.domain.file.service;
 
 import com.yeogido.backend.domain.file.dto.response.FileResDTO;
+import com.yeogido.backend.domain.file.enums.ImageDirectory;
 import com.yeogido.backend.global.exception.GeneralErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import software.amazon.awssdk.awscore.exception.AwsServiceException;
+import software.amazon.awssdk.core.exception.SdkClientException;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
@@ -19,7 +25,10 @@ import java.util.UUID;
 public class S3Service {
 
     private static final Duration PRESIGNED_URL_DURATION = Duration.ofMinutes(10);
+    private static final String TEMP_DIRECTORY = "temp";
+    private static final String TEMP_PREFIX = TEMP_DIRECTORY + "/";
 
+    private final S3Client s3Client;
     private final S3Presigner s3Presigner;
 
     @Value("${app.s3.bucket}")
@@ -61,8 +70,53 @@ public class S3Service {
         return "https://" + bucket + ".s3." + region + ".amazonaws.com/" + objectKey;
     }
 
+    public String moveToDirectory(String tempKey, ImageDirectory directory) {
+        validateTempKey(tempKey);
+
+        String objectKey = createObjectKey(directory, tempKey);
+
+        try {
+            copyObject(tempKey, objectKey);
+            deleteObject(tempKey);
+        } catch (AwsServiceException | SdkClientException e) {
+            throw new GeneralException(GeneralErrorCode.INTERNAL_SERVER_ERROR);
+        }
+
+        return objectKey;
+    }
+
     private String createObjectKey(String fileName) {
-        return "temp/" + UUID.randomUUID() + "." + extractExtension(fileName);
+        return TEMP_PREFIX + UUID.randomUUID() + "." + extractExtension(fileName);
+    }
+
+    private String createObjectKey(ImageDirectory directory, String tempKey) {
+        return directory.getPath() + "/" + UUID.randomUUID() + "." + extractExtension(tempKey);
+    }
+
+    private void copyObject(String sourceKey, String destinationKey) {
+        CopyObjectRequest copyObjectRequest = CopyObjectRequest.builder()
+                .sourceBucket(bucket)
+                .sourceKey(sourceKey)
+                .destinationBucket(bucket)
+                .destinationKey(destinationKey)
+                .build();
+
+        s3Client.copyObject(copyObjectRequest);
+    }
+
+    private void deleteObject(String objectKey) {
+        DeleteObjectRequest deleteObjectRequest = DeleteObjectRequest.builder()
+                .bucket(bucket)
+                .key(objectKey)
+                .build();
+
+        s3Client.deleteObject(deleteObjectRequest);
+    }
+
+    private void validateTempKey(String tempKey) {
+        if (tempKey == null || !tempKey.startsWith(TEMP_PREFIX)) {
+            throw new GeneralException(GeneralErrorCode.INVALID_REQUEST);
+        }
     }
 
     private String extractExtension(String fileName) {
