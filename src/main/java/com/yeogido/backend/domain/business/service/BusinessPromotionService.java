@@ -16,6 +16,19 @@ public interface BusinessPromotionService {
             BusinessPromotionRequest.Register request
     );
 
+    // 홍보글 수정
+    BusinessPromotionResponse.Update updateBusinessPromotion(
+            Long userId,
+            Long promotionId,
+            BusinessPromotionRequest.Update request
+    );
+
+    // 홍보글 삭제
+    void deleteBusinessPromotion(
+            Long userId,
+            Long promotionId
+    );
+
     // 홍보글 상세 조회
     BusinessPromotionResponse.Detail getBusinessPromotion(
             Long userId,

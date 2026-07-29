@@ -99,6 +99,114 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
     }
 
     @Override
+    @Transactional
+    public BusinessPromotionResponse.Update updateBusinessPromotion(
+            Long userId,
+            Long promotionId,
+            BusinessPromotionRequest.Update request
+    ) {
+        validateUpdateRequest(request);
+
+        BusinessPromotion promotion =
+                getActiveBusinessPromotion(promotionId);
+
+        validateBusinessPromotionOwner(
+                promotion,
+                userId,
+                BusinessPromotionErrorCode.BUSINESS_PROMOTION_FORBIDDEN_UPDATE
+        );
+
+        if (request.businessHours() != null) {
+            validateDuplicateBusinessHours(request.businessHours());
+        }
+
+        if (request.images() != null) {
+            validateDuplicateImageSortOrders(request.images());
+        }
+
+        changePromotionPlaceIfRequested(
+                promotion,
+                request.place()
+        );
+
+        promotion.update(
+                request.shortDescription(),
+                request.ownerComment(),
+                request.promotionCategory(),
+                request.phoneNumber(),
+                request.snsAccount()
+        );
+
+        boolean replacesDetails = false;
+
+        if (request.businessHours() != null) {
+            businessOperatingDayRepository
+                    .deleteAllByPromotion_Id(promotionId);
+
+            replacesDetails = true;
+        }
+
+        if (request.images() != null) {
+            businessPromotionImageRepository
+                    .deleteAllByPromotion_Id(promotionId);
+
+            replacesDetails = true;
+        }
+
+        if (request.hashtagIds() != null) {
+            businessPromotionHashtagRepository
+                    .deleteAllByPromotion_Id(promotionId);
+
+            replacesDetails = true;
+        }
+
+        if (replacesDetails) {
+            businessPromotionRepository.flush();
+        }
+
+        if (request.businessHours() != null) {
+            saveBusinessHours(
+                    promotion,
+                    request.businessHours()
+            );
+        }
+
+        if (request.images() != null) {
+            savePromotionImages(
+                    promotion,
+                    request.images()
+            );
+        }
+
+        if (request.hashtagIds() != null) {
+            savePromotionHashtags(
+                    promotion,
+                    request.hashtagIds()
+            );
+        }
+
+        return BusinessPromotionConverter.toUpdateResponse(promotion);
+    }
+
+    @Override
+    @Transactional
+    public void deleteBusinessPromotion(
+            Long userId,
+            Long promotionId
+    ) {
+        BusinessPromotion promotion =
+                getActiveBusinessPromotion(promotionId);
+
+        validateBusinessPromotionOwner(
+                promotion,
+                userId,
+                BusinessPromotionErrorCode.BUSINESS_PROMOTION_FORBIDDEN_DELETE
+        );
+
+        promotion.delete();
+    }
+
+    @Override
     public BusinessPromotionResponse.Detail getBusinessPromotion(
             Long userId,
             Long promotionId
@@ -166,6 +274,95 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
                 isLiked,
                 profileImageUrl
         );
+    }
+
+    private BusinessPromotion getActiveBusinessPromotion(
+            Long promotionId
+    ) {
+        return businessPromotionRepository
+                .findByIdAndStatus(
+                        promotionId,
+                        PromotionStatus.ACTIVE
+                )
+                .orElseThrow(() -> new GeneralException(
+                        BusinessPromotionErrorCode.BUSINESS_PROMOTION_NOT_FOUND
+                ));
+    }
+
+    private void changePromotionPlaceIfRequested(
+            BusinessPromotion promotion,
+            BusinessPromotionRequest.Place placeRequest
+    ) {
+        if (placeRequest == null) {
+            return;
+        }
+
+        Place requestedPlace = getOrCreatePlace(placeRequest);
+
+        if (Objects.equals(
+                promotion.getPlace().getId(),
+                requestedPlace.getId()
+        )) {
+            return;
+        }
+
+        businessPromotionRepository
+                .findByPlaceId(requestedPlace.getId())
+                .ifPresent(existingPromotion -> {
+                    throw new GeneralException(
+                            BusinessPromotionErrorCode
+                                    .BUSINESS_PROMOTION_ALREADY_EXISTS
+                    );
+                });
+
+        promotion.changePlace(requestedPlace);
+    }
+
+    private void validateBusinessPromotionOwner(
+            BusinessPromotion promotion,
+            Long userId,
+            BusinessPromotionErrorCode errorCode
+    ) {
+        if (!Objects.equals(
+                promotion.getUser().getId(),
+                userId
+        )) {
+            throw new GeneralException(errorCode);
+        }
+    }
+
+    private void validateUpdateRequest(
+            BusinessPromotionRequest.Update request
+    ) {
+        boolean hasUpdateValue =
+                request.place() != null
+                        || request.shortDescription() != null
+                        || request.ownerComment() != null
+                        || request.businessHours() != null
+                        || request.snsAccount() != null
+                        || request.phoneNumber() != null
+                        || request.hashtagIds() != null
+                        || request.promotionCategory() != null
+                        || request.images() != null;
+
+        if (!hasUpdateValue) {
+            throw new GeneralException(
+                    GeneralErrorCode.INVALID_REQUEST
+            );
+        }
+
+        if (isBlank(request.shortDescription())
+                || isBlank(request.ownerComment())
+                || isBlank(request.snsAccount())
+                || isBlank(request.phoneNumber())) {
+            throw new GeneralException(
+                    GeneralErrorCode.INVALID_REQUEST
+            );
+        }
+    }
+
+    private boolean isBlank(String value) {
+        return value != null && value.isBlank();
     }
 
     @Override

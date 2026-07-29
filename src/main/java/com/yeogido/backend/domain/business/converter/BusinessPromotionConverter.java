@@ -98,6 +98,14 @@ public final class BusinessPromotionConverter {
                 .build();
     }
 
+    public static BusinessPromotionResponse.Update toUpdateResponse(
+            BusinessPromotion promotion
+    ) {
+        return BusinessPromotionResponse.Update.builder()
+                .promotionId(promotion.getId())
+                .build();
+    }
+
     public static BusinessPromotionResponse.PlaceInfo toPlaceInfo(
             Place place
     ) {

@@ -47,29 +47,39 @@ public class BusinessPromotionController {
 
     @Operation(
             summary = "소상공인 홍보 수정",
-            description = "현재 사용자가 등록한 소상공인 홍보글을 수정합니다")
-
+            description = "현재 사용자가 등록한 소상공인 홍보글을 수정합니다"
+    )
     @PatchMapping("/{promotionId}")
     public ApiResponse<BusinessPromotionResponse.Update> updateBusinessPromotion(
+            @AuthenticationPrincipal AuthUser authUser,
+
             @Parameter(
                     description = "수정할 소상공인 홍보 ID",
                     required = true,
-                    example = "1")
+                    example = "1"
+            )
             @PathVariable Long promotionId,
+
             @Valid @RequestBody BusinessPromotionRequest.Update request
     ) {
-        BusinessPromotionResponse.Update response = BusinessPromotionResponse.Update.builder()
-                .promotionId(promotionId)
-                .build();
+        BusinessPromotionResponse.Update response =
+                businessPromotionService.updateBusinessPromotion(
+                        authUser.userId(),
+                        promotionId,
+                        request
+                );
+
         return ApiResponse.onSuccess(SuccessCode.OK, response);
     }
 
     @Operation(
             summary = "소상공인 홍보 삭제",
-            description = "현재 사용자가 등록한 소상공인 홍보글을 삭제합니다")
-
+            description = "현재 사용자가 등록한 소상공인 홍보글을 삭제합니다"
+    )
     @DeleteMapping("/{promotionId}")
     public ApiResponse<Void> deleteBusinessPromotion(
+            @AuthenticationPrincipal AuthUser authUser,
+
             @Parameter(
                     description = "삭제할 소상공인 홍보 ID",
                     required = true,
@@ -77,6 +87,11 @@ public class BusinessPromotionController {
             )
             @PathVariable Long promotionId
     ) {
+        businessPromotionService.deleteBusinessPromotion(
+                authUser.userId(),
+                promotionId
+        );
+
         return ApiResponse.onSuccess(SuccessCode.OK, null);
     }
 
