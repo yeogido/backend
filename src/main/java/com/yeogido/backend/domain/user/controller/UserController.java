@@ -34,6 +34,7 @@ public class UserController {
     @GetMapping("/me/likes")
     public ApiResponse<CursorResponse<UserResDTO.LikedResponse>> getLikedList(
             @RequestParam LikeCategory category,
+            @RequestParam(required = false) String keyword,
             @RequestParam(defaultValue = "LATEST") LikeSortType sort,
             @RequestParam(required = false) LocalDateTime cursorCreatedAt,
             @RequestParam(required = false) Long cursorId,
@@ -46,6 +47,7 @@ public class UserController {
                 userService.getLikedList(
                         authUser.userId(),
                         category,
+                        keyword,
                         sort,
                         cursorCreatedAt,
                         cursorId,
