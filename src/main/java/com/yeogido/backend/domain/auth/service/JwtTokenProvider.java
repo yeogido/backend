@@ -62,17 +62,31 @@ public class JwtTokenProvider {
       throw new GeneralException(AuthErrorCode.LOGIN_REQUIRED);
     }
 
+    return parseAuthUser(payload, AuthErrorCode.LOGIN_REQUIRED);
+  }
+
+  public AuthUser parseRefreshToken(String token) {
+    Map<String, Object> payload = parseToken(token, AuthErrorCode.INVALID_REFRESH_TOKEN);
+
+    if (!TOKEN_TYPE_REFRESH.equals(payload.get("type"))) {
+      throw new GeneralException(AuthErrorCode.INVALID_REFRESH_TOKEN);
+    }
+
+    return parseAuthUser(payload, AuthErrorCode.INVALID_REFRESH_TOKEN);
+  }
+
+  private AuthUser parseAuthUser(Map<String, Object> payload, AuthErrorCode errorCode) {
     Number userId = (Number) payload.get("userId");
     String role = (String) payload.get("role");
 
     if (userId == null || role == null) {
-      throw new GeneralException(AuthErrorCode.LOGIN_REQUIRED);
+      throw new GeneralException(errorCode);
     }
 
     try {
       return new AuthUser(userId.longValue(), UserRole.valueOf(role));
     } catch (IllegalArgumentException e) {
-      throw new GeneralException(AuthErrorCode.LOGIN_REQUIRED);
+      throw new GeneralException(errorCode);
     }
   }
 
@@ -98,16 +112,20 @@ public class JwtTokenProvider {
   }
 
   private Map<String, Object> parseToken(String token) {
+    return parseToken(token, AuthErrorCode.LOGIN_REQUIRED);
+  }
+
+  private Map<String, Object> parseToken(String token, AuthErrorCode errorCode) {
     try {
       String[] tokenParts = token.split("\\.");
 
       if (tokenParts.length != 3) {
-        throw new GeneralException(AuthErrorCode.LOGIN_REQUIRED);
+        throw new GeneralException(errorCode);
       }
 
       String unsignedToken = tokenParts[0] + "." + tokenParts[1];
       if (!sign(unsignedToken).equals(tokenParts[2])) {
-        throw new GeneralException(AuthErrorCode.LOGIN_REQUIRED);
+        throw new GeneralException(errorCode);
       }
 
       Map<String, Object> payload = objectMapper.readValue(
@@ -117,12 +135,12 @@ public class JwtTokenProvider {
 
       Number expiresAt = (Number) payload.get("exp");
       if (expiresAt == null || expiresAt.longValue() < Instant.now().getEpochSecond()) {
-        throw new GeneralException(AuthErrorCode.LOGIN_REQUIRED);
+        throw new GeneralException(errorCode);
       }
 
       return payload;
     } catch (JsonProcessingException | IllegalArgumentException | ClassCastException e) {
-      throw new GeneralException(AuthErrorCode.LOGIN_REQUIRED);
+      throw new GeneralException(errorCode);
     }
   }
 

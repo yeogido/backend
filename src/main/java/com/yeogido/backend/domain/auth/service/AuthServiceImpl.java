@@ -10,6 +10,7 @@ import com.yeogido.backend.domain.auth.dto.SocialUserInfo;
 import com.yeogido.backend.domain.auth.entity.SocialAccount;
 import com.yeogido.backend.domain.auth.exception.AuthErrorCode;
 import com.yeogido.backend.domain.auth.repository.SocialAccountRepository;
+import com.yeogido.backend.domain.auth.security.AuthUser;
 import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.region.exception.RegionErrorCode;
 import com.yeogido.backend.domain.region.repository.RegionRepository;
@@ -168,6 +169,22 @@ public class AuthServiceImpl implements AuthService {
   @Override
   public void logout(Long userId) {
     refreshTokenService.delete(userId);
+  }
+
+  @Override
+  @Transactional
+  public AuthResDTO.Token reissue(AuthReqDTO.Reissue request) {
+    AuthUser authUser = jwtTokenProvider.parseRefreshToken(request.refreshToken());
+
+    if (!refreshTokenService.matches(authUser.userId(), request.refreshToken())) {
+      throw new GeneralException(AuthErrorCode.INVALID_REFRESH_TOKEN);
+    }
+
+    User user = userRepository.findById(authUser.userId())
+      .filter(foundUser -> foundUser.getStatus() == UserStatus.ACTIVE)
+      .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
+
+    return issueAndSaveToken(user);
   }
 
   private AuthResDTO.Token issueAndSaveToken(User user) {
