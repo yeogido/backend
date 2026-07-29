@@ -196,10 +196,8 @@ public class TravelRecordServiceImpl implements TravelRecordService {
                 DEFAULT_FOLDER_THEME
         );
 
-        // 수정 요청의 images/stickers는 "수정 후 최종 목록"이므로 기존 데이터를 전체 교체합니다.
-        travelRecordStickerRepository.deleteAllByTravelRecord_Id(travelRecordId);
+        // 수정 요청의 images는 "수정 후 최종 목록"이므로 기존 사진을 전체 교체합니다.
         travelRecordPhotoRepository.deleteAllByTravelRecord_Id(travelRecordId);
-        travelRecordStickerRepository.flush();
         travelRecordPhotoRepository.flush();
 
         List<TravelRecordPhoto> photos = TravelRecordConverter.toTravelRecordPhotos(
@@ -208,19 +206,7 @@ public class TravelRecordServiceImpl implements TravelRecordService {
         );
         travelRecordPhotoRepository.saveAll(photos);
 
-        List<TravelRecordReqDTO.StickerRequest> stickerRequests = resolveStickers(request.stickers());
-        if (!stickerRequests.isEmpty()) {
-            validateStickerZIndex(stickerRequests);
-
-            Map<Long, Sticker> stickerMap = getAvailableStickerMap(stickerRequests, userId);
-
-            List<TravelRecordSticker> stickers = TravelRecordConverter.toTravelRecordStickers(
-                    travelRecord,
-                    stickerRequests,
-                    stickerMap
-            );
-            travelRecordStickerRepository.saveAll(stickers);
-        }
+        updateStickersIfRequested(travelRecord, request.stickers(), userId);
 
         return TravelRecordConverter.toUpdateResponse(travelRecord);
     }
@@ -360,6 +346,34 @@ public class TravelRecordServiceImpl implements TravelRecordService {
         if (!hasCoverImage) {
             throw new GeneralException(TravelRecordErrorCode.INVALID_IMAGE_ORDER);
         }
+    }
+
+    private void updateStickersIfRequested(
+            TravelRecord travelRecord,
+            List<TravelRecordReqDTO.StickerRequest> stickerRequests,
+            Long userId
+    ) {
+        if (stickerRequests == null) {
+            return;
+        }
+
+        travelRecordStickerRepository.deleteAllByTravelRecord_Id(travelRecord.getId());
+        travelRecordStickerRepository.flush();
+
+        if (stickerRequests.isEmpty()) {
+            return;
+        }
+
+        validateStickerZIndex(stickerRequests);
+
+        Map<Long, Sticker> stickerMap = getAvailableStickerMap(stickerRequests, userId);
+
+        List<TravelRecordSticker> stickers = TravelRecordConverter.toTravelRecordStickers(
+                travelRecord,
+                stickerRequests,
+                stickerMap
+        );
+        travelRecordStickerRepository.saveAll(stickers);
     }
 
     private String findCoverImageKey(List<TravelRecordReqDTO.ImageRequest> images) {
