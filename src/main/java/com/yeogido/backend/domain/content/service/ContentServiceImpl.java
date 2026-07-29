@@ -640,8 +640,11 @@ public class ContentServiceImpl implements ContentService{
                         })
                         .toList();
 
+        String imageUrl = s3Service.getImageUrl(content.getThumbnailImage());
+
         return ContentConverter.toContentDetailRes(
                 content,
+                imageUrl,
                 hashtags,
                 liked,
                 placeInfo,
