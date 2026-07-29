@@ -14,7 +14,6 @@ public class FileServiceImpl implements FileService {
     @Override
     public FileResDTO.PresignedUrlRes createPresignedUrl(FileReqDTO.PresignedUrlReq request) {
         return s3Service.createPresignedUrl(
-                request.directory(),
                 request.fileName(),
                 request.contentType()
         );

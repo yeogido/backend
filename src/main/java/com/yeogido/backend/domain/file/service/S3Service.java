@@ -1,7 +1,6 @@
 package com.yeogido.backend.domain.file.service;
 
 import com.yeogido.backend.domain.file.dto.response.FileResDTO;
-import com.yeogido.backend.domain.file.enums.ImageDirectory;
 import com.yeogido.backend.global.exception.GeneralErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
 import lombok.RequiredArgsConstructor;
@@ -30,11 +29,10 @@ public class S3Service {
     private String region;
 
     public FileResDTO.PresignedUrlRes createPresignedUrl(
-            ImageDirectory directory,
             String fileName,
             String contentType
     ) {
-        String objectKey = createObjectKey(directory, fileName);
+        String objectKey = createObjectKey(fileName);
 
         PutObjectRequest putObjectRequest = PutObjectRequest.builder()
                 .bucket(bucket)
@@ -63,8 +61,8 @@ public class S3Service {
         return "https://" + bucket + ".s3." + region + ".amazonaws.com/" + objectKey;
     }
 
-    private String createObjectKey(ImageDirectory directory, String fileName) {
-        return directory.getPath() + "/" + UUID.randomUUID() + "." + extractExtension(fileName);
+    private String createObjectKey(String fileName) {
+        return "temp/" + UUID.randomUUID() + "." + extractExtension(fileName);
     }
 
     private String extractExtension(String fileName) {
