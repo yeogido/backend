@@ -90,4 +90,6 @@ public interface CourseReviewRepository extends JpaRepository<CourseReview, Long
             @Param("cursorId") Long cursorId,
             Pageable pageable
     );
+
+
 }

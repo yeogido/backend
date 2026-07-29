@@ -209,4 +209,5 @@ public interface CourseRepository extends JpaRepository<Course, Long>, CourseQue
 
         TransportType getTransportType();
     }
+
 }
