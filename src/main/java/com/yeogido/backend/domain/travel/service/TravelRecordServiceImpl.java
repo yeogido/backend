@@ -170,6 +170,73 @@ public class TravelRecordServiceImpl implements TravelRecordService {
         return TravelRecordConverter.toCreateResponse(savedTravelRecord);
     }
 
+    @Override
+    @Transactional
+    public TravelRecordResDTO.UpdateResponse updateTravelRecord(
+            Long travelRecordId,
+            Long userId,
+            TravelRecordReqDTO.UpdateRequest request
+    ) {
+        TravelRecord travelRecord = getTravelRecordOrThrow(travelRecordId);
+        validateOwner(travelRecord, userId, TravelRecordErrorCode.UPDATE_ACCESS_DENIED);
+
+        Region region = getRegionOrThrow(request.regionId());
+        validateDateRange(request.startDate(), request.endDate());
+        validateImageOrders(request.images());
+
+        String coverImageKey = findCoverImageKey(request.images());
+
+        // 폴더 테마는 현재 기획상 변경 기능이 없어 BASIC으로 고정합니다.
+        travelRecord.update(
+                region,
+                request.title(),
+                request.startDate(),
+                request.endDate(),
+                coverImageKey,
+                DEFAULT_FOLDER_THEME
+        );
+
+        // 수정 요청의 images/stickers는 "수정 후 최종 목록"이므로 기존 데이터를 전체 교체합니다.
+        travelRecordStickerRepository.deleteAllByTravelRecord_Id(travelRecordId);
+        travelRecordPhotoRepository.deleteAllByTravelRecord_Id(travelRecordId);
+        travelRecordStickerRepository.flush();
+        travelRecordPhotoRepository.flush();
+
+        List<TravelRecordPhoto> photos = TravelRecordConverter.toTravelRecordPhotos(
+                travelRecord,
+                request
+        );
+        travelRecordPhotoRepository.saveAll(photos);
+
+        List<TravelRecordReqDTO.StickerRequest> stickerRequests = resolveStickers(request.stickers());
+        if (!stickerRequests.isEmpty()) {
+            validateStickerZIndex(stickerRequests);
+
+            Map<Long, Sticker> stickerMap = getAvailableStickerMap(stickerRequests, userId);
+
+            List<TravelRecordSticker> stickers = TravelRecordConverter.toTravelRecordStickers(
+                    travelRecord,
+                    stickerRequests,
+                    stickerMap
+            );
+            travelRecordStickerRepository.saveAll(stickers);
+        }
+
+        return TravelRecordConverter.toUpdateResponse(travelRecord);
+    }
+
+    @Override
+    @Transactional
+    public void deleteTravelRecord(Long travelRecordId, Long userId) {
+        TravelRecord travelRecord = getTravelRecordOrThrow(travelRecordId);
+        validateOwner(travelRecord, userId, TravelRecordErrorCode.DELETE_ACCESS_DENIED);
+
+        // FK 제약이 있으므로 자식 테이블 데이터를 먼저 삭제한 뒤 여행 기록을 삭제합니다.
+        travelRecordStickerRepository.deleteAllByTravelRecord_Id(travelRecordId);
+        travelRecordPhotoRepository.deleteAllByTravelRecord_Id(travelRecordId);
+        travelRecordRepository.delete(travelRecord);
+    }
+
     private Long getCurrentUserId() {
         // TODO: Spring Security 적용 후 인증 사용자 ID로 교체
         return MOCK_USER_ID;
@@ -253,14 +320,45 @@ public class TravelRecordServiceImpl implements TravelRecordService {
     }
 
     private void validateOwner(TravelRecord travelRecord, Long userId) {
+        validateOwner(travelRecord, userId, TravelRecordErrorCode.ACCESS_DENIED);
+    }
+
+    private void validateOwner(
+            TravelRecord travelRecord,
+            Long userId,
+            TravelRecordErrorCode errorCode
+    ) {
         if (!travelRecord.getUser().getId().equals(userId)) {
-            throw new GeneralException(TravelRecordErrorCode.ACCESS_DENIED);
+            throw new GeneralException(errorCode);
         }
     }
 
     private void validateDateRange(TravelRecordReqDTO.CreateRequest request) {
-        if (request.startDate().isAfter(request.endDate())) {
+        validateDateRange(request.startDate(), request.endDate());
+    }
+
+    private void validateDateRange(LocalDate startDate, LocalDate endDate) {
+        if (startDate.isAfter(endDate)) {
             throw new GeneralException(TravelRecordErrorCode.INVALID_DATE_RANGE);
+        }
+    }
+
+    private void validateImageOrders(List<TravelRecordReqDTO.ImageRequest> images) {
+        Set<Integer> imageOrders = new HashSet<>();
+        boolean hasCoverImage = false;
+
+        for (TravelRecordReqDTO.ImageRequest image : images) {
+            if (!imageOrders.add(image.imageOrder())) {
+                throw new GeneralException(TravelRecordErrorCode.INVALID_IMAGE_ORDER);
+            }
+
+            if (Integer.valueOf(1).equals(image.imageOrder())) {
+                hasCoverImage = true;
+            }
+        }
+
+        if (!hasCoverImage) {
+            throw new GeneralException(TravelRecordErrorCode.INVALID_IMAGE_ORDER);
         }
     }
 

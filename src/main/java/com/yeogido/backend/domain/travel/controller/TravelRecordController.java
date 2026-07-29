@@ -1,5 +1,6 @@
 package com.yeogido.backend.domain.travel.controller;
 
+import com.yeogido.backend.domain.auth.security.AuthUser;
 import com.yeogido.backend.domain.travel.dto.request.TravelRecordReqDTO;
 import com.yeogido.backend.domain.travel.dto.response.TravelRecordResDTO;
 import com.yeogido.backend.domain.travel.service.TravelRecordService;
@@ -10,8 +11,11 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -71,5 +75,38 @@ public class TravelRecordController {
     ) {
         TravelRecordResDTO.CreateResponse result = travelRecordService.createTravelRecord(request);
         return ApiResponse.onSuccess(SuccessCode.CREATED, result);
+    }
+
+    @Operation(
+            summary = "여행 기록 수정",
+            description = "로그인한 사용자가 본인이 작성한 여행 기록의 제목, 기간, 지역, 사진, 스티커 정보를 수정합니다."
+    )
+    @PatchMapping("/{travelRecordId}")
+    public ApiResponse<TravelRecordResDTO.UpdateResponse> updateTravelRecord(
+            @PathVariable Long travelRecordId,
+            @AuthenticationPrincipal AuthUser authUser,
+            @Valid @RequestBody TravelRecordReqDTO.UpdateRequest request
+    ) {
+        TravelRecordResDTO.UpdateResponse result = travelRecordService.updateTravelRecord(
+                travelRecordId,
+                authUser.userId(),
+                request
+        );
+
+        return ApiResponse.onSuccess(SuccessCode.OK, result);
+    }
+
+    @Operation(
+            summary = "여행 기록 삭제",
+            description = "로그인한 사용자가 본인이 작성한 여행 기록을 삭제합니다."
+    )
+    @DeleteMapping("/{travelRecordId}")
+    public ApiResponse<Void> deleteTravelRecord(
+            @PathVariable Long travelRecordId,
+            @AuthenticationPrincipal AuthUser authUser
+    ) {
+        travelRecordService.deleteTravelRecord(travelRecordId, authUser.userId());
+
+        return ApiResponse.onSuccess(SuccessCode.NO_CONTENT);
     }
 }

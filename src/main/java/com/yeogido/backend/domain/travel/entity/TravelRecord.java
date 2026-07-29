@@ -48,4 +48,20 @@ public class TravelRecord extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "folder_theme", length = 50)
     private FolderTheme folderTheme;
+
+    public void update(
+            Region region,
+            String title,
+            LocalDate startDate,
+            LocalDate endDate,
+            String coverImageKey,
+            FolderTheme folderTheme
+    ) {
+        this.region = region;
+        this.title = title;
+        this.startDate = startDate;
+        this.endDate = endDate;
+        this.coverImageKey = coverImageKey;
+        this.folderTheme = folderTheme;
+    }
 }
