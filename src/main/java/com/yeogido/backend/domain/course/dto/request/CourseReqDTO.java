@@ -170,6 +170,9 @@ public class CourseReqDTO {
             @Schema(description = "검색어", example = "강릉")
             String keyword,
 
+            @Schema(description = "지역 ID", nullable = true, example = "1")
+            Long regionId,
+
             @Schema(description = "이동 수단", example = "CAR")
             TransportType transportType,
 
@@ -179,11 +182,20 @@ public class CourseReqDTO {
             @Schema(description = "동행 유형", example = "SOLO")
             CompanionType companionType,
 
-            @Schema(description = "정렬 기준", example = "RECOMMEND")
+            @Schema(description = "정렬 기준", example = "LATEST")
             CourseSortType sort,
 
+            @Schema(description = "현재 위치 위도. sort=DISTANCE일 때 사용합니다.", example = "37.5665")
+            BigDecimal latitude,
+
+            @Schema(description = "현재 위치 경도. sort=DISTANCE일 때 사용합니다.", example = "126.9780")
+            BigDecimal longitude,
+
+            @Schema(description = "커서 기준 값", example = "2026-07-27T10:15:30")
+            String cursorValue,
+
             @Schema(description = "커서 ID", example = "1")
-            Long cursor,
+            Long cursorId,
 
             @Schema(description = "조회 개수", example = "20", defaultValue = "20")
             Integer size

@@ -17,6 +17,8 @@ public interface AuthService {
 
   void logout(Long userId);
 
+  AuthResDTO.Token reissue(AuthReqDTO.Reissue request);
+
   void sendResetCode(AuthReqDTO.PasswordSendCode request);
 
   AuthResDTO.PasswordVerifyCode verifyResetCode(AuthReqDTO.PasswordVerifyCode request);

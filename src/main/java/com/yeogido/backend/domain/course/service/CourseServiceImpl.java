@@ -10,6 +10,7 @@ import com.yeogido.backend.domain.course.dto.response.CourseResDTO;
 import com.yeogido.backend.domain.course.entity.*;
 import com.yeogido.backend.domain.course.enums.CompanionType;
 import com.yeogido.backend.domain.course.enums.CourseItemType;
+import com.yeogido.backend.domain.course.enums.CourseSortType;
 import com.yeogido.backend.domain.course.enums.CourseType;
 import com.yeogido.backend.domain.course.enums.DurationType;
 import com.yeogido.backend.domain.course.enums.TransportType;
@@ -52,6 +53,8 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -150,9 +153,46 @@ public class CourseServiceImpl implements CourseService {
     }
 
     @Override
-    public CursorResponse<CourseResDTO.CoursePreview> getCourses(CourseReqDTO.CourseListReq request) {
-        // TODO: 추천 코스 조회 로직 구현
-        return CursorResponse.of(List.of(createFirstMockCourse()), 1L, null,true);
+    public CursorResponse<CourseResDTO.CoursePreview> getCourses(
+            CourseReqDTO.CourseListReq request,
+            Long userId
+    ) {
+        validateCourseListRequest(request);
+
+        int size = request.size();
+        CourseQueryRepository.CourseLocation location = resolveCourseLocation(request, userId);
+        List<CourseQueryRepository.CourseListRow> rows =
+                courseRepository.findCoursesByCursor(request, location, size + 1);
+
+        boolean hasNext = rows.size() > size;
+        if (hasNext) {
+            rows = new ArrayList<>(rows.subList(0, size));
+        }
+
+        List<Long> courseIds = rows.stream()
+                .map(CourseQueryRepository.CourseListRow::courseId)
+                .toList();
+        Map<Long, List<String>> tagMap = getPopularCourseTagMap(courseIds);
+        Set<Long> likedCourseIds = getLikedCourseIds(userId, courseIds);
+
+        List<CourseResDTO.CoursePreview> items = rows.stream()
+                .map(row -> toCoursePreview(
+                        row,
+                        tagMap.getOrDefault(row.courseId(), List.of()),
+                        likedCourseIds.contains(row.courseId())
+                ))
+                .toList();
+
+        CourseQueryRepository.CourseListRow lastRow = rows.isEmpty()
+                ? null
+                : rows.get(rows.size() - 1);
+
+        return CursorResponse.of(
+                items,
+                nextCourseCursorValue(request.sort(), lastRow),
+                lastRow == null ? null : lastRow.courseId(),
+                hasNext
+        );
     }
 
     @Override
@@ -697,31 +737,114 @@ public class CourseServiceImpl implements CourseService {
         return courseRepository.findLatestOfficialRegionCourseIds(regionId, pageable);
     }
 
-    private CourseResDTO.CoursePreview createFirstMockCourse() {
-        return new CourseResDTO.CoursePreview(
-                1L,
-                "https://example.com/course1.jpg",
-                "강릉 혼자 여행 코스",
-                "강릉",
-                DurationType.DAY_TRIP,
-                TransportType.CAR,
-                CompanionType.SOLO,
-                List.of("여름", "자연", "바다"),
-                true
+    private void validateCourseListRequest(CourseReqDTO.CourseListReq request) {
+        if (request.courseType() == CourseType.LOCAL
+                && CourseSortType.resolve(request.sort()) == CourseSortType.RECOMMEND) {
+            throw new GeneralException(CourseErrorCode.INVALID_COURSE_LIST_SORT);
+        }
+
+        boolean firstPage = request.cursorValue() == null && request.cursorId() == null;
+        if (!firstPage && (request.cursorValue() == null || request.cursorId() == null)) {
+            throw new GeneralException(GeneralErrorCode.INVALID_PARAMETER);
+        }
+
+        if (!firstPage) {
+            validateCourseCursorValue(request.sort(), request.cursorValue());
+        }
+
+        if ((request.latitude() == null) != (request.longitude() == null)) {
+            throw new GeneralException(GeneralErrorCode.INVALID_PARAMETER);
+        }
+
+        if (request.size() <= 0) {
+            throw new GeneralException(GeneralErrorCode.INVALID_PARAMETER);
+        }
+    }
+
+    private void validateCourseCursorValue(
+            CourseSortType sort,
+            String cursorValue
+    ) {
+        CourseSortType resolvedSort = CourseSortType.resolve(sort);
+
+        try {
+            switch (resolvedSort) {
+                case DISTANCE -> Double.valueOf(cursorValue);
+                case SAVED, REVIEW -> Long.valueOf(cursorValue);
+                case LATEST -> LocalDateTime.parse(cursorValue);
+                case RECOMMEND -> Integer.valueOf(cursorValue);
+            }
+        } catch (NumberFormatException | DateTimeParseException exception) {
+            throw new GeneralException(GeneralErrorCode.INVALID_PARAMETER);
+        }
+    }
+
+    private CourseQueryRepository.CourseLocation resolveCourseLocation(
+            CourseReqDTO.CourseListReq request,
+            Long userId
+    ) {
+        if (request.sort() != CourseSortType.DISTANCE) {
+            return new CourseQueryRepository.CourseLocation(null, null);
+        }
+
+        if (request.latitude() != null && request.longitude() != null) {
+            return new CourseQueryRepository.CourseLocation(
+                    request.latitude().doubleValue(),
+                    request.longitude().doubleValue()
+            );
+        }
+
+        if (userId == null) {
+            throw new GeneralException(CourseErrorCode.LOCATION_REQUIRED_FOR_DISTANCE_SORT);
+        }
+
+        User user = getCurrentUser(userId);
+        Region region = user.getRegion();
+        if (region.getLatitude() == null || region.getLongitude() == null) {
+            throw new GeneralException(CourseErrorCode.REGION_COORDINATE_NOT_FOUND);
+        }
+
+        return new CourseQueryRepository.CourseLocation(
+                region.getLatitude().doubleValue(),
+                region.getLongitude().doubleValue()
         );
     }
 
-    private CourseResDTO.CoursePreview createSecondMockCourse() {
+    private Object nextCourseCursorValue(
+            CourseSortType sort,
+            CourseQueryRepository.CourseListRow row
+    ) {
+        if (row == null) {
+            return null;
+        }
+
+        CourseSortType resolvedSort = CourseSortType.resolve(sort);
+
+        return switch (resolvedSort) {
+            case DISTANCE -> row.distance();
+            case SAVED -> row.savedCount();
+            case REVIEW -> row.reviewCount();
+            case LATEST -> row.createdAt();
+            case RECOMMEND -> row.recommendOrder();
+        };
+    }
+
+    private CourseResDTO.CoursePreview toCoursePreview(
+            CourseQueryRepository.CourseListRow row,
+            List<String> tags,
+            boolean isLiked
+    ) {
         return new CourseResDTO.CoursePreview(
-                2L,
-                "https://example.com/course2.jpg",
-                "강릉 힐링 여행",
-                "강릉",
-                DurationType.ONE_NIGHT,
-                TransportType.CAR,
-                CompanionType.FRIEND,
-                List.of("힐링", "드라이브"),
-                false
+                row.courseId(),
+                s3Service.getImageUrl(row.thumbnailKey()),
+                row.title(),
+                row.region(),
+                row.durationType(),
+                row.transportType(),
+                row.companionType(),
+                tags,
+                isLiked
         );
     }
+
 }
