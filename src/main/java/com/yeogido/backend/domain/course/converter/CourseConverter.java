@@ -345,28 +345,8 @@ public class CourseConverter {
     }
 
     private static String getProfileInfo(User user) {
-        return getAgeGroup(user.getBirthYear()) + " " + getGenderText(user.getGender());
+        return user.getAgeGroup() + " " + user.getGender();
     }
-
-    private static String getAgeGroup(String birthYear) {
-        if (birthYear == null || birthYear.isBlank()) {
-            return "";
-        }
-
-        int age = LocalDate.now().getYear() - Integer.parseInt(birthYear) + 1;
-
-        if (age < 20) return "10대";
-        if (age < 30) return "20대";
-        if (age < 40) return "30대";
-        if (age < 50) return "40대";
-        if (age < 60) return "50대";
-        return "60대+";
-    }
-
-    private static String getGenderText(Gender gender) {
-        return gender == Gender.FEMALE ? "여" : "남";
-    }
-
 
     public static UserResDTO.MyPostResponse toMyPostResponse(
             UserResDTO.MyCourseResponse course,

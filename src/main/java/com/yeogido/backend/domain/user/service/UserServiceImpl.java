@@ -650,14 +650,12 @@ public class UserServiceImpl implements UserService{
     ) {
 
         QCourse course = QCourse.course;
-        QCourseHashtag courseHashtag = QCourseHashtag.courseHashtag;
 
         OrderSpecifier<?> createdAtOrder =
                 sort == SortType.LATEST ? course.createdAt.desc() : course.createdAt.asc();
 
         OrderSpecifier<?> idOrder =
                 sort == SortType.LATEST ? course.id.desc() : course.id.asc();
-
 
 
         List<Course> courses = queryFactory
@@ -677,19 +675,19 @@ public class UserServiceImpl implements UserService{
                 .limit(size + 1)
                 .fetch();
 
+
         boolean hasNext = courses.size() > size;
 
         if (hasNext) {
             courses.remove(size.intValue());
         }
 
+        Map<Long, List<String>> hashtagMap = getCourseHashtagMapFromCourses(courses);
+
         List<UserResDTO.MyCourseResponse> items = courses.stream()
                 .map(c -> {
-                    List<String> hashtags = queryFactory
-                            .select(courseHashtag.hashtag.hashtagName)
-                            .from(courseHashtag)
-                            .where(courseHashtag.course.eq(c))
-                            .fetch();
+                    List<String> hashtags =
+                            hashtagMap.getOrDefault(c.getId(), List.of());
 
                     String thumbnailUrl = s3Service.getImageUrl(c.getThumbnailKey());
 
@@ -717,6 +715,29 @@ public class UserServiceImpl implements UserService{
                 hasNext
         );
     }
+
+    private Map<Long, List<String>> getCourseHashtagMapFromCourses(List<Course> courses) {
+
+        List<Long> courseIds = courses.stream()
+                .map(Course::getId)
+                .distinct()
+                .toList();
+
+        if (courseIds.isEmpty()) {
+            return Map.of();
+        }
+
+        return courseHashtagRepository.findByCourseIdIn(courseIds)
+                .stream()
+                .collect(Collectors.groupingBy(
+                        ch -> ch.getCourse().getId(),
+                        Collectors.mapping(
+                                ch -> ch.getHashtag().getHashtagName(),
+                                Collectors.toList()
+                        )
+                ));
+    }
+
 
 
     private CursorResponse<UserResDTO.MyReviewResponse> getMyReviews(
