@@ -31,6 +31,11 @@ public class RefreshTokenService {
     stringRedisTemplate.delete(key(userId));
   }
 
+  public boolean matches(Long userId, String refreshToken) {
+    String savedRefreshToken = stringRedisTemplate.opsForValue().get(key(userId));
+    return refreshToken.equals(savedRefreshToken);
+  }
+
   private String key(Long userId) {
     return RedisKey.of(DOMAIN, REFRESH_TOKEN, userId.toString());
   }

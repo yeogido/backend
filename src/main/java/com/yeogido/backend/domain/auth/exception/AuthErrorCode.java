@@ -45,6 +45,12 @@ public enum AuthErrorCode implements ErrorCode {
     "비밀번호가 일치하지 않습니다."
   ),
 
+  INVALID_REFRESH_TOKEN(
+    HttpStatus.UNAUTHORIZED,
+    "AUTH4013",
+    "유효하지 않거나 만료된 Refresh Token입니다."
+  ),
+
   LOGIN_REQUIRED(
     HttpStatus.UNAUTHORIZED,
     "AUTH4011",
