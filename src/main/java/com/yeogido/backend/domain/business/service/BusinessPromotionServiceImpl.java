@@ -17,6 +17,8 @@ import com.yeogido.backend.domain.business.repository.BusinessOperatingDayReposi
 import com.yeogido.backend.domain.business.repository.BusinessPromotionHashtagRepository;
 import com.yeogido.backend.domain.business.repository.BusinessPromotionImageRepository;
 import com.yeogido.backend.domain.business.repository.BusinessPromotionRepository;
+import com.yeogido.backend.domain.file.enums.ImageDirectory;
+import com.yeogido.backend.domain.file.service.FileService;
 import com.yeogido.backend.domain.file.service.S3Service;
 import com.yeogido.backend.domain.hashtag.entity.Hashtag;
 import com.yeogido.backend.domain.hashtag.exception.HashtagErrorCode;
@@ -59,6 +61,7 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
     private final RegionRepository regionRepository;
     private final UserRepository userRepository;
     private final HashtagRepository hashtagRepository;
+    private final FileService fileService;
     private final S3Service s3Service;
 
     private final JPAQueryFactory queryFactory;
@@ -924,6 +927,7 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
             List<BusinessPromotionRequest.Image> images
     ) {
         List<BusinessPromotionImage> promotionImages = images.stream()
+                .map(this::movePromotionImage)
                 .map(image ->
                         BusinessPromotionConverter.toBusinessPromotionImage(
                                 businessPromotion,
@@ -933,6 +937,13 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
                 .toList();
 
         businessPromotionImageRepository.saveAll(promotionImages);
+    }
+
+    private BusinessPromotionRequest.Image movePromotionImage(BusinessPromotionRequest.Image image) {
+        return new BusinessPromotionRequest.Image(
+                fileService.moveToDirectory(image.imageKey(), ImageDirectory.BUSINESS),
+                image.sortOrder()
+        );
     }
 
     private void savePromotionHashtags(

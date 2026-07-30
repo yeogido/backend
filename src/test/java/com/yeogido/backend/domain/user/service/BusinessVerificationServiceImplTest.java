@@ -1,5 +1,7 @@
 package com.yeogido.backend.domain.user.service;
 
+import com.yeogido.backend.domain.file.enums.ImageDirectory;
+import com.yeogido.backend.domain.file.service.FileService;
 import com.yeogido.backend.domain.user.client.NtsBusinessVerificationClient;
 import com.yeogido.backend.domain.user.dto.BusinessVerifyReqDTO;
 import com.yeogido.backend.domain.user.dto.BusinessVerifyResDTO;
@@ -45,6 +47,9 @@ class BusinessVerificationServiceImplTest {
 
     @Mock
     private NtsBusinessVerificationClient ntsBusinessVerificationClient;
+
+    @Mock
+    private FileService fileService;
 
     @InjectMocks
     private BusinessVerificationServiceImpl businessVerificationService;
@@ -100,6 +105,11 @@ class BusinessVerificationServiceImplTest {
                 OPENING_DATE,
                 REPRESENTATIVE_NAME
         )).thenReturn(ntsResult);
+
+        when(fileService.moveToDirectory(
+                "business-verifications/test/certificate.jpg",
+                ImageDirectory.BUSINESS
+        )).thenReturn("businesses/certificate.jpg");
 
         /*
          * 실제 DB 저장 대신 전달받은 BusinessInfo에
@@ -157,6 +167,9 @@ class BusinessVerificationServiceImplTest {
 
         assertThat(savedBusinessInfo.getRepresentativeName())
                 .isEqualTo(REPRESENTATIVE_NAME);
+
+        assertThat(savedBusinessInfo.getRegistrationImageKey())
+                .isEqualTo("businesses/certificate.jpg");
 
         assertThat(savedBusinessInfo.getVerificationStatus())
                 .isEqualTo(BusinessVerificationStatus.APPROVED);

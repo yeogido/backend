@@ -5,6 +5,8 @@ import com.yeogido.backend.domain.course.entity.CourseReviewImage;
 import com.yeogido.backend.domain.course.repository.CourseLikeRepository;
 import com.yeogido.backend.domain.course.repository.CourseReviewImageRepository;
 import com.yeogido.backend.domain.course.repository.CourseReviewRepository;
+import com.yeogido.backend.domain.file.enums.ImageDirectory;
+import com.yeogido.backend.domain.file.service.FileService;
 import com.yeogido.backend.domain.file.service.S3Service;
 import com.yeogido.backend.domain.review.converter.ReviewConverter;
 import com.yeogido.backend.domain.review.dto.request.ReviewReqDTO;
@@ -37,6 +39,7 @@ public class ReviewServiceImpl implements ReviewService {
     private final CourseReviewRepository courseReviewRepository;
     private final CourseReviewImageRepository courseReviewImageRepository;
     private final CourseLikeRepository courseLikeRepository;
+    private final FileService fileService;
     private final S3Service s3Service;
 
     @Override
@@ -209,8 +212,19 @@ public class ReviewServiceImpl implements ReviewService {
         }
 
         courseReviewImageRepository.saveAll(
-                ReviewConverter.toCourseReviewImages(review, images)
+                ReviewConverter.toCourseReviewImages(review, moveReviewImages(images))
         );
+    }
+
+    private List<ReviewReqDTO.ReviewImageRequest> moveReviewImages(
+            List<ReviewReqDTO.ReviewImageRequest> images
+    ) {
+        return images.stream()
+                .map(image -> new ReviewReqDTO.ReviewImageRequest(
+                        fileService.moveToDirectory(image.imageKey(), ImageDirectory.COURSE),
+                        image.imageOrder()
+                ))
+                .toList();
     }
 
     private void validateImageOrder(List<ReviewReqDTO.ReviewImageRequest> images) {

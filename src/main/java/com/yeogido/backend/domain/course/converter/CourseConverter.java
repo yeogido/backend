@@ -11,10 +11,14 @@ import com.yeogido.backend.domain.hashtag.entity.Hashtag;
 import com.yeogido.backend.domain.place.entity.Place;
 import com.yeogido.backend.domain.place.enums.PlaceSource;
 import com.yeogido.backend.domain.region.entity.Region;
+import com.yeogido.backend.domain.user.dto.UserResDTO;
 import com.yeogido.backend.domain.user.entity.User;
+import com.yeogido.backend.domain.user.enums.Gender;
+import com.yeogido.backend.domain.user.enums.PostCategory;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -305,4 +309,53 @@ public class CourseConverter {
                 course.getTransportType()
         );
     }
+
+    public static UserResDTO.MyCourseResponse toMyCourseResponse(
+            Course course,
+            String thumbnailUrl,
+            List<String> hashtags
+    ) {
+        return new UserResDTO.MyCourseResponse(
+                course.getId(),
+                course.getTitle(),
+                thumbnailUrl,
+                course.getDurationType().name(),
+                course.getTransportType().name(),
+                course.getCompanionType().name(),
+                hashtags,
+                course.getCreatedAt()
+        );
+    }
+
+    public static UserResDTO.MyReviewResponse toMyReviewResponse(
+            CourseReview review,
+            String profileImageUrl
+    ) {
+        User user = review.getUser();
+
+        return new UserResDTO.MyReviewResponse(
+                review.getId(),
+                user.getNickname(),
+                profileImageUrl,
+                user.getAgeGroup(),
+                user.getGender(),
+                review.getRating(),
+                review.getContent(),
+                review.getCreatedAt()
+        );
+    }
+
+
+    public static UserResDTO.MyPostResponse toMyPostResponse(
+            UserResDTO.MyCourseResponse course,
+            UserResDTO.MyReviewResponse review
+    ) {
+        return new UserResDTO.MyPostResponse(
+                course,
+                review
+        );
+    }
+
+
+
 }

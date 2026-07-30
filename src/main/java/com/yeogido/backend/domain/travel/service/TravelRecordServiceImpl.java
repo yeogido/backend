@@ -3,6 +3,8 @@ package com.yeogido.backend.domain.travel.service;
 import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.region.exception.RegionErrorCode;
 import com.yeogido.backend.domain.region.repository.RegionRepository;
+import com.yeogido.backend.domain.file.enums.ImageDirectory;
+import com.yeogido.backend.domain.file.service.FileService;
 import com.yeogido.backend.domain.file.service.S3Service;
 import com.yeogido.backend.domain.travel.converter.TravelRecordConverter;
 import com.yeogido.backend.domain.travel.dto.request.TravelRecordReqDTO;
@@ -52,6 +54,7 @@ public class TravelRecordServiceImpl implements TravelRecordService {
     private final StickerRepository stickerRepository;
     private final UserRepository userRepository;
     private final RegionRepository regionRepository;
+    private final FileService fileService;
     private final S3Service s3Service;
 
     @Override
@@ -129,7 +132,8 @@ public class TravelRecordServiceImpl implements TravelRecordService {
 
         validateDateRange(request);
 
-        String coverImageKey = findCoverImageKey(request.images());
+        List<TravelRecordReqDTO.ImageRequest> movedImages = moveImages(request.images());
+        String coverImageKey = findCoverImageKey(movedImages);
 
         // travel_record.cover_image_key가 NOT NULL이라 대표 이미지 key를 여행 기록에도 저장
         TravelRecord travelRecord = TravelRecordConverter.toTravelRecord(
@@ -144,7 +148,7 @@ public class TravelRecordServiceImpl implements TravelRecordService {
 
         List<TravelRecordPhoto> photos = TravelRecordConverter.toTravelRecordPhotos(
                 savedTravelRecord,
-                request.images()
+                movedImages
         );
 
         travelRecordPhotoRepository.saveAll(photos);
@@ -270,6 +274,17 @@ public class TravelRecordServiceImpl implements TravelRecordService {
                 .findFirst()
                 .map(TravelRecordReqDTO.ImageRequest::imageKey)
                 .orElse(images.get(0).imageKey());
+    }
+
+    private List<TravelRecordReqDTO.ImageRequest> moveImages(
+            List<TravelRecordReqDTO.ImageRequest> images
+    ) {
+        return images.stream()
+                .map(image -> new TravelRecordReqDTO.ImageRequest(
+                        fileService.moveToDirectory(image.imageKey(), ImageDirectory.TRAVEL_RECORD),
+                        image.imageOrder()
+                ))
+                .toList();
     }
 
     private List<TravelRecordReqDTO.StickerRequest> resolveStickers(

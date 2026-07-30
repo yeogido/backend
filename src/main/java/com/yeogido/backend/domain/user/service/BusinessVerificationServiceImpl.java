@@ -1,5 +1,7 @@
 package com.yeogido.backend.domain.user.service;
 
+import com.yeogido.backend.domain.file.enums.ImageDirectory;
+import com.yeogido.backend.domain.file.service.FileService;
 import com.yeogido.backend.domain.user.client.NtsBusinessVerificationClient;
 import com.yeogido.backend.domain.user.converter.BusinessVerificationConverter;
 import com.yeogido.backend.domain.user.dto.BusinessInfoResDTO;
@@ -34,6 +36,7 @@ public class BusinessVerificationServiceImpl
     private final UserRepository userRepository;
     private final BusinessInfoRepository businessInfoRepository;
     private final NtsBusinessVerificationClient ntsBusinessVerificationClient;
+    private final FileService fileService;
 
     @Override
     @Transactional
@@ -58,10 +61,12 @@ public class BusinessVerificationServiceImpl
         validateAuthenticity(verificationResult);
         validateActiveBusiness(verificationResult);
 
+        BusinessVerifyReqDTO movedRequest = moveRegistrationImage(request);
+
         BusinessInfo businessInfo =
                 BusinessVerificationConverter.toBusinessInfo(
                         user,
-                        request,
+                        movedRequest,
                         LocalDateTime.now()
                 );
 
@@ -141,5 +146,16 @@ public class BusinessVerificationServiceImpl
                     BusinessVerificationErrorCode.BUSINESS_NUMBER_DUPLICATED
             );
         }
+    }
+
+    private BusinessVerifyReqDTO moveRegistrationImage(BusinessVerifyReqDTO request) {
+        return new BusinessVerifyReqDTO(
+                request.businessNumber(),
+                request.openingDate(),
+                request.representativeName(),
+                fileService.moveToDirectory(request.registrationImageKey(), ImageDirectory.BUSINESS),
+                request.businessName(),
+                request.businessAddress()
+        );
     }
 }
