@@ -868,7 +868,10 @@ public class ContentServiceImpl implements ContentService{
                 contentRepository.findTop5ByEndDateGreaterThanEqualOrderByEndDateAsc(LocalDate.now());
 
         return contents.stream()
-                .map(ContentConverter::toBannerRes)
+                .map(content -> ContentConverter.toBannerRes(
+                        content,
+                        s3Service.getImageUrl(content.getThumbnailImage())
+                ))
                 .toList();
     }
 }

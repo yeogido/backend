@@ -149,11 +149,14 @@ public class  ContentConverter {
         );
     }
 
-    public static ContentResDTO.BannerRes toBannerRes(Content content) {
+    public static ContentResDTO.BannerRes toBannerRes(
+            Content content,
+            String thumbnailImageUrl
+    ) {
         return new ContentResDTO.BannerRes(
                 content.getId(),
                 content.getTitle(),
-                content.getThumbnailImage(),
+                thumbnailImageUrl,
                 content.getDescription(),
                 content.getStartDate(),
                 content.getEndDate()
