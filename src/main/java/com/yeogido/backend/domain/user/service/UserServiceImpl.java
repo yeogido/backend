@@ -43,10 +43,10 @@ import com.yeogido.backend.global.exception.GeneralErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
 import com.yeogido.backend.global.util.DistanceUtil;
 import lombok.RequiredArgsConstructor;
-import org.flywaydb.core.internal.util.StringUtils;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
