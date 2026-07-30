@@ -19,7 +19,8 @@ public class CorsConfig {
         configuration.setAllowedOriginPatterns(List.of(
                 "http://localhost:*",
                 "https://yeogido.kr",
-                "https://www.yeogido.kr"
+                "https://www.yeogido.kr",
+                "https://frontend-rust-psi-13.vercel.app"
         ));
 
         configuration.setAllowedMethods(List.of("*"));

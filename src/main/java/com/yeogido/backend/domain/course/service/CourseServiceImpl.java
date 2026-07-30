@@ -23,6 +23,8 @@ import com.yeogido.backend.domain.course.popularity.repository.CoursePopularityR
 import com.yeogido.backend.domain.course.repository.CourseRedisRepository;
 import com.yeogido.backend.domain.course.repository.CourseRepository;
 import com.yeogido.backend.domain.course.repository.CourseReviewRepository;
+import com.yeogido.backend.domain.file.enums.ImageDirectory;
+import com.yeogido.backend.domain.file.service.FileService;
 import com.yeogido.backend.domain.file.service.S3Service;
 import com.yeogido.backend.domain.hashtag.entity.Hashtag;
 import com.yeogido.backend.domain.hashtag.exception.HashtagErrorCode;
@@ -85,26 +87,28 @@ public class CourseServiceImpl implements CourseService {
     private final CoursePopularityRankingRedisRepository coursePopularityRankingRedisRepository;
     private final UserRepository userRepository;
     private final RegionRepository regionRepository;
+    private final FileService fileService;
     private final S3Service s3Service;
 
     @Override
     @Transactional
     public CourseResDTO.CourseIdRes createCourse(Long userId, CourseReqDTO.CourseCreateReq request) {
         validateCourseCreateRequest(request);
+        CourseReqDTO.CourseCreateReq movedRequest = moveCourseImages(request);
 
         User user = getCurrentUser(userId);
-        Region courseRegion = getRegion(request.regionId());
+        Region courseRegion = getRegion(movedRequest.regionId());
 
         CourseType courseType = (user.getRole() == UserRole.ADMIN)
                 ? CourseType.OFFICIAL
                 : CourseType.LOCAL;
 
         Course course = courseRepository.save(
-                CourseConverter.toCourse(request, user, courseRegion, courseType)
+                CourseConverter.toCourse(movedRequest, user, courseRegion, courseType)
         );
 
-        saveCourseHashtags(course, request.hashtagIds());
-        saveCourseItems(course, request.courseItems());
+        saveCourseHashtags(course, movedRequest.hashtagIds());
+        saveCourseItems(course, movedRequest.courseItems());
         saveCreatedEventAfterCommit(course.getId());
 
         return new CourseResDTO.CourseIdRes(course.getId());
@@ -118,24 +122,25 @@ public class CourseServiceImpl implements CourseService {
 
         validateCourseAuthority(course, user);
         validateCourseUpdateRequest(request);
+        CourseReqDTO.CourseUpdateReq movedRequest = moveCourseImages(request);
 
         course.update(
-                request.title(),
-                request.description(),
-                request.durationType(),
-                request.transportType(),
-                request.companionType(),
-                request.monthStart(),
-                request.monthEnd(),
-                request.thumbnailKey()
+                movedRequest.title(),
+                movedRequest.description(),
+                movedRequest.durationType(),
+                movedRequest.transportType(),
+                movedRequest.companionType(),
+                movedRequest.monthStart(),
+                movedRequest.monthEnd(),
+                movedRequest.thumbnailKey()
         );
 
-        if (request.hashtagIds() != null) {
-            replaceCourseHashtags(course, request.hashtagIds());
+        if (movedRequest.hashtagIds() != null) {
+            replaceCourseHashtags(course, movedRequest.hashtagIds());
         }
 
-        if (request.courseItems() != null) {
-            replaceCourseItems(course, request.courseItems());
+        if (movedRequest.courseItems() != null) {
+            replaceCourseItems(course, movedRequest.courseItems());
         }
 
         return new CourseResDTO.CourseIdRes(course.getId());
@@ -335,6 +340,7 @@ public class CourseServiceImpl implements CourseService {
         // 리뷰 이미지 저장 (선택)
         if (request.images() != null && !request.images().isEmpty()) {
             List<CourseReviewImage> reviewImages = request.images().stream()
+                    .map(this::moveReviewImage)
                     .map(imgReq -> CourseConverter.toCourseReviewImage(savedReview, imgReq))
                     .toList();
 
@@ -398,6 +404,76 @@ public class CourseServiceImpl implements CourseService {
                 throw new GeneralException(ReviewErrorCode.INVALID_IMAGE_ORDER);
             }
         }
+    }
+
+    private CourseReqDTO.CourseCreateReq moveCourseImages(CourseReqDTO.CourseCreateReq request) {
+        return new CourseReqDTO.CourseCreateReq(
+                request.title(),
+                request.regionId(),
+                request.description(),
+                request.durationType(),
+                request.transportType(),
+                request.companionType(),
+                request.monthStart(),
+                request.monthEnd(),
+                moveImage(request.thumbnailKey(), ImageDirectory.COURSE),
+                request.hashtagIds(),
+                moveCourseItemImages(request.courseItems())
+        );
+    }
+
+    private CourseReqDTO.CourseUpdateReq moveCourseImages(CourseReqDTO.CourseUpdateReq request) {
+        return new CourseReqDTO.CourseUpdateReq(
+                request.title(),
+                request.description(),
+                request.durationType(),
+                request.transportType(),
+                request.companionType(),
+                request.monthStart(),
+                request.monthEnd(),
+                moveImage(request.thumbnailKey(), ImageDirectory.COURSE),
+                request.hashtagIds(),
+                request.courseItems() == null ? null : moveCourseItemImages(request.courseItems())
+        );
+    }
+
+    private List<CourseReqDTO.CourseItemCreateReq> moveCourseItemImages(
+            List<CourseReqDTO.CourseItemCreateReq> courseItems
+    ) {
+        return courseItems.stream()
+                .map(this::moveCourseItemImage)
+                .toList();
+    }
+
+    private CourseReqDTO.CourseItemCreateReq moveCourseItemImage(CourseReqDTO.CourseItemCreateReq item) {
+        return new CourseReqDTO.CourseItemCreateReq(
+                item.order(),
+                item.type(),
+                item.contentId(),
+                item.externalPlaceId(),
+                item.categoryGroupCode(),
+                item.name(),
+                item.roadAddress(),
+                item.lotAddress(),
+                item.latitude(),
+                item.longitude(),
+                moveImage(item.imageKey(), ImageDirectory.COURSE)
+        );
+    }
+
+    private CourseReqDTO.ReviewImageReq moveReviewImage(CourseReqDTO.ReviewImageReq image) {
+        return new CourseReqDTO.ReviewImageReq(
+                moveImage(image.imageKey(), ImageDirectory.COURSE),
+                image.order()
+        );
+    }
+
+    private String moveImage(String tempKey, ImageDirectory directory) {
+        if (!StringUtils.hasText(tempKey)) {
+            return tempKey;
+        }
+
+        return fileService.moveToDirectory(tempKey, directory);
     }
 
     private Course getActiveCourse(Long courseId) {

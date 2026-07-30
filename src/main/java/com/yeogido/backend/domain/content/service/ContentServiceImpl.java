@@ -22,6 +22,8 @@ import com.yeogido.backend.domain.content.exception.ContentErrorCode;
 import com.yeogido.backend.domain.content.repository.ContentHashtagRepository;
 import com.yeogido.backend.domain.content.repository.ContentRepository;
 import com.yeogido.backend.domain.course.entity.CourseItem;
+import com.yeogido.backend.domain.file.enums.ImageDirectory;
+import com.yeogido.backend.domain.file.service.FileService;
 import com.yeogido.backend.domain.file.service.S3Service;
 import com.yeogido.backend.domain.hashtag.entity.Hashtag;
 import com.yeogido.backend.domain.hashtag.exception.HashtagErrorCode;
@@ -48,6 +50,7 @@ import jdk.jshell.spi.ExecutionControl;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.net.ContentHandler;
 import java.time.LocalDate;
@@ -77,6 +80,7 @@ public class ContentServiceImpl implements ContentService{
     private final UserRepository userRepository;
     private final RegionRepository regionRepository;
 
+    private final FileService fileService;
     private final S3Service s3Service;
 
 
@@ -640,8 +644,11 @@ public class ContentServiceImpl implements ContentService{
                         })
                         .toList();
 
+        String imageUrl = s3Service.getImageUrl(content.getThumbnailImage());
+
         return ContentConverter.toContentDetailRes(
                 content,
+                imageUrl,
                 hashtags,
                 liked,
                 placeInfo,
@@ -663,14 +670,15 @@ public class ContentServiceImpl implements ContentService{
         }
 
         Place place = placeService.getOrCreatePlace(request.place());
+        ContentReqDTO.ContentCreateReq movedRequest = moveContentImage(request);
 
-        Content content = ContentConverter.toContent(request, place);
+        Content content = ContentConverter.toContent(movedRequest, place);
 
         Content savedContent = contentRepository.save(content);
 
-        if (request.hashtagIds() != null && !request.hashtagIds().isEmpty()) {
+        if (movedRequest.hashtagIds() != null && !movedRequest.hashtagIds().isEmpty()) {
 
-            for (Long hashtagId : request.hashtagIds()) {
+            for (Long hashtagId : movedRequest.hashtagIds()) {
 
                 Hashtag hashtag = hashtagRepository.findById(hashtagId)
                         .orElseThrow(() -> new GeneralException(HashtagErrorCode.HASHTAG_NOT_FOUND));
@@ -704,28 +712,29 @@ public class ContentServiceImpl implements ContentService{
                 .orElseThrow(() -> new GeneralException(ContentErrorCode.CONTENT_NOT_FOUND));
 
         Place place = placeService.getOrCreatePlace(request.place());
+        ContentReqDTO.ContentCreateReq movedRequest = moveContentImage(request);
 
         content.update(
                 place,
-                request.place().externalPlaceId(),
-                request.title(),
-                request.description(),
-                request.thumbnailImageKey(),
-                request.startDate(),
-                request.endDate(),
-                request.contactPhone(),
-                request.officialUrl(),
-                request.category(),
-                request.place().source() == PlaceSource.KAKAO
+                movedRequest.place().externalPlaceId(),
+                movedRequest.title(),
+                movedRequest.description(),
+                movedRequest.thumbnailImageKey(),
+                movedRequest.startDate(),
+                movedRequest.endDate(),
+                movedRequest.contactPhone(),
+                movedRequest.officialUrl(),
+                movedRequest.category(),
+                movedRequest.place().source() == PlaceSource.KAKAO
                         ? ContentSource.ADMIN
                         : ContentSource.TOUR_API
         );
 
         contentHashtagRepository.deleteByContentId(contentId);
 
-        if (request.hashtagIds() != null && !request.hashtagIds().isEmpty()) {
+        if (movedRequest.hashtagIds() != null && !movedRequest.hashtagIds().isEmpty()) {
 
-            for (Long hashtagId : request.hashtagIds()) {
+            for (Long hashtagId : movedRequest.hashtagIds()) {
 
                 Hashtag hashtag = hashtagRepository.findById(hashtagId)
                         .orElseThrow(() -> new GeneralException(HashtagErrorCode.HASHTAG_NOT_FOUND));
@@ -740,6 +749,27 @@ public class ContentServiceImpl implements ContentService{
         }
 
         return new ContentResDTO.ContentUpdateRes(content.getId());
+    }
+
+    private ContentReqDTO.ContentCreateReq moveContentImage(ContentReqDTO.ContentCreateReq request) {
+        String thumbnailImageKey = request.thumbnailImageKey();
+
+        if (StringUtils.hasText(thumbnailImageKey)) {
+            thumbnailImageKey = fileService.moveToDirectory(thumbnailImageKey, ImageDirectory.CONTENT);
+        }
+
+        return new ContentReqDTO.ContentCreateReq(
+                request.place(),
+                request.title(),
+                request.description(),
+                request.category(),
+                request.startDate(),
+                request.endDate(),
+                request.contactPhone(),
+                request.officialUrl(),
+                thumbnailImageKey,
+                request.hashtagIds()
+        );
     }
 
 

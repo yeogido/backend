@@ -69,4 +69,8 @@ public class User extends BaseEntity {
     public AgeGroup getAgeGroup() {
         return AgeGroup.fromBirthYear(birthYear);
     }
+
+    public void withdraw() {
+        this.status = UserStatus.DELETED;
+    }
 }

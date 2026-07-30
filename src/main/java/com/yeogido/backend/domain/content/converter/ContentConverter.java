@@ -127,6 +127,7 @@ public class  ContentConverter {
 
     public static ContentResDTO.ContentDetailRes toContentDetailRes(
             Content content,
+            String thumbnailImageUrl,
             List<String> hashtags,
             boolean liked,
             ContentResDTO.PlaceInfo placeInfo,
@@ -136,7 +137,7 @@ public class  ContentConverter {
                 content.getId(),
                 content.getTitle(),
                 content.getDescription(),
-                content.getThumbnailImage(),
+                thumbnailImageUrl,
                 hashtags,
                 content.getStartDate(),
                 content.getEndDate(),

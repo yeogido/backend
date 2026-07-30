@@ -15,6 +15,8 @@ import com.yeogido.backend.domain.course.repository.CourseLikeRepository;
 import com.yeogido.backend.domain.course.repository.CourseRedisRepository;
 import com.yeogido.backend.domain.course.repository.CourseRepository;
 import com.yeogido.backend.domain.course.repository.CourseReviewRepository;
+import com.yeogido.backend.domain.file.enums.ImageDirectory;
+import com.yeogido.backend.domain.file.service.FileService;
 import com.yeogido.backend.domain.file.service.S3Service;
 import com.yeogido.backend.domain.hashtag.entity.Hashtag;
 import com.yeogido.backend.domain.hashtag.repository.HashtagRepository;
@@ -89,6 +91,9 @@ class CourseServiceImplTest {
     private RegionRepository regionRepository;
 
     @Mock
+    private FileService fileService;
+
+    @Mock
     private S3Service s3Service;
 
     @InjectMocks
@@ -114,8 +119,10 @@ class CourseServiceImplTest {
         when(regionRepository.findById(1L)).thenReturn(Optional.of(createRegion()));
         when(courseRepository.save(any(Course.class))).thenReturn(course);
         when(hashtagRepository.findAllById(List.of(1L))).thenReturn(List.of(hashtag));
-        when(placeService.getPlaceMap(request.courseItems())).thenReturn(Map.of());
+        when(placeService.getPlaceMap(anyList())).thenReturn(Map.of());
         when(placeService.getOrCreatePlace(any(), any())).thenReturn(createPlace());
+        when(fileService.moveToDirectory(anyString(), eq(ImageDirectory.COURSE)))
+                .thenAnswer(invocation -> "courses/moved/" + invocation.getArgument(0, String.class));
 
         CourseResDTO.CourseIdRes response = courseService.createCourse(1L, request);
 
@@ -142,8 +149,10 @@ class CourseServiceImplTest {
         when(regionRepository.findById(1L)).thenReturn(Optional.of(createRegion()));
         when(courseRepository.save(any(Course.class))).thenReturn(course);
         when(hashtagRepository.findAllById(List.of(1L))).thenReturn(List.of(hashtag));
-        when(placeService.getPlaceMap(request.courseItems())).thenReturn(Map.of());
+        when(placeService.getPlaceMap(anyList())).thenReturn(Map.of());
         when(placeService.getOrCreatePlace(any(), any())).thenReturn(createPlace());
+        when(fileService.moveToDirectory(anyString(), eq(ImageDirectory.COURSE)))
+                .thenAnswer(invocation -> "courses/moved/" + invocation.getArgument(0, String.class));
         doThrow(new RuntimeException("redis unavailable"))
                 .when(courseRedisRepository)
                 .saveCreatedEvent(anyLong(), any());
@@ -167,14 +176,18 @@ class CourseServiceImplTest {
         when(regionRepository.findById(1L)).thenReturn(Optional.of(createRegion()));
         when(courseRepository.save(any(Course.class))).thenReturn(course);
         when(hashtagRepository.findAllById(List.of(1L))).thenReturn(List.of(hashtag));
-        when(placeService.getPlaceMap(request.courseItems())).thenReturn(Map.of());
+        when(placeService.getPlaceMap(anyList())).thenReturn(Map.of());
         when(placeService.getOrCreatePlace(any(), any())).thenReturn(createPlace());
+        when(fileService.moveToDirectory(anyString(), eq(ImageDirectory.COURSE)))
+                .thenAnswer(invocation -> "courses/moved/" + invocation.getArgument(0, String.class));
 
         courseService.createCourse(1L, request);
 
         ArgumentCaptor<Course> courseCaptor = ArgumentCaptor.forClass(Course.class);
         verify(courseRepository).save(courseCaptor.capture());
         assertThat(courseCaptor.getValue().getCourseType()).isEqualTo(CourseType.LOCAL);
+        assertThat(courseCaptor.getValue().getThumbnailKey())
+                .isEqualTo("courses/moved/courses/thumbnail/sample.jpg");
     }
 
     @Test
@@ -190,14 +203,18 @@ class CourseServiceImplTest {
         when(regionRepository.findById(1L)).thenReturn(Optional.of(createRegion()));
         when(courseRepository.save(any(Course.class))).thenReturn(course);
         when(hashtagRepository.findAllById(List.of(1L))).thenReturn(List.of(hashtag));
-        when(placeService.getPlaceMap(request.courseItems())).thenReturn(Map.of());
+        when(placeService.getPlaceMap(anyList())).thenReturn(Map.of());
         when(placeService.getOrCreatePlace(any(), any())).thenReturn(createPlace());
+        when(fileService.moveToDirectory(anyString(), eq(ImageDirectory.COURSE)))
+                .thenAnswer(invocation -> "courses/moved/" + invocation.getArgument(0, String.class));
 
         courseService.createCourse(1L, request);
 
         ArgumentCaptor<Course> courseCaptor = ArgumentCaptor.forClass(Course.class);
         verify(courseRepository).save(courseCaptor.capture());
         assertThat(courseCaptor.getValue().getCourseType()).isEqualTo(CourseType.OFFICIAL);
+        assertThat(courseCaptor.getValue().getThumbnailKey())
+                .isEqualTo("courses/moved/courses/thumbnail/sample.jpg");
     }
 
     private CourseReqDTO.CourseCreateReq createRequest() {

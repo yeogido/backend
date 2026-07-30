@@ -1,7 +1,8 @@
 package com.yeogido.backend.domain.user.controller;
 
 import com.yeogido.backend.domain.user.dto.UserResDTO;
-import com.yeogido.backend.domain.user.enums.LikeSortType;
+import com.yeogido.backend.domain.user.enums.SortType;
+import com.yeogido.backend.domain.user.enums.PostCategory;
 import com.yeogido.backend.domain.user.service.UserService;
 import com.yeogido.backend.global.common.code.SuccessCode;
 import com.yeogido.backend.domain.user.enums.LikeCategory;
@@ -12,6 +13,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -35,7 +37,7 @@ public class UserController {
     public ApiResponse<CursorResponse<UserResDTO.LikedResponse>> getLikedList(
             @RequestParam LikeCategory category,
             @RequestParam(required = false) String keyword,
-            @RequestParam(defaultValue = "LATEST") LikeSortType sort,
+            @RequestParam(defaultValue = "LATEST") SortType sort,
             @RequestParam(required = false) LocalDateTime cursorCreatedAt,
             @RequestParam(required = false) Long cursorId,
             @RequestParam(defaultValue = "6") Integer size,
@@ -59,6 +61,7 @@ public class UserController {
         return ApiResponse.onSuccess(SuccessCode.OK, result);
     }
 
+
     @Operation(summary = "내 프로필 조회 API", description = "로그인한 사용자의 프로필 및 계정 정보를 조회합니다.")
     @GetMapping("/me")
     public ApiResponse<UserResDTO.Profile> getMyPage(
@@ -66,5 +69,44 @@ public class UserController {
     ) {
         UserResDTO.Profile response = userService.getMyPage(authUser.userId());
         return ApiResponse.onSuccess(SuccessCode.OK, response);
+    }
+
+    @Operation(summary = "회원 탈퇴 API", description = "로그인한 사용자의 계정을 탈퇴 처리합니다.")
+    @DeleteMapping("/me")
+    public ApiResponse<Void> withdraw(
+            @AuthenticationPrincipal AuthUser authUser
+    ) {
+        userService.withdraw(authUser.userId());
+        return ApiResponse.onSuccess(SuccessCode.OK);
+    }
+
+
+    @Operation(
+            summary = "내가 등록한 게시물 목록 조회",
+            description = "사용자가 등록한 코스 및 후기를 조회합니다."
+    )
+    @GetMapping("/me/posts")
+    public ApiResponse<CursorResponse<UserResDTO.MyPostResponse>> getMyPosts(
+            @RequestParam(defaultValue = "ALL") PostCategory category,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(defaultValue = "LATEST") SortType sort,
+            @RequestParam(required = false) LocalDateTime cursorCreatedAt,
+            @RequestParam(required = false) Long cursorId,
+            @RequestParam(defaultValue = "6") Integer size,
+            @AuthenticationPrincipal AuthUser authUser
+    ) {
+
+        CursorResponse<UserResDTO.MyPostResponse> result =
+                userService.getMyPosts(
+                        authUser.userId(),
+                        category,
+                        keyword,
+                        sort,
+                        cursorCreatedAt,
+                        cursorId,
+                        size
+                );
+
+        return ApiResponse.onSuccess(SuccessCode.OK, result);
     }
 }
