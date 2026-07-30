@@ -25,6 +25,8 @@ public interface UserService {
 
     UserResDTO.Profile getMyPage(Long userId);
 
+    void withdraw(Long userId);
+
     CursorResponse<UserResDTO.MyPostResponse> getMyPosts(
             Long userId,
             PostCategory category,
