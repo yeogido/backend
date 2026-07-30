@@ -89,19 +89,18 @@ public class BusinessPromotion extends BaseEntity {
     }
 
     public void reactivate(
-            User user,
             String shortDescription,
             String ownerComment,
             PromotionCategory promotionCategory,
             String phoneNumber,
             String snsAccount
     ) {
-        this.user = user;
         this.shortDescription = shortDescription;
         this.ownerComment = ownerComment;
         this.promotionCategory = promotionCategory;
         this.phoneNumber = phoneNumber;
         this.snsAccount = snsAccount;
         this.status = PromotionStatus.ACTIVE;
+        this.recommendationPriority = 0;
     }
 }

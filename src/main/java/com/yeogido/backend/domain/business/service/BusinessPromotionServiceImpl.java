@@ -1005,10 +1005,18 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
             );
         }
 
+        if (!Objects.equals(
+                existingPromotion.getUser().getId(),
+                user.getId()
+        )) {
+            throw new GeneralException(
+                    BusinessPromotionErrorCode.BUSINESS_PROMOTION_ALREADY_EXISTS
+            );
+        }
+
         clearPromotionDetails(existingPromotion.getId());
 
         existingPromotion.reactivate(
-                user,
                 request.shortDescription(),
                 request.ownerComment(),
                 request.promotionCategory(),
