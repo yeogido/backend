@@ -7,6 +7,7 @@ import com.querydsl.core.types.dsl.DateTimePath;
 import com.querydsl.core.types.dsl.NumberPath;
 import com.querydsl.core.types.dsl.StringPath;
 import com.querydsl.jpa.impl.JPAQueryFactory;
+import com.yeogido.backend.domain.auth.service.RefreshTokenService;
 import com.yeogido.backend.domain.content.entity.Content;
 import com.yeogido.backend.domain.content.entity.ContentLike;
 import com.yeogido.backend.domain.content.entity.QContentLike;
@@ -25,6 +26,7 @@ import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.user.converter.UserConverter;
 import com.yeogido.backend.domain.user.dto.UserResDTO;
 import com.yeogido.backend.domain.user.entity.User;
+import com.yeogido.backend.domain.user.enums.UserStatus;
 import com.yeogido.backend.domain.user.enums.PostCategory;
 import com.yeogido.backend.domain.user.enums.SortType;
 import com.yeogido.backend.domain.user.exception.UserErrorCode;
@@ -60,6 +62,7 @@ public class UserServiceImpl implements UserService{
     private final CourseHashtagRepository courseHashtagRepository;
     private final ContentHashtagRepository contentHashtagRepository;
     private final S3Service s3Service;
+    private final RefreshTokenService refreshTokenService;
 
     private final JPAQueryFactory queryFactory;
 
@@ -576,6 +579,17 @@ public class UserServiceImpl implements UserService{
                 .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
 
         return UserConverter.toProfile(user);
+    }
+
+    @Override
+    @Transactional
+    public void withdraw(Long userId) {
+        User user = userRepository.findById(userId)
+                .filter(foundUser -> foundUser.getStatus() == UserStatus.ACTIVE)
+                .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
+
+        user.withdraw();
+        refreshTokenService.delete(userId);
     }
 
 
