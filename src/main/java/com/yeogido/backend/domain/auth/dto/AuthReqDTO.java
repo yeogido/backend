@@ -2,6 +2,7 @@ package com.yeogido.backend.domain.auth.dto;
 
 import com.yeogido.backend.domain.auth.enums.SocialProvider;
 import com.yeogido.backend.domain.user.enums.Gender;
+import com.yeogido.backend.global.validation.ValidBirthYear;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -36,7 +37,7 @@ public class AuthReqDTO {
 
     @Schema(description = "출생연도", example = "2001")
     @NotBlank(message = "출생연도는 필수 입력값입니다.")
-    @Pattern(regexp = "^\\d{4}$", message = "출생연도는 4자리 숫자여야 합니다.")
+    @ValidBirthYear
     String birthYear,
 
     @Schema(description = "지역 ID", example = "1")
@@ -84,7 +85,7 @@ public class AuthReqDTO {
 
     @Schema(description = "출생연도", example = "2001")
     @NotBlank(message = "출생연도는 필수 입력값입니다.")
-    @Pattern(regexp = "^\\d{4}$", message = "출생연도는 4자리 숫자여야 합니다.")
+    @ValidBirthYear
     String birthYear,
 
     @Schema(description = "지역 ID", example = "1")

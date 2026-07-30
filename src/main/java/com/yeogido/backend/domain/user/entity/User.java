@@ -73,4 +73,20 @@ public class User extends BaseEntity {
     public void withdraw() {
         this.status = UserStatus.DELETED;
     }
+
+    public void updateProfile(
+            String nickname,
+            String birthYear,
+            Region region
+    ) {
+        if (nickname != null) {
+            this.nickname = nickname;
+        }
+        if (birthYear != null) {
+            this.birthYear = birthYear;
+        }
+        if (region != null) {
+            this.region = region;
+        }
+    }
 }

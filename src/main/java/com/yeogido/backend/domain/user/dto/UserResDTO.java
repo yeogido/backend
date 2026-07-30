@@ -72,6 +72,12 @@ public class UserResDTO {
             String profileImageUrl
     ) {}
 
+    @Schema(name = "UserUpdateProfileResponse", description = "내 프로필 수정 응답")
+    public record UpdateProfile(
+            @Schema(description = "사용자 ID", example = "1")
+            Long userId
+    ) {}
+
 
     public record MyCourseResponse(
             @Schema(description = "게시물 ID")
