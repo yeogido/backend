@@ -37,6 +37,7 @@ import com.yeogido.backend.domain.course.entity.Course;
 import com.yeogido.backend.domain.course.repository.CourseItemRepository;
 import com.yeogido.backend.domain.course.repository.CourseLikeRepository;
 import com.yeogido.backend.domain.region.entity.Region;
+import com.yeogido.backend.domain.region.enums.RegionType;
 import com.yeogido.backend.domain.region.repository.RegionRepository;
 import com.yeogido.backend.domain.user.entity.User;
 import com.yeogido.backend.domain.user.enums.UserRole;
@@ -106,7 +107,23 @@ public class ContentServiceImpl implements ContentService{
 
         if (request.regionId() != null
                 && request.sort() != ContentSort.DISTANCE) {
-            builder.and(qContent.place.region.id.eq(request.regionId()));
+
+            List<Long> regionIds = new ArrayList<>();
+            regionIds.add(request.regionId());
+
+            List<Region> children =
+                    regionRepository.findByParentIdAndTypeOrderByNameAsc(
+                            request.regionId(),
+                            RegionType.SUB_REGION
+                    );
+
+            regionIds.addAll(
+                    children.stream()
+                            .map(Region::getId)
+                            .toList()
+            );
+
+            builder.and(qContent.place.region.id.in(regionIds));
         }
 
         if (request.category() != null) {
