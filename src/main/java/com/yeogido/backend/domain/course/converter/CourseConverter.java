@@ -130,12 +130,15 @@ public class CourseConverter {
 
     public static CourseResDTO.CourseItem toCourseItem(
             CourseItem courseItem,
-            boolean isLiked
+            boolean isLiked,
+            Function<String, String> imageUrlResolver
     ) {
         Place place = resolvePlace(courseItem);
         Content content = courseItem.getContent();
 
         if (courseItem.getItemType() == CourseItemType.PLACE) {
+            String imageKey = courseItem.getImageKey();
+
             return new CourseResDTO.PlaceCourseItem(
                     courseItem.getOrderNo(),
                     courseItem.getItemType(),
@@ -147,9 +150,13 @@ public class CourseConverter {
                     place.getRoadAddress(),
                     place.getLotAddress(),
                     place.getLatitude(),
-                    place.getLongitude()
+                    place.getLongitude(),
+                    imageKey,
+                    imageUrlResolver.apply(imageKey)
             );
         }
+
+        String imageKey = content.getThumbnailImage();
 
         return new CourseResDTO.ContentCourseItem(
                 courseItem.getOrderNo(),
@@ -163,7 +170,8 @@ public class CourseConverter {
                 place.getRoadAddress(),
                 place.getLotAddress(),
                 place.getLatitude(),
-                place.getLongitude()
+                place.getLongitude(),
+                imageUrlResolver.apply(imageKey)
         );
     }
 

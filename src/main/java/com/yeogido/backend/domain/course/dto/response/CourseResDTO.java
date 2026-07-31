@@ -172,6 +172,8 @@ public class CourseResDTO {
         BigDecimal latitude();
 
         BigDecimal longitude();
+
+        String imageUrl();
     }
 
     @Schema(name = "PlaceCourseItemResponse", description = "장소 코스 구성 항목")
@@ -208,7 +210,13 @@ public class CourseResDTO {
             BigDecimal latitude,
 
             @Schema(description = "경도", example = "128.8211111")
-            BigDecimal longitude
+            BigDecimal longitude,
+
+            @Schema(description = "장소 이미지 키. 추천 코스 수정 시 기존 이미지를 유지하기 위해 사용합니다.", nullable = true, example = "courses/place/jumunjin.jpg")
+            String imageKey,
+
+            @Schema(description = "장소 이미지 URL. 화면 표시용입니다.", nullable = true, example = "https://example.com/place/jumunjin.jpg")
+            String imageUrl
     ) implements CourseItem { }
 
     @Schema(name = "ContentCourseItemResponse", description = "문화 콘텐츠 코스 구성 항목")
@@ -248,7 +256,10 @@ public class CourseResDTO {
             BigDecimal latitude,
 
             @Schema(description = "경도", example = "128.8211111")
-            BigDecimal longitude
+            BigDecimal longitude,
+
+            @Schema(description = "콘텐츠 이미지 URL. CONTENT 타입은 imageKey를 응답하지 않습니다.", nullable = true, example = "https://example.com/content/coffee-festival.jpg")
+            String imageUrl
     ) implements CourseItem { }
 
     @Schema(name = "CourseAuthorResponse", description = "코스 작성자 정보")

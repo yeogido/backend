@@ -80,4 +80,61 @@ public final class SwaggerExamples {
           ]
         }
         """;
+
+    public static final String COURSE_DETAIL = """
+        {
+          "isSuccess": true,
+          "code": "COMMON200",
+          "message": "요청에 성공했습니다.",
+          "result": {
+            "courseId": 9,
+            "courseType": "OFFICIAL",
+            "title": "부산 야경 여행",
+            "thumbnailUrl": "https://yeogido-images-174132708084-ap-northeast-2-an.s3.ap-northeast-2.amazonaws.com/courses/thumbnail/abcd1234.jpg",
+            "description": "부산의 야경과 축제를 함께 즐길 수 있는 코스입니다.",
+            "tags": [
+              "야경",
+              "드라이브"
+            ],
+            "durationType": "DAY_TRIP",
+            "transportType": "CAR",
+            "startMonth": 4,
+            "endMonth": 10,
+            "companionType": "FRIEND",
+            "isLiked": false,
+            "courseItems": [
+              {
+                "order": 1,
+                "type": "PLACE",
+                "placeId": 12,
+                "isLiked": false,
+                "source": "KAKAO",
+                "externalPlaceId": "123456",
+                "name": "광안리 해수욕장",
+                "roadAddress": "부산광역시 수영구 광안해변로 219",
+                "lotAddress": "부산광역시 수영구 광안동 192-20",
+                "latitude": 35.1531698,
+                "longitude": 129.118666,
+                "imageKey": "courses/place/gwangalli.jpg",
+                "imageUrl": "https://yeogido-images-174132708084-ap-northeast-2-an.s3.ap-northeast-2.amazonaws.com/courses/place/gwangalli.jpg"
+              },
+              {
+                "order": 2,
+                "type": "CONTENT",
+                "contentId": 3,
+                "isLiked": false,
+                "contentStatus": "AFTER",
+                "source": "KAKAO",
+                "externalPlaceId": "987654",
+                "name": "부산 불꽃축제",
+                "roadAddress": "부산광역시 수영구 광안해변로 219",
+                "lotAddress": "부산광역시 수영구 광안동",
+                "latitude": 35.1531698,
+                "longitude": 129.118666,
+                "imageUrl": "https://yeogido-images-174132708084-ap-northeast-2-an.s3.ap-northeast-2.amazonaws.com/contents/fireworks.jpg"
+              }
+            ]
+          }
+        }
+        """;
 }

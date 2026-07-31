@@ -274,7 +274,8 @@ public class CourseServiceImpl implements CourseService {
         List<CourseResDTO.CourseItem> courseItems = courseItemEntities.stream()
                 .map(courseItem -> CourseConverter.toCourseItem(
                         courseItem,
-                        isCourseItemLiked(courseItem, likedPlaceIds, likedContentIds)
+                        isCourseItemLiked(courseItem, likedPlaceIds, likedContentIds),
+                        s3Service::getImageUrl
                 ))
                 .toList();
 
