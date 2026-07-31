@@ -7,14 +7,16 @@ import com.yeogido.backend.global.common.response.CursorResponse;
 public interface TravelRecordService {
 
     CursorResponse<TravelRecordResDTO.TravelRecordSummary> getMyTravelRecords(
+            Long userId,
             TravelRecordReqDTO.ListRequest request
     );
 
-    TravelRecordResDTO.YearListResponse getMyTravelRecordYears();
+    TravelRecordResDTO.YearListResponse getMyTravelRecordYears(Long userId);
 
-    TravelRecordResDTO.DetailResponse getTravelRecord(Long travelRecordId);
+    TravelRecordResDTO.DetailResponse getTravelRecord(Long userId, Long travelRecordId);
 
     TravelRecordResDTO.CreateResponse createTravelRecord(
+            Long userId,
             TravelRecordReqDTO.CreateRequest request
     );
 
