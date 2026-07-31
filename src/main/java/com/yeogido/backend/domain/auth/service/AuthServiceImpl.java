@@ -11,6 +11,8 @@ import com.yeogido.backend.domain.auth.entity.SocialAccount;
 import com.yeogido.backend.domain.auth.exception.AuthErrorCode;
 import com.yeogido.backend.domain.auth.repository.SocialAccountRepository;
 import com.yeogido.backend.domain.auth.security.AuthUser;
+import com.yeogido.backend.domain.file.enums.ImageDirectory;
+import com.yeogido.backend.domain.file.service.S3Service;
 import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.region.exception.RegionErrorCode;
 import com.yeogido.backend.domain.region.repository.RegionRepository;
@@ -40,6 +42,7 @@ public class AuthServiceImpl implements AuthService {
   private final UserRepository userRepository;
   private final RegionRepository regionRepository;
   private final PasswordEncoder passwordEncoder;
+  private final S3Service s3Service;
 
   @Override
   @Transactional
@@ -137,6 +140,8 @@ public class AuthServiceImpl implements AuthService {
     Region region = regionRepository.findById(request.regionId())
       .orElseThrow(() -> new GeneralException(RegionErrorCode.REGION_NOT_FOUND));
 
+    String profileImageKey = s3Service.uploadImageFromUrl(payload.profileImageUrl(), ImageDirectory.PROFILE);
+
     User user = userRepository.save(User.builder()
       .nickname(request.name())
       .email(payload.email())
@@ -146,7 +151,7 @@ public class AuthServiceImpl implements AuthService {
       .region(region)
       .role(UserRole.USER)
       .status(UserStatus.ACTIVE)
-      .profileImage(payload.profileImageUrl())
+      .profileImage(profileImageKey)
       .build());
 
     socialAccountRepository.save(SocialAccount.builder()

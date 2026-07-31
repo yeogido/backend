@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.core.exception.SdkClientException;
+import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
@@ -17,7 +18,13 @@ import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
+import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.Locale;
 import java.util.UUID;
 
 @Service
@@ -27,6 +34,7 @@ public class S3Service {
     private static final Duration PRESIGNED_URL_DURATION = Duration.ofMinutes(10);
     private static final String TEMP_DIRECTORY = "temp";
     private static final String TEMP_PREFIX = TEMP_DIRECTORY + "/";
+    private static final HttpClient HTTP_CLIENT = HttpClient.newHttpClient();
 
     private final S3Client s3Client;
     private final S3Presigner s3Presigner;
@@ -70,6 +78,41 @@ public class S3Service {
         return "https://" + bucket + ".s3." + region + ".amazonaws.com/" + objectKey;
     }
 
+    public String uploadImageFromUrl(String imageUrl, ImageDirectory directory) {
+        if (imageUrl == null || imageUrl.isBlank()) {
+            return null;
+        }
+
+        try {
+            HttpResponse<byte[]> response = downloadImage(imageUrl);
+
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                throw new GeneralException(GeneralErrorCode.INTERNAL_SERVER_ERROR);
+            }
+
+            String contentType = response.headers()
+                    .firstValue("Content-Type")
+                    .orElse("image/jpeg");
+            String objectKey = createObjectKey(directory, imageUrl, contentType);
+
+            PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(objectKey)
+                    .contentType(contentType)
+                    .build();
+
+            s3Client.putObject(putObjectRequest, RequestBody.fromBytes(response.body()));
+
+            return objectKey;
+        } catch (IllegalArgumentException | IOException | InterruptedException
+                 | AwsServiceException | SdkClientException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new GeneralException(GeneralErrorCode.INTERNAL_SERVER_ERROR);
+        }
+    }
+
     public String moveToDirectory(String tempKey, ImageDirectory directory) {
         if (tempKey == null || tempKey.isBlank() || !tempKey.startsWith(TEMP_PREFIX)) {
             return tempKey;
@@ -93,6 +136,18 @@ public class S3Service {
 
     private String createObjectKey(ImageDirectory directory, String tempKey) {
         return directory.getPath() + "/" + UUID.randomUUID() + "." + extractExtension(tempKey);
+    }
+
+    private String createObjectKey(ImageDirectory directory, String imageUrl, String contentType) {
+        return directory.getPath() + "/" + UUID.randomUUID() + "." + extractExtension(imageUrl, contentType);
+    }
+
+    private HttpResponse<byte[]> downloadImage(String imageUrl) throws IOException, InterruptedException {
+        HttpRequest request = HttpRequest.newBuilder(URI.create(imageUrl))
+                .GET()
+                .build();
+
+        return HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofByteArray());
     }
 
     private void copyObject(String sourceKey, String destinationKey) {
@@ -123,5 +178,42 @@ public class S3Service {
         }
 
         return fileName.substring(extensionIndex + 1);
+    }
+
+    private String extractExtension(String imageUrl, String contentType) {
+        String extension = extractExtensionFromUrl(imageUrl);
+
+        if (extension != null) {
+            return extension;
+        }
+
+        return switch (contentType.toLowerCase(Locale.ROOT).split(";")[0].trim()) {
+            case "image/jpeg", "image/jpg" -> "jpg";
+            case "image/png" -> "png";
+            case "image/webp" -> "webp";
+            case "image/gif" -> "gif";
+            default -> "jpg";
+        };
+    }
+
+    private String extractExtensionFromUrl(String imageUrl) {
+        String path = URI.create(imageUrl).getPath();
+        int extensionIndex = path.lastIndexOf(".");
+
+        if (extensionIndex < 0 || extensionIndex == path.length() - 1) {
+            return null;
+        }
+
+        String extension = path.substring(extensionIndex + 1).toLowerCase(Locale.ROOT);
+
+        if (extension.equals("jpg")
+                || extension.equals("jpeg")
+                || extension.equals("png")
+                || extension.equals("webp")
+                || extension.equals("gif")) {
+            return extension.equals("jpeg") ? "jpg" : extension;
+        }
+
+        return null;
     }
 }
