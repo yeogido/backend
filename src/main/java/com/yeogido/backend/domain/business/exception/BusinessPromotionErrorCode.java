@@ -19,6 +19,18 @@ public enum BusinessPromotionErrorCode implements ErrorCode {
             HttpStatus.NOT_FOUND,
             "BUSINESS_PROMOTION4041",
             "소상공인 홍보글을 찾을 수 없습니다"
+    ),
+
+    BUSINESS_PROMOTION_FORBIDDEN_UPDATE(
+            HttpStatus.FORBIDDEN,
+            "BUSINESS_PROMOTION4032",
+            "해당 홍보글을 수정할 권한이 없습니다"
+    ),
+
+    BUSINESS_PROMOTION_FORBIDDEN_DELETE(
+            HttpStatus.FORBIDDEN,
+            "BUSINESS_PROMOTION4033",
+            "해당 홍보글을 삭제할 권한이 없습니다"
     );
 
     private final HttpStatus httpStatus;

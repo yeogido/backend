@@ -52,20 +52,55 @@ public class BusinessPromotion extends BaseEntity {
     @Column(name = "recommendation_priority", nullable = false)
     private Integer recommendationPriority = 0;
 
-    public void reactivate(
-            User user,
+    public void changePlace(Place place) {
+        this.place = place;
+    }
+
+    public void update(
             String shortDescription,
             String ownerComment,
             PromotionCategory promotionCategory,
             String phoneNumber,
             String snsAccount
     ) {
-        this.user = user;
+        if (shortDescription != null) {
+            this.shortDescription = shortDescription;
+        }
+
+        if (ownerComment != null) {
+            this.ownerComment = ownerComment;
+        }
+
+        if (promotionCategory != null) {
+            this.promotionCategory = promotionCategory;
+        }
+
+        if (phoneNumber != null) {
+            this.phoneNumber = phoneNumber;
+        }
+
+        if (snsAccount != null) {
+            this.snsAccount = snsAccount;
+        }
+    }
+
+    public void delete() {
+        this.status = PromotionStatus.DELETED;
+    }
+
+    public void reactivate(
+            String shortDescription,
+            String ownerComment,
+            PromotionCategory promotionCategory,
+            String phoneNumber,
+            String snsAccount
+    ) {
         this.shortDescription = shortDescription;
         this.ownerComment = ownerComment;
         this.promotionCategory = promotionCategory;
         this.phoneNumber = phoneNumber;
         this.snsAccount = snsAccount;
         this.status = PromotionStatus.ACTIVE;
+        this.recommendationPriority = 0;
     }
 }
