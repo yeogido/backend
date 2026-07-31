@@ -31,8 +31,8 @@ public class TravelRecordResDTO {
             @Schema(description = "여행 종료일", example = "2026-05-24")
             LocalDate endDate,
 
-            @Schema(description = "대표 이미지 key", example = "travel-records/20/image-1.jpg")
-            String coverImageKey,
+            @Schema(description = "대표 이미지 URL", example = "https://example-bucket.s3.ap-northeast-2.amazonaws.com/travel-records/20/image-1.jpg")
+            String coverImageUrl,
 
             @Schema(description = "폴더 색상/테마", example = "BASIC")
             String folderTheme,
@@ -59,8 +59,8 @@ public class TravelRecordResDTO {
             @Schema(description = "여행 종료일", example = "2026-05-24")
             LocalDate endDate,
 
-            @Schema(description = "대표 이미지 key", example = "travel-records/1/image-1.jpg")
-            String coverImageKey,
+            @Schema(description = "대표 이미지 URL", example = "https://example-bucket.s3.ap-northeast-2.amazonaws.com/travel-records/1/image-1.jpg")
+            String coverImageUrl,
 
             @Schema(description = "폴더 색상/테마", example = "BASIC")
             String folderTheme,
@@ -86,6 +86,9 @@ public class TravelRecordResDTO {
 
             @Schema(description = "사진 이미지 key", example = "travel-records/1/image-1.jpg")
             String imageKey,
+
+            @Schema(description = "사진 이미지 URL", example = "https://example-bucket.s3.ap-northeast-2.amazonaws.com/travel-records/1/image-1.jpg")
+            String imageUrl,
 
             @Schema(description = "사진 순서", example = "1")
             Integer imageOrder
