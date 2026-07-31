@@ -75,7 +75,8 @@ public class TravelRecordConverter {
     }
 
     public static TravelRecordResDTO.TravelRecordSummary toTravelRecordSummary(
-            TravelRecord travelRecord
+            TravelRecord travelRecord,
+            Function<String, String> imageUrlResolver
     ) {
         return new TravelRecordResDTO.TravelRecordSummary(
                 travelRecord.getId(),
@@ -84,6 +85,7 @@ public class TravelRecordConverter {
                 travelRecord.getStartDate(),
                 travelRecord.getEndDate(),
                 travelRecord.getCoverImageKey(),
+                imageUrlResolver.apply(travelRecord.getCoverImageKey()),
                 travelRecord.getFolderTheme() == null ? null : travelRecord.getFolderTheme().name(),
                 travelRecord.getCreatedAt()
         );
@@ -96,7 +98,7 @@ public class TravelRecordConverter {
             Function<String, String> imageUrlResolver
     ) {
         List<TravelRecordResDTO.ImageResponse> images = photos.stream()
-                .map(TravelRecordConverter::toImageResponse)
+                .map(photo -> toImageResponse(photo, imageUrlResolver))
                 .toList();
 
         List<TravelRecordResDTO.StickerResponse> stickerResponses = stickers.stream()
@@ -110,6 +112,7 @@ public class TravelRecordConverter {
                 travelRecord.getStartDate(),
                 travelRecord.getEndDate(),
                 travelRecord.getCoverImageKey(),
+                imageUrlResolver.apply(travelRecord.getCoverImageKey()),
                 travelRecord.getFolderTheme() == null ? null : travelRecord.getFolderTheme().name(),
                 images,
                 stickerResponses,
@@ -119,11 +122,13 @@ public class TravelRecordConverter {
     }
 
     public static TravelRecordResDTO.ImageResponse toImageResponse(
-            TravelRecordPhoto photo
+            TravelRecordPhoto photo,
+            Function<String, String> imageUrlResolver
     ) {
         return new TravelRecordResDTO.ImageResponse(
                 photo.getId(),
                 photo.getImageKey(),
+                imageUrlResolver.apply(photo.getImageKey()),
                 photo.getImageOrder()
         );
     }

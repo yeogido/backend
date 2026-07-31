@@ -82,7 +82,10 @@ public class TravelRecordServiceImpl implements TravelRecordService {
                 : travelRecords;
 
         List<TravelRecordResDTO.TravelRecordSummary> items = content.stream()
-                .map(TravelRecordConverter::toTravelRecordSummary)
+                .map(travelRecord -> TravelRecordConverter.toTravelRecordSummary(
+                        travelRecord,
+                        s3Service::getImageUrl
+                ))
                 .toList();
 
         Long nextCursor = items.isEmpty()
