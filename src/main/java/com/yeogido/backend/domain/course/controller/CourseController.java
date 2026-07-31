@@ -128,6 +128,16 @@ public class CourseController {
     }
 
     @Operation(summary = "추천 코스 상세 조회", description = "추천 코스 상세 정보를 조회합니다.")
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(
+            responseCode = "200",
+            description = "추천 코스 상세 조회 성공",
+            content = @Content(
+                    examples = @ExampleObject(
+                            name = "추천 코스 상세 조회 예시",
+                            value = SwaggerExamples.COURSE_DETAIL
+                    )
+            )
+    )
     @GetMapping("/{courseId}")
     public ApiResponse<CourseResDTO.CourseDetail> getCourse(
             @AuthenticationPrincipal AuthUser authUser,
