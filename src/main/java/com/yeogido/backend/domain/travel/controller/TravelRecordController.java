@@ -36,10 +36,11 @@ public class TravelRecordController {
     )
     @GetMapping
     public ApiResponse<CursorResponse<TravelRecordResDTO.TravelRecordSummary>> getMyTravelRecords(
+            @AuthenticationPrincipal AuthUser authUser,
             @ModelAttribute TravelRecordReqDTO.ListRequest request
     ) {
         CursorResponse<TravelRecordResDTO.TravelRecordSummary> result =
-                travelRecordService.getMyTravelRecords(request);
+                travelRecordService.getMyTravelRecords(authUser.userId(), request);
         return ApiResponse.onSuccess(SuccessCode.OK, result);
     }
 
@@ -48,8 +49,12 @@ public class TravelRecordController {
             description = "로그인한 사용자가 작성한 여행 기록 중 실제 기록이 존재하는 연도 목록을 조회합니다."
     )
     @GetMapping("/years")
-    public ApiResponse<TravelRecordResDTO.YearListResponse> getMyTravelRecordYears() {
-        TravelRecordResDTO.YearListResponse result = travelRecordService.getMyTravelRecordYears();
+    public ApiResponse<TravelRecordResDTO.YearListResponse> getMyTravelRecordYears(
+            @AuthenticationPrincipal AuthUser authUser
+    ) {
+        TravelRecordResDTO.YearListResponse result = travelRecordService.getMyTravelRecordYears(
+                authUser.userId()
+        );
         return ApiResponse.onSuccess(SuccessCode.OK, result);
     }
 
@@ -59,9 +64,13 @@ public class TravelRecordController {
     )
     @GetMapping("/{travelRecordId}")
     public ApiResponse<TravelRecordResDTO.DetailResponse> getTravelRecord(
+            @AuthenticationPrincipal AuthUser authUser,
             @PathVariable Long travelRecordId
     ) {
-        TravelRecordResDTO.DetailResponse result = travelRecordService.getTravelRecord(travelRecordId);
+        TravelRecordResDTO.DetailResponse result = travelRecordService.getTravelRecord(
+                authUser.userId(),
+                travelRecordId
+        );
         return ApiResponse.onSuccess(SuccessCode.OK, result);
     }
 
@@ -71,9 +80,13 @@ public class TravelRecordController {
     )
     @PostMapping
     public ApiResponse<TravelRecordResDTO.CreateResponse> createTravelRecord(
+            @AuthenticationPrincipal AuthUser authUser,
             @Valid @RequestBody TravelRecordReqDTO.CreateRequest request
     ) {
-        TravelRecordResDTO.CreateResponse result = travelRecordService.createTravelRecord(request);
+        TravelRecordResDTO.CreateResponse result = travelRecordService.createTravelRecord(
+                authUser.userId(),
+                request
+        );
         return ApiResponse.onSuccess(SuccessCode.CREATED, result);
     }
 

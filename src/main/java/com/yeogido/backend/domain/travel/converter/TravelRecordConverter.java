@@ -49,13 +49,6 @@ public class TravelRecordConverter {
                 .toList();
     }
 
-    public static List<TravelRecordPhoto> toTravelRecordPhotos(
-            TravelRecord travelRecord,
-            TravelRecordReqDTO.UpdateRequest request
-    ) {
-        return toTravelRecordPhotos(travelRecord, request.images());
-    }
-
     public static List<TravelRecordSticker> toTravelRecordStickers(
             TravelRecord travelRecord,
             List<TravelRecordReqDTO.StickerRequest> stickers,

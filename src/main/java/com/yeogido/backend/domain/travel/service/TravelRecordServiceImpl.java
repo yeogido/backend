@@ -45,7 +45,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class TravelRecordServiceImpl implements TravelRecordService {
 
-    private static final Long MOCK_USER_ID = 1L;
     private static final int DEFAULT_PAGE_SIZE = 10;
     private static final FolderTheme DEFAULT_FOLDER_THEME = FolderTheme.BASIC;
 
@@ -60,9 +59,9 @@ public class TravelRecordServiceImpl implements TravelRecordService {
 
     @Override
     public CursorResponse<TravelRecordResDTO.TravelRecordSummary> getMyTravelRecords(
+            Long userId,
             TravelRecordReqDTO.ListRequest request
     ) {
-        Long userId = getCurrentUserId();
         int size = resolveSize(request.size());
         int year = resolveYear(request.year());
         validateCursor(request.cursor());
@@ -96,9 +95,7 @@ public class TravelRecordServiceImpl implements TravelRecordService {
     }
 
     @Override
-    public TravelRecordResDTO.YearListResponse getMyTravelRecordYears() {
-        Long userId = getCurrentUserId();
-
+    public TravelRecordResDTO.YearListResponse getMyTravelRecordYears(Long userId) {
         // endDate 기준으로 기록이 존재하는 연도만 내려주며, 최신 연도부터 정렬합니다.
         List<Integer> years = travelRecordRepository.findTravelYearsByUserId(userId);
 
@@ -106,9 +103,7 @@ public class TravelRecordServiceImpl implements TravelRecordService {
     }
 
     @Override
-    public TravelRecordResDTO.DetailResponse getTravelRecord(Long travelRecordId) {
-        Long userId = getCurrentUserId();
-
+    public TravelRecordResDTO.DetailResponse getTravelRecord(Long userId, Long travelRecordId) {
         TravelRecord travelRecord = getTravelRecordOrThrow(travelRecordId);
         validateOwner(travelRecord, userId);
 
@@ -129,12 +124,14 @@ public class TravelRecordServiceImpl implements TravelRecordService {
     @Override
     @Transactional
     public TravelRecordResDTO.CreateResponse createTravelRecord(
+            Long userId,
             TravelRecordReqDTO.CreateRequest request
     ) {
-        User user = getCurrentUser();
+        User user = getUserOrThrow(userId);
         Region region = getRegionOrThrow(request.regionId());
 
         validateDateRange(request);
+        validateImageOrders(request.images());
 
         List<TravelRecordReqDTO.ImageRequest> movedImages = moveImages(request.images());
         String coverImageKey = findCoverImageKey(movedImages);
@@ -192,7 +189,8 @@ public class TravelRecordServiceImpl implements TravelRecordService {
         validateDateRange(request.startDate(), request.endDate());
         validateImageOrders(request.images());
 
-        String coverImageKey = findCoverImageKey(request.images());
+        List<TravelRecordReqDTO.ImageRequest> movedImages = moveImages(request.images());
+        String coverImageKey = findCoverImageKey(movedImages);
 
         // 폴더 테마는 현재 기획상 변경 기능이 없어 BASIC으로 고정합니다.
         travelRecord.update(
@@ -210,7 +208,7 @@ public class TravelRecordServiceImpl implements TravelRecordService {
 
         List<TravelRecordPhoto> photos = TravelRecordConverter.toTravelRecordPhotos(
                 travelRecord,
-                request
+                movedImages
         );
         travelRecordPhotoRepository.saveAll(photos);
 
@@ -231,14 +229,8 @@ public class TravelRecordServiceImpl implements TravelRecordService {
         travelRecordRepository.delete(travelRecord);
     }
 
-    private Long getCurrentUserId() {
-        // TODO: Spring Security 적용 후 인증 사용자 ID로 교체
-        return MOCK_USER_ID;
-    }
-
-    private User getCurrentUser() {
-        // TODO: Spring Security 적용 후 인증 사용자 조회로 교체
-        return userRepository.findById(MOCK_USER_ID)
+    private User getUserOrThrow(Long userId) {
+        return userRepository.findById(userId)
                 .orElseThrow(() -> new GeneralException(GeneralErrorCode.FORBIDDEN));
     }
 
@@ -381,7 +373,7 @@ public class TravelRecordServiceImpl implements TravelRecordService {
                 .filter(image -> Integer.valueOf(1).equals(image.imageOrder()))
                 .findFirst()
                 .map(TravelRecordReqDTO.ImageRequest::imageKey)
-                .orElse(images.get(0).imageKey());
+                .orElseThrow(() -> new GeneralException(TravelRecordErrorCode.INVALID_IMAGE_ORDER));
     }
 
     private List<TravelRecordReqDTO.ImageRequest> moveImages(
