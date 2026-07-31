@@ -42,8 +42,17 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
             CourseLocation location,
             int limit
     ) {
-        NumberExpression<Long> savedCount = courseLike.id.countDistinct();
-        NumberExpression<Long> reviewCount = courseReview.id.countDistinct();
+        CourseSortType sort = CourseSortType.resolve(request.sort());
+        boolean savedSort = sort == CourseSortType.SAVED;
+        boolean reviewSort = sort == CourseSortType.REVIEW;
+        boolean aggregateSort = savedSort || reviewSort;
+
+        NumberExpression<Long> savedCount = savedSort
+                ? courseLike.id.count()
+                : Expressions.numberTemplate(Long.class, "0");
+        NumberExpression<Long> reviewCount = reviewSort
+                ? courseReview.id.count()
+                : Expressions.numberTemplate(Long.class, "0");
         NumberExpression<Double> distance = distanceExpression(location);
         NumberExpression<Integer> recommendOrder = recommendOrderExpression();
 
@@ -66,23 +75,32 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
                 .from(course)
                 .join(course.region, region);
 
-        query.leftJoin(courseLike).on(courseLike.course.eq(course))
-                .leftJoin(courseReview).on(courseReview.course.eq(course))
-                .where(courseListCondition(request))
-                .groupBy(
-                        course.id,
-                        course.thumbnailKey,
-                        course.title,
-                        region.name,
-                        course.durationType,
-                        course.transportType,
-                        course.companionType,
-                        course.createdAt,
-                        course.recommendOrder,
-                        region.latitude,
-                        region.longitude
-                )
-                .orderBy(orderSpecifiers(request.sort(), savedCount, reviewCount, distance))
+        if (savedSort) {
+            query.leftJoin(courseLike).on(courseLike.course.eq(course));
+        }
+
+        if (reviewSort) {
+            query.leftJoin(courseReview).on(courseReview.course.eq(course));
+        }
+
+        if (aggregateSort) {
+            query.groupBy(
+                    course.id,
+                    course.thumbnailKey,
+                    course.title,
+                    region.name,
+                    course.durationType,
+                    course.transportType,
+                    course.companionType,
+                    course.createdAt,
+                    course.recommendOrder,
+                    region.latitude,
+                    region.longitude
+            );
+        }
+
+        query.where(courseListCondition(request))
+                .orderBy(orderSpecifiers(sort, savedCount, reviewCount, distance))
                 .limit(limit);
 
         BooleanExpression cursorHavingCondition = cursorHavingCondition(
@@ -94,7 +112,11 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
         );
 
         if (cursorHavingCondition != null) {
-            query.having(cursorHavingCondition);
+            if (aggregateSort) {
+                query.having(cursorHavingCondition);
+            } else {
+                query.where(cursorHavingCondition);
+            }
         }
 
         return query.fetch();

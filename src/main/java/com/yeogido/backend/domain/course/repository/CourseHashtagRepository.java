@@ -22,8 +22,25 @@ public interface CourseHashtagRepository extends JpaRepository<CourseHashtag, Lo
             """)
     List<CourseHashtag> findByCourseIdIn(@Param("courseIds") List<Long> courseIds);
 
+    @Query("""
+            select
+                ch.course.id as courseId,
+                h.hashtagName as hashtagName
+            from CourseHashtag ch
+            join ch.hashtag h
+            where ch.course.id in :courseIds
+            """)
+    List<CourseHashtagNameProjection> findHashtagNamesByCourseIdIn(@Param("courseIds") List<Long> courseIds);
+
     @Modifying
     @Query("delete from CourseHashtag ch where ch.course.id = :courseId")
     void deleteAllByCourseId(@Param("courseId") Long courseId);
+
+    interface CourseHashtagNameProjection {
+
+        Long getCourseId();
+
+        String getHashtagName();
+    }
 
 }
