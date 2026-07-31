@@ -43,6 +43,8 @@ public class AuthServiceImpl implements AuthService {
   private final RegionRepository regionRepository;
   private final PasswordEncoder passwordEncoder;
   private final S3Service s3Service;
+  private final PasswordResetCodeService passwordResetCodeService;
+  private final MailService mailService;
 
   @Override
   @Transactional
@@ -199,11 +201,23 @@ public class AuthServiceImpl implements AuthService {
   }
 
   @Override
+  @Transactional(readOnly = true)
   public void sendResetCode(AuthReqDTO.PasswordSendCode request) {
+    User user = userRepository.findByEmail(request.email())
+      .filter(foundUser -> foundUser.getStatus() == UserStatus.ACTIVE)
+      .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
+
+    String authCode = passwordResetCodeService.issueCode(user.getEmail());
+    mailService.sendPasswordResetCode(user.getEmail(), authCode);
   }
 
   @Override
   public AuthResDTO.PasswordVerifyCode verifyResetCode(AuthReqDTO.PasswordVerifyCode request) {
-    return new AuthResDTO.PasswordVerifyCode("a1b2c3d4-e5f6-7890-abcd-ef1234567890");
+    String resetToken = passwordResetCodeService.verifyCodeAndIssueResetToken(
+      request.email(),
+      request.authCode()
+    );
+
+    return new AuthResDTO.PasswordVerifyCode(resetToken);
   }
 }

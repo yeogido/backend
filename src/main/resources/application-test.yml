@@ -20,6 +20,8 @@ management:
   health:
     redis:
       enabled: false
+    mail:
+      enabled: false
 
 logging:
   level:
