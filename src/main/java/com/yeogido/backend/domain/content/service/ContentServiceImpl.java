@@ -640,7 +640,9 @@ public class ContentServiceImpl implements ContentService{
                             boolean courseLiked =
                                     likedCourseIds.contains(course.getId());
 
-                            return ContentConverter.toCourseInfo(course, courseLiked);
+                            String thumbnailImageUrl = s3Service.getImageUrl(course.getThumbnailKey());
+
+                            return ContentConverter.toCourseInfo(course, thumbnailImageUrl, courseLiked);
                         })
                         .toList();
 
