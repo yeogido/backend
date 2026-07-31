@@ -189,7 +189,8 @@ public class TravelRecordServiceImpl implements TravelRecordService {
         validateDateRange(request.startDate(), request.endDate());
         validateImageOrders(request.images());
 
-        String coverImageKey = findCoverImageKey(request.images());
+        List<TravelRecordReqDTO.ImageRequest> movedImages = moveImages(request.images());
+        String coverImageKey = findCoverImageKey(movedImages);
 
         // 폴더 테마는 현재 기획상 변경 기능이 없어 BASIC으로 고정합니다.
         travelRecord.update(
@@ -207,7 +208,7 @@ public class TravelRecordServiceImpl implements TravelRecordService {
 
         List<TravelRecordPhoto> photos = TravelRecordConverter.toTravelRecordPhotos(
                 travelRecord,
-                request
+                movedImages
         );
         travelRecordPhotoRepository.saveAll(photos);
 
