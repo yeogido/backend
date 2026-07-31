@@ -18,4 +18,6 @@ public interface TravelRecordStickerRepository extends JpaRepository<TravelRecor
     List<TravelRecordSticker> findByTravelRecordIdOrderByZIndexAsc(
             @Param("travelRecordId") Long travelRecordId
     );
+
+    void deleteAllByTravelRecord_Id(Long travelRecordId);
 }

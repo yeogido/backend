@@ -17,4 +17,12 @@ public interface TravelRecordService {
     TravelRecordResDTO.CreateResponse createTravelRecord(
             TravelRecordReqDTO.CreateRequest request
     );
+
+    TravelRecordResDTO.UpdateResponse updateTravelRecord(
+            Long travelRecordId,
+            Long userId,
+            TravelRecordReqDTO.UpdateRequest request
+    );
+
+    void deleteTravelRecord(Long travelRecordId, Long userId);
 }

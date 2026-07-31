@@ -135,4 +135,11 @@ public class TravelRecordResDTO {
             LocalDateTime createdAt
     ) {
     }
+
+    @Schema(name = "TravelRecordUpdateResponse", description = "여행 기록 수정 응답")
+    public record UpdateResponse(
+            @Schema(description = "수정된 여행 기록 ID", example = "1")
+            Long travelRecordId
+    ) {
+    }
 }

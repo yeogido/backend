@@ -48,7 +48,7 @@ public class TravelRecordReqDTO {
             @NotNull(message = "여행 종료일은 필수입니다.")
             LocalDate endDate,
 
-            @Schema(description = "폴더 색상/테마", example = "BASIC")
+            @Schema(description = "폴더 색상/테마. 현재는 BASIC으로 고정되어 전달값은 반영되지 않습니다.", example = "BASIC")
             String folderTheme,
 
             @Schema(description = "여행 기록 사진 목록")
@@ -58,6 +58,40 @@ public class TravelRecordReqDTO {
             List<ImageRequest> images,
 
             @Schema(description = "여행 기록 폴더 위에 배치할 스티커 목록")
+            @Valid
+            List<StickerRequest> stickers
+    ) {
+    }
+
+    @Schema(name = "TravelRecordUpdateRequest", description = "여행 기록 수정 요청")
+    public record UpdateRequest(
+            @Schema(description = "여행 기록 제목", example = "부산 바다 여행 기록 수정")
+            @NotBlank(message = "여행 기록 제목은 필수입니다.")
+            String title,
+
+            @Schema(description = "지역 ID", example = "1")
+            @NotNull(message = "지역 ID는 필수입니다.")
+            @Positive(message = "지역 ID는 양수여야 합니다.")
+            Long regionId,
+
+            @Schema(description = "여행 시작일", example = "2026-05-22")
+            @NotNull(message = "여행 시작일은 필수입니다.")
+            LocalDate startDate,
+
+            @Schema(description = "여행 종료일", example = "2026-05-24")
+            @NotNull(message = "여행 종료일은 필수입니다.")
+            LocalDate endDate,
+
+            @Schema(description = "폴더 색상/테마", example = "BASIC")
+            String folderTheme,
+
+            @Schema(description = "수정 후 최종 여행 기록 사진 목록")
+            @Valid
+            @NotEmpty(message = "여행 기록 사진은 최소 1장 이상 등록해야 합니다.")
+            @Size(min = 1, max = 5, message = "여행 기록 사진은 최소 1장 이상, 최대 5장까지 등록할 수 있습니다.")
+            List<ImageRequest> images,
+
+            @Schema(description = "수정 후 최종 여행 기록 스티커 목록. 미전달 또는 null이면 기존 스티커를 유지하고, 빈 배열이면 전체 삭제합니다.")
             @Valid
             List<StickerRequest> stickers
     ) {
