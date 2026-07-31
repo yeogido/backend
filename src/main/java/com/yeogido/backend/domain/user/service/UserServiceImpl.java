@@ -10,9 +10,14 @@ import com.querydsl.jpa.impl.JPAQueryFactory;
 import com.yeogido.backend.domain.auth.service.RefreshTokenService;
 import com.yeogido.backend.domain.content.entity.Content;
 import com.yeogido.backend.domain.content.entity.ContentLike;
+import com.yeogido.backend.domain.content.entity.QContent;
 import com.yeogido.backend.domain.content.entity.QContentLike;
 import com.yeogido.backend.domain.content.repository.ContentHashtagRepository;
 import com.yeogido.backend.domain.content.repository.ContentLikeRepository;
+import com.yeogido.backend.domain.course.entity.Course;
+import com.yeogido.backend.domain.course.entity.CourseLike;
+import com.yeogido.backend.domain.course.entity.QCourse;
+import com.yeogido.backend.domain.course.entity.QCourseLike;
 import com.yeogido.backend.domain.course.converter.CourseConverter;
 import com.yeogido.backend.domain.course.entity.*;
 import com.yeogido.backend.domain.course.repository.CourseHashtagRepository;
@@ -20,6 +25,7 @@ import com.yeogido.backend.domain.course.repository.CourseLikeRepository;
 import com.yeogido.backend.domain.file.service.S3Service;
 import com.yeogido.backend.domain.place.entity.Place;
 import com.yeogido.backend.domain.place.entity.PlaceLike;
+import com.yeogido.backend.domain.place.entity.QPlace;
 import com.yeogido.backend.domain.place.entity.QPlaceLike;
 import com.yeogido.backend.domain.place.repository.PlaceLikeRepository;
 import com.yeogido.backend.domain.region.entity.Region;
@@ -40,6 +46,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -71,6 +78,7 @@ public class UserServiceImpl implements UserService{
     public CursorResponse<UserResDTO.LikedResponse> getLikedList(
             Long userId,
             LikeCategory category,
+            String keyword,
             SortType sort,
             LocalDateTime cursorCreatedAt,
             Long cursorId,
@@ -107,7 +115,7 @@ public class UserServiceImpl implements UserService{
             case COURSE: {
                 // 사용자가 좋아요한 코스 조회
                 List<CourseLike> likes =
-                        getCourseLikes(user, sort, cursorCreatedAt, cursorId, size);
+                        getCourseLikes(user, keyword, sort, cursorCreatedAt, cursorId, size);
 
                 // 코스별 해시태그를 한 번에 조회
                 Map<Long, List<String>> hashtagMap =
@@ -151,7 +159,7 @@ public class UserServiceImpl implements UserService{
             case CONTENT: {
                 // 사용자가 좋아요한 콘텐츠 조회
                 List<ContentLike> likes =
-                        getContentLikes(user, sort, cursorCreatedAt, cursorId, size);
+                        getContentLikes(user, keyword, sort, cursorCreatedAt, cursorId, size);
 
                 // 콘텐츠별 해시태그를 한 번에 조회
                 Map<Long, List<String>> hashtagMap =
@@ -195,7 +203,7 @@ public class UserServiceImpl implements UserService{
             case PLACE: {
                 // 사용자가 좋아요한 장소 조회
                 List<PlaceLike> likes =
-                        getPlaceLikes(user, sort, cursorCreatedAt, cursorId, size);
+                        getPlaceLikes(user, keyword, sort, cursorCreatedAt, cursorId, size);
 
                 boolean hasNext = likes.size() > size;
 
@@ -229,7 +237,7 @@ public class UserServiceImpl implements UserService{
                 );
             }
             case ALL:
-                return getAllLikes(user, sort, cursorCreatedAt, cursorId, size, resolvedLatitude, resolvedLongitude);
+                return getAllLikes(user, keyword, sort, cursorCreatedAt, cursorId, size, resolvedLatitude, resolvedLongitude);
         }
         throw new GeneralException(GeneralErrorCode.INTERNAL_SERVER_ERROR);
     }
@@ -237,6 +245,7 @@ public class UserServiceImpl implements UserService{
 
     private List<CourseLike> getCourseLikes(
             User user,
+            String keyword,
             SortType sort,
             LocalDateTime cursorCreatedAt,
             Long cursorId,
@@ -260,6 +269,7 @@ public class UserServiceImpl implements UserService{
                 .leftJoin(courseLike.course.region).fetchJoin()
                 .where(
                         courseLike.user.eq(user),
+                        courseTitleContains(keyword),
                         cursorCondition(courseLike.createdAt,
                                 courseLike.id,
                                 cursorCreatedAt,
@@ -275,6 +285,7 @@ public class UserServiceImpl implements UserService{
 
     private List<ContentLike> getContentLikes(
             User user,
+            String keyword,
             SortType sort,
             LocalDateTime cursorCreatedAt,
             Long cursorId,
@@ -298,6 +309,7 @@ public class UserServiceImpl implements UserService{
                 .leftJoin(contentLike.content.place).fetchJoin()
                 .where(
                         contentLike.user.eq(user),
+                        contentTitleContains(keyword),
                         cursorCondition(contentLike.createdAt,
                                 contentLike.id,
                                 cursorCreatedAt,
@@ -313,6 +325,7 @@ public class UserServiceImpl implements UserService{
 
     private List<PlaceLike> getPlaceLikes(
             User user,
+            String keyword,
             SortType sort,
             LocalDateTime cursorCreatedAt,
             Long cursorId,
@@ -337,6 +350,7 @@ public class UserServiceImpl implements UserService{
                 .leftJoin(placeLike.place.region).fetchJoin()
                 .where(
                         placeLike.user.eq(user),
+                        placeNameContains(keyword),
                         cursorCondition(placeLike.createdAt,
                                placeLike.id,
                                 cursorCreatedAt,
@@ -351,6 +365,7 @@ public class UserServiceImpl implements UserService{
 
     private CursorResponse<UserResDTO.LikedResponse> getAllLikes(
             User user,
+            String keyword,
             SortType sort,
             LocalDateTime cursorCreatedAt,
             Long cursorId,
@@ -360,13 +375,13 @@ public class UserServiceImpl implements UserService{
     ) {
         // 카테고리별 좋아요 목록 조회
         List<CourseLike> courseLikes =
-                getCourseLikes(user, sort, cursorCreatedAt, cursorId, size);
+                getCourseLikes(user, keyword,sort, cursorCreatedAt, cursorId, size);
 
         List<ContentLike> contentLikes =
-                getContentLikes(user, sort, cursorCreatedAt, cursorId, size);
+                getContentLikes(user, keyword, sort, cursorCreatedAt, cursorId, size);
 
         List<PlaceLike> placeLikes =
-                getPlaceLikes(user, sort, cursorCreatedAt, cursorId, size);
+                getPlaceLikes(user, keyword, sort, cursorCreatedAt, cursorId, size);
 
         // 해시태그 조회
         Map<Long, List<String>> courseHashtagMap =
@@ -537,6 +552,23 @@ public class UserServiceImpl implements UserService{
                 ));
     }
 
+    private BooleanExpression courseTitleContains(String keyword) {
+        return StringUtils.hasText(keyword)
+                ? QCourse.course.title.containsIgnoreCase(keyword)
+                : null;
+    }
+
+    private BooleanExpression contentTitleContains(String keyword) {
+        return StringUtils.hasText(keyword)
+                ? QContent.content.title.containsIgnoreCase(keyword)
+                : null;
+    }
+
+    private BooleanExpression placeNameContains(String keyword) {
+        return StringUtils.hasText(keyword)
+                ? QPlace.place.name.containsIgnoreCase(keyword)
+                : null;
+    }
 
     private BooleanExpression cursorCondition(
             DateTimePath<LocalDateTime> createdAt,

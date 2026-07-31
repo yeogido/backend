@@ -15,6 +15,7 @@ public interface UserService {
     CursorResponse<UserResDTO.LikedResponse> getLikedList(
             Long userId,
             LikeCategory category,
+            String keyword,
             SortType sort,
             LocalDateTime cursorCreatedAt,
             Long cursorId,
