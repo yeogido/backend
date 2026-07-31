@@ -84,7 +84,6 @@ public class TravelRecordConverter {
                 travelRecord.getRegion().getId(),
                 travelRecord.getStartDate(),
                 travelRecord.getEndDate(),
-                travelRecord.getCoverImageKey(),
                 imageUrlResolver.apply(travelRecord.getCoverImageKey()),
                 travelRecord.getFolderTheme() == null ? null : travelRecord.getFolderTheme().name(),
                 travelRecord.getCreatedAt()
@@ -111,7 +110,6 @@ public class TravelRecordConverter {
                 travelRecord.getRegion().getId(),
                 travelRecord.getStartDate(),
                 travelRecord.getEndDate(),
-                travelRecord.getCoverImageKey(),
                 imageUrlResolver.apply(travelRecord.getCoverImageKey()),
                 travelRecord.getFolderTheme() == null ? null : travelRecord.getFolderTheme().name(),
                 images,
