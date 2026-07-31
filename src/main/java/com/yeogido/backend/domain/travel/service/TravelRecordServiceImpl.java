@@ -178,7 +178,7 @@ public class TravelRecordServiceImpl implements TravelRecordService {
             TravelRecordReqDTO.UpdateRequest request
     ) {
         TravelRecord travelRecord = getTravelRecordOrThrow(travelRecordId);
-        validateOwner(travelRecord, userId, TravelRecordErrorCode.UPDATE_ACCESS_DENIED);
+        validateOwner(travelRecord, userId);
 
         Region region = getRegionOrThrow(request.regionId());
         validateDateRange(request.startDate(), request.endDate());
@@ -215,7 +215,7 @@ public class TravelRecordServiceImpl implements TravelRecordService {
     @Transactional
     public void deleteTravelRecord(Long travelRecordId, Long userId) {
         TravelRecord travelRecord = getTravelRecordOrThrow(travelRecordId);
-        validateOwner(travelRecord, userId, TravelRecordErrorCode.DELETE_ACCESS_DENIED);
+        validateOwner(travelRecord, userId);
 
         // FK 제약이 있으므로 자식 테이블 데이터를 먼저 삭제한 뒤 여행 기록을 삭제합니다.
         travelRecordStickerRepository.deleteAllByTravelRecord_Id(travelRecordId);

@@ -79,7 +79,7 @@ public class TravelRecordController {
 
     @Operation(
             summary = "여행 기록 수정",
-            description = "로그인한 사용자가 본인이 작성한 여행 기록의 제목, 기간, 지역, 사진, 스티커 정보를 수정합니다."
+            description = "로그인한 사용자가 본인이 작성한 여행 기록의 최종 상태를 저장합니다. 폴더 테마는 현재 BASIC으로 고정됩니다."
     )
     @PatchMapping("/{travelRecordId}")
     public ApiResponse<TravelRecordResDTO.UpdateResponse> updateTravelRecord(

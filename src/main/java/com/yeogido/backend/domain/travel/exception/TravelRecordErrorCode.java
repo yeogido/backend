@@ -51,18 +51,6 @@ public enum TravelRecordErrorCode implements ErrorCode {
             "사진 순서 정보가 올바르지 않습니다."
     ),
 
-    UPDATE_ACCESS_DENIED(
-            HttpStatus.FORBIDDEN,
-            "TRAVEL_RECORD4031",
-            "해당 여행 기록을 수정할 권한이 없습니다."
-    ),
-
-    DELETE_ACCESS_DENIED(
-            HttpStatus.FORBIDDEN,
-            "TRAVEL_RECORD4032",
-            "해당 여행 기록을 삭제할 권한이 없습니다."
-    ),
-
     ACCESS_DENIED(
             HttpStatus.FORBIDDEN,
             "TRAVEL_RECORD4033",

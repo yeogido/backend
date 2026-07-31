@@ -48,7 +48,7 @@ public class TravelRecordReqDTO {
             @NotNull(message = "여행 종료일은 필수입니다.")
             LocalDate endDate,
 
-            @Schema(description = "폴더 색상/테마", example = "BASIC")
+            @Schema(description = "폴더 색상/테마. 현재는 BASIC으로 고정되어 전달값은 반영되지 않습니다.", example = "BASIC")
             String folderTheme,
 
             @Schema(description = "여행 기록 사진 목록")
@@ -91,7 +91,7 @@ public class TravelRecordReqDTO {
             @Size(min = 1, max = 5, message = "여행 기록 사진은 최소 1장 이상, 최대 5장까지 등록할 수 있습니다.")
             List<ImageRequest> images,
 
-            @Schema(description = "수정 후 최종 여행 기록 스티커 목록")
+            @Schema(description = "수정 후 최종 여행 기록 스티커 목록. 미전달 또는 null이면 기존 스티커를 유지하고, 빈 배열이면 전체 삭제합니다.")
             @Valid
             List<StickerRequest> stickers
     ) {
