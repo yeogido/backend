@@ -111,12 +111,13 @@ public class  ContentConverter {
 
     public static ContentResDTO.CourseInfo toCourseInfo(
             Course course,
+            String thumbnailImageUrl,
             boolean liked
     ) {
         return new ContentResDTO.CourseInfo(
                 course.getId(),
                 course.getTitle(),
-                course.getThumbnailKey(),
+                thumbnailImageUrl,
                 course.getDescription(),
                 course.getDurationType(),
                 course.getTransportType(),
