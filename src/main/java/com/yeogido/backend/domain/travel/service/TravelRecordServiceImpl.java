@@ -21,6 +21,7 @@ import com.yeogido.backend.domain.travel.repository.TravelRecordStickerRepositor
 import com.yeogido.backend.domain.user.entity.User;
 import com.yeogido.backend.domain.user.repository.UserRepository;
 import com.yeogido.backend.global.common.response.CursorResponse;
+import com.yeogido.backend.global.exception.GeneralErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
 import java.time.LocalDate;
 import java.time.Year;
@@ -231,7 +232,7 @@ public class TravelRecordServiceImpl implements TravelRecordService {
     private User getCurrentUser() {
         // TODO: Spring Security 적용 후 인증 사용자 조회로 교체
         return userRepository.findById(MOCK_USER_ID)
-                .orElseThrow(() -> new GeneralException(TravelRecordErrorCode.ACCESS_DENIED));
+                .orElseThrow(() -> new GeneralException(GeneralErrorCode.FORBIDDEN));
     }
 
     private int resolveSize(Integer size) {
@@ -306,16 +307,8 @@ public class TravelRecordServiceImpl implements TravelRecordService {
     }
 
     private void validateOwner(TravelRecord travelRecord, Long userId) {
-        validateOwner(travelRecord, userId, TravelRecordErrorCode.ACCESS_DENIED);
-    }
-
-    private void validateOwner(
-            TravelRecord travelRecord,
-            Long userId,
-            TravelRecordErrorCode errorCode
-    ) {
         if (!travelRecord.getUser().getId().equals(userId)) {
-            throw new GeneralException(errorCode);
+            throw new GeneralException(GeneralErrorCode.FORBIDDEN);
         }
     }
 
