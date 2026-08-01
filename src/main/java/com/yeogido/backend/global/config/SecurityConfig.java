@@ -57,6 +57,12 @@ public class SecurityConfig {
                                 "/api/v1/places/*/likes"
                         ).authenticated()
 
+                        .requestMatchers(
+                                "/api/v1/travel-records",
+                                "/api/v1/travel-records/**",
+                                "/api/v1/stickers",
+                                "/api/v1/stickers/**"
+                        ).authenticated()
 
                         .requestMatchers(
                                 HttpMethod.POST,
