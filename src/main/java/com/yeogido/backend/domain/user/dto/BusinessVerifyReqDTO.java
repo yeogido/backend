@@ -32,7 +32,7 @@ public record BusinessVerifyReqDTO(
 
         @Schema(
                 description = "사업자등록증 이미지 키",
-                example = "business-verifications/1/certificate.jpg"
+                example = "temp/8e1f1d4c-1d2f-4f2d-a7b2-9c3d4e5f6a7b.jpg"
         )
         @NotBlank(message = "사업자등록증 이미지는 필수입니다")
         String registrationImageKey,
