@@ -6,7 +6,6 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import lombok.Builder;
 
-import java.math.BigDecimal;
 import java.time.LocalTime;
 import java.util.List;
 
@@ -15,10 +14,12 @@ public class BusinessPromotionRequest {
     @Schema(name = "BusinessRegisterReqDTO", description = "소상공인 홍보 등록 요청")
     public record Register(
 
-            @Valid
-            @NotNull(message = "장소 정보는 필수입니다")
-            @Schema(description = "홍보 장소 정보")
-            Place place,
+            @NotNull(message = "사업장 인증 정보 ID는 필수입니다")
+            @Schema(
+                    description = "홍보할 승인된 사업장 인증 정보 ID",
+                    example = "1"
+            )
+            Long businessInfoId,
 
             @NotBlank(message = "짧은 소개글은 필수입니다")
             @Schema(description = "짧은 소개글", example = "바다 뷰 완전 잘 보이는 카페!")
@@ -59,9 +60,11 @@ public class BusinessPromotionRequest {
     @Schema(name = "BusinessUpdateReqDTO", description = "소상공인 홍보 수정 요청")
     public record Update(
 
-            @Valid
-            @Schema(description = "변경할 장소 정보. 카카오맵에서 다른 장소를 선택한 경우에만 전달합니다")
-            Place place,
+            @Schema(
+                    description = "변경할 승인된 사업장 인증 정보 ID",
+                    example = "1"
+            )
+            Long businessInfoId,
 
             @Schema(
                     description = "짧은 소개글",
@@ -99,44 +102,6 @@ public class BusinessPromotionRequest {
     ) { }
 
     @Builder
-    @Schema(description = "장소 정보")
-    public record Place(
-
-            @NotBlank(message = "외부 장소 ID는 필수입니다")
-            @Schema(description = "외부 장소 ID", example = "123456789")
-            String externalPlaceId,
-
-            @NotBlank(message = "장소 정보 출처는 필수입니다")
-            @Schema(description = "장소 정보 출처", example = "KAKAO")
-            String source,
-
-            @NotBlank(message = "장소명은 필수입니다")
-            @Schema(description = "장소명", example = "웨이브온 커피")
-            String name,
-
-            @Schema(description = "카테고리 그룹 코드", example = "CE7")
-            String categoryGroupCode,
-
-            @Schema(description = "도로명 주소", example = "부산 기장군 장안읍 해맞이로 286")
-            String roadAddress,
-
-            @Schema(description = "지번 주소", example = "부산 기장군 장안읍 월내리 553")
-            String lotAddress,
-
-            @NotNull(message = "위도는 필수입니다")
-            @Schema(description = "위도", example = "35.3214567")
-            BigDecimal latitude,
-
-            @NotNull(message = "경도는 필수입니다")
-            @Schema(description = "경도", example = "129.2741234")
-            BigDecimal longitude,
-
-            @NotNull(message = "지역 ID는 필수입니다")
-            @Schema(description = "지역 ID", example = "26")
-            Long regionId
-    ) { }
-
-    @Builder
     @Schema(description = "요일별 영업시간")
     public record BusinessHour(
 
@@ -158,7 +123,7 @@ public class BusinessPromotionRequest {
     public record Image(
 
             @NotBlank(message = "이미지 key는 필수입니다")
-            @Schema(description = "이미지 key", example = "business-promotions/1/image1.jpg")
+            @Schema(description = "이미지 key", example = "example = \"temp/8e1f1d4c-1d2f-4f2d-a7b2-9c3d4e5f6a7b.jpg\"")
             String imageKey,
 
             @NotNull(message = "이미지 정렬 순서는 필수입니다")

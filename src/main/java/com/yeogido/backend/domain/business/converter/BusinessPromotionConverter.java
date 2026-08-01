@@ -10,34 +10,13 @@ import com.yeogido.backend.domain.business.enums.DayOfWeek;
 import com.yeogido.backend.domain.business.enums.PromotionStatus;
 import com.yeogido.backend.domain.hashtag.entity.Hashtag;
 import com.yeogido.backend.domain.place.entity.Place;
-import com.yeogido.backend.domain.place.enums.PlaceSource;
-import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.user.entity.User;
 
 import java.util.List;
 
 public final class BusinessPromotionConverter {
 
-    private BusinessPromotionConverter() {
-    }
-
-    public static Place toPlace(
-            BusinessPromotionRequest.Place request,
-            PlaceSource source,
-            Region region
-    ) {
-        return Place.builder()
-                .region(region)
-                .externalPlaceId(request.externalPlaceId())
-                .source(source)
-                .name(request.name())
-                .categoryGroupCode(request.categoryGroupCode())
-                .roadAddress(request.roadAddress())
-                .lotAddress(request.lotAddress())
-                .latitude(request.latitude())
-                .longitude(request.longitude())
-                .build();
-    }
+    private BusinessPromotionConverter() { }
 
     public static BusinessPromotion toBusinessPromotion(
             Place place,
