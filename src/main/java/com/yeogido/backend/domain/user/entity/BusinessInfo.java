@@ -1,5 +1,6 @@
 package com.yeogido.backend.domain.user.entity;
 
+import com.yeogido.backend.domain.place.entity.Place;
 import com.yeogido.backend.domain.user.enums.BusinessVerificationStatus;
 import com.yeogido.backend.global.entity.BaseEntity;
 import jakarta.persistence.*;
@@ -31,6 +32,16 @@ public class BusinessInfo extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
+
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(
+            name = "place_id",
+            unique = true,
+            foreignKey = @ForeignKey(
+                    name = "fk_business_info_place"
+            )
+    )
+    private Place place;
 
     @Column(
             name = "business_number",
@@ -80,4 +91,24 @@ public class BusinessInfo extends BaseEntity {
 
     @Column(name = "verified_at", nullable = false)
     private LocalDateTime verifiedAt;
+
+    public void reverifyAndConnectPlace(
+            Place place,
+            LocalDate openingDate,
+            String representativeName,
+            String registrationImageKey,
+            String businessName,
+            String businessAddress,
+            LocalDateTime verifiedAt
+    ) {
+        this.place = place;
+        this.openingDate = openingDate;
+        this.representativeName = representativeName;
+        this.registrationImageKey = registrationImageKey;
+        this.businessName = businessName;
+        this.businessAddress = businessAddress;
+        this.verificationStatus =
+                BusinessVerificationStatus.APPROVED;
+        this.verifiedAt = verifiedAt;
+    }
 }

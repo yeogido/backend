@@ -21,6 +21,9 @@ import java.util.List;
 @RequiredArgsConstructor
 public class NtsBusinessVerificationClient {
 
+    @Value("${NTS_MOCK_ENABLED:false}")
+    private boolean mockEnabled;
+
     private static final DateTimeFormatter NTS_DATE_FORMATTER =
             DateTimeFormatter.ofPattern("yyyyMMdd");
 
@@ -37,6 +40,25 @@ public class NtsBusinessVerificationClient {
             LocalDate openingDate,
             String representativeName
     ) {
+        if (mockEnabled) {
+            NtsBusinessVerifyDTO.Status status =
+                    new NtsBusinessVerifyDTO.Status(
+                            businessNumber,
+                            "계속사업자",
+                            "01",
+                            "부가가치세 일반과세자",
+                            "01",
+                            ""
+                    );
+
+            return new NtsBusinessVerifyDTO.Result(
+                    businessNumber,
+                    "01",
+                    "로컬 Mock 인증 성공",
+                    status
+            );
+        }
+
         NtsBusinessVerifyDTO.Request request = createRequest(
                 businessNumber,
                 openingDate,

@@ -57,6 +57,12 @@ public class SecurityConfig {
                                 "/api/v1/places/*/likes"
                         ).authenticated()
 
+                        .requestMatchers(
+                                "/api/v1/travel-records",
+                                "/api/v1/travel-records/**",
+                                "/api/v1/stickers",
+                                "/api/v1/stickers/**"
+                        ).authenticated()
 
                         .requestMatchers(
                                 HttpMethod.POST,
@@ -126,6 +132,21 @@ public class SecurityConfig {
                         .requestMatchers(
                                 HttpMethod.DELETE,
                                 "/api/v1/business-promotions/**"
+                        ).authenticated()
+
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/v1/contents"
+                        ).authenticated()
+
+                        .requestMatchers(
+                                HttpMethod.PATCH,
+                                "/api/v1/contents/*"
+                        ).authenticated()
+
+                        .requestMatchers(
+                                HttpMethod.DELETE,
+                                "/api/v1/contents/*"
                         ).authenticated()
 
                         .anyRequest().permitAll()
