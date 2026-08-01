@@ -18,4 +18,14 @@ public interface StickerRepository extends JpaRepository<Sticker, Long> {
             Long userId,
             StickerType stickerType
     );
+
+    long countByUser_IdAndStickerTypeAndDeletedAtIsNull(
+            Long userId,
+            StickerType stickerType
+    );
+
+    long countByUser_IdAndStickerType(
+            Long userId,
+            StickerType stickerType
+    );
 }
