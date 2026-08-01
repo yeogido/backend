@@ -111,6 +111,14 @@ public class BusinessPromotionController {
             @RequestParam(defaultValue = "10")
             Integer size,
 
+            @Parameter(
+                    description = "조회할 지역 ID입니다. 전달하지 않으면 전국을 조회합니다.",
+                    example = "1"
+            )
+            @Positive(message = "지역 ID는 1 이상이어야 합니다")
+            @RequestParam(required = false)
+            Long regionId,
+
             @RequestParam(required = false)
             PromotionCategory category,
 
@@ -127,6 +135,7 @@ public class BusinessPromotionController {
                         cursorValue,
                         cursorId,
                         size,
+                        regionId,
                         category,
                         sort
                 );

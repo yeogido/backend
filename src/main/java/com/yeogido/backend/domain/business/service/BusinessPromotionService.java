@@ -51,6 +51,7 @@ public interface BusinessPromotionService {
             String cursorValue,
             Long cursorId,
             Integer size,
+            Long regionId,
             PromotionCategory category,
             PromotionSortType sort
     );
