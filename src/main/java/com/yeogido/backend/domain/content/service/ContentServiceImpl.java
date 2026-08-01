@@ -37,6 +37,8 @@ import com.yeogido.backend.domain.course.entity.Course;
 import com.yeogido.backend.domain.course.repository.CourseItemRepository;
 import com.yeogido.backend.domain.course.repository.CourseLikeRepository;
 import com.yeogido.backend.domain.region.entity.Region;
+import com.yeogido.backend.domain.region.enums.RegionType;
+import com.yeogido.backend.domain.region.exception.RegionErrorCode;
 import com.yeogido.backend.domain.region.repository.RegionRepository;
 import com.yeogido.backend.domain.user.entity.User;
 import com.yeogido.backend.domain.user.enums.UserRole;
@@ -106,9 +108,29 @@ public class ContentServiceImpl implements ContentService{
 
         if (request.regionId() != null
                 && request.sort() != ContentSort.DISTANCE) {
-            builder.and(qContent.place.region.id.eq(request.regionId()));
-        }
 
+            List<Long> regionIds = new ArrayList<>();
+            regionIds.add(request.regionId());
+
+            Region region = regionRepository.findById(request.regionId())
+                    .orElseThrow(() -> new GeneralException(RegionErrorCode.REGION_NOT_FOUND));
+
+            if (region.getType() == RegionType.REGION) {
+                List<Region> children =
+                        regionRepository.findByParentIdAndTypeOrderByNameAsc(
+                                region.getId(),
+                                RegionType.SUB_REGION
+                        );
+
+                regionIds.addAll(
+                        children.stream()
+                                .map(Region::getId)
+                                .toList()
+                );
+            }
+
+            builder.and(qContent.place.region.id.in(regionIds));
+        }
         if (request.category() != null) {
             builder.and(qContent.category.eq(request.category()));
         }
@@ -388,6 +410,32 @@ public class ContentServiceImpl implements ContentService{
 
             baseLatitude = region.getLatitude().doubleValue();
             baseLongitude = region.getLongitude().doubleValue();
+
+            if (region.getType() == RegionType.REGION) {
+
+                List<Long> regionIds = new ArrayList<>();
+                regionIds.add(region.getId());
+
+                List<Region> children =
+                        regionRepository.findByParentIdAndTypeOrderByNameAsc(
+                                region.getId(),
+                                RegionType.SUB_REGION
+                        );
+
+                regionIds.addAll(
+                        children.stream()
+                                .map(Region::getId)
+                                .toList()
+                );
+
+                builder.and(qContent.place.region.id.in(regionIds));
+
+            } else {
+
+                builder.and(
+                        qContent.place.region.id.eq(region.getId())
+                );
+            }
         }
 
         NumberExpression<Double> distance =

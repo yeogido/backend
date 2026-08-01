@@ -21,6 +21,12 @@ public enum BusinessPromotionErrorCode implements ErrorCode {
             "소상공인 홍보글을 찾을 수 없습니다"
     ),
 
+    BUSINESS_PROMOTION_VERIFICATION_REQUIRED(
+            HttpStatus.FORBIDDEN,
+            "BUSINESS_PROMOTION4031",
+            "승인된 본인 사업장만 홍보글을 등록할 수 있습니다"
+    ),
+
     BUSINESS_PROMOTION_FORBIDDEN_UPDATE(
             HttpStatus.FORBIDDEN,
             "BUSINESS_PROMOTION4032",

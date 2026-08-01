@@ -1,5 +1,6 @@
 package com.yeogido.backend.domain.user.converter;
 
+import com.yeogido.backend.domain.place.entity.Place;
 import com.yeogido.backend.domain.user.dto.BusinessInfoResDTO;
 import com.yeogido.backend.domain.user.dto.BusinessVerifyReqDTO;
 import com.yeogido.backend.domain.user.dto.BusinessVerifyResDTO;
@@ -16,11 +17,13 @@ public final class BusinessVerificationConverter {
 
     public static BusinessInfo toBusinessInfo(
             User user,
+            Place place,
             BusinessVerifyReqDTO request,
             LocalDateTime verifiedAt
     ) {
         return BusinessInfo.builder()
                 .user(user)
+                .place(place)
                 .businessNumber(request.businessNumber())
                 .openingDate(request.openingDate())
                 .representativeName(request.representativeName())

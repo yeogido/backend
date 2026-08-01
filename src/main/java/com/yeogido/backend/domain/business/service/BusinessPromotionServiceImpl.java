@@ -26,14 +26,18 @@ import com.yeogido.backend.domain.hashtag.exception.HashtagErrorCode;
 import com.yeogido.backend.domain.hashtag.repository.HashtagRepository;
 import com.yeogido.backend.domain.place.entity.Place;
 import com.yeogido.backend.domain.place.entity.QPlaceLike;
-import com.yeogido.backend.domain.place.enums.PlaceSource;
 import com.yeogido.backend.domain.place.repository.PlaceLikeRepository;
 import com.yeogido.backend.domain.place.repository.PlaceRepository;
 import com.yeogido.backend.domain.region.entity.QRegion;
 import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.region.exception.RegionErrorCode;
 import com.yeogido.backend.domain.region.repository.RegionRepository;
+import com.yeogido.backend.domain.user.entity.BusinessInfo;
 import com.yeogido.backend.domain.user.entity.User;
+import com.yeogido.backend.domain.user.enums.BusinessVerificationStatus;
+import com.yeogido.backend.domain.user.enums.UserRole;
+import com.yeogido.backend.domain.user.exception.UserErrorCode;
+import com.yeogido.backend.domain.user.repository.BusinessInfoRepository;
 import com.yeogido.backend.domain.user.repository.UserRepository;
 import com.yeogido.backend.global.common.response.CursorResponse;
 import com.yeogido.backend.global.exception.GeneralErrorCode;
@@ -58,11 +62,10 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
     private final BusinessOperatingDayRepository businessOperatingDayRepository;
     private final BusinessPromotionHashtagRepository businessPromotionHashtagRepository;
     private final BusinessPromotionImageRepository businessPromotionImageRepository;
-    private final PlaceRepository placeRepository;
     private final PlaceLikeRepository placeLikeRepository;
-    private final RegionRepository regionRepository;
     private final UserRepository userRepository;
     private final HashtagRepository hashtagRepository;
+    private final BusinessInfoRepository businessInfoRepository;
     private final FileService fileService;
     private final S3Service s3Service;
 
@@ -82,21 +85,58 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
             Long userId,
             BusinessPromotionRequest.Register request
     ) {
-        User user = userRepository.getReferenceById(userId);
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new GeneralException(
+                        UserErrorCode.USER_NOT_FOUND
+                ));
+
+        if (user.getRole() != UserRole.BUSINESS) {
+            throw new GeneralException(
+                    BusinessPromotionErrorCode
+                            .BUSINESS_PROMOTION_VERIFICATION_REQUIRED
+            );
+        }
+
+        BusinessInfo businessInfo = businessInfoRepository
+                .findByIdAndUser_IdAndVerificationStatus(
+                        request.businessInfoId(),
+                        userId,
+                        BusinessVerificationStatus.APPROVED
+                )
+                .orElseThrow(() -> new GeneralException(
+                        BusinessPromotionErrorCode
+                                .BUSINESS_PROMOTION_VERIFICATION_REQUIRED
+                ));
+
+        Place place = businessInfo.getPlace();
+
+        if (place == null) {
+            throw new GeneralException(
+                    BusinessPromotionErrorCode
+                            .BUSINESS_PROMOTION_VERIFICATION_REQUIRED
+            );
+        }
 
         validateDuplicateBusinessHours(request.businessHours());
         validateDuplicateImageSortOrders(request.images());
 
-        Place place = getOrCreatePlace(request.place());
-
         BusinessPromotion businessPromotion =
                 createOrReactivatePromotion(place, user, request);
 
-        saveBusinessHours(businessPromotion, request.businessHours());
+        saveBusinessHours(
+                businessPromotion,
+                request.businessHours()
+        );
 
-        savePromotionImages(businessPromotion, request.images());
+        savePromotionImages(
+                businessPromotion,
+                request.images()
+        );
 
-        savePromotionHashtags(businessPromotion, request.hashtagIds());
+        savePromotionHashtags(
+                businessPromotion,
+                request.hashtagIds()
+        );
 
         return BusinessPromotionConverter.toRegisterResponse(
                 businessPromotion
@@ -131,7 +171,8 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
 
         changePromotionPlaceIfRequested(
                 promotion,
-                request.place()
+                request.businessInfoId(),
+                userId
         );
 
         promotion.update(
@@ -296,13 +337,32 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
 
     private void changePromotionPlaceIfRequested(
             BusinessPromotion promotion,
-            BusinessPromotionRequest.Place placeRequest
+            Long businessInfoId,
+            Long userId
     ) {
-        if (placeRequest == null) {
+        if (businessInfoId == null) {
             return;
         }
 
-        Place requestedPlace = getOrCreatePlace(placeRequest);
+        BusinessInfo businessInfo = businessInfoRepository
+                .findByIdAndUser_IdAndVerificationStatus(
+                        businessInfoId,
+                        userId,
+                        BusinessVerificationStatus.APPROVED
+                )
+                .orElseThrow(() -> new GeneralException(
+                        BusinessPromotionErrorCode
+                                .BUSINESS_PROMOTION_VERIFICATION_REQUIRED
+                ));
+
+        Place requestedPlace = businessInfo.getPlace();
+
+        if (requestedPlace == null) {
+            throw new GeneralException(
+                    BusinessPromotionErrorCode
+                            .BUSINESS_PROMOTION_VERIFICATION_REQUIRED
+            );
+        }
 
         if (Objects.equals(
                 promotion.getPlace().getId(),
@@ -340,7 +400,7 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
             BusinessPromotionRequest.Update request
     ) {
         boolean hasUpdateValue =
-                request.place() != null
+                request.businessInfoId() != null
                         || request.shortDescription() != null
                         || request.ownerComment() != null
                         || request.businessHours() != null
@@ -890,43 +950,6 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
             Long likeCount,
             LocalDateTime createdAt
     ) { }
-
-    private Place getOrCreatePlace(
-            BusinessPromotionRequest.Place request
-    ) {
-        PlaceSource source = parsePlaceSource(request.source());
-
-        return placeRepository
-                .findBySourceAndExternalPlaceId(
-                        source,
-                        request.externalPlaceId()
-                )
-                .orElseGet(() -> {
-                    Region region = regionRepository
-                            .findById(request.regionId())
-                            .orElseThrow(() -> new GeneralException(
-                                    RegionErrorCode.REGION_NOT_FOUND
-                            ));
-
-                    Place newPlace =
-                            BusinessPromotionConverter.toPlace(
-                                    request,
-                                    source,
-                                    region
-                            );
-                    return placeRepository.save(newPlace);
-                });
-    }
-
-    private PlaceSource parsePlaceSource(String source) {
-        try {
-            return PlaceSource.valueOf(source);
-        } catch (IllegalArgumentException exception) {
-            throw new GeneralException(
-                    GeneralErrorCode.INVALID_REQUEST
-            );
-        }
-    }
 
     private void saveBusinessHours(
             BusinessPromotion businessPromotion,
