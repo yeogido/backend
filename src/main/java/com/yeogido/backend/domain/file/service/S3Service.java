@@ -32,9 +32,13 @@ import java.util.UUID;
 public class S3Service {
 
     private static final Duration PRESIGNED_URL_DURATION = Duration.ofMinutes(10);
+    private static final Duration EXTERNAL_IMAGE_CONNECT_TIMEOUT = Duration.ofSeconds(3);
+    private static final Duration EXTERNAL_IMAGE_REQUEST_TIMEOUT = Duration.ofSeconds(5);
     private static final String TEMP_DIRECTORY = "temp";
     private static final String TEMP_PREFIX = TEMP_DIRECTORY + "/";
-    private static final HttpClient HTTP_CLIENT = HttpClient.newHttpClient();
+    private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
+            .connectTimeout(EXTERNAL_IMAGE_CONNECT_TIMEOUT)
+            .build();
 
     private final S3Client s3Client;
     private final S3Presigner s3Presigner;
@@ -109,7 +113,7 @@ public class S3Service {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
             }
-            throw new GeneralException(GeneralErrorCode.INTERNAL_SERVER_ERROR);
+            return null;
         }
     }
 
@@ -144,6 +148,7 @@ public class S3Service {
 
     private HttpResponse<byte[]> downloadImage(String imageUrl) throws IOException, InterruptedException {
         HttpRequest request = HttpRequest.newBuilder(URI.create(imageUrl))
+                .timeout(EXTERNAL_IMAGE_REQUEST_TIMEOUT)
                 .GET()
                 .build();
 
