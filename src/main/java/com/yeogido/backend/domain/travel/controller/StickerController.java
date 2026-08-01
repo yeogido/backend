@@ -68,6 +68,6 @@ public class StickerController {
     ) {
         stickerService.deleteCustomSticker(authUser.userId(), stickerId);
 
-        return ApiResponse.onSuccess(SuccessCode.NO_CONTENT);
+        return ApiResponse.onSuccess(SuccessCode.OK);
     }
 }

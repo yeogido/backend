@@ -21,12 +21,6 @@ public enum StickerErrorCode implements ErrorCode {
             "기본 제공 스티커는 삭제할 수 없습니다."
     ),
 
-    STICKER_ACCESS_DENIED(
-            HttpStatus.FORBIDDEN,
-            "STICKER4031",
-            "해당 스티커를 삭제할 권한이 없습니다."
-    ),
-
     STICKER_NOT_FOUND(
             HttpStatus.NOT_FOUND,
             "STICKER4041",

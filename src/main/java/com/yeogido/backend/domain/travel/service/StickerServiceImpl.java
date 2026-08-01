@@ -12,6 +12,7 @@ import com.yeogido.backend.domain.travel.enums.StickerType;
 import com.yeogido.backend.domain.travel.exception.StickerErrorCode;
 import com.yeogido.backend.domain.travel.repository.StickerRepository;
 import com.yeogido.backend.domain.user.entity.User;
+import com.yeogido.backend.domain.user.exception.UserErrorCode;
 import com.yeogido.backend.domain.user.repository.UserRepository;
 import com.yeogido.backend.global.exception.GeneralErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
@@ -120,7 +121,7 @@ public class StickerServiceImpl implements StickerService {
 
     private User getUserOrThrow(Long userId) {
         return userRepository.findById(userId)
-                .orElseThrow(() -> new GeneralException(GeneralErrorCode.FORBIDDEN));
+                .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
     }
 
     private void validateTempImageKey(String imageKey) {
@@ -168,7 +169,7 @@ public class StickerServiceImpl implements StickerService {
         }
 
         if (sticker.getUser() == null || !sticker.getUser().getId().equals(userId)) {
-            throw new GeneralException(StickerErrorCode.STICKER_ACCESS_DENIED);
+            throw new GeneralException(GeneralErrorCode.FORBIDDEN);
         }
     }
 }
