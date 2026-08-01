@@ -27,9 +27,7 @@ import com.yeogido.backend.domain.hashtag.repository.HashtagRepository;
 import com.yeogido.backend.domain.place.entity.Place;
 import com.yeogido.backend.domain.place.entity.QPlaceLike;
 import com.yeogido.backend.domain.place.repository.PlaceLikeRepository;
-import com.yeogido.backend.domain.place.repository.PlaceRepository;
 import com.yeogido.backend.domain.region.entity.QRegion;
-import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.region.exception.RegionErrorCode;
 import com.yeogido.backend.domain.region.repository.RegionRepository;
 import com.yeogido.backend.domain.user.entity.BusinessInfo;
@@ -66,6 +64,7 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
     private final UserRepository userRepository;
     private final HashtagRepository hashtagRepository;
     private final BusinessInfoRepository businessInfoRepository;
+    private final RegionRepository regionRepository;
     private final FileService fileService;
     private final S3Service s3Service;
 
