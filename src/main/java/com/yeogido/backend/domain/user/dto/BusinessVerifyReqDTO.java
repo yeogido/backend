@@ -1,6 +1,8 @@
 package com.yeogido.backend.domain.user.dto;
 
+import com.yeogido.backend.domain.place.dto.request.PlaceRequest;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
@@ -44,7 +46,12 @@ public record BusinessVerifyReqDTO(
                 example = "서울특별시 강남구 테헤란로 123"
         )
         @NotBlank(message = "사업장 주소는 필수입니다")
-        String businessAddress
+        String businessAddress,
+
+        @Valid
+        @NotNull(message = "카카오 장소 정보는 필수입니다")
+        @Schema(description = "인증할 사업장의 카카오 장소 정보")
+        PlaceRequest place
 
 ) {
     public BusinessVerifyReqDTO {
