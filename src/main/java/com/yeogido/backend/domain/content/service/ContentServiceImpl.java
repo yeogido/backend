@@ -214,34 +214,7 @@ public class ContentServiceImpl implements ContentService{
                     nextCursorId = last.getId();
                 }
 
-                Map<Long, Long> likeCountMap = getLikeCountMap(contents);
-
-                List<ContentHashtag> contentHashtags =
-                        contentHashtagRepository.findAllByContentIn(contents);
-
-                Map<Long, List<String>> hashtagMap =
-                        contentHashtags.stream()
-                                .collect(Collectors.groupingBy(
-                                        ch -> ch.getContent().getId(),
-                                        Collectors.mapping(
-                                                ch -> ch.getHashtag().getHashtagName(),
-                                                Collectors.toList()
-                                        )
-                                ));
-
-                result = contents.stream()
-                        .map(content -> {
-                            String imageUrl =
-                                    s3Service.getImageUrl(content.getThumbnailImage());
-
-                            return ContentConverter.toContentInfo(
-                                    content,
-                                    imageUrl,
-                                    likeCountMap.getOrDefault(content.getId(), 0L),
-                                    hashtagMap.getOrDefault(content.getId(), List.of())
-                            );
-                        })
-                        .toList();
+                result = createContentInfos(contents);
 
             }
             case DISTANCE ->{
@@ -269,34 +242,7 @@ public class ContentServiceImpl implements ContentService{
                     nextCursorId = contents.get(contents.size() - 1).getId();
                 }
 
-                Map<Long, Long> likeCountMap = getLikeCountMap(contents);
-
-                List<ContentHashtag> contentHashtags =
-                        contentHashtagRepository.findAllByContentIn(contents);
-
-                Map<Long, List<String>> hashtagMap =
-                        contentHashtags.stream()
-                                .collect(Collectors.groupingBy(
-                                        ch -> ch.getContent().getId(),
-                                        Collectors.mapping(
-                                                ch -> ch.getHashtag().getHashtagName(),
-                                                Collectors.toList()
-                                        )
-                                ));
-
-                result = contents.stream()
-                        .map(content -> {
-                            String imageUrl =
-                                    s3Service.getImageUrl(content.getThumbnailImage());
-
-                            return ContentConverter.toContentInfo(
-                                    content,
-                                    imageUrl,
-                                    likeCountMap.getOrDefault(content.getId(), 0L),
-                                    hashtagMap.getOrDefault(content.getId(), List.of())
-                            );
-                        })
-                        .toList();
+                result = createContentInfos(contents);
 
             }
 
@@ -330,31 +276,7 @@ public class ContentServiceImpl implements ContentService{
                 List<ContentHashtag> contentHashtags =
                         contentHashtagRepository.findAllByContentIn(contents);
 
-                Map<Long, List<String>> hashtagMap =
-                        contentHashtags.stream()
-                                .collect(Collectors.groupingBy(
-                                        ch -> ch.getContent().getId(),
-                                        Collectors.mapping(
-                                                ch -> ch.getHashtag().getHashtagName(),
-                                                Collectors.toList()
-                                        )
-                                ));
-
-                Map<Long, Long> likeCountMap = getLikeCountMap(contents);
-
-                result = contents.stream()
-                        .map(content -> {
-                            String imageUrl =
-                                    s3Service.getImageUrl(content.getThumbnailImage());
-
-                            return ContentConverter.toContentInfo(
-                                    content,
-                                    imageUrl,
-                                    likeCountMap.getOrDefault(content.getId(), 0L),
-                                    hashtagMap.getOrDefault(content.getId(), List.of())
-                            );
-                        })
-                        .toList();
+                result = createContentInfos(contents);
             }
         }
 
@@ -580,6 +502,38 @@ public class ContentServiceImpl implements ContentService{
                         tuple -> tuple.get(qContentLike.content.id),
                         tuple -> tuple.get(qContentLike.id.count())
                 ));
+    }
+
+    private List<ContentResDTO.ContentInfo> createContentInfos(List<Content> contents) {
+
+        Map<Long, Long> likeCountMap = getLikeCountMap(contents);
+
+        List<ContentHashtag> contentHashtags =
+                contentHashtagRepository.findAllByContentIn(contents);
+
+        Map<Long, List<String>> hashtagMap =
+                contentHashtags.stream()
+                        .collect(Collectors.groupingBy(
+                                ch -> ch.getContent().getId(),
+                                Collectors.mapping(
+                                        ch -> ch.getHashtag().getHashtagName(),
+                                        Collectors.toList()
+                                )
+                        ));
+
+        return contents.stream()
+                .map(content -> {
+                    String imageUrl =
+                            s3Service.getImageUrl(content.getThumbnailImage());
+
+                    return ContentConverter.toContentInfo(
+                            content,
+                            imageUrl,
+                            likeCountMap.getOrDefault(content.getId(), 0L),
+                            hashtagMap.getOrDefault(content.getId(), List.of())
+                    );
+                })
+                .toList();
     }
 
 
