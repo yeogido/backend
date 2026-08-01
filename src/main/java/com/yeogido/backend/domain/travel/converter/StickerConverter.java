@@ -22,7 +22,7 @@ public class StickerConverter {
             List<StickerResDTO.StickerResponse> stickers
     ) {
         return new StickerResDTO.StickerCategoryResponse(
-                category.name(),
+                category,
                 stickers
         );
     }
@@ -35,7 +35,7 @@ public class StickerConverter {
                 sticker.getId(),
                 sticker.getName(),
                 imageUrlResolver.apply(sticker.getImageKey()),
-                sticker.getStickerType().name()
+                sticker.getStickerType()
         );
     }
 }

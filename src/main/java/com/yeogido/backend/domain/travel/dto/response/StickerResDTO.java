@@ -1,5 +1,7 @@
 package com.yeogido.backend.domain.travel.dto.response;
 
+import com.yeogido.backend.domain.travel.enums.StickerCategory;
+import com.yeogido.backend.domain.travel.enums.StickerType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
 
@@ -15,7 +17,7 @@ public class StickerResDTO {
     @Schema(name = "StickerCategoryResponse", description = "카테고리별 스티커 목록 응답")
     public record StickerCategoryResponse(
             @Schema(description = "스티커 카테고리", example = "NATURE")
-            String category,
+            StickerCategory category,
 
             @Schema(description = "해당 카테고리에 포함된 스티커 목록")
             List<StickerResponse> stickers
@@ -34,7 +36,7 @@ public class StickerResDTO {
             String imageUrl,
 
             @Schema(description = "스티커 유형", example = "DEFAULT")
-            String stickerType
+            StickerType stickerType
     ) {
     }
 }
