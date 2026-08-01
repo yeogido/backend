@@ -704,12 +704,12 @@ public class CourseServiceImpl implements CourseService {
             return Map.of();
         }
 
-        return courseHashtagRepository.findByCourseIdIn(courseIds)
+        return courseHashtagRepository.findHashtagNamesByCourseIdIn(courseIds)
                 .stream()
                 .collect(Collectors.groupingBy(
-                        courseHashtag -> courseHashtag.getCourse().getId(),
+                        CourseHashtagRepository.CourseHashtagNameProjection::getCourseId,
                         Collectors.mapping(
-                                courseHashtag -> courseHashtag.getHashtag().getHashtagName(),
+                                CourseHashtagRepository.CourseHashtagNameProjection::getHashtagName,
                                 Collectors.toList()
                         )
                 ));
