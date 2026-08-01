@@ -128,6 +128,21 @@ public class SecurityConfig {
                                 "/api/v1/business-promotions/**"
                         ).authenticated()
 
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/v1/contents"
+                        ).authenticated()
+
+                        .requestMatchers(
+                                HttpMethod.PATCH,
+                                "/api/v1/contents/*"
+                        ).authenticated()
+
+                        .requestMatchers(
+                                HttpMethod.DELETE,
+                                "/api/v1/contents/*"
+                        ).authenticated()
+
                         .anyRequest().permitAll()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
