@@ -19,7 +19,7 @@ public class UserConverter {
     private UserConverter() {
     }
 
-    public static UserResDTO.Profile toProfile(User user) {
+    public static UserResDTO.Profile toProfile(User user, String profileImageUrl) {
         return new UserResDTO.Profile(
                 user.getId(),
                 user.getEmail(),
@@ -27,7 +27,7 @@ public class UserConverter {
                 user.getRegion().getName(),
                 user.getBirthYear(),
                 user.getRole(),
-                user.getProfileImage()
+                profileImageUrl
         );
     }
 

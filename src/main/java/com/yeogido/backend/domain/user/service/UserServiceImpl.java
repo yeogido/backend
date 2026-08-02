@@ -614,7 +614,7 @@ public class UserServiceImpl implements UserService{
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
 
-        return UserConverter.toProfile(user);
+        return UserConverter.toProfile(user, s3Service.getImageUrl(user.getProfileImage()));
     }
 
     @Override
