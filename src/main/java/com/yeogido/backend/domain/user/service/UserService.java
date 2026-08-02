@@ -1,5 +1,6 @@
 package com.yeogido.backend.domain.user.service;
 
+import com.yeogido.backend.domain.user.dto.UserReqDTO;
 import com.yeogido.backend.domain.user.dto.UserResDTO;
 import com.yeogido.backend.domain.user.enums.LikeCategory;
 import com.yeogido.backend.domain.user.enums.PostCategory;
@@ -37,4 +38,6 @@ public interface UserService {
             Long cursorId,
             Integer size
     );
+
+    UserResDTO.UpdateProfile updateMyProfile(Long userId, UserReqDTO.UpdateProfile request);
 }

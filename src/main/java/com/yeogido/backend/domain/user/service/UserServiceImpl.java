@@ -29,7 +29,10 @@ import com.yeogido.backend.domain.place.entity.QPlace;
 import com.yeogido.backend.domain.place.entity.QPlaceLike;
 import com.yeogido.backend.domain.place.repository.PlaceLikeRepository;
 import com.yeogido.backend.domain.region.entity.Region;
+import com.yeogido.backend.domain.region.exception.RegionErrorCode;
+import com.yeogido.backend.domain.region.repository.RegionRepository;
 import com.yeogido.backend.domain.user.converter.UserConverter;
+import com.yeogido.backend.domain.user.dto.UserReqDTO;
 import com.yeogido.backend.domain.user.dto.UserResDTO;
 import com.yeogido.backend.domain.user.entity.User;
 import com.yeogido.backend.domain.user.enums.UserStatus;
@@ -66,6 +69,7 @@ public class UserServiceImpl implements UserService{
     private final CourseLikeRepository courseLikeRepository;
     private final ContentLikeRepository contentLikeRepository;
     private final PlaceLikeRepository placeLikeRepository;
+    private final RegionRepository regionRepository;
     private final CourseHashtagRepository courseHashtagRepository;
     private final ContentHashtagRepository contentHashtagRepository;
     private final S3Service s3Service;
@@ -934,5 +938,26 @@ public class UserServiceImpl implements UserService{
             Long id,
             UserResDTO.MyPostResponse response
     ) {}
+
+    @Override
+    @Transactional
+    public UserResDTO.UpdateProfile updateMyProfile(Long userId, UserReqDTO.UpdateProfile request) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
+
+        Region region = null;
+        if (request.regionId() != null) {
+            region = regionRepository.findById(request.regionId())
+                    .orElseThrow(() -> new GeneralException(RegionErrorCode.REGION_NOT_FOUND));
+        }
+
+        user.updateProfile(
+                request.nickname(),
+                request.birthYear(),
+                region
+        );
+
+        return new UserResDTO.UpdateProfile(user.getId());
+    }
 
 }

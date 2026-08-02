@@ -1,5 +1,6 @@
 package com.yeogido.backend.domain.user.controller;
 
+import com.yeogido.backend.domain.user.dto.UserReqDTO;
 import com.yeogido.backend.domain.user.dto.UserResDTO;
 import com.yeogido.backend.domain.user.enums.SortType;
 import com.yeogido.backend.domain.user.enums.PostCategory;
@@ -11,10 +12,13 @@ import com.yeogido.backend.global.common.response.CursorResponse;
 import com.yeogido.backend.domain.auth.security.AuthUser;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -108,5 +112,15 @@ public class UserController {
                 );
 
         return ApiResponse.onSuccess(SuccessCode.OK, result);
+    }
+
+    @Operation(summary = "내 프로필 수정 API", description = "로그인한 사용자의 닉네임, 출생연도, 지역을 수정합니다.")
+    @PatchMapping("/me")
+    public ApiResponse<UserResDTO.UpdateProfile> updateMyProfile(
+            @AuthenticationPrincipal AuthUser authUser,
+            @Valid @RequestBody UserReqDTO.UpdateProfile request
+    ) {
+        UserResDTO.UpdateProfile response = userService.updateMyProfile(authUser.userId(), request);
+        return ApiResponse.onSuccess(SuccessCode.OK, response);
     }
 }
