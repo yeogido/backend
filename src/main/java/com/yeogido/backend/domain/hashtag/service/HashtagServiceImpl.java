@@ -16,7 +16,7 @@ public class HashtagServiceImpl implements HashtagService {
 
     @Override
     public List<HashtagResDTO.HashtagRes> getHashtags() {
-        return hashtagRepository.findAllByOrderByIdAsc().stream()
+        return hashtagRepository.findAllByDisplayOrder().stream()
                 .map(this::toHashtagRes)
                 .toList();
     }
