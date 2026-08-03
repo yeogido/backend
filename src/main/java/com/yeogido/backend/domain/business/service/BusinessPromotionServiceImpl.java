@@ -3,6 +3,7 @@ package com.yeogido.backend.domain.business.service;
 import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.NumberExpression;
+import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import com.yeogido.backend.domain.business.converter.BusinessPromotionConverter;
 import com.yeogido.backend.domain.business.dto.request.BusinessPromotionRequest;
@@ -26,6 +27,9 @@ import com.yeogido.backend.domain.hashtag.repository.HashtagRepository;
 import com.yeogido.backend.domain.place.entity.Place;
 import com.yeogido.backend.domain.place.entity.QPlaceLike;
 import com.yeogido.backend.domain.place.repository.PlaceLikeRepository;
+import com.yeogido.backend.domain.region.entity.QRegion;
+import com.yeogido.backend.domain.region.exception.RegionErrorCode;
+import com.yeogido.backend.domain.region.repository.RegionRepository;
 import com.yeogido.backend.domain.user.entity.BusinessInfo;
 import com.yeogido.backend.domain.user.entity.User;
 import com.yeogido.backend.domain.user.enums.BusinessVerificationStatus;
@@ -60,6 +64,7 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
     private final UserRepository userRepository;
     private final HashtagRepository hashtagRepository;
     private final BusinessInfoRepository businessInfoRepository;
+    private final RegionRepository regionRepository;
     private final FileService fileService;
     private final S3Service s3Service;
 
@@ -558,6 +563,7 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
             String cursorValue,
             Long cursorId,
             Integer size,
+            Long regionId,
             PromotionCategory category,
             PromotionSortType sort
     ) {
@@ -566,6 +572,9 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
         condition.and(
                 qPromotion.status.eq(PromotionStatus.ACTIVE)
         );
+
+        validateRegionExists(regionId);
+        condition.and(regionIdEq(regionId));
 
         if (category != null) {
             condition.and(qPromotion.promotionCategory.eq(category));
@@ -728,6 +737,32 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
                 nextCursorValue,
                 nextCursorId,
                 hasNext
+        );
+    }
+
+    private void validateRegionExists(Long regionId) {
+        if (regionId != null && !regionRepository.existsById(regionId)) {
+            throw new GeneralException(
+                    RegionErrorCode.REGION_NOT_FOUND
+            );
+        }
+    }
+
+    private BooleanExpression regionIdEq(Long regionId) {
+        if (regionId == null) {
+            return null;
+        }
+
+        QRegion filterRegion = new QRegion("filterRegion");
+
+        return qPromotion.place.region.id.in(
+                JPAExpressions
+                        .select(filterRegion.id)
+                        .from(filterRegion)
+                        .where(
+                                filterRegion.id.eq(regionId)
+                                        .or(filterRegion.parent.id.eq(regionId))
+                        )
         );
     }
 
