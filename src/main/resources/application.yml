@@ -32,6 +32,8 @@ cloud:
       secret-key: ${AWS_SECRET_KEY}
     region:
       static: ${AWS_REGION}
+    cloudfront:
+      domain: ${CLOUDFRONT_DOMAIN}
 
 app:
   s3:
