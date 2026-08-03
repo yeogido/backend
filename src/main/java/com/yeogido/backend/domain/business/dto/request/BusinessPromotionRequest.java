@@ -86,6 +86,12 @@ public class BusinessPromotionRequest {
                     example = "https://instagram.com/waveoncoffee")
             String snsAccount,
 
+            @Schema(
+                    description = "기존 SNS 계정 삭제 여부",
+                    example = "false"
+            )
+            Boolean clearSnsAccount,
+
             @Schema(description = "전화번호", example = "051-727-1660")
             String phoneNumber,
 
