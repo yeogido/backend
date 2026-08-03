@@ -1,0 +1,2 @@
+ALTER TABLE hashtag
+    ADD COLUMN display_order INT NOT NULL DEFAULT 0;
