@@ -18,4 +18,8 @@ public class Hashtag extends BaseEntity {
 
     @Column(name = "hashtag_name", nullable = false, length = 50)
     private String hashtagName;
+
+    @Column(name = "display_order", nullable = false)
+    @Builder.Default
+    private int displayOrder = 0;
 }
