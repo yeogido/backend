@@ -53,7 +53,12 @@ public class BusinessPromotion extends BaseEntity {
     private Integer recommendationPriority = 0;
 
     public void changePlace(Place place) {
+
         this.place = place;
+    }
+
+    public void clearSnsAccount() {
+        this.snsAccount = null;
     }
 
     public void update(
