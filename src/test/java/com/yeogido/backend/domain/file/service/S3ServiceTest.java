@@ -1,6 +1,7 @@
 package com.yeogido.backend.domain.file.service;
 
 import com.yeogido.backend.domain.file.enums.ImageDirectory;
+import com.yeogido.backend.domain.file.exception.FileErrorCode;
 import com.yeogido.backend.global.exception.GeneralErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
 import org.junit.jupiter.api.BeforeEach;
@@ -14,6 +15,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 
@@ -239,6 +241,94 @@ class S3ServiceTest {
         ).thenThrow(
                 S3Exception.builder()
                         .message("copy failed")
+                        .build()
+        );
+
+        assertThatThrownBy(
+                () -> s3Service.moveToDirectory(
+                        "temp/image.jpg",
+                        ImageDirectory.COURSE
+                )
+        )
+                .isInstanceOf(GeneralException.class)
+                .extracting("errorCode")
+                .isEqualTo(
+                        GeneralErrorCode.INTERNAL_SERVER_ERROR
+                );
+
+        verify(
+                s3Client,
+                never()
+        ).deleteObject(any(DeleteObjectRequest.class));
+    }
+
+    @Test
+    void moveToDirectoryRejectsMissingImageKeyFromNoSuchKeyException() {
+        when(
+                s3Client.copyObject(
+                        any(CopyObjectRequest.class)
+                )
+        ).thenThrow(
+                NoSuchKeyException.builder()
+                        .message("missing key")
+                        .build()
+        );
+
+        assertThatThrownBy(
+                () -> s3Service.moveToDirectory(
+                        "temp/missing-image.jpg",
+                        ImageDirectory.COURSE
+                )
+        )
+                .isInstanceOf(GeneralException.class)
+                .extracting("errorCode")
+                .isEqualTo(FileErrorCode.INVALID_IMAGE_KEY);
+
+        verify(
+                s3Client,
+                never()
+        ).deleteObject(any(DeleteObjectRequest.class));
+    }
+
+    @Test
+    void moveToDirectoryRejectsMissingImageKeyFromS3NotFoundStatus() {
+        when(
+                s3Client.copyObject(
+                        any(CopyObjectRequest.class)
+                )
+        ).thenThrow(
+                S3Exception.builder()
+                        .message("not found")
+                        .statusCode(404)
+                        .build()
+        );
+
+        assertThatThrownBy(
+                () -> s3Service.moveToDirectory(
+                        "temp/missing-image.jpg",
+                        ImageDirectory.COURSE
+                )
+        )
+                .isInstanceOf(GeneralException.class)
+                .extracting("errorCode")
+                .isEqualTo(FileErrorCode.INVALID_IMAGE_KEY);
+
+        verify(
+                s3Client,
+                never()
+        ).deleteObject(any(DeleteObjectRequest.class));
+    }
+
+    @Test
+    void moveToDirectoryKeepsForbiddenS3FailureAsInternalServerError() {
+        when(
+                s3Client.copyObject(
+                        any(CopyObjectRequest.class)
+                )
+        ).thenThrow(
+                S3Exception.builder()
+                        .message("forbidden")
+                        .statusCode(403)
                         .build()
         );
 

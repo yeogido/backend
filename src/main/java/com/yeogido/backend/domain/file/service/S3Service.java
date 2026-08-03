@@ -2,9 +2,11 @@ package com.yeogido.backend.domain.file.service;
 
 import com.yeogido.backend.domain.file.dto.response.FileResDTO;
 import com.yeogido.backend.domain.file.enums.ImageDirectory;
+import com.yeogido.backend.domain.file.exception.FileErrorCode;
 import com.yeogido.backend.global.exception.GeneralErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
@@ -13,7 +15,9 @@ import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
@@ -29,6 +33,7 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class S3Service {
 
     private static final Duration PRESIGNED_URL_DURATION = Duration.ofMinutes(10);
@@ -159,6 +164,23 @@ public class S3Service {
             copyObject(tempKey, objectKey);
             deleteObject(tempKey);
         } catch (AwsServiceException | SdkClientException e) {
+            if (isMissingS3Key(e)) {
+                log.warn(
+                        "Invalid S3 image key requested. sourceKey={}, destinationKey={}",
+                        tempKey,
+                        objectKey
+                );
+
+                throw new GeneralException(FileErrorCode.INVALID_IMAGE_KEY);
+            }
+
+            log.error(
+                    "Failed to move S3 image. sourceKey={}, destinationKey={}",
+                    tempKey,
+                    objectKey,
+                    e
+            );
+
             throw new GeneralException(
                     GeneralErrorCode.INTERNAL_SERVER_ERROR
             );
@@ -262,6 +284,12 @@ public class S3Service {
                         .build();
 
         s3Client.deleteObject(deleteObjectRequest);
+    }
+
+    private boolean isMissingS3Key(Exception e) {
+        return e instanceof NoSuchKeyException
+                || (e instanceof S3Exception s3Exception
+                && s3Exception.statusCode() == 404);
     }
 
     private String extractExtension(String fileName) {
