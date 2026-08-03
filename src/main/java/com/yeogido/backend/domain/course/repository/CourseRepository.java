@@ -9,6 +9,7 @@ import com.yeogido.backend.domain.region.enums.RegionType;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -39,6 +40,18 @@ public interface CourseRepository extends JpaRepository<Course, Long>, CourseQue
               and c.deletedAt is null
             """)
     Optional<CourseSummaryProjection> findSummaryByCourseId(@Param("courseId") Long courseId);
+
+    @Modifying(flushAutomatically = true)
+    @Query("""
+            update Course c
+            set c.deletedAt = :deletedAt
+            where c.user.id = :userId
+              and c.deletedAt is null
+            """)
+    int softDeleteAllByUserId(
+            @Param("userId") Long userId,
+            @Param("deletedAt") LocalDateTime deletedAt
+    );
 
     @Query("""
             select

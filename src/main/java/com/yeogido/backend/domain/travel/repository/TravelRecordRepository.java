@@ -6,10 +6,18 @@ import java.util.List;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface TravelRecordRepository extends JpaRepository<TravelRecord, Long> {
+
+    @Modifying(flushAutomatically = true)
+    @Query("""
+            delete from TravelRecord tr
+            where tr.user.id = :userId
+            """)
+    int deleteAllByUserId(@Param("userId") Long userId);
 
     @Query("""
             select distinct year(tr.endDate)

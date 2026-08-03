@@ -4,6 +4,7 @@ import com.yeogido.backend.domain.content.entity.Content;
 import com.yeogido.backend.domain.content.entity.ContentLike;
 import com.yeogido.backend.domain.user.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -23,6 +24,13 @@ public interface ContentLikeRepository extends JpaRepository<ContentLike,Long> {
     Optional<ContentLike> findByUserAndContent(User user, Content content);
 
     void deleteByContent(Content content);
+
+    @Modifying(flushAutomatically = true)
+    @Query("""
+        DELETE FROM ContentLike contentLike
+        WHERE contentLike.user.id = :userId
+        """)
+    int deleteAllByUserId(@Param("userId") Long userId);
 
     @Query("""
         SELECT contentLike.content.id
