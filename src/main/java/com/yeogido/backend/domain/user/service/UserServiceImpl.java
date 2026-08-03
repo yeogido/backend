@@ -22,6 +22,10 @@ import com.yeogido.backend.domain.course.converter.CourseConverter;
 import com.yeogido.backend.domain.course.entity.*;
 import com.yeogido.backend.domain.course.repository.CourseHashtagRepository;
 import com.yeogido.backend.domain.course.repository.CourseLikeRepository;
+import com.yeogido.backend.domain.course.repository.CourseRepository;
+import com.yeogido.backend.domain.course.repository.CourseReviewImageRepository;
+import com.yeogido.backend.domain.course.repository.CourseReviewRepository;
+import com.yeogido.backend.domain.business.repository.BusinessPromotionRepository;
 import com.yeogido.backend.domain.file.service.S3Service;
 import com.yeogido.backend.domain.place.entity.Place;
 import com.yeogido.backend.domain.place.entity.PlaceLike;
@@ -31,6 +35,10 @@ import com.yeogido.backend.domain.place.repository.PlaceLikeRepository;
 import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.region.exception.RegionErrorCode;
 import com.yeogido.backend.domain.region.repository.RegionRepository;
+import com.yeogido.backend.domain.travel.repository.StickerRepository;
+import com.yeogido.backend.domain.travel.repository.TravelRecordPhotoRepository;
+import com.yeogido.backend.domain.travel.repository.TravelRecordRepository;
+import com.yeogido.backend.domain.travel.repository.TravelRecordStickerRepository;
 import com.yeogido.backend.domain.user.converter.UserConverter;
 import com.yeogido.backend.domain.user.dto.UserReqDTO;
 import com.yeogido.backend.domain.user.dto.UserResDTO;
@@ -72,6 +80,14 @@ public class UserServiceImpl implements UserService{
     private final RegionRepository regionRepository;
     private final CourseHashtagRepository courseHashtagRepository;
     private final ContentHashtagRepository contentHashtagRepository;
+    private final CourseRepository courseRepository;
+    private final CourseReviewRepository courseReviewRepository;
+    private final CourseReviewImageRepository courseReviewImageRepository;
+    private final TravelRecordRepository travelRecordRepository;
+    private final TravelRecordPhotoRepository travelRecordPhotoRepository;
+    private final TravelRecordStickerRepository travelRecordStickerRepository;
+    private final StickerRepository stickerRepository;
+    private final BusinessPromotionRepository businessPromotionRepository;
     private final S3Service s3Service;
     private final RefreshTokenService refreshTokenService;
 
@@ -624,8 +640,28 @@ public class UserServiceImpl implements UserService{
                 .filter(foundUser -> foundUser.getStatus() == UserStatus.ACTIVE)
                 .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
 
+        cleanupUserOwnedData(userId);
         user.withdraw();
         refreshTokenService.delete(userId);
+    }
+
+    private void cleanupUserOwnedData(Long userId) {
+        LocalDateTime deletedAt = LocalDateTime.now();
+
+        courseLikeRepository.deleteAllByUserId(userId);
+        contentLikeRepository.deleteAllByUserId(userId);
+        placeLikeRepository.deleteAllByUserId(userId);
+
+        courseReviewImageRepository.deleteAllByCourseReviewUserId(userId);
+        courseReviewRepository.deleteAllByUserId(userId);
+
+        travelRecordStickerRepository.deleteAllByTravelRecordUserId(userId);
+        travelRecordPhotoRepository.deleteAllByTravelRecordUserId(userId);
+        travelRecordRepository.deleteAllByUserId(userId);
+
+        stickerRepository.softDeleteAllByUserId(userId, deletedAt);
+        courseRepository.softDeleteAllByUserId(userId, deletedAt);
+        businessPromotionRepository.softDeleteAllActiveByUserId(userId);
     }
 
 

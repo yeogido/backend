@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -20,6 +21,13 @@ public interface CourseLikeRepository extends JpaRepository<CourseLike, Long> {
     long countByCourseId(Long courseId);
 
     boolean existsByCourseAndUser(Course course, User user);
+
+    @Modifying(flushAutomatically = true)
+    @Query("""
+            delete from CourseLike cl
+            where cl.user.id = :userId
+            """)
+    int deleteAllByUserId(@Param("userId") Long userId);
 
     @Query("""
             select cl.course.id
