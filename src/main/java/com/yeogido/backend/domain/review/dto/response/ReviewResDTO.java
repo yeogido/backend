@@ -107,7 +107,7 @@ public class ReviewResDTO {
             @Schema(description = "여행 기간 타입", example = "TWO_NIGHT")
             DurationType durationType,
 
-            @Schema(description = "이동 수단 타입", example = "PUBLIC")
+            @Schema(description = "이동 수단 타입", example = "CAR")
             TransportType transportType,
 
             @Schema(description = "좋아요 여부", example = "false")
