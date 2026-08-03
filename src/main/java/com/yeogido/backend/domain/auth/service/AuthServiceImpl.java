@@ -181,15 +181,16 @@ public class AuthServiceImpl implements AuthService {
   public AuthResDTO.Token reissue(AuthReqDTO.Reissue request) {
     AuthUser authUser = jwtTokenProvider.parseRefreshToken(request.refreshToken());
 
-    if (!refreshTokenService.matches(authUser.userId(), request.refreshToken())) {
-      throw new GeneralException(AuthErrorCode.INVALID_REFRESH_TOKEN);
-    }
-
     User user = userRepository.findById(authUser.userId())
       .filter(foundUser -> foundUser.getStatus() == UserStatus.ACTIVE)
       .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
 
-    return issueAndSaveToken(user);
+    AuthResDTO.Token token = jwtTokenProvider.issueToken(user);
+    if (!refreshTokenService.rotate(user.getId(), request.refreshToken(), token.refreshToken())) {
+      throw new GeneralException(AuthErrorCode.INVALID_REFRESH_TOKEN);
+    }
+
+    return token;
   }
 
   private AuthResDTO.Token issueAndSaveToken(User user) {
