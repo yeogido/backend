@@ -57,6 +57,12 @@ public class BusinessPromotionResponse {
             @Schema(description = "짧은 소개글", example = "바다 뷰 완전 잘 보이는 카페!")
             String shortDescription,
 
+            @Schema(description = "해시태그", example = "[\"여름\", \"바다\", \"카페\"]")
+            List<String> hashtags,
+
+            @Schema(description = "작성자 정보")
+            Author author,
+
             @Schema(description = "연결된 장소의 좋아요 수", example = "24")
             Long likeCount,
 
@@ -76,7 +82,7 @@ public class BusinessPromotionResponse {
             @Schema(description = "장소 정보")
             PlaceInfo place,
 
-            @Schema(description = "카테고리", example = "카페")
+            @Schema(description = "카테고리", example = "CAFE")
             PromotionCategory promotionCategory,
 
             @Schema(description = "짧은 소개글", example = "바다 뷰 완전 잘 보이는 카페!")
@@ -200,6 +206,9 @@ public class BusinessPromotionResponse {
 
             @Schema(description = "짧은 소개글", example = "바다 뷰 완전 잘 보이는 카페!")
             String shortDescription,
+
+            @Schema(description = "해시태그", example = "[\"여름\", \"바다\", \"카페\"]")
+            List<String> hashtags,
 
             @Schema(description = "홍보글 상태", example = "ACTIVE")
             String status,
