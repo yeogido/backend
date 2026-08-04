@@ -38,6 +38,7 @@ public class CourseConverter {
                 .title(request.title())
                 .description(request.description())
                 .courseType(courseType)
+                .recommendOrder(defaultRecommendOrder(courseType))
                 .durationType(request.durationType())
                 .transportType(request.transportType())
                 .companionType(request.companionType())
@@ -45,6 +46,10 @@ public class CourseConverter {
                 .monthEnd(request.monthEnd())
                 .thumbnailKey(request.thumbnailKey())
                 .build();
+    }
+
+    private static Integer defaultRecommendOrder(CourseType courseType) {
+        return courseType == CourseType.OFFICIAL ? 0 : null;
     }
 
     public static Place toPlace(CourseReqDTO.CourseItemCreateReq request, Region region) {
