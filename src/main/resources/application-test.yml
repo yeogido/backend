@@ -34,6 +34,8 @@ cloud:
       secret-key: test-secret-key
     region:
       static: ap-northeast-2
+    cloudfront:
+      domain: cdn.example.com
 
 app:
   s3:
