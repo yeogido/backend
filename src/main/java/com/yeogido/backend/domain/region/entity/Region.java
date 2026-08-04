@@ -40,6 +40,9 @@ public class Region extends BaseEntity {
     @Column(name = "image_key", length = 255)
     private String imageKey;
 
+    @Column(columnDefinition = "TEXT")
+    private String description;
+
     @Column(name = "sort_order")
     private Integer sortOrder;
 
