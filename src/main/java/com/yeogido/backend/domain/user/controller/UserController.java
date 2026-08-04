@@ -87,7 +87,7 @@ public class UserController {
 
     @Operation(
             summary = "내가 등록한 게시물 목록 조회",
-            description = "사용자가 등록한 코스 및 후기를 조회합니다."
+            description = "사용자가 등록한 코스, 후기 및 소상공인 홍보글을 조회합니다."
     )
     @GetMapping("/me/posts")
     public ApiResponse<CursorResponse<UserResDTO.MyPostResponse>> getMyPosts(
