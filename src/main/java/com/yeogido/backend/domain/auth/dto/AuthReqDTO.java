@@ -119,4 +119,19 @@ public class AuthReqDTO {
     @NotBlank(message = "인증번호는 필수 입력값입니다.")
     String authCode
   ) {}
+
+  @Schema(name = "AuthPasswordResetReq", description = "비밀번호 재설정 요청")
+  public record PasswordReset(
+    @Schema(description = "비밀번호 재설정 임시 토큰", example = "a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+    @NotBlank(message = "비밀번호 재설정 토큰은 필수 입력값입니다.")
+    String resetToken,
+
+    @Schema(description = "새 비밀번호", example = "newPassword123!")
+    @NotBlank(message = "새 비밀번호는 필수 입력값입니다.")
+    @Pattern(
+      regexp = "^(?=.*[A-Za-z])(?=.*\\d)(?=.*[@$!%*#?&])[A-Za-z\\d@$!%*#?&]{8,20}$",
+      message = "비밀번호는 영문, 숫자, 특수문자를 포함하여 8~20자여야 합니다."
+    )
+    String newPassword
+  ) {}
 }

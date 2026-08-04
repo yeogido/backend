@@ -92,4 +92,11 @@ public class AuthController {
     AuthResDTO.PasswordVerifyCode response = authService.verifyResetCode(request);
     return ApiResponse.onSuccess(SuccessCode.OK, response);
   }
+
+  @Operation(summary = "비밀번호 재설정 API", description = "비밀번호 재설정 임시 토큰을 검증하고 새 비밀번호로 변경합니다.")
+  @PatchMapping("/password/reset")
+  public ApiResponse<Void> resetPassword(@Valid @RequestBody AuthReqDTO.PasswordReset request) {
+    authService.resetPassword(request);
+    return ApiResponse.onSuccess(SuccessCode.OK);
+  }
 }

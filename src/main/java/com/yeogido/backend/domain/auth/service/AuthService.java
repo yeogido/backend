@@ -22,4 +22,6 @@ public interface AuthService {
   void sendResetCode(AuthReqDTO.PasswordSendCode request);
 
   AuthResDTO.PasswordVerifyCode verifyResetCode(AuthReqDTO.PasswordVerifyCode request);
+
+  void resetPassword(AuthReqDTO.PasswordReset request);
 }
