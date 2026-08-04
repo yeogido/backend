@@ -309,9 +309,12 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
                         place.getId()
                 );
 
-        String profileImageUrl = s3Service.getImageUrl(
-                promotion.getUser().getProfileImage()
-        );
+        String profileImageUrl =
+                promotion.getUser().getProfileImage() == null
+                        ? null
+                        : s3Service.getImageUrl(
+                        promotion.getUser().getProfileImage()
+                );
 
         return BusinessPromotionConverter.toDetailResponse(
                 promotion,
