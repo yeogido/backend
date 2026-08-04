@@ -166,6 +166,9 @@ public class BusinessPromotionResponse {
     @Schema(description = "홍보 이미지")
     public record ImageInfo(
 
+            @Schema(description = "이미지 키", example = "business-promotions/5/image.jpg")
+            String imageKey,
+
             @Schema(description = "이미지 URL", example = "https://example.com/image.jpg")
             String imageUrl,
 
