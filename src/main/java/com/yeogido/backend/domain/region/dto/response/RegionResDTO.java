@@ -39,6 +39,9 @@ public class RegionResDTO {
             @Schema(description = "전체 지역명", example = "서울특별시")
             String fullName,
 
+            @Schema(description = "지역 소개글", nullable = true, example = "전통과 현대가 어우러진 대한민국의 수도입니다.")
+            String description,
+
             @Schema(description = "지역 대표 이미지 URL", example = "https://bucket.s3.ap-northeast-2.amazonaws.com/regions/seoul.jpg")
             String imageUrl
     ) { }
