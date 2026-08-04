@@ -153,6 +153,8 @@ public final class BusinessPromotionConverter {
     public static BusinessPromotionResponse.Summary toSummaryResponse(
             BusinessPromotion promotion,
             String thumbnailImageUrl,
+            List<String> hashtags,
+            BusinessPromotionResponse.Author author,
             long likeCount,
             boolean isLiked
     ) {
@@ -168,6 +170,8 @@ public final class BusinessPromotionConverter {
                 .regionName(place.getRegion().getName())
                 .thumbnailImageUrl(thumbnailImageUrl)
                 .shortDescription(promotion.getShortDescription())
+                .hashtags(hashtags)
+                .author(author)
                 .likeCount(likeCount)
                 .isLiked(isLiked)
                 .createdAt(promotion.getCreatedAt())
@@ -177,6 +181,7 @@ public final class BusinessPromotionConverter {
     public static BusinessPromotionResponse.MySummary toMySummaryResponse(
             BusinessPromotion promotion,
             String thumbnailImageUrl,
+            List<String> hashtags,
             long likeCount
     ) {
         Place place = promotion.getPlace();
@@ -189,6 +194,7 @@ public final class BusinessPromotionConverter {
                 .roadAddress(place.getRoadAddress())
                 .thumbnailImageUrl(thumbnailImageUrl)
                 .shortDescription(promotion.getShortDescription())
+                .hashtags(hashtags)
                 .status(promotion.getStatus().name())
                 .likeCount(likeCount)
                 .createdAt(promotion.getCreatedAt())

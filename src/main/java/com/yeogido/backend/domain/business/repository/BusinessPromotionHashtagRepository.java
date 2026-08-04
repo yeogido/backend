@@ -13,4 +13,9 @@ public interface BusinessPromotionHashtagRepository
 
     @EntityGraph(attributePaths = "hashtag")
     List<BusinessPromotionHashtag> findAllByPromotion_IdOrderByHashtag_IdAsc(Long promotionId);
+
+    @EntityGraph(attributePaths = "hashtag")
+    List<BusinessPromotionHashtag> findAllByPromotion_IdInOrderByHashtag_IdAsc(
+            List<Long> promotionIds
+    );
 }

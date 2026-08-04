@@ -429,6 +429,31 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
         return value != null && value.isBlank();
     }
 
+    private Map<Long, List<String>> getHashtagMap(
+            List<Long> promotionIds
+    ) {
+        if (promotionIds.isEmpty()) {
+            return Map.of();
+        }
+
+        return businessPromotionHashtagRepository
+                .findAllByPromotion_IdInOrderByHashtag_IdAsc(
+                        promotionIds
+                )
+                .stream()
+                .collect(Collectors.groupingBy(
+                        promotionHashtag ->
+                                promotionHashtag.getPromotion().getId(),
+                        Collectors.mapping(
+                                promotionHashtag ->
+                                        promotionHashtag
+                                                .getHashtag()
+                                                .getHashtagName(),
+                                Collectors.toList()
+                        )
+                ));
+    }
+
     @Override
     public CursorResponse<BusinessPromotionResponse.MySummary>
     getMyBusinessPromotions(
@@ -494,6 +519,9 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
                                 image -> image
                         ));
 
+        Map<Long, List<String>> hashtagMap =
+                getHashtagMap(promotionIds);
+
         List<Long> placeIds = pageItems.stream()
                 .map(promotion -> promotion.getPlace().getId())
                 .toList();
@@ -529,9 +557,16 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
                                             0L
                                     );
 
+                            List<String> hashtags =
+                                    hashtagMap.getOrDefault(
+                                            promotion.getId(),
+                                            List.of()
+                                    );
+
                             return BusinessPromotionConverter.toMySummaryResponse(
                                     promotion,
                                     thumbnailImageUrl,
+                                    hashtags,
                                     likeCount
                             );
                         })
@@ -668,6 +703,9 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
                                 image -> image
                         ));
 
+        Map<Long, List<String>> hashtagMap =
+                getHashtagMap(promotionIds);
+
         Map<Long, Long> likeCountMap =
                 placeIds.isEmpty()
                         ? Map.of()
@@ -694,9 +732,32 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
 
                             boolean isLiked = likedPlaceIds.contains(place.getId());
 
+                            List<String> hashtags =
+                                    hashtagMap.getOrDefault(
+                                            promotion.getId(),
+                                            List.of()
+                                    );
+
+                            User authorUser = promotion.getUser();
+
+                            String profileImageUrl =
+                                    authorUser.getProfileImage() == null
+                                            ? null
+                                            : s3Service.getImageUrl(
+                                            authorUser.getProfileImage()
+                                    );
+
+                            BusinessPromotionResponse.Author author =
+                                    BusinessPromotionConverter.toAuthorResponse(
+                                            authorUser,
+                                            profileImageUrl
+                                    );
+
                             return BusinessPromotionConverter.toSummaryResponse(
                                     promotion,
                                     thumbnailImageUrl,
+                                    hashtags,
+                                    author,
                                     likeCount,
                                     isLiked
                             );
@@ -774,6 +835,7 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
                 .selectFrom(qPromotion)
                 .join(qPromotion.place).fetchJoin()
                 .join(qPromotion.place.region).fetchJoin()
+                .join(qPromotion.user).fetchJoin()
                 .where(condition)
                 .orderBy(
                         qPromotion.recommendationPriority.desc(),
@@ -817,6 +879,7 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
                 .selectFrom(qPromotion)
                 .join(qPromotion.place).fetchJoin()
                 .join(qPromotion.place.region).fetchJoin()
+                .join(qPromotion.user).fetchJoin()
                 .where(condition, cursorCondition)
                 .orderBy(
                         qPromotion.recommendationPriority.desc(),
@@ -836,6 +899,7 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
                 .from(qPromotion)
                 .join(qPromotion.place).fetchJoin()
                 .join(qPromotion.place.region).fetchJoin()
+                .join(qPromotion.user).fetchJoin()
                 .leftJoin(qPlaceLike)
                 .on(qPlaceLike.place.id.eq(qPromotion.place.id))
                 .where(condition)
@@ -881,6 +945,7 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
                 .from(qPromotion)
                 .join(qPromotion.place).fetchJoin()
                 .join(qPromotion.place.region).fetchJoin()
+                .join(qPromotion.user).fetchJoin()
                 .leftJoin(qPlaceLike)
                 .on(qPlaceLike.place.id.eq(qPromotion.place.id))
                 .where(condition)
