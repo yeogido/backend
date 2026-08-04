@@ -129,7 +129,7 @@ public class CourseReqDTO {
             Integer order,
 
             @NotNull(message = "코스 항목 타입은 필수입니다")
-            @Schema(description = "PLACE인 경우 externalPlaceId, categoryGroupCode, name, roadAddress(또는 lotAddress), latitude, longitude, imageKey를 사용하고, CONTENT인 경우 contentId를 사용합니다.", example = "PLACE")
+            @Schema(description = "PLACE인 경우 externalPlaceId, name, roadAddress(또는 lotAddress), latitude, longitude를 필수로 사용하고 categoryGroupCode, imageKey는 선택으로 사용합니다. CONTENT인 경우 contentId를 사용합니다.", example = "PLACE")
             CourseItemType type,
 
             @Schema(description = "콘텐츠 ID. type=CONTENT인 경우 사용합니다.", example = "10")
@@ -138,7 +138,7 @@ public class CourseReqDTO {
             @Schema(description = "외부 장소 ID. type=PLACE인 경우 필수입니다.", example = "123456")
             String externalPlaceId,
 
-            @Schema(description = "카테고리 그룹 코드. type=PLACE인 경우 필수입니다.", example = "AT4")
+            @Schema(description = "카테고리 그룹 코드. type=PLACE인 경우 선택입니다.", nullable = true, example = "AT4")
             String categoryGroupCode,
 
             @Schema(description = "장소명. type=PLACE인 경우 필수입니다.", example = "광안리")

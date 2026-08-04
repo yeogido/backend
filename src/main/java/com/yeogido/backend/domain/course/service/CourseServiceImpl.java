@@ -591,7 +591,6 @@ public class CourseServiceImpl implements CourseService {
 
     private void validatePlaceItem(CourseReqDTO.CourseItemCreateReq item) {
         if (!StringUtils.hasText(item.externalPlaceId())
-                || !StringUtils.hasText(item.categoryGroupCode())
                 || !StringUtils.hasText(item.name())
                 || (!StringUtils.hasText(item.roadAddress()) && !StringUtils.hasText(item.lotAddress()))
                 || item.latitude() == null
