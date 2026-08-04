@@ -116,6 +116,7 @@ public final class BusinessPromotionConverter {
             String imageUrl
     ) {
         return BusinessPromotionResponse.ImageInfo.builder()
+                .imageKey(promotionImage.getImageKey())
                 .imageUrl(imageUrl)
                 .sortOrder(promotionImage.getSortOrder())
                 .build();

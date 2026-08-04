@@ -9,6 +9,7 @@ import com.yeogido.backend.domain.course.enums.CourseItemType;
 import com.yeogido.backend.domain.course.enums.CourseType;
 import com.yeogido.backend.domain.course.enums.DurationType;
 import com.yeogido.backend.domain.course.enums.TransportType;
+import com.yeogido.backend.domain.course.exception.CourseErrorCode;
 import com.yeogido.backend.domain.course.repository.CourseHashtagRepository;
 import com.yeogido.backend.domain.course.repository.CourseItemRepository;
 import com.yeogido.backend.domain.course.repository.CourseLikeRepository;
@@ -30,6 +31,7 @@ import com.yeogido.backend.domain.user.enums.Gender;
 import com.yeogido.backend.domain.user.enums.UserRole;
 import com.yeogido.backend.domain.user.enums.UserStatus;
 import com.yeogido.backend.domain.user.repository.UserRepository;
+import com.yeogido.backend.global.exception.GeneralException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -48,6 +50,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
@@ -217,7 +220,122 @@ class CourseServiceImplTest {
                 .isEqualTo("courses/moved/courses/thumbnail/sample.jpg");
     }
 
+    @Test
+    void createCourse_WhenPlaceCategoryGroupCodeIsNull_Succeeds() {
+        CourseReqDTO.CourseCreateReq request = createRequestWithPlaceItem(createPlaceItem(null));
+        stubSuccessfulCreateCourse(createUser());
+
+        CourseResDTO.CourseIdRes response = courseService.createCourse(1L, request);
+
+        assertThat(response.courseId()).isEqualTo(10L);
+
+        ArgumentCaptor<CourseReqDTO.CourseItemCreateReq> itemCaptor =
+                ArgumentCaptor.forClass(CourseReqDTO.CourseItemCreateReq.class);
+        verify(placeService).getOrCreatePlace(itemCaptor.capture(), anyMap());
+        assertThat(itemCaptor.getValue().categoryGroupCode()).isNull();
+    }
+
+    @Test
+    void createCourse_WhenPlaceCategoryGroupCodeIsBlank_Succeeds() {
+        CourseReqDTO.CourseCreateReq request = createRequestWithPlaceItem(createPlaceItem(""));
+        stubSuccessfulCreateCourse(createUser());
+
+        CourseResDTO.CourseIdRes response = courseService.createCourse(1L, request);
+
+        assertThat(response.courseId()).isEqualTo(10L);
+
+        ArgumentCaptor<CourseReqDTO.CourseItemCreateReq> itemCaptor =
+                ArgumentCaptor.forClass(CourseReqDTO.CourseItemCreateReq.class);
+        verify(placeService).getOrCreatePlace(itemCaptor.capture(), anyMap());
+        assertThat(itemCaptor.getValue().categoryGroupCode()).isEmpty();
+    }
+
+    @Test
+    void createCourse_WhenPlaceCategoryGroupCodeExists_Succeeds() {
+        CourseReqDTO.CourseCreateReq request = createRequestWithPlaceItem(createPlaceItem("AT4"));
+        stubSuccessfulCreateCourse(createUser());
+
+        CourseResDTO.CourseIdRes response = courseService.createCourse(1L, request);
+
+        assertThat(response.courseId()).isEqualTo(10L);
+
+        ArgumentCaptor<CourseReqDTO.CourseItemCreateReq> itemCaptor =
+                ArgumentCaptor.forClass(CourseReqDTO.CourseItemCreateReq.class);
+        verify(placeService).getOrCreatePlace(itemCaptor.capture(), anyMap());
+        assertThat(itemCaptor.getValue().categoryGroupCode()).isEqualTo("AT4");
+    }
+
+    @Test
+    void updateCourse_WhenPlaceCategoryGroupCodeIsNull_Succeeds() {
+        CourseReqDTO.CourseUpdateReq request = createUpdateRequestWithPlaceItem(createPlaceItem(null));
+        Course course = createCourse(10L);
+
+        when(courseRepository.findByIdAndDeletedAtIsNull(10L)).thenReturn(Optional.of(course));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(createUser()));
+        when(placeService.getPlaceMap(anyList())).thenReturn(Map.of());
+        when(placeService.getOrCreatePlace(any(), any())).thenReturn(createPlace());
+        when(fileService.moveToDirectory(anyString(), eq(ImageDirectory.COURSE)))
+                .thenAnswer(invocation -> "courses/moved/" + invocation.getArgument(0, String.class));
+
+        CourseResDTO.CourseIdRes response = courseService.updateCourse(1L, 10L, request);
+
+        assertThat(response.courseId()).isEqualTo(10L);
+
+        ArgumentCaptor<CourseReqDTO.CourseItemCreateReq> itemCaptor =
+                ArgumentCaptor.forClass(CourseReqDTO.CourseItemCreateReq.class);
+        verify(courseItemRepository).deleteAllByCourseId(10L);
+        verify(placeService).getOrCreatePlace(itemCaptor.capture(), anyMap());
+        assertThat(itemCaptor.getValue().categoryGroupCode()).isNull();
+    }
+
+    @Test
+    void createCourse_WhenRequiredPlaceInfoIsMissing_ThrowsInvalidCourseItem() {
+        CourseReqDTO.CourseCreateReq request = createRequestWithPlaceItem(
+                new CourseReqDTO.CourseItemCreateReq(
+                        1,
+                        CourseItemType.PLACE,
+                        null,
+                        null,
+                        null,
+                        "Gwangalli",
+                        "Busan road",
+                        null,
+                        BigDecimal.valueOf(35.1531698),
+                        BigDecimal.valueOf(129.118666),
+                        "courses/place/sample.jpg"
+                )
+        );
+
+        assertThatThrownBy(() -> courseService.createCourse(1L, request))
+                .isInstanceOf(GeneralException.class)
+                .extracting("errorCode")
+                .isEqualTo(CourseErrorCode.INVALID_COURSE_ITEM);
+
+        verify(courseRepository, never()).save(any(Course.class));
+        verify(placeService, never()).getOrCreatePlace(any(), anyMap());
+    }
+
+    private void stubSuccessfulCreateCourse(User user) {
+        Course course = createCourse(10L);
+        Hashtag hashtag = Hashtag.builder()
+                .hashtagName("sea")
+                .build();
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(regionRepository.findById(1L)).thenReturn(Optional.of(createRegion()));
+        when(courseRepository.save(any(Course.class))).thenReturn(course);
+        when(hashtagRepository.findAllById(List.of(1L))).thenReturn(List.of(hashtag));
+        when(placeService.getPlaceMap(anyList())).thenReturn(Map.of());
+        when(placeService.getOrCreatePlace(any(), any())).thenReturn(createPlace());
+        when(fileService.moveToDirectory(anyString(), eq(ImageDirectory.COURSE)))
+                .thenAnswer(invocation -> "courses/moved/" + invocation.getArgument(0, String.class));
+    }
+
     private CourseReqDTO.CourseCreateReq createRequest() {
+        return createRequestWithPlaceItem(createPlaceItem("AT4"));
+    }
+
+    private CourseReqDTO.CourseCreateReq createRequestWithPlaceItem(CourseReqDTO.CourseItemCreateReq courseItem) {
         return new CourseReqDTO.CourseCreateReq(
                 "Busan night course",
                 1L,
@@ -229,19 +347,38 @@ class CourseServiceImplTest {
                 10,
                 "courses/thumbnail/sample.jpg",
                 List.of(1L),
-                List.of(new CourseReqDTO.CourseItemCreateReq(
-                        1,
-                        CourseItemType.PLACE,
-                        null,
-                        "place-1",
-                        "AT4",
-                        "Gwangalli",
-                        "Busan road",
-                        null,
-                        BigDecimal.valueOf(35.1531698),
-                        BigDecimal.valueOf(129.118666),
-                        "courses/place/sample.jpg"
-                ))
+                List.of(courseItem)
+        );
+    }
+
+    private CourseReqDTO.CourseUpdateReq createUpdateRequestWithPlaceItem(CourseReqDTO.CourseItemCreateReq courseItem) {
+        return new CourseReqDTO.CourseUpdateReq(
+                "Updated Busan night course",
+                "Enjoy updated Busan night views.",
+                DurationType.DAY_TRIP,
+                TransportType.CAR,
+                CompanionType.FRIEND,
+                4,
+                10,
+                "courses/thumbnail/sample.jpg",
+                null,
+                List.of(courseItem)
+        );
+    }
+
+    private CourseReqDTO.CourseItemCreateReq createPlaceItem(String categoryGroupCode) {
+        return new CourseReqDTO.CourseItemCreateReq(
+                1,
+                CourseItemType.PLACE,
+                null,
+                "place-1",
+                categoryGroupCode,
+                "Gwangalli",
+                "Busan road",
+                null,
+                BigDecimal.valueOf(35.1531698),
+                BigDecimal.valueOf(129.118666),
+                "courses/place/sample.jpg"
         );
     }
 
@@ -251,6 +388,7 @@ class CourseServiceImplTest {
                 .region(createRegion())
                 .title("Busan night course")
                 .description("Enjoy Busan night views.")
+                .courseType(CourseType.LOCAL)
                 .durationType(DurationType.DAY_TRIP)
                 .transportType(TransportType.CAR)
                 .companionType(CompanionType.FRIEND)
