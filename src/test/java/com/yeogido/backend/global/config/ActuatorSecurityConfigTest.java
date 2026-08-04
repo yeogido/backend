@@ -33,4 +33,16 @@ class ActuatorSecurityConfigTest {
         mockMvc.perform(get("/actuator"))
                 .andExpect(status().isUnauthorized());
     }
+
+    @Test
+    void authenticatedEndpointRequiresAuthentication() throws Exception {
+        mockMvc.perform(get("/api/v1/users/me"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void publicEndpointIsNotBlockedByAuthentication() throws Exception {
+        mockMvc.perform(get("/api/v1/auth/check-email"))
+                .andExpect(status().isBadRequest());
+    }
 }
