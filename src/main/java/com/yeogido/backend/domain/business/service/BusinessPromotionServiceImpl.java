@@ -182,6 +182,10 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
                 request.snsAccount()
         );
 
+        if (Boolean.TRUE.equals(request.clearSnsAccount())) {
+            promotion.clearSnsAccount();
+        }
+
         boolean replacesDetails = false;
 
         if (request.businessHours() != null) {
@@ -398,12 +402,20 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
     private void validateUpdateRequest(
             BusinessPromotionRequest.Update request
     ) {
+        if (Boolean.TRUE.equals(request.clearSnsAccount())
+                && request.snsAccount() != null) {
+            throw new GeneralException(
+                    GeneralErrorCode.INVALID_REQUEST
+            );
+        }
+
         boolean hasUpdateValue =
                 request.businessInfoId() != null
                         || request.shortDescription() != null
                         || request.ownerComment() != null
                         || request.businessHours() != null
                         || request.snsAccount() != null
+                        || Boolean.TRUE.equals(request.clearSnsAccount())
                         || request.phoneNumber() != null
                         || request.hashtagIds() != null
                         || request.promotionCategory() != null
