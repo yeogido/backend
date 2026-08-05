@@ -45,9 +45,17 @@ public class ReviewController {
     )
     @GetMapping
     public ApiResponse<CursorResponse<ReviewResDTO.ReviewDetail>> getReviews(
+            @AuthenticationPrincipal AuthUser authUser,
             @Valid @ModelAttribute ReviewReqDTO.ListRequest request
     ) {
-        CursorResponse<ReviewResDTO.ReviewDetail> result = reviewService.getReviews(request);
+        Long userId = authUser == null
+                ? null
+                : authUser.userId();
+
+        CursorResponse<ReviewResDTO.ReviewDetail> result = reviewService.getReviews(
+                request,
+                userId
+        );
         return ApiResponse.onSuccess(SuccessCode.OK, result);
     }
 

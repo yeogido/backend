@@ -9,7 +9,8 @@ public interface ReviewService {
     ReviewResDTO.RecentReviewsResponse getRecentReviews();
 
     CursorResponse<ReviewResDTO.ReviewDetail> getReviews(
-            ReviewReqDTO.ListRequest request
+            ReviewReqDTO.ListRequest request,
+            Long userId
     );
 
     ReviewResDTO.UpdateResponse updateReview(
