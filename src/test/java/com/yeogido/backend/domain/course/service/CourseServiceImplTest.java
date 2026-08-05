@@ -189,6 +189,7 @@ class CourseServiceImplTest {
         ArgumentCaptor<Course> courseCaptor = ArgumentCaptor.forClass(Course.class);
         verify(courseRepository).save(courseCaptor.capture());
         assertThat(courseCaptor.getValue().getCourseType()).isEqualTo(CourseType.LOCAL);
+        assertThat(courseCaptor.getValue().getRecommendOrder()).isNull();
         assertThat(courseCaptor.getValue().getThumbnailKey())
                 .isEqualTo("courses/moved/courses/thumbnail/sample.jpg");
     }
@@ -216,6 +217,7 @@ class CourseServiceImplTest {
         ArgumentCaptor<Course> courseCaptor = ArgumentCaptor.forClass(Course.class);
         verify(courseRepository).save(courseCaptor.capture());
         assertThat(courseCaptor.getValue().getCourseType()).isEqualTo(CourseType.OFFICIAL);
+        assertThat(courseCaptor.getValue().getRecommendOrder()).isZero();
         assertThat(courseCaptor.getValue().getThumbnailKey())
                 .isEqualTo("courses/moved/courses/thumbnail/sample.jpg");
     }
