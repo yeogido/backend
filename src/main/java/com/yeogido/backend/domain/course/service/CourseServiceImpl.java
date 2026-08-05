@@ -35,6 +35,7 @@ import com.yeogido.backend.domain.place.service.PlaceService;
 import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.region.exception.RegionErrorCode;
 import com.yeogido.backend.domain.region.repository.RegionRepository;
+import com.yeogido.backend.domain.review.enums.ReviewSortType;
 import com.yeogido.backend.domain.review.exception.ReviewErrorCode;
 import com.yeogido.backend.domain.user.entity.User;
 import com.yeogido.backend.domain.user.enums.UserRole;
@@ -69,7 +70,7 @@ public class CourseServiceImpl implements CourseService {
 
     private static final Long MOCK_MEMBER_ID = 1L;
     private static final int POPULAR_COURSE_SIZE = 2;
-    private static final int COURSE_REVIEW_PREVIEW_SIZE = 4;
+    private static final int DEFAULT_COURSE_REVIEW_PAGE_SIZE = 10;
     private static final int RECOMMENDED_COURSE_SIZE = 5;
 
     private final CourseRepository courseRepository;
@@ -308,22 +309,121 @@ public class CourseServiceImpl implements CourseService {
     }
 
     @Override
-    public List<CourseResDTO.ReviewPreview> getCourseReviews(Long courseId) {
+    public CursorResponse<CourseResDTO.ReviewPreview> getCourseReviews(
+            Long courseId,
+            CourseReqDTO.CourseReviewListReq request
+    ) {
         if (!courseRepository.existsByIdAndDeletedAtIsNull(courseId)) {
             throw new GeneralException(CourseErrorCode.COURSE_NOT_FOUND);
         }
 
-        List<CourseReview> reviews = courseReviewRepository.findLatestReviewsByCourseId(
-                courseId,
-                PageRequest.of(0, COURSE_REVIEW_PREVIEW_SIZE)
-        );
-        Map<Long, List<CourseReviewImage>> imageMap = getCourseReviewImageMap(reviews);
+        int size = resolveCourseReviewSize(request.size());
+        ReviewSortType sort = resolveReviewSort(request.sort());
 
-        return CourseConverter.toReviewPreviews(
-                reviews,
+        List<CourseReview> reviews = findCourseReviews(
+                courseId,
+                request.cursor(),
+                sort,
+                PageRequest.of(0, size + 1)
+        );
+        boolean hasNext = reviews.size() > size;
+        List<CourseReview> content = hasNext
+                ? reviews.subList(0, size)
+                : reviews;
+
+        Map<Long, List<CourseReviewImage>> imageMap = getCourseReviewImageMap(content);
+
+        List<CourseResDTO.ReviewPreview> items = CourseConverter.toReviewPreviews(
+                content,
                 imageMap,
                 s3Service::getImageUrl
         );
+
+        Object cursorValue = getNextCourseReviewCursorValue(content, sort);
+        Long cursorId = content.isEmpty()
+                ? null
+                : content.get(content.size() - 1).getId();
+
+        return CursorResponse.of(items, cursorValue, cursorId, hasNext);
+    }
+
+    private List<CourseReview> findCourseReviews(
+            Long courseId,
+            Long cursor,
+            ReviewSortType sort,
+            Pageable pageable
+    ) {
+        if (cursor == null) {
+            return findFirstCourseReviewPage(courseId, sort, pageable);
+        }
+
+        CourseReview cursorReview = courseReviewRepository.findById(cursor)
+                .orElseThrow(() -> new GeneralException(GeneralErrorCode.INVALID_REQUEST));
+
+        if (!cursorReview.getCourse().getId().equals(courseId)) {
+            throw new GeneralException(GeneralErrorCode.INVALID_REQUEST);
+        }
+
+        if (sort == ReviewSortType.RATING) {
+            return courseReviewRepository.findReviewsByCourseIdOrderByRatingAfterCursor(
+                    courseId,
+                    cursorReview.getRating(),
+                    cursorReview.getId(),
+                    pageable
+            );
+        }
+
+        return courseReviewRepository.findReviewsByCourseIdOrderByLatestAfterCursor(
+                courseId,
+                cursorReview.getCreatedAt(),
+                cursorReview.getId(),
+                pageable
+        );
+    }
+
+    private List<CourseReview> findFirstCourseReviewPage(
+            Long courseId,
+            ReviewSortType sort,
+            Pageable pageable
+    ) {
+        if (sort == ReviewSortType.RATING) {
+            return courseReviewRepository.findReviewsByCourseIdOrderByRating(courseId, pageable);
+        }
+
+        return courseReviewRepository.findLatestReviewsByCourseId(courseId, pageable);
+    }
+
+    private int resolveCourseReviewSize(Integer size) {
+        if (size == null) {
+            return DEFAULT_COURSE_REVIEW_PAGE_SIZE;
+        }
+
+        return size;
+    }
+
+    private ReviewSortType resolveReviewSort(ReviewSortType sort) {
+        if (sort == null) {
+            return ReviewSortType.LATEST;
+        }
+
+        return sort;
+    }
+
+    private Object getNextCourseReviewCursorValue(
+            List<CourseReview> reviews,
+            ReviewSortType sort
+    ) {
+        if (reviews.isEmpty()) {
+            return null;
+        }
+
+        CourseReview lastReview = reviews.get(reviews.size() - 1);
+
+        if (sort == ReviewSortType.RATING) {
+            return lastReview.getRating();
+        }
+
+        return lastReview.getCreatedAt();
     }
 
     @Override

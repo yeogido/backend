@@ -105,6 +105,7 @@ public class ReviewConverter {
     ) {
         return images.stream()
                 .map(image -> new ReviewResDTO.ReviewImage(
+                        image.getImageKey(),
                         imageUrlResolver.apply(image.getImageKey()),
                         image.getImageOrder()
                 ))

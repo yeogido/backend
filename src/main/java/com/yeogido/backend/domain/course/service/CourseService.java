@@ -30,7 +30,10 @@ public interface CourseService {
 
     CourseResDTO.CourseSummary getCourseSummary(Long courseId, Long userId);
 
-    List<CourseResDTO.ReviewPreview> getCourseReviews(Long courseId);
+    CursorResponse<CourseResDTO.ReviewPreview> getCourseReviews(
+            Long courseId,
+            CourseReqDTO.CourseReviewListReq request
+    );
 
     CourseResDTO.ReviewCreateRes createCourseReview(Long userId, Long courseId, CourseReqDTO.ReviewCreateReq request);
 

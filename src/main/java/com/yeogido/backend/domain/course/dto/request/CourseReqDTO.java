@@ -6,6 +6,7 @@ import com.yeogido.backend.domain.course.enums.CourseSortType;
 import com.yeogido.backend.domain.course.enums.CourseType;
 import com.yeogido.backend.domain.course.enums.DurationType;
 import com.yeogido.backend.domain.course.enums.TransportType;
+import com.yeogido.backend.domain.review.enums.ReviewSortType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -216,6 +217,20 @@ public class CourseReqDTO {
 
             @Schema(description = "지역 ID. OFFICIAL 코스에서만 사용할 수 있습니다.", example = "1")
             Long regionId
+    ) { }
+
+    @Schema(name = "CourseReviewListRequest", description = "추천 코스 리뷰 목록 조회 요청")
+    public record CourseReviewListReq(
+            @Min(value = 1, message = "cursor는 1 이상이어야 합니다.")
+            @Schema(description = "마지막으로 조회한 리뷰 ID", example = "10")
+            Long cursor,
+
+            @Min(value = 1, message = "size는 1 이상이어야 합니다.")
+            @Schema(description = "조회할 리뷰 개수", example = "10", defaultValue = "10")
+            Integer size,
+
+            @Schema(description = "정렬 기준", example = "LATEST", allowableValues = {"LATEST", "RATING"}, defaultValue = "LATEST")
+            ReviewSortType sort
     ) { }
 
     @Schema(name = "CourseReviewCreateRequest", description = "추천 코스 리뷰 작성 요청")
