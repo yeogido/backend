@@ -356,11 +356,13 @@ public class TravelRecordServiceImpl implements TravelRecordService {
 
         validateStickerZIndex(stickerRequests);
 
-        Set<Long> existingStickerIds = getExistingStickerIds(travelRecord.getId());
+        Map<Long, Long> existingStickerCounts = getExistingStickerCounts(travelRecord.getId());
+        Map<Long, Long> requestedStickerCounts = countRequestedStickerIds(stickerRequests);
         Map<Long, Sticker> stickerMap = getAvailableStickerMapForUpdate(
                 stickerRequests,
                 userId,
-                existingStickerIds
+                existingStickerCounts,
+                requestedStickerCounts
         );
 
         travelRecordStickerRepository.deleteAllByTravelRecord_Id(travelRecord.getId());
@@ -433,17 +435,30 @@ public class TravelRecordServiceImpl implements TravelRecordService {
         return stickerMap;
     }
 
-    private Set<Long> getExistingStickerIds(Long travelRecordId) {
+    private Map<Long, Long> getExistingStickerCounts(Long travelRecordId) {
         return travelRecordStickerRepository.findByTravelRecordIdOrderByZIndexAsc(travelRecordId)
                 .stream()
-                .map(recordSticker -> recordSticker.getSticker().getId())
-                .collect(Collectors.toSet());
+                .collect(Collectors.groupingBy(
+                        recordSticker -> recordSticker.getSticker().getId(),
+                        Collectors.counting()
+                ));
+    }
+
+    private Map<Long, Long> countRequestedStickerIds(
+            List<TravelRecordReqDTO.StickerRequest> stickerRequests
+    ) {
+        return stickerRequests.stream()
+                .collect(Collectors.groupingBy(
+                        TravelRecordReqDTO.StickerRequest::stickerId,
+                        Collectors.counting()
+                ));
     }
 
     private Map<Long, Sticker> getAvailableStickerMapForUpdate(
             List<TravelRecordReqDTO.StickerRequest> stickerRequests,
             Long userId,
-            Set<Long> existingStickerIds
+            Map<Long, Long> existingStickerCounts,
+            Map<Long, Long> requestedStickerCounts
     ) {
         List<Long> stickerIds = stickerRequests.stream()
                 .map(TravelRecordReqDTO.StickerRequest::stickerId)
@@ -451,7 +466,12 @@ public class TravelRecordServiceImpl implements TravelRecordService {
                 .toList();
 
         Map<Long, Sticker> stickerMap = stickerRepository.findByIdIn(stickerIds).stream()
-                .filter(sticker -> isAvailableStickerForUpdate(sticker, userId, existingStickerIds))
+                .filter(sticker -> isAvailableStickerForUpdate(
+                        sticker,
+                        userId,
+                        existingStickerCounts,
+                        requestedStickerCounts
+                ))
                 .collect(Collectors.toMap(Sticker::getId, Function.identity()));
 
         if (stickerMap.size() != stickerIds.size()) {
@@ -476,7 +496,8 @@ public class TravelRecordServiceImpl implements TravelRecordService {
     private boolean isAvailableStickerForUpdate(
             Sticker sticker,
             Long userId,
-            Set<Long> existingStickerIds
+            Map<Long, Long> existingStickerCounts,
+            Map<Long, Long> requestedStickerCounts
     ) {
         if (sticker.getStickerType() == StickerType.DEFAULT) {
             return true;
@@ -489,7 +510,14 @@ public class TravelRecordServiceImpl implements TravelRecordService {
             return false;
         }
 
-        return sticker.getDeletedAt() == null
-                || existingStickerIds.contains(sticker.getId());
+        if (sticker.getDeletedAt() == null) {
+            return true;
+        }
+
+        Long stickerId = sticker.getId();
+        long existingCount = existingStickerCounts.getOrDefault(stickerId, 0L);
+        long requestedCount = requestedStickerCounts.getOrDefault(stickerId, 0L);
+
+        return requestedCount <= existingCount;
     }
 }
