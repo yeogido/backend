@@ -349,16 +349,24 @@ public class TravelRecordServiceImpl implements TravelRecordService {
             return;
         }
 
-        travelRecordStickerRepository.deleteAllByTravelRecord_Id(travelRecord.getId());
-        travelRecordStickerRepository.flush();
-
         if (stickerRequests.isEmpty()) {
+            travelRecordStickerRepository.deleteAllByTravelRecord_Id(travelRecord.getId());
             return;
         }
 
         validateStickerZIndex(stickerRequests);
 
-        Map<Long, Sticker> stickerMap = getAvailableStickerMap(stickerRequests, userId);
+        Map<Long, Long> existingStickerCounts = getExistingStickerCounts(travelRecord.getId());
+        Map<Long, Long> requestedStickerCounts = countRequestedStickerIds(stickerRequests);
+        Map<Long, Sticker> stickerMap = getAvailableStickerMapForUpdate(
+                stickerRequests,
+                userId,
+                existingStickerCounts,
+                requestedStickerCounts
+        );
+
+        travelRecordStickerRepository.deleteAllByTravelRecord_Id(travelRecord.getId());
+        travelRecordStickerRepository.flush();
 
         List<TravelRecordSticker> stickers = TravelRecordConverter.toTravelRecordStickers(
                 travelRecord,
@@ -427,6 +435,52 @@ public class TravelRecordServiceImpl implements TravelRecordService {
         return stickerMap;
     }
 
+    private Map<Long, Long> getExistingStickerCounts(Long travelRecordId) {
+        return travelRecordStickerRepository.findByTravelRecordIdOrderByZIndexAsc(travelRecordId)
+                .stream()
+                .collect(Collectors.groupingBy(
+                        recordSticker -> recordSticker.getSticker().getId(),
+                        Collectors.counting()
+                ));
+    }
+
+    private Map<Long, Long> countRequestedStickerIds(
+            List<TravelRecordReqDTO.StickerRequest> stickerRequests
+    ) {
+        return stickerRequests.stream()
+                .collect(Collectors.groupingBy(
+                        TravelRecordReqDTO.StickerRequest::stickerId,
+                        Collectors.counting()
+                ));
+    }
+
+    private Map<Long, Sticker> getAvailableStickerMapForUpdate(
+            List<TravelRecordReqDTO.StickerRequest> stickerRequests,
+            Long userId,
+            Map<Long, Long> existingStickerCounts,
+            Map<Long, Long> requestedStickerCounts
+    ) {
+        List<Long> stickerIds = stickerRequests.stream()
+                .map(TravelRecordReqDTO.StickerRequest::stickerId)
+                .distinct()
+                .toList();
+
+        Map<Long, Sticker> stickerMap = stickerRepository.findByIdIn(stickerIds).stream()
+                .filter(sticker -> isAvailableStickerForUpdate(
+                        sticker,
+                        userId,
+                        existingStickerCounts,
+                        requestedStickerCounts
+                ))
+                .collect(Collectors.toMap(Sticker::getId, Function.identity()));
+
+        if (stickerMap.size() != stickerIds.size()) {
+            throw new GeneralException(TravelRecordErrorCode.STICKER_NOT_FOUND);
+        }
+
+        return stickerMap;
+    }
+
     private Predicate<Sticker> isAvailableSticker(Long userId) {
         return sticker -> {
             if (sticker.getStickerType() == StickerType.DEFAULT) {
@@ -437,5 +491,33 @@ public class TravelRecordServiceImpl implements TravelRecordService {
                     && sticker.getUser() != null
                     && sticker.getUser().getId().equals(userId);
         };
+    }
+
+    private boolean isAvailableStickerForUpdate(
+            Sticker sticker,
+            Long userId,
+            Map<Long, Long> existingStickerCounts,
+            Map<Long, Long> requestedStickerCounts
+    ) {
+        if (sticker.getStickerType() == StickerType.DEFAULT) {
+            return true;
+        }
+
+        boolean isOwner = sticker.getUser() != null
+                && sticker.getUser().getId().equals(userId);
+
+        if (!isOwner) {
+            return false;
+        }
+
+        if (sticker.getDeletedAt() == null) {
+            return true;
+        }
+
+        Long stickerId = sticker.getId();
+        long existingCount = existingStickerCounts.getOrDefault(stickerId, 0L);
+        long requestedCount = requestedStickerCounts.getOrDefault(stickerId, 0L);
+
+        return requestedCount <= existingCount;
     }
 }
