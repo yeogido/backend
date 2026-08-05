@@ -57,6 +57,12 @@ public enum AuthErrorCode implements ErrorCode {
     "인증번호가 일치하지 않거나 만료되었습니다."
   ),
 
+  INVALID_PASSWORD_RESET_TOKEN(
+    HttpStatus.UNAUTHORIZED,
+    "AUTH4014",
+    "유효하지 않거나 만료된 비밀번호 재설정 토큰입니다."
+  ),
+
   LOGIN_REQUIRED(
     HttpStatus.UNAUTHORIZED,
     "AUTH4011",
