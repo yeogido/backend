@@ -34,6 +34,7 @@ public class RegionConverter {
                 region.getId(),
                 region.getName(),
                 region.getFullName(),
+                region.getDescription(),
                 imageUrl
         );
     }
