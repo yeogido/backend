@@ -2,6 +2,7 @@ package com.yeogido.backend.domain.content.service;
 
 import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.Tuple;
+import com.querydsl.core.types.dsl.CaseBuilder;
 import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.core.types.dsl.NumberExpression;
 import com.querydsl.jpa.impl.JPAQuery;
@@ -46,6 +47,7 @@ import com.yeogido.backend.domain.user.exception.UserErrorCode;
 import com.yeogido.backend.domain.user.repository.UserRepository;
 
 import com.yeogido.backend.global.common.response.CursorResponse;
+import com.yeogido.backend.global.exception.ErrorCode;
 import com.yeogido.backend.global.exception.GeneralErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
 import jdk.jshell.spi.ExecutionControl;
@@ -57,6 +59,7 @@ import org.springframework.util.StringUtils;
 import java.net.ContentHandler;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -98,6 +101,14 @@ public class ContentServiceImpl implements ContentService{
         LocalDate cursorEndDate = null;
         String cursorValue = request.cursorValue();
         Long cursorId = request.cursorId();
+
+        boolean hasCursorValue = cursorValue != null;
+        boolean hasCursorId = cursorId != null;
+
+        if (hasCursorValue != hasCursorId) {
+            throw new GeneralException(GeneralErrorCode.INVALID_PARAMETER);
+        }
+
         Double cursorDistance = null;
 
         Object nextCursorValue = null;
@@ -155,8 +166,12 @@ public class ContentServiceImpl implements ContentService{
 
             case LIKE ->{
 
-                if (request.cursorValue() != null) {
-                    cursorLikeCount = Long.valueOf(request.cursorValue());
+                if (cursorValue != null) {
+                    try {
+                        cursorLikeCount = Long.valueOf(cursorValue);
+                    } catch (NumberFormatException e) {
+                        throw new GeneralException(GeneralErrorCode.INVALID_PARAMETER);
+                    }
                 }
 
                 List<Tuple> tuples = getLikeContents(
@@ -218,7 +233,11 @@ public class ContentServiceImpl implements ContentService{
             case DEADLINE -> {
 
                 if (cursorValue != null) {
-                    cursorEndDate = LocalDate.parse(cursorValue);
+                    try {
+                        cursorEndDate = LocalDate.parse(cursorValue);
+                    } catch (DateTimeParseException e) {
+                        throw new GeneralException(GeneralErrorCode.INVALID_PARAMETER);
+                    }
                 }
 
                 contents = getDeadlineContents(builder, size, cursorId, cursorEndDate);
@@ -242,7 +261,15 @@ public class ContentServiceImpl implements ContentService{
             case DISTANCE ->{
 
                 if (cursorValue != null) {
-                    cursorDistance = Double.valueOf(cursorValue);
+                    try {
+                        cursorDistance = Double.valueOf(cursorValue);
+
+                        if (!Double.isFinite(cursorDistance)) {
+                            throw new GeneralException(GeneralErrorCode.INVALID_PARAMETER);
+                        }
+                    } catch (NumberFormatException e) {
+                        throw new GeneralException(GeneralErrorCode.INVALID_PARAMETER);
+                    }
                 }
 
                 nextCursorValue = getDistanceContents(
@@ -269,8 +296,12 @@ public class ContentServiceImpl implements ContentService{
             }
 
             case RECOMMEND -> {
-                if (request.cursorValue() != null) {
-                    cursorRecommendPriority = Integer.valueOf(request.cursorValue());
+                if (cursorValue != null) {
+                    try {
+                        cursorRecommendPriority = Integer.valueOf(cursorValue);
+                    } catch (NumberFormatException e) {
+                        throw new GeneralException(GeneralErrorCode.INVALID_PARAMETER);
+                    }
                 }
 
 
@@ -488,24 +519,38 @@ public class ContentServiceImpl implements ContentService{
             Integer cursorPriority,
             Long cursorId
     ) {
+        NumberExpression<Integer> unrecommendedOrder = new CaseBuilder()
+                .when(qContent.recommendPriority.eq(0))
+                .then(1)
+                .otherwise(0);
 
         JPAQuery<Content> query = queryFactory
                 .selectFrom(qContent)
                 .where(builder);
 
         if (cursorPriority != null && cursorId != null) {
-            query.where(
-                    qContent.recommendPriority.gt(cursorPriority)
-                            .or(
-                                    qContent.recommendPriority.eq(cursorPriority)
-                                            .and(qContent.id.gt(cursorId))
-                            )
-            );
+            if (cursorPriority == 0) {
+                query.where(
+                        qContent.recommendPriority.eq(0)
+                                .and(qContent.id.gt(cursorId))
+                );
+            } else {
+                query.where(
+                        qContent.recommendPriority.gt(cursorPriority)
+                                .and(qContent.recommendPriority.ne(0))
+                                .or(
+                                        qContent.recommendPriority.eq(cursorPriority)
+                                                .and(qContent.id.gt(cursorId))
+                                )
+                                .or(qContent.recommendPriority.eq(0))
+                );
+            }
         }
 
         return query
                 .orderBy(
-                        qContent.recommendPriority.asc().nullsLast(),
+                        unrecommendedOrder.asc(),
+                        qContent.recommendPriority.asc(),
                         qContent.id.asc()
                 )
                 .limit(size + 1)
