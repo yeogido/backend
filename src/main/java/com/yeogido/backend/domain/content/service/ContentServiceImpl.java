@@ -2,6 +2,7 @@ package com.yeogido.backend.domain.content.service;
 
 import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.Tuple;
+import com.querydsl.core.types.dsl.CaseBuilder;
 import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.core.types.dsl.NumberExpression;
 import com.querydsl.jpa.impl.JPAQuery;
@@ -518,23 +519,37 @@ public class ContentServiceImpl implements ContentService{
             Integer cursorPriority,
             Long cursorId
     ) {
+        NumberExpression<Integer> unrecommendedOrder = new CaseBuilder()
+                .when(qContent.recommendPriority.eq(0))
+                .then(1)
+                .otherwise(0);
 
         JPAQuery<Content> query = queryFactory
                 .selectFrom(qContent)
                 .where(builder);
 
         if (cursorPriority != null && cursorId != null) {
-            query.where(
-                    qContent.recommendPriority.gt(cursorPriority)
-                            .or(
-                                    qContent.recommendPriority.eq(cursorPriority)
-                                            .and(qContent.id.gt(cursorId))
-                            )
-            );
+            if (cursorPriority == 0) {
+                query.where(
+                        qContent.recommendPriority.eq(0)
+                                .and(qContent.id.gt(cursorId))
+                );
+            } else {
+                query.where(
+                        qContent.recommendPriority.gt(cursorPriority)
+                                .and(qContent.recommendPriority.ne(0))
+                                .or(
+                                        qContent.recommendPriority.eq(cursorPriority)
+                                                .and(qContent.id.gt(cursorId))
+                                )
+                                .or(qContent.recommendPriority.eq(0))
+                );
+            }
         }
 
         return query
                 .orderBy(
+                        unrecommendedOrder.asc(),
                         qContent.recommendPriority.asc(),
                         qContent.id.asc()
                 )

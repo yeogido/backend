@@ -57,7 +57,7 @@ public class Content extends BaseEntity {
 
     @Column(name = "recommend_priority", nullable = false)
     @Builder.Default
-    private Integer recommendPriority = 9999;
+    private Integer recommendPriority = 0;
 
     public ContentStatus getEventStatus() {
         LocalDate today = LocalDate.now();

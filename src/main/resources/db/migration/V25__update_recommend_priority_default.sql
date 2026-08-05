@@ -1,6 +1,6 @@
 UPDATE content
-SET recommend_priority = 9999
+SET recommend_priority = 0
 WHERE recommend_priority IS NULL;
 
 ALTER TABLE content
-MODIFY COLUMN recommend_priority INT NOT NULL DEFAULT 9999;
+MODIFY COLUMN recommend_priority INT NOT NULL DEFAULT 0;
