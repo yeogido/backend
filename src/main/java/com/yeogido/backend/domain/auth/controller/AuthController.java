@@ -39,7 +39,7 @@ public class AuthController {
     return ApiResponse.onSuccess(SuccessCode.OK, response);
   }
 
-  @Operation(summary = "소셜 로그인 API", description = "프론트에서 전달받은 소셜 accessToken을 검증하고, 신규 사용자는 프로필 작성 단계로 안내합니다.")
+  @Operation(summary = "소셜 로그인 API", description = "KAKAO는 authorizationCode와 redirectUri를, NAVER는 accessToken을 전달받아 소셜 로그인을 진행합니다.")
   @PostMapping("/social-login")
   public ApiResponse<AuthResDTO.SocialLogin> socialLogin(@Valid @RequestBody AuthReqDTO.SocialLogin request) {
     AuthResDTO.SocialLogin response = authService.socialLogin(request);

@@ -1,6 +1,7 @@
 package com.yeogido.backend.domain.auth.service;
 
 import com.yeogido.backend.domain.auth.client.KakaoUserInfoClient;
+import com.yeogido.backend.domain.auth.client.KakaoTokenClient;
 import com.yeogido.backend.domain.auth.client.NaverUserInfoClient;
 import com.yeogido.backend.domain.auth.converter.AuthConverter;
 import com.yeogido.backend.domain.auth.dto.AuthReqDTO;
@@ -34,6 +35,7 @@ import org.springframework.util.StringUtils;
 public class AuthServiceImpl implements AuthService {
 
   private final KakaoUserInfoClient kakaoUserInfoClient;
+  private final KakaoTokenClient kakaoTokenClient;
   private final NaverUserInfoClient naverUserInfoClient;
   private final SocialAccountRepository socialAccountRepository;
   private final SocialSignupTokenService socialSignupTokenService;
@@ -110,10 +112,26 @@ public class AuthServiceImpl implements AuthService {
 
   private SocialUserInfo getSocialUserInfo(AuthReqDTO.SocialLogin request) {
     return switch (request.provider()) {
-      case KAKAO -> kakaoUserInfoClient.getUserInfo(request.accessToken());
-      case NAVER -> naverUserInfoClient.getUserInfo(request.accessToken());
+      case KAKAO -> kakaoUserInfoClient.getUserInfo(getKakaoAccessToken(request));
+      case NAVER -> naverUserInfoClient.getUserInfo(getNaverAccessToken(request));
       default -> throw new GeneralException(AuthErrorCode.UNSUPPORTED_SOCIAL_PROVIDER);
     };
+  }
+
+  private String getKakaoAccessToken(AuthReqDTO.SocialLogin request) {
+    if (!StringUtils.hasText(request.authorizationCode()) || !StringUtils.hasText(request.redirectUri())) {
+      throw new GeneralException(AuthErrorCode.INVALID_SOCIAL_LOGIN_REQUEST);
+    }
+
+    return kakaoTokenClient.getAccessToken(request.authorizationCode(), request.redirectUri());
+  }
+
+  private String getNaverAccessToken(AuthReqDTO.SocialLogin request) {
+    if (!StringUtils.hasText(request.accessToken())) {
+      throw new GeneralException(AuthErrorCode.INVALID_SOCIAL_LOGIN_REQUEST);
+    }
+
+    return request.accessToken();
   }
 
   private AuthResDTO.SocialLogin createExistingSocialLoginResponse(SocialAccount socialAccount) {

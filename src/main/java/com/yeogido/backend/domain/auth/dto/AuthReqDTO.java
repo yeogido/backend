@@ -31,7 +31,7 @@ public class AuthReqDTO {
     @NotBlank(message = "닉네임은 필수 입력값입니다.")
     String nickname,
 
-    @Schema(description = "성별", example = "MALE", allowableValues = {"MALE", "FEMALE"})
+    @Schema(description = "성별", example = "MALE", allowableValues = {"MALE", "FEMALE", "NONE"})
     @NotNull(message = "성별은 필수 입력값입니다.")
     Gender gender,
 
@@ -64,9 +64,14 @@ public class AuthReqDTO {
     @NotNull(message = "소셜 로그인 제공자는 필수 입력값입니다.")
     SocialProvider provider,
 
-    @Schema(description = "소셜 accessToken", example = "kakao_access_token")
-    @NotBlank(message = "소셜 accessToken은 필수 입력값입니다.")
-    String accessToken
+    @Schema(description = "소셜 accessToken. NAVER 로그인 시 사용합니다.", example = "naver_access_token", nullable = true)
+    String accessToken,
+
+    @Schema(description = "소셜 authorization code. KAKAO 로그인 시 사용합니다.", example = "kakao_authorization_code", nullable = true)
+    String authorizationCode,
+
+    @Schema(description = "authorization code 발급 시 사용한 redirect URI. KAKAO 로그인 시 사용합니다.", example = "http://localhost:3000/oauth/kakao/callback", nullable = true)
+    String redirectUri
   ) {}
 
   @Schema(name = "AuthSocialSignupCompleteReq", description = "소셜 로그인 추가 프로필 작성 완료 요청")
@@ -79,7 +84,7 @@ public class AuthReqDTO {
     @NotBlank(message = "이름은 필수 입력값입니다.")
     String name,
 
-    @Schema(description = "성별", example = "MALE")
+    @Schema(description = "성별", example = "MALE", allowableValues = {"MALE", "FEMALE", "NONE"})
     @NotNull(message = "성별은 필수 입력값입니다.")
     Gender gender,
 
