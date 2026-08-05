@@ -4,6 +4,7 @@ import com.yeogido.backend.domain.auth.exception.AuthErrorCode;
 import com.yeogido.backend.global.exception.GeneralErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -12,9 +13,11 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class KakaoTokenClient {
 
   private final RestClient.Builder restClientBuilder;
@@ -47,8 +50,16 @@ public class KakaoTokenClient {
       }
 
       return response.accessToken();
+    } catch (RestClientResponseException e) {
+      if (e.getStatusCode().is4xxClientError()) {
+        throw new GeneralException(AuthErrorCode.INVALID_SOCIAL_AUTHORIZATION_CODE);
+      }
+
+      log.warn("Kakao token API returned server error. status={}", e.getStatusCode(), e);
+      throw new GeneralException(GeneralErrorCode.INTERNAL_SERVER_ERROR);
     } catch (RestClientException e) {
-      throw new GeneralException(AuthErrorCode.INVALID_SOCIAL_AUTHORIZATION_CODE);
+      log.warn("Kakao token API request failed.", e);
+      throw new GeneralException(GeneralErrorCode.INTERNAL_SERVER_ERROR);
     }
   }
 
