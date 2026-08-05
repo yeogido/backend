@@ -47,6 +47,9 @@ public class ReviewResDTO {
 
     @Schema(name = "ReviewImage", description = "리뷰 이미지 정보")
     public record ReviewImage(
+            @Schema(description = "리뷰 이미지 key. 리뷰 수정 시 기존 이미지를 유지하기 위해 사용합니다.", example = "reviews/abc.jpg")
+            String imageKey,
+
             @Schema(description = "리뷰 이미지 URL", example = "https://example-bucket.s3.ap-northeast-2.amazonaws.com/reviews/abc.jpg")
             String imageUrl,
 

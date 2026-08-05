@@ -162,13 +162,17 @@ public class CourseController {
         return ApiResponse.onSuccess(SuccessCode.OK, response);
     }
 
-    @Operation(summary = "추천 코스 리뷰 목록 조회", description = "추천 코스 상세 화면에 노출되는 최신 리뷰를 조회합니다.")
+    @Operation(summary = "추천 코스 리뷰 목록 조회", description = "추천 코스 상세 화면에 노출되는 리뷰 목록을 정렬 조건과 커서 기반 페이징으로 조회합니다.")
     @GetMapping("/{courseId}/reviews")
-    public ApiResponse<List<CourseResDTO.ReviewPreview>> getCourseReviews(
+    public ApiResponse<CursorResponse<CourseResDTO.ReviewPreview>> getCourseReviews(
             @Parameter(description = "코스 ID", example = "1")
-            @PathVariable Long courseId
+            @PathVariable Long courseId,
+            @Valid @ModelAttribute CourseReqDTO.CourseReviewListReq request
     ) {
-        List<CourseResDTO.ReviewPreview> response = courseService.getCourseReviews(courseId);
+        CursorResponse<CourseResDTO.ReviewPreview> response = courseService.getCourseReviews(
+                courseId,
+                request
+        );
 
         return ApiResponse.onSuccess(SuccessCode.OK, response);
     }

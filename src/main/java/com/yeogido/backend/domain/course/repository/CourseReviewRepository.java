@@ -48,6 +48,60 @@ public interface CourseReviewRepository extends JpaRepository<CourseReview, Long
             from CourseReview cr
             join fetch cr.user
             join fetch cr.course c
+            where c.id = :courseId
+              and c.deletedAt is null
+            order by cr.rating desc, cr.id desc
+            """)
+    List<CourseReview> findReviewsByCourseIdOrderByRating(
+            @Param("courseId") Long courseId,
+            Pageable pageable
+    );
+
+    @Query("""
+            select cr
+            from CourseReview cr
+            join fetch cr.user
+            join fetch cr.course c
+            where c.id = :courseId
+              and c.deletedAt is null
+              and (
+                    cr.createdAt < :cursorCreatedAt
+                    or (cr.createdAt = :cursorCreatedAt and cr.id < :cursorId)
+              )
+            order by cr.createdAt desc, cr.id desc
+            """)
+    List<CourseReview> findReviewsByCourseIdOrderByLatestAfterCursor(
+            @Param("courseId") Long courseId,
+            @Param("cursorCreatedAt") LocalDateTime cursorCreatedAt,
+            @Param("cursorId") Long cursorId,
+            Pageable pageable
+    );
+
+    @Query("""
+            select cr
+            from CourseReview cr
+            join fetch cr.user
+            join fetch cr.course c
+            where c.id = :courseId
+              and c.deletedAt is null
+              and (
+                    cr.rating < :cursorRating
+                    or (cr.rating = :cursorRating and cr.id < :cursorId)
+              )
+            order by cr.rating desc, cr.id desc
+            """)
+    List<CourseReview> findReviewsByCourseIdOrderByRatingAfterCursor(
+            @Param("courseId") Long courseId,
+            @Param("cursorRating") Integer cursorRating,
+            @Param("cursorId") Long cursorId,
+            Pageable pageable
+    );
+
+    @Query("""
+            select cr
+            from CourseReview cr
+            join fetch cr.user
+            join fetch cr.course c
             where c.deletedAt is null
             order by cr.createdAt desc, cr.id desc
             """)
