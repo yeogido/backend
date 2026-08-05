@@ -23,7 +23,7 @@ class GlobalExceptionHandlerTest {
 
     @Test
     void returnsApiResponseWhenApiPathDoesNotExist() throws Exception {
-        mockMvc.perform(get("/api/v1/not-exists"))
+        mockMvc.perform(get("/api/v1/regions/search/not-exists"))
                 .andExpect(status().isNotFound())
                 .andExpect(result -> assertThat(result.getResolvedException())
                         .isInstanceOf(NoResourceFoundException.class))
