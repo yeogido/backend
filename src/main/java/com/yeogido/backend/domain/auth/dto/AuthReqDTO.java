@@ -19,6 +19,10 @@ public class AuthReqDTO {
     @Email(message = "올바른 이메일 형식이어야 합니다.")
     String email,
 
+    @Schema(description = "회원가입 이메일 인증 토큰", example = "a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+    @NotBlank(message = "이메일 인증 토큰은 필수 입력값입니다.")
+    String emailVerificationToken,
+
     @Schema(description = "비밀번호", example = "password123!")
     @NotBlank(message = "비밀번호는 필수 입력값입니다.")
     @Pattern(
@@ -103,6 +107,26 @@ public class AuthReqDTO {
     @Schema(description = "리프레시 토큰", example = "eyJhbGciOiJIUzI1NiJ9.xyz...")
     @NotBlank(message = "리프레시 토큰은 필수 입력값입니다.")
     String refreshToken
+  ) {}
+
+  @Schema(name = "AuthEmailSendCodeReq", description = "회원가입 이메일 인증번호 발송 요청")
+  public record EmailSendCode(
+    @Schema(description = "이메일", example = "abc@example.com")
+    @NotBlank(message = "이메일은 필수 입력값입니다.")
+    @Email(message = "올바른 이메일 형식이어야 합니다.")
+    String email
+  ) {}
+
+  @Schema(name = "AuthEmailVerifyCodeReq", description = "회원가입 이메일 인증번호 검증 요청")
+  public record EmailVerifyCode(
+    @Schema(description = "이메일", example = "abc@example.com")
+    @NotBlank(message = "이메일은 필수 입력값입니다.")
+    @Email(message = "올바른 이메일 형식이어야 합니다.")
+    String email,
+
+    @Schema(description = "인증번호", example = "123456")
+    @NotBlank(message = "인증번호는 필수 입력값입니다.")
+    String authCode
   ) {}
 
   @Schema(name = "AuthPasswordSendCodeReq", description = "비밀번호 찾기 인증번호 발송 요청")

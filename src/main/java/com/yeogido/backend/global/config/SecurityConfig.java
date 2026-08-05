@@ -101,6 +101,8 @@ public class SecurityConfig {
             "/api/v1/auth/social-login",
             "/api/v1/auth/social-signup/complete",
             "/api/v1/auth/reissue",
+            "/api/v1/auth/email/send-code",
+            "/api/v1/auth/email/verify-code",
             "/api/v1/auth/password/send-code",
             "/api/v1/auth/password/verify-code",
             "/api/v1/auth/test/token",

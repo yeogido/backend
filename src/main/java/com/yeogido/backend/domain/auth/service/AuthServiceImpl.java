@@ -46,6 +46,7 @@ public class AuthServiceImpl implements AuthService {
   private final PasswordEncoder passwordEncoder;
   private final S3Service s3Service;
   private final PasswordResetCodeService passwordResetCodeService;
+  private final EmailVerificationService emailVerificationService;
   private final MailService mailService;
 
   @Override
@@ -54,6 +55,8 @@ public class AuthServiceImpl implements AuthService {
     if (userRepository.existsByEmail(request.email())) {
       throw new GeneralException(UserErrorCode.EMAIL_DUPLICATED);
     }
+
+    emailVerificationService.verifyToken(request.email(), request.emailVerificationToken());
 
     Region region = regionRepository.findById(request.regionId())
       .orElseThrow(() -> new GeneralException(RegionErrorCode.REGION_NOT_FOUND));
@@ -74,6 +77,8 @@ public class AuthServiceImpl implements AuthService {
     } catch (DataIntegrityViolationException e) {
       throw new GeneralException(UserErrorCode.EMAIL_DUPLICATED);
     }
+
+    emailVerificationService.deleteToken(request.emailVerificationToken());
 
     return new AuthResDTO.SignUp(user.getId());
   }
@@ -217,6 +222,27 @@ public class AuthServiceImpl implements AuthService {
     AuthResDTO.Token token = jwtTokenProvider.issueToken(user);
     refreshTokenService.save(user.getId(), token.refreshToken());
     return token;
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public void sendEmailVerificationCode(AuthReqDTO.EmailSendCode request) {
+    if (userRepository.existsByEmail(request.email())) {
+      throw new GeneralException(UserErrorCode.EMAIL_DUPLICATED);
+    }
+
+    String authCode = emailVerificationService.issueCode(request.email());
+    mailService.sendEmailVerificationCode(request.email(), authCode);
+  }
+
+  @Override
+  public AuthResDTO.EmailVerifyCode verifyEmailCode(AuthReqDTO.EmailVerifyCode request) {
+    String emailVerificationToken = emailVerificationService.verifyCodeAndIssueToken(
+      request.email(),
+      request.authCode()
+    );
+
+    return new AuthResDTO.EmailVerifyCode(emailVerificationToken);
   }
 
   @Override

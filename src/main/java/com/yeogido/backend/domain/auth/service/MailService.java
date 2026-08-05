@@ -18,6 +18,25 @@ public class MailService {
   @Value("${app.mail.from}")
   private String from;
 
+  public void sendEmailVerificationCode(String to, String authCode) {
+    SimpleMailMessage message = new SimpleMailMessage();
+    message.setFrom(from);
+    message.setTo(to);
+    message.setSubject("[여기도] 회원가입 이메일 인증번호");
+    message.setText("""
+      안녕하세요. 여기도입니다.
+
+      회원가입 이메일 인증번호는 아래와 같습니다.
+
+      인증번호: %s
+
+      인증번호는 5분 동안 유효합니다.
+      본인이 요청하지 않았다면 이 메일을 무시해주세요.
+      """.formatted(authCode));
+
+    send(message);
+  }
+
   public void sendPasswordResetCode(String to, String authCode) {
     SimpleMailMessage message = new SimpleMailMessage();
     message.setFrom(from);
@@ -34,6 +53,10 @@ public class MailService {
       본인이 요청하지 않았다면 이 메일을 무시해주세요.
       """.formatted(authCode));
 
+    send(message);
+  }
+
+  private void send(SimpleMailMessage message) {
     try {
       mailSender.send(message);
     } catch (MailException e) {

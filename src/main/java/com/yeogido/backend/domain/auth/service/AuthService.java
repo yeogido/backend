@@ -19,6 +19,10 @@ public interface AuthService {
 
   AuthResDTO.Token reissue(AuthReqDTO.Reissue request);
 
+  void sendEmailVerificationCode(AuthReqDTO.EmailSendCode request);
+
+  AuthResDTO.EmailVerifyCode verifyEmailCode(AuthReqDTO.EmailVerifyCode request);
+
   void sendResetCode(AuthReqDTO.PasswordSendCode request);
 
   AuthResDTO.PasswordVerifyCode verifyResetCode(AuthReqDTO.PasswordVerifyCode request);

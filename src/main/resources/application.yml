@@ -65,6 +65,9 @@ app:
     social-signup-token-expiration-minutes: 10
   mail:
     from: ${MAIL_FROM:${MAIL_USERNAME:}}
+  email-verification:
+    code-expiration-minutes: ${EMAIL_VERIFICATION_CODE_EXPIRATION_MINUTES:5}
+    token-expiration-minutes: ${EMAIL_VERIFICATION_TOKEN_EXPIRATION_MINUTES:10}
   password-reset:
     code-expiration-minutes: 5
     token-expiration-minutes: 10

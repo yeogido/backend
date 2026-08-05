@@ -75,6 +75,18 @@ public enum AuthErrorCode implements ErrorCode {
     "유효하지 않거나 만료된 비밀번호 재설정 토큰입니다."
   ),
 
+  INVALID_EMAIL_VERIFICATION_CODE(
+    HttpStatus.BAD_REQUEST,
+    "AUTH4006",
+    "이메일 인증번호가 일치하지 않거나 만료되었습니다."
+  ),
+
+  INVALID_EMAIL_VERIFICATION_TOKEN(
+    HttpStatus.BAD_REQUEST,
+    "AUTH4007",
+    "유효하지 않거나 만료된 이메일 인증 토큰입니다."
+  ),
+
   LOGIN_REQUIRED(
     HttpStatus.UNAUTHORIZED,
     "AUTH4011",
