@@ -13,6 +13,7 @@ import com.yeogido.backend.domain.business.entity.BusinessPromotion;
 import com.yeogido.backend.domain.business.entity.BusinessPromotionImage;
 import com.yeogido.backend.domain.business.entity.QBusinessPromotion;
 import com.yeogido.backend.domain.business.enums.PromotionStatus;
+import com.yeogido.backend.domain.business.repository.BusinessPromotionHashtagRepository;
 import com.yeogido.backend.domain.business.repository.BusinessPromotionImageRepository;
 import com.yeogido.backend.domain.business.repository.BusinessPromotionRepository;
 import com.yeogido.backend.domain.content.entity.ContentLike;
@@ -79,6 +80,7 @@ public class UserServiceImpl implements UserService{
     private final TravelRecordStickerRepository travelRecordStickerRepository;
     private final StickerRepository stickerRepository;
     private final BusinessPromotionRepository businessPromotionRepository;
+    private final BusinessPromotionHashtagRepository businessPromotionHashtagRepository;
     private final BusinessPromotionImageRepository businessPromotionImageRepository;
     private final S3Service s3Service;
     private final RefreshTokenService refreshTokenService;
@@ -981,6 +983,28 @@ public class UserServiceImpl implements UserService{
                                 image -> image
                         ));
 
+        Map<Long, List<String>> hashtagMap =
+                promotionIds.isEmpty()
+                        ? Map.of()
+                        : businessPromotionHashtagRepository
+                        .findAllByPromotion_IdInOrderByHashtag_IdAsc(
+                                promotionIds
+                        )
+                        .stream()
+                        .collect(Collectors.groupingBy(
+                                promotionHashtag ->
+                                        promotionHashtag
+                                                .getPromotion()
+                                                .getId(),
+                                Collectors.mapping(
+                                        promotionHashtag ->
+                                                promotionHashtag
+                                                        .getHashtag()
+                                                        .getHashtagName(),
+                                        Collectors.toList()
+                                )
+                        ));
+
         List<Long> placeIds = promotions.stream()
                 .map(promotionItem -> promotionItem.getPlace().getId())
                 .distinct()
@@ -1017,10 +1041,17 @@ public class UserServiceImpl implements UserService{
                                             0L
                                     );
 
+                            List<String> hashtags =
+                                    hashtagMap.getOrDefault(
+                                            promotionItem.getId(),
+                                            List.of()
+                                    );
+
                             return BusinessPromotionConverter
                                     .toMySummaryResponse(
                                             promotionItem,
                                             thumbnailImageUrl,
+                                            hashtags,
                                             likeCount
                                     );
                         })
