@@ -27,6 +27,18 @@ public enum AuthErrorCode implements ErrorCode {
     "유효하지 않은 소셜 accessToken입니다."
   ),
 
+  INVALID_SOCIAL_LOGIN_REQUEST(
+    HttpStatus.BAD_REQUEST,
+    "AUTH4005",
+    "소셜 로그인 요청 값이 올바르지 않습니다."
+  ),
+
+  INVALID_SOCIAL_AUTHORIZATION_CODE(
+    HttpStatus.UNAUTHORIZED,
+    "AUTH4015",
+    "유효하지 않은 소셜 authorization code입니다."
+  ),
+
   INVALID_SOCIAL_SIGNUP_TOKEN(
     HttpStatus.BAD_REQUEST,
     "AUTH4003",
