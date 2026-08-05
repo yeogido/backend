@@ -221,9 +221,12 @@ public class CourseReqDTO {
 
     @Schema(name = "CourseReviewListRequest", description = "추천 코스 리뷰 목록 조회 요청")
     public record CourseReviewListReq(
-            @Min(value = 1, message = "cursor는 1 이상이어야 합니다.")
-            @Schema(description = "마지막으로 조회한 리뷰 ID", example = "10")
-            Long cursor,
+            @Schema(description = "커서 기준 값. LATEST는 createdAt, RATING은 rating", example = "2026-07-26T15:30:00")
+            String cursorValue,
+
+            @Min(value = 1, message = "cursorId는 1 이상이어야 합니다.")
+            @Schema(description = "커서 리뷰 ID", example = "10")
+            Long cursorId,
 
             @Min(value = 1, message = "size는 1 이상이어야 합니다.")
             @Schema(description = "조회할 리뷰 개수", example = "10", defaultValue = "10")

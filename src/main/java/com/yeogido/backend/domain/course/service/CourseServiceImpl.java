@@ -322,7 +322,7 @@ public class CourseServiceImpl implements CourseService {
 
         List<CourseReview> reviews = findCourseReviews(
                 courseId,
-                request.cursor(),
+                request,
                 sort,
                 PageRequest.of(0, size + 1)
         );
@@ -349,34 +349,33 @@ public class CourseServiceImpl implements CourseService {
 
     private List<CourseReview> findCourseReviews(
             Long courseId,
-            Long cursor,
+            CourseReqDTO.CourseReviewListReq request,
             ReviewSortType sort,
             Pageable pageable
     ) {
-        if (cursor == null) {
+        if (request.cursorValue() == null && request.cursorId() == null) {
             return findFirstCourseReviewPage(courseId, sort, pageable);
         }
 
-        CourseReview cursorReview = courseReviewRepository.findById(cursor)
-                .orElseThrow(() -> new GeneralException(GeneralErrorCode.INVALID_REQUEST));
-
-        if (!cursorReview.getCourse().getId().equals(courseId)) {
+        if (request.cursorValue() == null || request.cursorId() == null) {
             throw new GeneralException(GeneralErrorCode.INVALID_REQUEST);
         }
+
+        validateCourseReviewCursor(courseId, request.cursorId());
 
         if (sort == ReviewSortType.RATING) {
             return courseReviewRepository.findReviewsByCourseIdOrderByRatingAfterCursor(
                     courseId,
-                    cursorReview.getRating(),
-                    cursorReview.getId(),
+                    parseReviewRatingCursorValue(request.cursorValue()),
+                    request.cursorId(),
                     pageable
             );
         }
 
         return courseReviewRepository.findReviewsByCourseIdOrderByLatestAfterCursor(
                 courseId,
-                cursorReview.getCreatedAt(),
-                cursorReview.getId(),
+                parseReviewLatestCursorValue(request.cursorValue()),
+                request.cursorId(),
                 pageable
         );
     }
@@ -391,6 +390,31 @@ public class CourseServiceImpl implements CourseService {
         }
 
         return courseReviewRepository.findLatestReviewsByCourseId(courseId, pageable);
+    }
+
+    private void validateCourseReviewCursor(Long courseId, Long cursorId) {
+        CourseReview cursorReview = courseReviewRepository.findById(cursorId)
+                .orElseThrow(() -> new GeneralException(GeneralErrorCode.INVALID_REQUEST));
+
+        if (!cursorReview.getCourse().getId().equals(courseId)) {
+            throw new GeneralException(GeneralErrorCode.INVALID_REQUEST);
+        }
+    }
+
+    private LocalDateTime parseReviewLatestCursorValue(String cursorValue) {
+        try {
+            return LocalDateTime.parse(cursorValue);
+        } catch (DateTimeParseException e) {
+            throw new GeneralException(GeneralErrorCode.INVALID_REQUEST);
+        }
+    }
+
+    private Integer parseReviewRatingCursorValue(String cursorValue) {
+        try {
+            return Integer.valueOf(cursorValue);
+        } catch (NumberFormatException e) {
+            throw new GeneralException(GeneralErrorCode.INVALID_REQUEST);
+        }
     }
 
     private int resolveCourseReviewSize(Integer size) {
