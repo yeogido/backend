@@ -262,6 +262,10 @@ public class ContentServiceImpl implements ContentService{
                 if (cursorValue != null) {
                     try {
                         cursorDistance = Double.valueOf(cursorValue);
+
+                        if (!Double.isFinite(cursorDistance)) {
+                            throw new GeneralException(GeneralErrorCode.INVALID_PARAMETER);
+                        }
                     } catch (NumberFormatException e) {
                         throw new GeneralException(GeneralErrorCode.INVALID_PARAMETER);
                     }
@@ -531,7 +535,7 @@ public class ContentServiceImpl implements ContentService{
 
         return query
                 .orderBy(
-                        qContent.recommendPriority.asc().nullsLast(),
+                        qContent.recommendPriority.asc(),
                         qContent.id.asc()
                 )
                 .limit(size + 1)

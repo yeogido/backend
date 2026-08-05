@@ -55,8 +55,9 @@ public class Content extends BaseEntity {
     @Enumerated(EnumType.STRING)
     private ContentCategory category;
 
-    @Column(name = "recommend_priority")
-    private Integer recommendPriority;
+    @Column(name = "recommend_priority", nullable = false)
+    @Builder.Default
+    private Integer recommendPriority = 9999;
 
     public ContentStatus getEventStatus() {
         LocalDate today = LocalDate.now();
