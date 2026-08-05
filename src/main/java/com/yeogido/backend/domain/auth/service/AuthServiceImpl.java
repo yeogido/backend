@@ -221,4 +221,16 @@ public class AuthServiceImpl implements AuthService {
 
     return new AuthResDTO.PasswordVerifyCode(resetToken);
   }
+
+  @Override
+  @Transactional
+  public void resetPassword(AuthReqDTO.PasswordReset request) {
+    String email = passwordResetCodeService.verifyResetTokenAndDelete(request.resetToken());
+
+    User user = userRepository.findByEmail(email)
+      .filter(foundUser -> foundUser.getStatus() == UserStatus.ACTIVE)
+      .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
+
+    user.updatePassword(passwordEncoder.encode(request.newPassword()));
+  }
 }

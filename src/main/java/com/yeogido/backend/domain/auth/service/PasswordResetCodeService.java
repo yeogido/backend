@@ -59,6 +59,18 @@ public class PasswordResetCodeService {
     return resetToken;
   }
 
+  public String verifyResetTokenAndDelete(String resetToken) {
+    String key = tokenKey(resetToken);
+    String email = stringRedisTemplate.opsForValue().get(key);
+
+    if (email == null) {
+      throw new GeneralException(AuthErrorCode.INVALID_PASSWORD_RESET_TOKEN);
+    }
+
+    stringRedisTemplate.delete(key);
+    return email;
+  }
+
   private String createAuthCode() {
     return String.format("%06d", SECURE_RANDOM.nextInt(1_000_000));
   }

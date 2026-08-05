@@ -89,4 +89,8 @@ public class User extends BaseEntity {
             this.region = region;
         }
     }
+
+    public void updatePassword(String password) {
+        this.password = password;
+    }
 }
