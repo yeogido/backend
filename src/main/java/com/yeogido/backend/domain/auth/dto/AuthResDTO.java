@@ -52,6 +52,12 @@ public class AuthResDTO {
     boolean isAvailable
   ) {}
 
+  @Schema(name = "AuthEmailVerifyCodeRes", description = "회원가입 이메일 인증번호 검증 응답")
+  public record EmailVerifyCode(
+    @Schema(description = "회원가입 이메일 인증 토큰", example = "a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+    String emailVerificationToken
+  ) {}
+
   @Schema(name = "AuthPasswordVerifyCodeRes", description = "비밀번호 찾기 인증번호 검증 응답")
   public record PasswordVerifyCode(
     @Schema(description = "비밀번호 재설정 임시 토큰", example = "a1b2c3d4-e5f6-7890-abcd-ef1234567890")

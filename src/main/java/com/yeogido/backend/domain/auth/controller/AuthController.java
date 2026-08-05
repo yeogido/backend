@@ -79,6 +79,20 @@ public class AuthController {
     return ApiResponse.onSuccess(SuccessCode.OK, response);
   }
 
+  @Operation(summary = "회원가입 이메일 인증번호 발송 API", description = "회원가입하려는 이메일로 6자리 인증번호를 발송합니다.")
+  @PostMapping("/email/send-code")
+  public ApiResponse<Void> sendEmailVerificationCode(@Valid @RequestBody AuthReqDTO.EmailSendCode request) {
+    authService.sendEmailVerificationCode(request);
+    return ApiResponse.onSuccess(SuccessCode.OK);
+  }
+
+  @Operation(summary = "회원가입 이메일 인증번호 검증 API", description = "이메일로 받은 인증번호가 유효한지 확인하고 회원가입에 사용할 이메일 인증 토큰을 발급합니다.")
+  @PostMapping("/email/verify-code")
+  public ApiResponse<AuthResDTO.EmailVerifyCode> verifyEmailCode(@Valid @RequestBody AuthReqDTO.EmailVerifyCode request) {
+    AuthResDTO.EmailVerifyCode response = authService.verifyEmailCode(request);
+    return ApiResponse.onSuccess(SuccessCode.OK, response);
+  }
+
   @Operation(summary = "비밀번호 찾기 인증번호 발송 API", description = "비밀번호를 재설정하려는 사용자의 이메일로 6자리 인증번호를 발송합니다.")
   @PostMapping("/password/send-code")
   public ApiResponse<Void> sendResetCode(@Valid @RequestBody AuthReqDTO.PasswordSendCode request) {
