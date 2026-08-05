@@ -21,7 +21,8 @@ import org.springframework.test.util.ReflectionTestUtils;
 class RefreshTokenServiceTest {
 
   private static final Long USER_ID = 1L;
-  private static final String KEY = "auth:refresh-token:1";
+  private static final String SESSION_ID = "session-id";
+  private static final String KEY = "auth:refresh-token:1:session-id";
   private static final String OLD_REFRESH_TOKEN = "old-refresh-token";
   private static final String NEW_REFRESH_TOKEN = "new-refresh-token";
   private static final String TTL_MILLISECONDS = "604800000";
@@ -48,7 +49,7 @@ class RefreshTokenServiceTest {
       eq(TTL_MILLISECONDS)
     )).thenReturn(1L);
 
-    boolean result = refreshTokenService.rotate(USER_ID, OLD_REFRESH_TOKEN, NEW_REFRESH_TOKEN);
+    boolean result = refreshTokenService.rotate(USER_ID, SESSION_ID, OLD_REFRESH_TOKEN, NEW_REFRESH_TOKEN);
 
     assertThat(result).isTrue();
     verify(stringRedisTemplate).execute(
@@ -71,7 +72,7 @@ class RefreshTokenServiceTest {
       eq(TTL_MILLISECONDS)
     )).thenReturn(0L);
 
-    boolean result = refreshTokenService.rotate(USER_ID, OLD_REFRESH_TOKEN, NEW_REFRESH_TOKEN);
+    boolean result = refreshTokenService.rotate(USER_ID, SESSION_ID, OLD_REFRESH_TOKEN, NEW_REFRESH_TOKEN);
 
     assertThat(result).isFalse();
   }

@@ -2,6 +2,7 @@ package com.yeogido.backend.domain.auth.service;
 
 import com.yeogido.backend.domain.auth.dto.AuthReqDTO;
 import com.yeogido.backend.domain.auth.dto.AuthResDTO;
+import com.yeogido.backend.domain.auth.security.AuthUser;
 
 public interface AuthService {
 
@@ -15,7 +16,7 @@ public interface AuthService {
 
   AuthResDTO.EmailCheck checkEmail(String email);
 
-  void logout(Long userId);
+  void logout(AuthUser authUser);
 
   AuthResDTO.Token reissue(AuthReqDTO.Reissue request);
 

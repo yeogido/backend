@@ -174,8 +174,8 @@ public class AuthServiceImpl implements AuthService {
   }
 
   @Override
-  public void logout(Long userId) {
-    refreshTokenService.delete(userId);
+  public void logout(AuthUser authUser) {
+    refreshTokenService.delete(authUser.userId(), authUser.sessionId());
   }
 
   @Override
@@ -187,8 +187,8 @@ public class AuthServiceImpl implements AuthService {
       .filter(foundUser -> foundUser.getStatus() == UserStatus.ACTIVE)
       .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
 
-    AuthResDTO.Token token = jwtTokenProvider.issueToken(user);
-    if (!refreshTokenService.rotate(user.getId(), request.refreshToken(), token.refreshToken())) {
+    AuthResDTO.Token token = jwtTokenProvider.issueToken(user, authUser.sessionId());
+    if (!refreshTokenService.rotate(user.getId(), authUser.sessionId(), request.refreshToken(), token.refreshToken())) {
       throw new GeneralException(AuthErrorCode.INVALID_REFRESH_TOKEN);
     }
 
@@ -197,7 +197,8 @@ public class AuthServiceImpl implements AuthService {
 
   private AuthResDTO.Token issueAndSaveToken(User user) {
     AuthResDTO.Token token = jwtTokenProvider.issueToken(user);
-    refreshTokenService.save(user.getId(), token.refreshToken());
+    AuthUser authUser = jwtTokenProvider.parseRefreshToken(token.refreshToken());
+    refreshTokenService.save(user.getId(), authUser.sessionId(), token.refreshToken());
     return token;
   }
 
