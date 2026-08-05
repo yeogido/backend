@@ -1,6 +1,5 @@
 package com.yeogido.backend.domain.user.service;
 
-import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.DateTimePath;
@@ -8,26 +7,24 @@ import com.querydsl.core.types.dsl.NumberPath;
 import com.querydsl.core.types.dsl.StringPath;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import com.yeogido.backend.domain.auth.service.RefreshTokenService;
-import com.yeogido.backend.domain.content.entity.Content;
+import com.yeogido.backend.domain.business.converter.BusinessPromotionConverter;
+import com.yeogido.backend.domain.business.dto.response.BusinessPromotionResponse;
+import com.yeogido.backend.domain.business.entity.BusinessPromotion;
+import com.yeogido.backend.domain.business.entity.BusinessPromotionImage;
+import com.yeogido.backend.domain.business.entity.QBusinessPromotion;
+import com.yeogido.backend.domain.business.enums.PromotionStatus;
+import com.yeogido.backend.domain.business.repository.BusinessPromotionHashtagRepository;
+import com.yeogido.backend.domain.business.repository.BusinessPromotionImageRepository;
+import com.yeogido.backend.domain.business.repository.BusinessPromotionRepository;
 import com.yeogido.backend.domain.content.entity.ContentLike;
 import com.yeogido.backend.domain.content.entity.QContent;
 import com.yeogido.backend.domain.content.entity.QContentLike;
 import com.yeogido.backend.domain.content.repository.ContentHashtagRepository;
 import com.yeogido.backend.domain.content.repository.ContentLikeRepository;
-import com.yeogido.backend.domain.course.entity.Course;
-import com.yeogido.backend.domain.course.entity.CourseLike;
-import com.yeogido.backend.domain.course.entity.QCourse;
-import com.yeogido.backend.domain.course.entity.QCourseLike;
 import com.yeogido.backend.domain.course.converter.CourseConverter;
 import com.yeogido.backend.domain.course.entity.*;
-import com.yeogido.backend.domain.course.repository.CourseHashtagRepository;
-import com.yeogido.backend.domain.course.repository.CourseLikeRepository;
-import com.yeogido.backend.domain.course.repository.CourseRepository;
-import com.yeogido.backend.domain.course.repository.CourseReviewImageRepository;
-import com.yeogido.backend.domain.course.repository.CourseReviewRepository;
-import com.yeogido.backend.domain.business.repository.BusinessPromotionRepository;
+import com.yeogido.backend.domain.course.repository.*;
 import com.yeogido.backend.domain.file.service.S3Service;
-import com.yeogido.backend.domain.place.entity.Place;
 import com.yeogido.backend.domain.place.entity.PlaceLike;
 import com.yeogido.backend.domain.place.entity.QPlace;
 import com.yeogido.backend.domain.place.entity.QPlaceLike;
@@ -43,18 +40,16 @@ import com.yeogido.backend.domain.user.converter.UserConverter;
 import com.yeogido.backend.domain.user.dto.UserReqDTO;
 import com.yeogido.backend.domain.user.dto.UserResDTO;
 import com.yeogido.backend.domain.user.entity.User;
-import com.yeogido.backend.domain.user.enums.UserStatus;
+import com.yeogido.backend.domain.user.enums.LikeCategory;
 import com.yeogido.backend.domain.user.enums.PostCategory;
 import com.yeogido.backend.domain.user.enums.SortType;
+import com.yeogido.backend.domain.user.enums.UserStatus;
 import com.yeogido.backend.domain.user.exception.UserErrorCode;
 import com.yeogido.backend.domain.user.repository.UserRepository;
-import com.yeogido.backend.domain.user.enums.LikeCategory;
 import com.yeogido.backend.global.common.response.CursorResponse;
 import com.yeogido.backend.global.exception.GeneralErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
-import com.yeogido.backend.global.util.DistanceUtil;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -64,10 +59,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.stream.Collectors;
-
-import static com.yeogido.backend.domain.course.entity.QCourse.course;
 
 @Service
 @RequiredArgsConstructor
@@ -88,6 +80,8 @@ public class UserServiceImpl implements UserService{
     private final TravelRecordStickerRepository travelRecordStickerRepository;
     private final StickerRepository stickerRepository;
     private final BusinessPromotionRepository businessPromotionRepository;
+    private final BusinessPromotionHashtagRepository businessPromotionHashtagRepository;
+    private final BusinessPromotionImageRepository businessPromotionImageRepository;
     private final S3Service s3Service;
     private final RefreshTokenService refreshTokenService;
 
@@ -686,7 +680,7 @@ public class UserServiceImpl implements UserService{
                         getMyCourses(user, keyword, sort, cursorCreatedAt, cursorId, size);
 
                 List<UserResDTO.MyPostResponse> items = response.getItems().stream()
-                        .map(course -> CourseConverter.toMyPostResponse(course, null))
+                        .map(course -> CourseConverter.toMyPostResponse(course, null,null))
                         .toList();
 
                 return CursorResponse.of(
@@ -702,7 +696,7 @@ public class UserServiceImpl implements UserService{
                         getMyReviews(user, keyword, sort, cursorCreatedAt, cursorId, size);
 
                 List<UserResDTO.MyPostResponse> items = response.getItems().stream()
-                        .map(review -> CourseConverter.toMyPostResponse(null, review))
+                        .map(review -> CourseConverter.toMyPostResponse(null, review, null))
                         .toList();
 
                 return CursorResponse.of(
@@ -712,6 +706,37 @@ public class UserServiceImpl implements UserService{
                         response.isHasNext()
                 );
             }
+
+            case PROMOTION: {
+                CursorResponse<BusinessPromotionResponse.MySummary> response =
+                        getMyPromotions(
+                                user,
+                                keyword,
+                                sort,
+                                cursorCreatedAt,
+                                cursorId,
+                                size
+                        );
+
+                List<UserResDTO.MyPostResponse> items =
+                        response.getItems().stream()
+                                .map(promotion ->
+                                        CourseConverter.toMyPostResponse(
+                                                null,
+                                                null,
+                                                promotion
+                                        )
+                                )
+                                .toList();
+
+                return CursorResponse.of(
+                        items,
+                        response.getCursorValue(),
+                        response.getCursorId(),
+                        response.isHasNext()
+                );
+            }
+
             case ALL:
                 return getAllMyPosts(
                         user,
@@ -894,6 +919,163 @@ public class UserServiceImpl implements UserService{
 
     }
 
+    private CursorResponse<BusinessPromotionResponse.MySummary> getMyPromotions(
+            User user,
+            String keyword,
+            SortType sort,
+            LocalDateTime cursorCreatedAt,
+            Long cursorId,
+            Integer size
+    ) {
+        QBusinessPromotion promotion =
+                QBusinessPromotion.businessPromotion;
+
+        OrderSpecifier<?> createdAtOrder =
+                sort == SortType.LATEST
+                        ? promotion.createdAt.desc()
+                        : promotion.createdAt.asc();
+
+        OrderSpecifier<?> idOrder =
+                sort == SortType.LATEST
+                        ? promotion.id.desc()
+                        : promotion.id.asc();
+
+        List<BusinessPromotion> promotions = queryFactory
+                .selectFrom(promotion)
+                .join(promotion.place).fetchJoin()
+                .where(
+                        promotion.user.eq(user),
+                        promotion.status.eq(PromotionStatus.ACTIVE),
+                        keywordCondition(promotion.place.name, keyword),
+                        cursorCondition(
+                                promotion.createdAt,
+                                promotion.id,
+                                cursorCreatedAt,
+                                cursorId,
+                                sort
+                        )
+                )
+                .orderBy(createdAtOrder, idOrder)
+                .limit(size + 1)
+                .fetch();
+
+        boolean hasNext = promotions.size() > size;
+
+        if (hasNext) {
+            promotions.remove(size.intValue());
+        }
+
+        List<Long> promotionIds = promotions.stream()
+                .map(BusinessPromotion::getId)
+                .toList();
+
+        Map<Long, BusinessPromotionImage> thumbnailImageMap =
+                promotionIds.isEmpty()
+                        ? Map.of()
+                        : businessPromotionImageRepository
+                        .findAllByPromotion_IdInAndSortOrder(
+                                promotionIds,
+                                1
+                        )
+                        .stream()
+                        .collect(Collectors.toMap(
+                                image -> image.getPromotion().getId(),
+                                image -> image
+                        ));
+
+        Map<Long, List<String>> hashtagMap =
+                promotionIds.isEmpty()
+                        ? Map.of()
+                        : businessPromotionHashtagRepository
+                        .findAllByPromotion_IdInOrderByHashtag_IdAsc(
+                                promotionIds
+                        )
+                        .stream()
+                        .collect(Collectors.groupingBy(
+                                promotionHashtag ->
+                                        promotionHashtag
+                                                .getPromotion()
+                                                .getId(),
+                                Collectors.mapping(
+                                        promotionHashtag ->
+                                                promotionHashtag
+                                                        .getHashtag()
+                                                        .getHashtagName(),
+                                        Collectors.toList()
+                                )
+                        ));
+
+        List<Long> placeIds = promotions.stream()
+                .map(promotionItem -> promotionItem.getPlace().getId())
+                .distinct()
+                .toList();
+
+        Map<Long, Long> likeCountMap =
+                placeIds.isEmpty()
+                        ? Map.of()
+                        : placeLikeRepository.countByPlaceIds(placeIds)
+                        .stream()
+                        .collect(Collectors.toMap(
+                                PlaceLikeRepository.PlaceLikeCount::getPlaceId,
+                                PlaceLikeRepository.PlaceLikeCount::getLikeCount
+                        ));
+
+        List<BusinessPromotionResponse.MySummary> items =
+                promotions.stream()
+                        .map(promotionItem -> {
+                            BusinessPromotionImage thumbnailImage =
+                                    thumbnailImageMap.get(
+                                            promotionItem.getId()
+                                    );
+
+                            String thumbnailImageUrl =
+                                    thumbnailImage == null
+                                            ? null
+                                            : s3Service.getImageUrl(
+                                            thumbnailImage.getImageKey()
+                                    );
+
+                            long likeCount =
+                                    likeCountMap.getOrDefault(
+                                            promotionItem.getPlace().getId(),
+                                            0L
+                                    );
+
+                            List<String> hashtags =
+                                    hashtagMap.getOrDefault(
+                                            promotionItem.getId(),
+                                            List.of()
+                                    );
+
+                            return BusinessPromotionConverter
+                                    .toMySummaryResponse(
+                                            promotionItem,
+                                            thumbnailImageUrl,
+                                            hashtags,
+                                            likeCount
+                                    );
+                        })
+                        .toList();
+
+        Object nextCursorValue = null;
+        Long nextCursorId = null;
+
+        if (!items.isEmpty()) {
+            BusinessPromotionResponse.MySummary last =
+                    items.get(items.size() - 1);
+
+            nextCursorValue = last.createdAt();
+            nextCursorId = last.promotionId();
+        }
+
+        return CursorResponse.of(
+                items,
+                nextCursorValue,
+                nextCursorId,
+                hasNext
+        );
+    }
+
     private CursorResponse<UserResDTO.MyPostResponse> getAllMyPosts(
             User user,
             String keyword,
@@ -909,6 +1091,16 @@ public class UserServiceImpl implements UserService{
         CursorResponse<UserResDTO.MyReviewResponse> reviewResponse =
                 getMyReviews(user, keyword, sort, cursorCreatedAt, cursorId, size);
 
+        CursorResponse<BusinessPromotionResponse.MySummary> promotionResponse =
+                getMyPromotions(
+                        user,
+                        keyword,
+                        sort,
+                        cursorCreatedAt,
+                        cursorId,
+                        size
+                );
+
         List<MyPostItem> items = new ArrayList<>();
 
         courseResponse.getItems().forEach(course ->
@@ -916,7 +1108,7 @@ public class UserServiceImpl implements UserService{
                         new MyPostItem(
                                 course.createdAt(),
                                 course.id(),
-                                CourseConverter.toMyPostResponse(course, null)
+                                CourseConverter.toMyPostResponse(course, null, null)
                         )
                 )
         );
@@ -926,7 +1118,21 @@ public class UserServiceImpl implements UserService{
                         new MyPostItem(
                                 review.createdAt(),
                                 review.reviewId(),
-                                CourseConverter.toMyPostResponse(null, review)
+                                CourseConverter.toMyPostResponse(null, review, null)
+                        )
+                )
+        );
+
+        promotionResponse.getItems().forEach(promotion ->
+                items.add(
+                        new MyPostItem(
+                                promotion.createdAt(),
+                                promotion.promotionId(),
+                                CourseConverter.toMyPostResponse(
+                                        null,
+                                        null,
+                                        promotion
+                                )
                         )
                 )
         );
@@ -941,7 +1147,11 @@ public class UserServiceImpl implements UserService{
 
         items.sort(comparator);
 
-        boolean hasNext = items.size() > size;
+        boolean hasNext =
+                items.size() > size
+                        || courseResponse.isHasNext()
+                        || reviewResponse.isHasNext()
+                        || promotionResponse.isHasNext();
 
         List<MyPostItem> resultItems = hasNext
                 ? new ArrayList<>(items.subList(0, size))

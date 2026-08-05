@@ -1,5 +1,6 @@
 package com.yeogido.backend.domain.course.converter;
 
+import com.yeogido.backend.domain.business.dto.response.BusinessPromotionResponse;
 import com.yeogido.backend.domain.content.entity.Content;
 import com.yeogido.backend.domain.course.dto.request.CourseReqDTO;
 import com.yeogido.backend.domain.course.dto.response.CourseResDTO;
@@ -13,12 +14,9 @@ import com.yeogido.backend.domain.place.enums.PlaceSource;
 import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.user.dto.UserResDTO;
 import com.yeogido.backend.domain.user.entity.User;
-import com.yeogido.backend.domain.user.enums.Gender;
-import com.yeogido.backend.domain.user.enums.PostCategory;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -356,11 +354,13 @@ public class CourseConverter {
 
     public static UserResDTO.MyPostResponse toMyPostResponse(
             UserResDTO.MyCourseResponse course,
-            UserResDTO.MyReviewResponse review
+            UserResDTO.MyReviewResponse review,
+            BusinessPromotionResponse.MySummary promotion
     ) {
         return new UserResDTO.MyPostResponse(
                 course,
-                review
+                review,
+                promotion
         );
     }
 

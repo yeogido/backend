@@ -1,8 +1,11 @@
 package com.yeogido.backend.domain.user.dto;
 
-import com.yeogido.backend.domain.user.enums.*;
+import com.yeogido.backend.domain.business.dto.response.BusinessPromotionResponse;
+import com.yeogido.backend.domain.user.enums.AgeGroup;
+import com.yeogido.backend.domain.user.enums.Gender;
+import com.yeogido.backend.domain.user.enums.LikeCategory;
+import com.yeogido.backend.domain.user.enums.UserRole;
 import io.swagger.v3.oas.annotations.media.Schema;
-import lombok.Builder;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -139,7 +142,8 @@ public class UserResDTO {
 
             MyCourseResponse course,
 
-            MyReviewResponse review
+            MyReviewResponse review,
 
+            BusinessPromotionResponse.MySummary promotion
     ) {}
 }
