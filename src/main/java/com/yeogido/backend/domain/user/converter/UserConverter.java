@@ -75,7 +75,7 @@ public class UserConverter {
                 null,
                 content.getStartDate(),
                 content.getEndDate(),
-                content.getPlace().getRegion().getName(),
+                content.getPlace().getRegion().getFullName(),
                 null,
                 hashtags,
 
