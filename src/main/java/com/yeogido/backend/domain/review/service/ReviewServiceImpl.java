@@ -32,7 +32,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class ReviewServiceImpl implements ReviewService {
 
-    private static final Long MOCK_USER_ID = 1L;
     private static final int RECENT_REVIEW_LIMIT = 3;
     private static final int DEFAULT_PAGE_SIZE = 10;
 
@@ -55,7 +54,8 @@ public class ReviewServiceImpl implements ReviewService {
 
     @Override
     public CursorResponse<ReviewResDTO.ReviewDetail> getReviews(
-            ReviewReqDTO.ListRequest request
+            ReviewReqDTO.ListRequest request,
+            Long userId
     ) {
         int size = resolveSize(request.size());
         ReviewSortType sort = resolveSort(request.sort());
@@ -73,7 +73,7 @@ public class ReviewServiceImpl implements ReviewService {
                 : reviews;
 
         Map<Long, List<CourseReviewImage>> imageMap = getReviewImageMap(content);
-        Set<Long> likedCourseIds = getLikedCourseIds(content);
+        Set<Long> likedCourseIds = getLikedCourseIds(userId, content);
 
         List<ReviewResDTO.ReviewDetail> items = ReviewConverter.toReviewDetails(
                 content,
@@ -169,7 +169,14 @@ public class ReviewServiceImpl implements ReviewService {
                 .collect(Collectors.groupingBy(image -> image.getCourseReview().getId()));
     }
 
-    private Set<Long> getLikedCourseIds(List<CourseReview> reviews) {
+    private Set<Long> getLikedCourseIds(
+            Long userId,
+            List<CourseReview> reviews
+    ) {
+        if (userId == null) {
+            return Set.of();
+        }
+
         List<Long> courseIds = reviews.stream()
                 .map(review -> review.getCourse().getId())
                 .distinct()
@@ -180,7 +187,7 @@ public class ReviewServiceImpl implements ReviewService {
         }
 
         return new HashSet<>(courseLikeRepository.findLikedCourseIdsByUserIdAndCourseIdIn(
-                getCurrentUserId(),
+                userId,
                 courseIds
         ));
     }
@@ -241,11 +248,6 @@ public class ReviewServiceImpl implements ReviewService {
                 throw new GeneralException(ReviewErrorCode.INVALID_IMAGE_ORDER);
             }
         }
-    }
-
-    private Long getCurrentUserId() {
-        // TODO: Spring Security 적용 후 인증 사용자 ID로 교체
-        return MOCK_USER_ID;
     }
 
     private int resolveSize(Integer size) {
