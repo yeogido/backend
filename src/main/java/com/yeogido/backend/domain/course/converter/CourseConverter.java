@@ -333,6 +333,7 @@ public class CourseConverter {
         return new UserResDTO.MyCourseResponse(
                 course.getId(),
                 course.getTitle(),
+                course.getDescription(),
                 thumbnailUrl,
                 course.getDurationType().name(),
                 course.getTransportType().name(),
