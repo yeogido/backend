@@ -15,6 +15,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 import java.util.Map;
+import java.util.UUID;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import lombok.RequiredArgsConstructor;
@@ -40,19 +41,23 @@ public class JwtTokenProvider {
   private long refreshTokenExpirationDays;
 
   public AuthResDTO.Token issueToken(User user) {
+    return issueToken(user, UUID.randomUUID().toString());
+  }
+
+  public AuthResDTO.Token issueToken(User user, String sessionId) {
     return new AuthResDTO.Token(
       user.getId(),
-      issueAccessToken(user),
-      issueRefreshToken(user)
+      issueAccessToken(user, sessionId),
+      issueRefreshToken(user, sessionId)
     );
   }
 
-  public String issueAccessToken(User user) {
-    return createToken(user, TOKEN_TYPE_ACCESS, Instant.now().plus(accessTokenExpirationMinutes, ChronoUnit.MINUTES));
+  public String issueAccessToken(User user, String sessionId) {
+    return createToken(user, TOKEN_TYPE_ACCESS, sessionId, Instant.now().plus(accessTokenExpirationMinutes, ChronoUnit.MINUTES));
   }
 
-  public String issueRefreshToken(User user) {
-    return createToken(user, TOKEN_TYPE_REFRESH, Instant.now().plus(refreshTokenExpirationDays, ChronoUnit.DAYS));
+  public String issueRefreshToken(User user, String sessionId) {
+    return createToken(user, TOKEN_TYPE_REFRESH, sessionId, Instant.now().plus(refreshTokenExpirationDays, ChronoUnit.DAYS));
   }
 
   public AuthUser parseAccessToken(String token) {
@@ -78,19 +83,20 @@ public class JwtTokenProvider {
   private AuthUser parseAuthUser(Map<String, Object> payload, AuthErrorCode errorCode) {
     Number userId = (Number) payload.get("userId");
     String role = (String) payload.get("role");
+    String sessionId = (String) payload.get("sessionId");
 
-    if (userId == null || role == null) {
+    if (userId == null || role == null || sessionId == null || sessionId.isBlank()) {
       throw new GeneralException(errorCode);
     }
 
     try {
-      return new AuthUser(userId.longValue(), UserRole.valueOf(role));
+      return new AuthUser(userId.longValue(), UserRole.valueOf(role), sessionId);
     } catch (IllegalArgumentException e) {
       throw new GeneralException(errorCode);
     }
   }
 
-  private String createToken(User user, String tokenType, Instant expiresAt) {
+  private String createToken(User user, String tokenType, String sessionId, Instant expiresAt) {
     try {
       String header = encode(objectMapper.writeValueAsString(Map.of(
         "alg", "HS256",
@@ -101,6 +107,7 @@ public class JwtTokenProvider {
         "userId", user.getId(),
         "role", user.getRole().name(),
         "type", tokenType,
+        "sessionId", sessionId,
         "iat", Instant.now().getEpochSecond(),
         "exp", expiresAt.getEpochSecond()
       )));

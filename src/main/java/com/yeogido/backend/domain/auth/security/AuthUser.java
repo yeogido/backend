@@ -4,6 +4,7 @@ import com.yeogido.backend.domain.user.enums.UserRole;
 
 public record AuthUser(
   Long userId,
-  UserRole role
+  UserRole role,
+  String sessionId
 ) {
 }

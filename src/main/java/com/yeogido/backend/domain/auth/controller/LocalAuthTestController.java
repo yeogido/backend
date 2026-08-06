@@ -1,6 +1,7 @@
 package com.yeogido.backend.domain.auth.controller;
 
 import com.yeogido.backend.domain.auth.dto.AuthResDTO;
+import com.yeogido.backend.domain.auth.security.AuthUser;
 import com.yeogido.backend.domain.auth.service.JwtTokenProvider;
 import com.yeogido.backend.domain.auth.service.RefreshTokenService;
 import com.yeogido.backend.domain.user.entity.User;
@@ -36,7 +37,8 @@ public class LocalAuthTestController {
                 .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
 
         AuthResDTO.Token response = jwtTokenProvider.issueToken(user);
-        refreshTokenService.save(user.getId(), response.refreshToken());
+        AuthUser authUser = jwtTokenProvider.parseRefreshToken(response.refreshToken());
+        refreshTokenService.save(user.getId(), authUser.sessionId(), response.refreshToken());
 
         return ApiResponse.onSuccess(SuccessCode.OK, response);
     }

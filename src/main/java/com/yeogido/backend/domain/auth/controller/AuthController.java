@@ -68,7 +68,7 @@ public class AuthController {
   @Operation(summary = "로그아웃 API", description = "인증된 사용자의 Refresh Token을 삭제하여 토큰 재발급을 차단합니다.")
   @PostMapping("/logout")
   public ApiResponse<Void> logout(@AuthenticationPrincipal AuthUser authUser) {
-    authService.logout(authUser.userId());
+    authService.logout(authUser);
     return ApiResponse.onSuccess(SuccessCode.OK);
   }
 
