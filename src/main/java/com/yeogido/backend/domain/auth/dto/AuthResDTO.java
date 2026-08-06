@@ -1,5 +1,6 @@
 package com.yeogido.backend.domain.auth.dto;
 
+import com.yeogido.backend.domain.user.enums.UserRole;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 public class AuthResDTO {
@@ -15,6 +16,9 @@ public class AuthResDTO {
     @Schema(description = "사용자 ID", example = "1")
     Long userId,
 
+    @Schema(description = "사용자 역할", example = "USER", allowableValues = {"USER", "ADMIN", "BUSINESS"})
+    UserRole role,
+
     @Schema(description = "액세스 토큰", example = "eyJhbGciOiJIUzI1NiJ9.eyJzdWI...")
     String accessToken,
 
@@ -29,6 +33,9 @@ public class AuthResDTO {
 
     @Schema(description = "사용자 ID. 기존 사용자 로그인 성공 시 반환", example = "2")
     Long userId,
+
+    @Schema(description = "사용자 역할. 기존 사용자 로그인 성공 시 반환", example = "USER", allowableValues = {"USER", "ADMIN", "BUSINESS"})
+    UserRole role,
 
     @Schema(description = "액세스 토큰. 기존 사용자 로그인 성공 시 반환", example = "eyJhbGciOiJIUzI1NiJ9...")
     String accessToken,
