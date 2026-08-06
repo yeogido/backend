@@ -711,12 +711,7 @@ public class ContentServiceImpl implements ContentService{
     @Transactional
     public ContentResDTO.ContentCreateRes createContent(ContentReqDTO.ContentCreateReq request, Long userId) {
 
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
-
-        if (user.getRole() != UserRole.ADMIN) {
-            throw new GeneralException(GeneralErrorCode.FORBIDDEN);
-        }
+        validateAdmin(userId);
 
         Place place = placeService.getOrCreatePlace(request.place());
         ContentReqDTO.ContentCreateReq movedRequest = moveContentImage(request);
@@ -725,21 +720,7 @@ public class ContentServiceImpl implements ContentService{
 
         Content savedContent = contentRepository.save(content);
 
-        if (movedRequest.hashtagIds() != null && !movedRequest.hashtagIds().isEmpty()) {
-
-            for (Long hashtagId : movedRequest.hashtagIds()) {
-
-                Hashtag hashtag = hashtagRepository.findById(hashtagId)
-                        .orElseThrow(() -> new GeneralException(HashtagErrorCode.HASHTAG_NOT_FOUND));
-
-                ContentHashtag contentHashtag = ContentHashtag.builder()
-                        .content(savedContent)
-                        .hashtag(hashtag)
-                        .build();
-
-                contentHashtagRepository.save(contentHashtag);
-            }
-        }
+        saveContentHashtags(savedContent, movedRequest.hashtagIds());
 
         return new ContentResDTO.ContentCreateRes(
                 savedContent.getId()
@@ -750,12 +731,7 @@ public class ContentServiceImpl implements ContentService{
     @Override
     public ContentResDTO.ContentUpdateRes updateContent(Long contentId, ContentReqDTO.ContentCreateReq request, Long userId){
 
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
-
-        if (user.getRole() != UserRole.ADMIN) {
-            throw new GeneralException(GeneralErrorCode.FORBIDDEN);
-        }
+        validateAdmin(userId);
 
         Content content = contentRepository.findById(contentId)
                 .orElseThrow(() -> new GeneralException(ContentErrorCode.CONTENT_NOT_FOUND));
@@ -781,21 +757,7 @@ public class ContentServiceImpl implements ContentService{
 
         contentHashtagRepository.deleteByContentId(contentId);
 
-        if (movedRequest.hashtagIds() != null && !movedRequest.hashtagIds().isEmpty()) {
-
-            for (Long hashtagId : movedRequest.hashtagIds()) {
-
-                Hashtag hashtag = hashtagRepository.findById(hashtagId)
-                        .orElseThrow(() -> new GeneralException(HashtagErrorCode.HASHTAG_NOT_FOUND));
-
-                contentHashtagRepository.save(
-                        ContentHashtag.builder()
-                                .content(content)
-                                .hashtag(hashtag)
-                                .build()
-                );
-            }
-        }
+        saveContentHashtags(content, movedRequest.hashtagIds());
 
         return new ContentResDTO.ContentUpdateRes(content.getId());
     }
@@ -826,12 +788,7 @@ public class ContentServiceImpl implements ContentService{
     @Transactional
     public void deleteContent(Long contentId, Long userId) {
 
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
-
-        if (user.getRole() != UserRole.ADMIN) {
-            throw new GeneralException(GeneralErrorCode.FORBIDDEN);
-        }
+        validateAdmin(userId);
 
         Content content = contentRepository.findById(contentId)
                 .orElseThrow(() -> new GeneralException(ContentErrorCode.CONTENT_NOT_FOUND));
@@ -864,11 +821,8 @@ public class ContentServiceImpl implements ContentService{
 
     @Override
     public ContentResDTO.ContentLikeRes likeContent(Long contentId, Long userId){
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
-
-        Content content = contentRepository.findById(contentId)
-                .orElseThrow(() -> new GeneralException(ContentErrorCode.CONTENT_NOT_FOUND));
+        User user = getUserOrThrow(userId);
+        Content content = getContentOrThrow(contentId);
 
         contentLikeRepository.insertIgnore(content.getId(), user.getId());
 
@@ -885,11 +839,8 @@ public class ContentServiceImpl implements ContentService{
     @Transactional
     public ContentResDTO.ContentLikeRes unlikeContent(Long contentId, Long userId) {
 
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
-
-        Content content = contentRepository.findById(contentId)
-                .orElseThrow(() -> new GeneralException(ContentErrorCode.CONTENT_NOT_FOUND));
+        User user = getUserOrThrow(userId);
+        Content content = getContentOrThrow(contentId);
 
         contentLikeRepository.findByUserAndContent(user, content)
                 .ifPresent(contentLikeRepository::delete);
@@ -900,6 +851,42 @@ public class ContentServiceImpl implements ContentService{
                 false,
                 likeCount
         );
+    }
+
+    private void validateAdmin(Long userId) {
+        User user = getUserOrThrow(userId);
+
+        if (user.getRole() != UserRole.ADMIN) {
+            throw new GeneralException(GeneralErrorCode.FORBIDDEN);
+        }
+    }
+
+    private void saveContentHashtags(Content content, List<Long> hashtagIds) {
+        if (hashtagIds == null || hashtagIds.isEmpty()) {
+            return;
+        }
+
+        for (Long hashtagId : hashtagIds) {
+            Hashtag hashtag = hashtagRepository.findById(hashtagId)
+                    .orElseThrow(() -> new GeneralException(HashtagErrorCode.HASHTAG_NOT_FOUND));
+
+            contentHashtagRepository.save(
+                    ContentHashtag.builder()
+                            .content(content)
+                            .hashtag(hashtag)
+                            .build()
+            );
+        }
+    }
+
+    private User getUserOrThrow(Long userId) {
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
+    }
+
+    private Content getContentOrThrow(Long contentId) {
+        return contentRepository.findById(contentId)
+                .orElseThrow(() -> new GeneralException(ContentErrorCode.CONTENT_NOT_FOUND));
     }
 
     @Override
