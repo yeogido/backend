@@ -35,7 +35,7 @@ public class UserController {
 
     @Operation(
             summary = "내가 좋아요한 항목 목록 조회",
-            description = "사용자가 좋아요한 문화 콘텐츠 목록을 카테고리별로 조회합니다."
+            description = "사용자가 좋아요한 항목을 카테고리(문화 콘텐츠, 코스, 장소)별로 조회합니다."
     )
     @GetMapping("/me/likes")
     public ApiResponse<CursorResponse<UserResDTO.LikedResponse>> getLikedList(
