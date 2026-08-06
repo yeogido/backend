@@ -213,6 +213,7 @@ public class ReviewServiceImpl implements ReviewService {
         validateImageOrder(images);
 
         courseReviewImageRepository.deleteAllByCourseReview_Id(review.getId());
+        courseReviewImageRepository.flush();
 
         if (images.isEmpty()) {
             return;
