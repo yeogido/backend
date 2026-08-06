@@ -127,6 +127,7 @@ public class ReviewConverter {
     ) {
         return new ReviewResDTO.Course(
                 course.getId(),
+                course.getCourseType(),
                 course.getTitle(),
                 imageUrlResolver.apply(course.getThumbnailKey()),
                 course.getDurationType(),

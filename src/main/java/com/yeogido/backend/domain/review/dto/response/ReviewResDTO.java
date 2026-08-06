@@ -1,5 +1,6 @@
 package com.yeogido.backend.domain.review.dto.response;
 
+import com.yeogido.backend.domain.course.enums.CourseType;
 import com.yeogido.backend.domain.course.enums.DurationType;
 import com.yeogido.backend.domain.course.enums.TransportType;
 import com.yeogido.backend.domain.user.enums.AgeGroup;
@@ -100,6 +101,9 @@ public class ReviewResDTO {
     public record Course(
             @Schema(description = "추천 코스 ID", example = "15")
             Long courseId,
+
+            @Schema(description = "추천 코스 타입", example = "OFFICIAL")
+            CourseType courseType,
 
             @Schema(description = "추천 코스 제목", example = "강릉 혼자 여행 코스")
             String title,
