@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-@Tag(name = "개발 테스트 API", description = "local 프로필에서만 사용하는 개발 환경 전용 임시 API")
+@Tag(name = "Popularity Ranking Test", description = "인기 랭킹 테스트 API")
 @Profile("local")
 @RestController
 @RequestMapping("/api/test/popularity-rankings")

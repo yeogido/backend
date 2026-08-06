@@ -25,7 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDateTime;
 
-@Tag(name = "사용자 API", description = "사용자 관련 API")
+@Tag(name = "User", description = "사용자 API")
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/users")
