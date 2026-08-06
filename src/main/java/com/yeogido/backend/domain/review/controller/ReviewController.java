@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
+import org.springdoc.core.annotations.ParameterObject;
 
 @Tag(name = "Review", description = "리뷰 관련 API")
 @RestController
@@ -46,7 +47,7 @@ public class ReviewController {
     @GetMapping
     public ApiResponse<CursorResponse<ReviewResDTO.ReviewDetail>> getReviews(
             @AuthenticationPrincipal AuthUser authUser,
-            @Valid @ModelAttribute ReviewReqDTO.ListRequest request
+            @Valid @ParameterObject @ModelAttribute ReviewReqDTO.ListRequest request
     ) {
         Long userId = authUser == null
                 ? null
