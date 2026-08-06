@@ -291,6 +291,40 @@ class CourseServiceImplTest {
     }
 
     @Test
+    void createCourseLike_WhenAlreadyLiked_ReturnsCurrentLikeStateWithoutSaving() {
+        Course course = createCourse(10L);
+        User user = createUser();
+
+        when(courseRepository.findByIdAndDeletedAtIsNull(10L)).thenReturn(Optional.of(course));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(courseLikeRepository.insertIgnore(10L, 1L)).thenReturn(0);
+        when(courseLikeRepository.countByCourseId(10L)).thenReturn(1L);
+
+        CourseResDTO.CourseLikeRes response = courseService.createCourseLike(1L, 10L);
+
+        assertThat(response.isLiked()).isTrue();
+        assertThat(response.likeCount()).isEqualTo(1L);
+        verify(courseRedisRepository, never()).increaseLikeCount(anyLong());
+    }
+
+    @Test
+    void createCourseLike_WhenNewLikeInserted_IncreasesRedisLikeCount() {
+        Course course = createCourse(10L);
+        User user = createUser();
+
+        when(courseRepository.findByIdAndDeletedAtIsNull(10L)).thenReturn(Optional.of(course));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(courseLikeRepository.insertIgnore(10L, 1L)).thenReturn(1);
+        when(courseLikeRepository.countByCourseId(10L)).thenReturn(1L);
+
+        CourseResDTO.CourseLikeRes response = courseService.createCourseLike(1L, 10L);
+
+        assertThat(response.isLiked()).isTrue();
+        assertThat(response.likeCount()).isEqualTo(1L);
+        verify(courseRedisRepository).increaseLikeCount(10L);
+    }
+
+    @Test
     void createCourse_WhenRequiredPlaceInfoIsMissing_ThrowsInvalidCourseItem() {
         CourseReqDTO.CourseCreateReq request = createRequestWithPlaceItem(
                 new CourseReqDTO.CourseItemCreateReq(

@@ -870,14 +870,7 @@ public class ContentServiceImpl implements ContentService{
         Content content = contentRepository.findById(contentId)
                 .orElseThrow(() -> new GeneralException(ContentErrorCode.CONTENT_NOT_FOUND));
 
-        if (!contentLikeRepository.existsByUserAndContent(user, content)) {
-            ContentLike contentLike = ContentLike.builder()
-                    .user(user)
-                    .content(content)
-                    .build();
-
-            contentLikeRepository.save(contentLike);
-        }
+        contentLikeRepository.insertIgnore(content.getId(), user.getId());
 
         Long likeCount = contentLikeRepository.countByContent(content);
 

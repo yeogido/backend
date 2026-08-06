@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -191,7 +192,7 @@ public class CourseController {
     }
 
     @Operation(summary = "추천 코스 좋아요 등록", description = "추천 코스에 좋아요를 등록합니다.")
-    @PostMapping("/{courseId}/likes")
+    @PutMapping("/{courseId}/likes")
     public ApiResponse<CourseResDTO.CourseLikeRes> createCourseLike(
             @AuthenticationPrincipal AuthUser authUser,
             @Parameter(description = "코스 ID", example = "1")
@@ -199,7 +200,7 @@ public class CourseController {
     ) {
         CourseResDTO.CourseLikeRes response = courseService.createCourseLike(authUser.userId(), courseId);
 
-        return ApiResponse.onSuccess(SuccessCode.CREATED, response);
+        return ApiResponse.onSuccess(SuccessCode.OK, response);
     }
 
     @Operation(summary = "추천 코스 좋아요 취소", description = "추천 코스 좋아요를 취소합니다.")

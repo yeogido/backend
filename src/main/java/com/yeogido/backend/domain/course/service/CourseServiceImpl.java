@@ -481,10 +481,8 @@ public class CourseServiceImpl implements CourseService {
         Course course = getActiveCourse(courseId);
         User user = getCurrentUser(userId);
 
-        if (!courseLikeRepository.existsByUserIdAndCourseId(user.getId(), courseId)) {
-            CourseLike courseLike = CourseConverter.toCourseLike(user, course);
-
-            courseLikeRepository.save(courseLike);
+        int insertedRows = courseLikeRepository.insertIgnore(course.getId(), user.getId());
+        if (insertedRows > 0) {
             courseRedisRepository.increaseLikeCount(courseId);
         }
 
