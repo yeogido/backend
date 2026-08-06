@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-@Tag(name = "로컬 테스트 API", description = "local 프로필에서만 사용하는 개발 환경 전용 테스트 API")
+@Tag(name = "Local Auth Test", description = "로컬 인증 테스트 API")
 @Profile("local")
 @RestController
 @RequestMapping("/api/v1/auth/test")
