@@ -12,6 +12,7 @@ public class AuthConverter {
     return new AuthResDTO.SocialLogin(
       false,
       token.userId(),
+      token.role(),
       token.accessToken(),
       token.refreshToken(),
       null,
@@ -26,6 +27,7 @@ public class AuthConverter {
   ) {
     return new AuthResDTO.SocialLogin(
       true,
+      null,
       null,
       null,
       null,

@@ -47,6 +47,7 @@ public class JwtTokenProvider {
   public AuthResDTO.Token issueToken(User user, String sessionId) {
     return new AuthResDTO.Token(
       user.getId(),
+      user.getRole(),
       issueAccessToken(user, sessionId),
       issueRefreshToken(user, sessionId)
     );
