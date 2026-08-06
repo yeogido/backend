@@ -22,6 +22,16 @@ public interface CourseLikeRepository extends JpaRepository<CourseLike, Long> {
 
     boolean existsByCourseAndUser(Course course, User user);
 
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = """
+            INSERT IGNORE INTO course_like (course_id, user_id, created_at, updated_at)
+            VALUES (:courseId, :userId, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            """, nativeQuery = true)
+    int insertIgnore(
+            @Param("courseId") Long courseId,
+            @Param("userId") Long userId
+    );
+
     @Modifying(flushAutomatically = true)
     @Query("""
             delete from CourseLike cl

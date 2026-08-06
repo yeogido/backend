@@ -25,6 +25,16 @@ public interface ContentLikeRepository extends JpaRepository<ContentLike,Long> {
 
     void deleteByContent(Content content);
 
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = """
+        INSERT IGNORE INTO content_like (content_id, user_id, created_at, updated_at)
+        VALUES (:contentId, :userId, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        """, nativeQuery = true)
+    int insertIgnore(
+            @Param("contentId") Long contentId,
+            @Param("userId") Long userId
+    );
+
     @Modifying(flushAutomatically = true)
     @Query("""
         DELETE FROM ContentLike contentLike
