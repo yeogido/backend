@@ -281,7 +281,7 @@ public class CourseConverter {
                 toReviewAuthor(review.getUser(), imageUrlResolver),
                 review.getRating(),
                 review.getContent(),
-                toReviewImageUrls(images, imageUrlResolver),
+                toReviewImages(images, imageUrlResolver),
                 review.getCreatedAt().toLocalDate()
         );
     }
@@ -293,17 +293,21 @@ public class CourseConverter {
         return new CourseResDTO.ReviewAuthor(
                 user.getNickname(),
                 user.getAgeGroup(),
+                user.getGender(),
                 imageUrlResolver.apply(user.getProfileImage())
         );
     }
 
-    private static List<String> toReviewImageUrls(
+    private static List<CourseResDTO.ReviewImage> toReviewImages(
             List<CourseReviewImage> images,
             Function<String, String> imageUrlResolver
     ) {
         return images.stream()
-                .map(CourseReviewImage::getImageKey)
-                .map(imageUrlResolver)
+                .map(image -> new CourseResDTO.ReviewImage(
+                        image.getImageKey(),
+                        imageUrlResolver.apply(image.getImageKey()),
+                        image.getImageOrder()
+                ))
                 .toList();
     }
 

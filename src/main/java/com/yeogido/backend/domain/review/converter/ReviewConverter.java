@@ -116,6 +116,7 @@ public class ReviewConverter {
         return new ReviewResDTO.Author(
                 user.getNickname(),
                 user.getAgeGroup(),
+                user.getGender(),
                 user.getProfileImage()
         );
     }

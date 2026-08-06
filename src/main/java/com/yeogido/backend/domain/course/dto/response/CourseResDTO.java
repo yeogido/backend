@@ -9,6 +9,7 @@ import com.yeogido.backend.domain.course.enums.DurationType;
 import com.yeogido.backend.domain.course.enums.TransportType;
 import com.yeogido.backend.domain.place.enums.PlaceSource;
 import com.yeogido.backend.domain.user.enums.AgeGroup;
+import com.yeogido.backend.domain.user.enums.Gender;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.math.BigDecimal;
@@ -294,8 +295,8 @@ public class CourseResDTO {
             @Schema(description = "리뷰 내용", example = "동선이 편하고 장소 구성이 좋았어요.")
             String content,
 
-            @Schema(description = "리뷰 이미지 URL 목록")
-            List<String> imageUrls,
+            @Schema(description = "리뷰 이미지 목록")
+            List<ReviewImage> images,
 
             @Schema(description = "생성일", example = "2026-07-26")
             LocalDate createdAt
@@ -310,8 +311,24 @@ public class CourseResDTO {
             @Schema(description = "연령대", example = "TWENTIES")
             AgeGroup ageGroup,
 
+            @Schema(description = "성별", example = "FEMALE")
+            Gender gender,
+
             @Schema(description = "프로필 이미지 URL", example = "https://example.com/profile.png")
             String profileImageUrl
+    ) { }
+
+    @Schema(name = "CourseReviewImageResponse", description = "추천 코스 리뷰 이미지 정보")
+    public record ReviewImage(
+
+            @Schema(description = "리뷰 이미지 key. 리뷰 수정 시 기존 이미지를 유지하기 위해 사용합니다.", example = "reviews/abc.jpg")
+            String imageKey,
+
+            @Schema(description = "리뷰 이미지 URL", example = "https://example-bucket.s3.ap-northeast-2.amazonaws.com/reviews/abc.jpg")
+            String imageUrl,
+
+            @Schema(description = "리뷰 이미지 순서", example = "1")
+            Integer imageOrder
     ) { }
 
     @Schema(name = "CourseLikeResponse", description = "추천 코스 좋아요 등록 응답")
