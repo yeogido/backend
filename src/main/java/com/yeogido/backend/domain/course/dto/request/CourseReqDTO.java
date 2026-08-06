@@ -232,7 +232,7 @@ public class CourseReqDTO {
             @Schema(description = "조회할 리뷰 개수", example = "10", defaultValue = "10")
             Integer size,
 
-            @Schema(description = "정렬 기준", example = "LATEST", allowableValues = {"LATEST", "RATING"}, defaultValue = "LATEST")
+            @Schema(description = "정렬 기준", example = "LATEST", defaultValue = "LATEST")
             ReviewSortType sort
     ) { }
 
