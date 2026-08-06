@@ -4,6 +4,7 @@ import com.yeogido.backend.domain.course.enums.CourseType;
 import com.yeogido.backend.domain.course.enums.DurationType;
 import com.yeogido.backend.domain.course.enums.TransportType;
 import com.yeogido.backend.domain.user.enums.AgeGroup;
+import com.yeogido.backend.domain.user.enums.Gender;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -91,6 +92,9 @@ public class ReviewResDTO {
 
             @Schema(description = "연령대", example = "TWENTIES")
             AgeGroup ageGroup,
+
+            @Schema(description = "성별", example = "FEMALE")
+            Gender gender,
 
             @Schema(description = "프로필 이미지 URL", example = "https://example.com/profile.png")
             String profileImageUrl
