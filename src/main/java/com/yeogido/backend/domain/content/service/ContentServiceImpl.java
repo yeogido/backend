@@ -1,6 +1,7 @@
 package com.yeogido.backend.domain.content.service;
 
 import com.querydsl.core.BooleanBuilder;
+import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.dsl.CaseBuilder;
 import com.querydsl.core.types.dsl.Expressions;
@@ -38,6 +39,7 @@ import com.yeogido.backend.domain.course.entity.Course;
 import com.yeogido.backend.domain.course.repository.CourseItemRepository;
 import com.yeogido.backend.domain.course.repository.CourseLikeRepository;
 import com.yeogido.backend.domain.region.entity.Region;
+import com.yeogido.backend.domain.region.entity.QRegion;
 import com.yeogido.backend.domain.region.enums.RegionType;
 import com.yeogido.backend.domain.region.exception.RegionErrorCode;
 import com.yeogido.backend.domain.region.repository.RegionRepository;
@@ -72,6 +74,7 @@ public class ContentServiceImpl implements ContentService{
     private static final int DEFAULT_PAGE_SIZE = 6;
     private final QContent qContent = QContent.content;
     private final QPlace qPlace = QPlace.place;
+    private final QRegion qRegion = QRegion.region;
     private final QContentLike qContentLike = QContentLike.contentLike;
     private final NumberExpression<Long> likeCountExpression = qContentLike.id.count();
     private final ContentRepository contentRepository;
@@ -495,11 +498,6 @@ public class ContentServiceImpl implements ContentService{
             Integer cursorPriority,
             Long cursorId
     ) {
-        NumberExpression<Integer> unrecommendedOrder = new CaseBuilder()
-                .when(qContent.recommendPriority.eq(0))
-                .then(1)
-                .otherwise(0);
-
         JPAQuery<Content> query = queryFactory
                 .selectFrom(qContent)
                 .where(builder);
@@ -524,13 +522,22 @@ public class ContentServiceImpl implements ContentService{
         }
 
         return query
-                .orderBy(
-                        unrecommendedOrder.asc(),
-                        qContent.recommendPriority.asc(),
-                        qContent.id.asc()
-                )
+                .orderBy(recommendedOrderSpecifiers())
                 .limit(size + 1)
                 .fetch();
+    }
+
+    private OrderSpecifier<?>[] recommendedOrderSpecifiers() {
+        NumberExpression<Integer> unrecommendedOrder = new CaseBuilder()
+                .when(qContent.recommendPriority.eq(0))
+                .then(1)
+                .otherwise(0);
+
+        return new OrderSpecifier<?>[]{
+                unrecommendedOrder.asc(),
+                qContent.recommendPriority.asc(),
+                qContent.id.asc()
+        };
     }
 
 
@@ -876,6 +883,43 @@ public class ContentServiceImpl implements ContentService{
                 .map(content -> ContentConverter.toBannerRes(
                         content,
                         s3Service.getImageUrl(content.getThumbnailImage())
+                ))
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ContentResDTO.OngoingContentRes> getOngoingContents() {
+        LocalDate today = LocalDate.now();
+
+        List<Content> contents = queryFactory
+                .selectFrom(qContent)
+                .join(qContent.place, qPlace).fetchJoin()
+                .join(qPlace.region, qRegion).fetchJoin()
+                .where(
+                        qContent.startDate.loe(today),
+                        qContent.endDate.goe(today)
+                )
+                .orderBy(recommendedOrderSpecifiers())
+                .limit(2)
+                .fetch();
+
+        Map<Long, List<String>> hashtagMap = contentHashtagRepository
+                .findAllByContentIn(contents)
+                .stream()
+                .collect(Collectors.groupingBy(
+                        contentHashtag -> contentHashtag.getContent().getId(),
+                        Collectors.mapping(
+                                contentHashtag -> contentHashtag.getHashtag().getHashtagName(),
+                                Collectors.toList()
+                        )
+                ));
+
+        return contents.stream()
+                .map(content -> ContentConverter.toOngoingContentRes(
+                        content,
+                        s3Service.getImageUrl(content.getThumbnailImage()),
+                        hashtagMap.getOrDefault(content.getId(), List.of())
                 ))
                 .toList();
     }

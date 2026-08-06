@@ -160,4 +160,14 @@ public class ContentController {
         return ApiResponse.onSuccess(SuccessCode.OK, result);
     }
 
+    @Operation(
+            summary = "진행 중인 행사 조회",
+            description = "홈 화면에 노출할 진행 중인 행사를 추천순으로 조회합니다."
+    )
+    @GetMapping("/ongoing")
+    public ApiResponse<List<ContentResDTO.OngoingContentRes>> getOngoingContents() {
+        List<ContentResDTO.OngoingContentRes> result = contentService.getOngoingContents();
+        return ApiResponse.onSuccess(SuccessCode.OK, result);
+    }
+
 }
