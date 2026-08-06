@@ -119,28 +119,10 @@ public class ContentServiceImpl implements ContentService{
 
         if (request.regionId() != null
                 && request.sort() != ContentSort.DISTANCE) {
-
-            List<Long> regionIds = new ArrayList<>();
-            regionIds.add(request.regionId());
-
             Region region = regionRepository.findById(request.regionId())
                     .orElseThrow(() -> new GeneralException(RegionErrorCode.REGION_NOT_FOUND));
 
-            if (region.getType() == RegionType.REGION) {
-                List<Region> children =
-                        regionRepository.findByParentIdAndTypeOrderByNameAsc(
-                                region.getId(),
-                                RegionType.SUB_REGION
-                        );
-
-                regionIds.addAll(
-                        children.stream()
-                                .map(Region::getId)
-                                .toList()
-                );
-            }
-
-            builder.and(qContent.place.region.id.in(regionIds));
+            builder.and(qContent.place.region.id.in(getRegionIds(region)));
         }
         if (request.category() != null) {
             builder.and(qContent.category.eq(request.category()));
@@ -442,31 +424,7 @@ public class ContentServiceImpl implements ContentService{
             baseLatitude = region.getLatitude().doubleValue();
             baseLongitude = region.getLongitude().doubleValue();
 
-            if (region.getType() == RegionType.REGION) {
-
-                List<Long> regionIds = new ArrayList<>();
-                regionIds.add(region.getId());
-
-                List<Region> children =
-                        regionRepository.findByParentIdAndTypeOrderByNameAsc(
-                                region.getId(),
-                                RegionType.SUB_REGION
-                        );
-
-                regionIds.addAll(
-                        children.stream()
-                                .map(Region::getId)
-                                .toList()
-                );
-
-                builder.and(qContent.place.region.id.in(regionIds));
-
-            } else {
-
-                builder.and(
-                        qContent.place.region.id.eq(region.getId())
-                );
-            }
+            builder.and(qContent.place.region.id.in(getRegionIds(region)));
         }
 
         NumberExpression<Double> distance =
@@ -509,6 +467,24 @@ public class ContentServiceImpl implements ContentService{
         return lastTuple.get(distance);
 
 
+    }
+
+    private List<Long> getRegionIds(Region region) {
+        List<Long> regionIds = new ArrayList<>();
+        regionIds.add(region.getId());
+
+        if (region.getType() == RegionType.REGION) {
+            regionIds.addAll(
+                    regionRepository.findByParentIdAndTypeOrderByNameAsc(
+                                    region.getId(),
+                                    RegionType.SUB_REGION
+                            ).stream()
+                            .map(Region::getId)
+                            .toList()
+            );
+        }
+
+        return regionIds;
     }
 
 
