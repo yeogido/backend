@@ -1,6 +1,8 @@
 package com.yeogido.backend.domain.user.dto;
 
 import com.yeogido.backend.domain.business.dto.response.BusinessPromotionResponse;
+import com.yeogido.backend.domain.course.enums.CompanionType;
+import com.yeogido.backend.domain.course.enums.TransportType;
 import com.yeogido.backend.domain.user.enums.AgeGroup;
 import com.yeogido.backend.domain.user.enums.Gender;
 import com.yeogido.backend.domain.user.enums.LikeCategory;
@@ -31,6 +33,12 @@ public class UserResDTO {
 
             @Schema(description = "여행 기간")
             String duration,
+
+            @Schema(description = "이동 수단")
+            TransportType transportType,
+
+            @Schema(description = "동행 유형")
+            CompanionType companionType,
 
             @Schema(description = "행사 시작일")
             LocalDate startDate,
