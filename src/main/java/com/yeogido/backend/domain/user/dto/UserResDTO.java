@@ -103,6 +103,9 @@ public class UserResDTO {
             @Schema(description = "게시물 썸네일 이미지 URL")
             String thumbnailUrl,
 
+            @Schema(description = "여행 기간 유형")
+            String durationType,
+
             @Schema(description = "이동 수단")
             String transportType,
 

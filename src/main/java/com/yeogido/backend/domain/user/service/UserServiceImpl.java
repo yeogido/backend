@@ -692,15 +692,11 @@ public class UserServiceImpl implements UserService{
             }
 
             case REVIEW: {
-                CursorResponse<UserResDTO.MyReviewResponse> response =
+                CursorResponse<UserResDTO.MyPostResponse> response =
                         getMyReviews(user, keyword, sort, cursorCreatedAt, cursorId, size);
 
-                List<UserResDTO.MyPostResponse> items = response.getItems().stream()
-                        .map(review -> CourseConverter.toMyPostResponse(null, review, null))
-                        .toList();
-
                 return CursorResponse.of(
-                        items,
+                        response.getItems(),
                         response.getCursorValue(),
                         response.getCursorId(),
                         response.isHasNext()
@@ -851,7 +847,7 @@ public class UserServiceImpl implements UserService{
 
 
 
-    private CursorResponse<UserResDTO.MyReviewResponse> getMyReviews(
+    private CursorResponse<UserResDTO.MyPostResponse> getMyReviews(
             User user,
             String keyword,
             SortType sort,
@@ -893,20 +889,37 @@ public class UserServiceImpl implements UserService{
             reviews.remove(size.intValue());
         }
 
-        List<UserResDTO.MyReviewResponse> items = reviews.stream()
-                .map(r -> CourseConverter.toMyReviewResponse(
-                        r,
-                        s3Service.getImageUrl(r.getUser().getProfileImage())
-                ))
+        Map<Long, List<String>> hashtagMap = getCourseHashtagMapFromCourses(
+                reviews.stream()
+                        .map(CourseReview::getCourse)
+                        .distinct()
+                        .toList()
+        );
+
+        List<UserResDTO.MyPostResponse> items = reviews.stream()
+                .map(r -> {
+                    Course course = r.getCourse();
+                    UserResDTO.MyCourseResponse courseResponse = CourseConverter.toMyCourseResponse(
+                            course,
+                            s3Service.getImageUrl(course.getThumbnailKey()),
+                            hashtagMap.getOrDefault(course.getId(), List.of())
+                    );
+                    UserResDTO.MyReviewResponse reviewResponse = CourseConverter.toMyReviewResponse(
+                            r,
+                            s3Service.getImageUrl(r.getUser().getProfileImage())
+                    );
+
+                    return CourseConverter.toMyPostResponse(courseResponse, reviewResponse, null);
+                })
                 .toList();
 
         Object nextCursorValue = null;
         Long nextCursorId = null;
 
-        if (!items.isEmpty()) {
-            UserResDTO.MyReviewResponse last = items.get(items.size() - 1);
-            nextCursorValue = last.createdAt();
-            nextCursorId = last.reviewId();
+        if (!reviews.isEmpty()) {
+            CourseReview last = reviews.get(reviews.size() - 1);
+            nextCursorValue = last.getCreatedAt();
+            nextCursorId = last.getId();
         }
 
         return CursorResponse.of(
@@ -1088,7 +1101,7 @@ public class UserServiceImpl implements UserService{
         CursorResponse<UserResDTO.MyCourseResponse> courseResponse =
                 getMyCourses(user, keyword, sort, cursorCreatedAt, cursorId, size);
 
-        CursorResponse<UserResDTO.MyReviewResponse> reviewResponse =
+        CursorResponse<UserResDTO.MyPostResponse> reviewResponse =
                 getMyReviews(user, keyword, sort, cursorCreatedAt, cursorId, size);
 
         CursorResponse<BusinessPromotionResponse.MySummary> promotionResponse =
@@ -1113,12 +1126,12 @@ public class UserServiceImpl implements UserService{
                 )
         );
 
-        reviewResponse.getItems().forEach(review ->
+        reviewResponse.getItems().forEach(reviewPost ->
                 items.add(
                         new MyPostItem(
-                                review.createdAt(),
-                                review.reviewId(),
-                                CourseConverter.toMyPostResponse(null, review, null)
+                                reviewPost.review().createdAt(),
+                                reviewPost.review().reviewId(),
+                                reviewPost
                         )
                 )
         );
