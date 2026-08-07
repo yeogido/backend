@@ -28,7 +28,7 @@ public interface ContentService {
     List<ContentResDTO.BannerRes> getBannerContents();
 
     // 홈 화면 진행 중인 행사
-    List<ContentResDTO.OngoingContentRes> getOngoingContents();
+    List<ContentResDTO.OngoingContentRes> getOngoingContents(Long userId);
 
     //문화콘텐츠 좋아요 등록
     ContentResDTO.ContentLikeRes likeContent(Long contentId, Long userId);

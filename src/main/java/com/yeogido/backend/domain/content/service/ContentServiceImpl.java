@@ -905,7 +905,7 @@ public class ContentServiceImpl implements ContentService{
 
     @Override
     @Transactional(readOnly = true)
-    public List<ContentResDTO.OngoingContentRes> getOngoingContents() {
+    public List<ContentResDTO.OngoingContentRes> getOngoingContents(Long userId) {
         LocalDate today = LocalDate.now();
 
         List<Content> contents = queryFactory
@@ -919,6 +919,8 @@ public class ContentServiceImpl implements ContentService{
                 .orderBy(recommendedOrderSpecifiers())
                 .limit(2)
                 .fetch();
+
+        Set<Long> likedContentIds = getLikedContentIds(userId, contents);
 
         Map<Long, List<String>> hashtagMap = contentHashtagRepository
                 .findAllByContentIn(contents)
@@ -935,7 +937,8 @@ public class ContentServiceImpl implements ContentService{
                 .map(content -> ContentConverter.toOngoingContentRes(
                         content,
                         s3Service.getImageUrl(content.getThumbnailImage()),
-                        hashtagMap.getOrDefault(content.getId(), List.of())
+                        hashtagMap.getOrDefault(content.getId(), List.of()),
+                        likedContentIds.contains(content.getId())
                 ))
                 .toList();
     }
