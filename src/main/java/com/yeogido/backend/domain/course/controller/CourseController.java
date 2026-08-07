@@ -168,7 +168,7 @@ public class CourseController {
     public ApiResponse<CursorResponse<CourseResDTO.ReviewPreview>> getCourseReviews(
             @Parameter(description = "코스 ID", example = "1")
             @PathVariable Long courseId,
-            @Valid @ModelAttribute CourseReqDTO.CourseReviewListReq request
+            @Valid @ParameterObject @ModelAttribute CourseReqDTO.CourseReviewListReq request
     ) {
         CursorResponse<CourseResDTO.ReviewPreview> response = courseService.getCourseReviews(
                 courseId,

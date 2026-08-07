@@ -22,7 +22,7 @@ public class ReviewReqDTO {
             @Min(value = 1, message = "size는 1 이상이어야 합니다.")
             Integer size,
 
-            @Schema(description = "정렬 기준", example = "LATEST", allowableValues = {"LATEST", "RATING"}, defaultValue = "LATEST")
+            @Schema(description = "정렬 기준", example = "LATEST", defaultValue = "LATEST")
             ReviewSortType sort
     ) {
     }
