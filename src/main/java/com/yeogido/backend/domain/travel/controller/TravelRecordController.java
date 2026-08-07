@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springdoc.core.annotations.ParameterObject;
 
 @Tag(name = "TravelRecord", description = "여행 기록 관련 API")
 @RestController
@@ -37,7 +38,7 @@ public class TravelRecordController {
     @GetMapping
     public ApiResponse<CursorResponse<TravelRecordResDTO.TravelRecordSummary>> getMyTravelRecords(
             @AuthenticationPrincipal AuthUser authUser,
-            @ModelAttribute TravelRecordReqDTO.ListRequest request
+            @ParameterObject @ModelAttribute TravelRecordReqDTO.ListRequest request
     ) {
         CursorResponse<TravelRecordResDTO.TravelRecordSummary> result =
                 travelRecordService.getMyTravelRecords(authUser.userId(), request);
