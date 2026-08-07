@@ -1,5 +1,6 @@
 package com.yeogido.backend.domain.content.dto;
 
+import com.yeogido.backend.domain.content.enums.ContentCategory;
 import com.yeogido.backend.domain.course.enums.CompanionType;
 import com.yeogido.backend.domain.course.enums.DurationType;
 import com.yeogido.backend.domain.course.enums.TransportType;
@@ -27,6 +28,9 @@ public class ContentResDTO {
             @Schema(description = "제목")
             String title,
 
+            @Schema(description = "카테고리", example = "FESTIVAL")
+            ContentCategory category,
+
             @Schema(description = "썸네일 이미지")
             String thumbnailImageUrl,
 
@@ -38,6 +42,9 @@ public class ContentResDTO {
 
             @Schema(description = "좋아요 수")
             Long likeCount,
+
+            @Schema(description = "현재 사용자의 좋아요 여부", example = "false")
+            Boolean isLiked,
 
             @Schema(description = "시작일")
             LocalDate startDate,

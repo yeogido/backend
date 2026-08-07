@@ -93,9 +93,10 @@ public class ContentServiceImpl implements ContentService{
 
 
     @Override
-    public CursorResponse<ContentResDTO.ContentInfo> getContents(ContentReqDTO.ContentListReq request){
+    public CursorResponse<ContentResDTO.ContentInfo> getContents(ContentReqDTO.ContentListReq request, Long userId){
 
         BooleanBuilder builder = new BooleanBuilder();
+        builder.and(qContent.endDate.goe(LocalDate.now()));
 
         int size = request.size() == null ? DEFAULT_PAGE_SIZE : request.size();
 
@@ -184,6 +185,8 @@ public class ContentServiceImpl implements ContentService{
                         .map(tuple -> tuple.get(qContent))
                         .toList();
 
+                Set<Long> likedContentIds = getLikedContentIds(userId, contents);
+
                 List<ContentHashtag> contentHashtags =
                         contentHashtagRepository.findAllByContentIn(contents);
 
@@ -209,7 +212,8 @@ public class ContentServiceImpl implements ContentService{
                                     qContent,
                                     likeCountExpression,
                                     hashtagMap,
-                                    imageUrl
+                                    imageUrl,
+                                    likedContentIds
                             );
                         })
                         .toList();
@@ -240,7 +244,7 @@ public class ContentServiceImpl implements ContentService{
                     nextCursorId = last.getId();
                 }
 
-                result = createContentInfos(contents);
+                result = createContentInfos(contents, userId);
 
             }
             case DISTANCE ->{
@@ -276,7 +280,7 @@ public class ContentServiceImpl implements ContentService{
                     nextCursorId = contents.get(contents.size() - 1).getId();
                 }
 
-                result = createContentInfos(contents);
+                result = createContentInfos(contents, userId);
 
             }
 
@@ -314,7 +318,7 @@ public class ContentServiceImpl implements ContentService{
                 List<ContentHashtag> contentHashtags =
                         contentHashtagRepository.findAllByContentIn(contents);
 
-                result = createContentInfos(contents);
+                result = createContentInfos(contents, userId);
             }
         }
 
@@ -367,8 +371,6 @@ public class ContentServiceImpl implements ContentService{
             Long cursorId,
             LocalDate cursorEndDate
     ) {
-
-        builder.and(qContent.endDate.goe(LocalDate.now()));
 
         if (cursorEndDate != null && cursorId != null) {
             builder.and(
@@ -580,9 +582,10 @@ public class ContentServiceImpl implements ContentService{
                 ));
     }
 
-    private List<ContentResDTO.ContentInfo> createContentInfos(List<Content> contents) {
+    private List<ContentResDTO.ContentInfo> createContentInfos(List<Content> contents, Long userId) {
 
         Map<Long, Long> likeCountMap = getLikeCountMap(contents);
+        Set<Long> likedContentIds = getLikedContentIds(userId, contents);
 
         List<ContentHashtag> contentHashtags =
                 contentHashtagRepository.findAllByContentIn(contents);
@@ -606,10 +609,23 @@ public class ContentServiceImpl implements ContentService{
                             content,
                             imageUrl,
                             likeCountMap.getOrDefault(content.getId(), 0L),
-                            hashtagMap.getOrDefault(content.getId(), List.of())
+                            hashtagMap.getOrDefault(content.getId(), List.of()),
+                            likedContentIds.contains(content.getId())
                     );
                 })
                 .toList();
+    }
+
+    private Set<Long> getLikedContentIds(Long userId, List<Content> contents) {
+        if (userId == null || contents.isEmpty()) {
+            return Collections.emptySet();
+        }
+
+        List<Long> contentIds = contents.stream()
+                .map(Content::getId)
+                .toList();
+
+        return new HashSet<>(contentLikeRepository.findLikedContentIds(userId, contentIds));
     }
 
 
