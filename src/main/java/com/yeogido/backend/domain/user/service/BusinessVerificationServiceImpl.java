@@ -82,7 +82,10 @@ public class BusinessVerificationServiceImpl
                         request.representativeName()
                 );
 
-        validateAuthenticity(verificationResult);
+        validateAuthenticity(
+                request.businessNumber(),
+                verificationResult
+        );
         validateActiveBusiness(verificationResult);
 
         BusinessVerifyReqDTO movedRequest =
@@ -225,13 +228,29 @@ public class BusinessVerificationServiceImpl
     }
 
     private void validateAuthenticity(
+            String businessNumber,
             NtsBusinessVerifyDTO.Result verificationResult
     ) {
-        if (!VALID_BUSINESS.equals(verificationResult.valid())) {
+        if (VALID_BUSINESS.equals(verificationResult.valid())) {
+            return;
+        }
+
+        NtsBusinessVerifyDTO.Status businessStatus =
+                ntsBusinessVerificationClient.getBusinessStatus(
+                        businessNumber
+                );
+
+        if (!ACTIVE_BUSINESS.equals(
+                businessStatus.businessStatusCode()
+        )) {
             throw new GeneralException(
-                    BusinessVerificationErrorCode.BUSINESS_VERIFICATION_FAILED
+                    BusinessVerificationErrorCode.BUSINESS_NOT_ACTIVE
             );
         }
+
+        throw new GeneralException(
+                BusinessVerificationErrorCode.BUSINESS_VERIFICATION_FAILED
+        );
     }
 
     private void validateActiveBusiness(

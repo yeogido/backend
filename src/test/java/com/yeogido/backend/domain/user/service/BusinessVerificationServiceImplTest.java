@@ -15,6 +15,7 @@ import com.yeogido.backend.domain.user.entity.BusinessInfo;
 import com.yeogido.backend.domain.user.entity.User;
 import com.yeogido.backend.domain.user.enums.BusinessVerificationStatus;
 import com.yeogido.backend.domain.user.enums.UserRole;
+import com.yeogido.backend.domain.user.exception.BusinessVerificationErrorCode;
 import com.yeogido.backend.domain.user.repository.BusinessInfoRepository;
 import com.yeogido.backend.domain.user.repository.UserRepository;
 import com.yeogido.backend.global.exception.GeneralErrorCode;
@@ -240,6 +241,9 @@ class BusinessVerificationServiceImplTest {
                 PlaceSource.KAKAO,
                 "123456789"
         );
+
+        verify(ntsBusinessVerificationClient, never())
+                .getBusinessStatus(anyString());
     }
 
     @Test
@@ -298,5 +302,193 @@ class BusinessVerificationServiceImplTest {
                 fileService,
                 placeRepository
         );
+    }
+
+    @Test
+    void verifyBusiness_WhenBusinessNumberDoesNotExist_ThrowsBusinessNotActive() {
+
+        // given
+        User user = User.builder()
+                .id(USER_ID)
+                .role(UserRole.USER)
+                .build();
+
+        PlaceRequest placeRequest = new PlaceRequest(
+                "invalid-place",
+                "KAKAO",
+                "테스트 사업장",
+                "CE7",
+                "서울특별시 강남구 테헤란로 123",
+                "서울특별시 강남구 역삼동 123",
+                BigDecimal.valueOf(37.4979),
+                BigDecimal.valueOf(127.0276),
+                1L
+        );
+
+        BusinessVerifyReqDTO request = new BusinessVerifyReqDTO(
+                "0000000000",
+                OPENING_DATE,
+                REPRESENTATIVE_NAME,
+                "temp/test.jpg",
+                "테스트 사업장",
+                "서울특별시 강남구 테헤란로 123",
+                placeRequest
+        );
+
+        NtsBusinessVerifyDTO.Result verificationResult =
+                new NtsBusinessVerifyDTO.Result(
+                        "0000000000",
+                        "02",
+                        "확인할 수 없습니다.",
+                        null
+                );
+
+        NtsBusinessVerifyDTO.Status status =
+                new NtsBusinessVerifyDTO.Status(
+                        "0000000000",
+                        "",
+                        "",
+                        "국세청에 등록되지 않은 사업자등록번호입니다.",
+                        "",
+                        ""
+                );
+
+        when(userRepository.findById(USER_ID))
+                .thenReturn(Optional.of(user));
+
+        when(businessInfoRepository.findByBusinessNumber(
+                "0000000000"
+        )).thenReturn(Optional.empty());
+
+        when(ntsBusinessVerificationClient.verify(
+                "0000000000",
+                OPENING_DATE,
+                REPRESENTATIVE_NAME
+        )).thenReturn(verificationResult);
+
+        when(ntsBusinessVerificationClient.getBusinessStatus(
+                "0000000000"
+        )).thenReturn(status);
+
+        // when
+        GeneralException exception = assertThrows(
+                GeneralException.class,
+                () -> businessVerificationService.verifyBusiness(
+                        USER_ID,
+                        request
+                )
+        );
+
+        // then
+        assertThat(exception.getErrorCode())
+                .isEqualTo(
+                        BusinessVerificationErrorCode.BUSINESS_NOT_ACTIVE
+                );
+
+        verify(ntsBusinessVerificationClient).verify(
+                "0000000000",
+                OPENING_DATE,
+                REPRESENTATIVE_NAME
+        );
+
+        verify(ntsBusinessVerificationClient).getBusinessStatus(
+                "0000000000"
+        );
+
+        verifyNoInteractions(fileService);
+    }
+
+    @Test
+    void verifyBusiness_WhenBusinessExistsButVerificationInfoDoesNotMatch_ThrowsVerificationFailed() {
+
+        // given
+        User user = User.builder()
+                .id(USER_ID)
+                .role(UserRole.USER)
+                .build();
+
+        PlaceRequest placeRequest = new PlaceRequest(
+                "123456789",
+                "KAKAO",
+                "테스트 사업장",
+                "CE7",
+                "서울특별시 강남구 테헤란로 123",
+                "서울특별시 강남구 역삼동 123",
+                BigDecimal.valueOf(37.4979),
+                BigDecimal.valueOf(127.0276),
+                1L
+        );
+
+        BusinessVerifyReqDTO request = new BusinessVerifyReqDTO(
+                BUSINESS_NUMBER,
+                OPENING_DATE,
+                REPRESENTATIVE_NAME,
+                "temp/test.jpg",
+                "테스트 사업장",
+                "서울특별시 강남구 테헤란로 123",
+                placeRequest
+        );
+
+        NtsBusinessVerifyDTO.Result verificationResult =
+                new NtsBusinessVerifyDTO.Result(
+                        BUSINESS_NUMBER,
+                        "02",
+                        "확인할 수 없습니다.",
+                        null
+                );
+
+        NtsBusinessVerifyDTO.Status status =
+                new NtsBusinessVerifyDTO.Status(
+                        BUSINESS_NUMBER,
+                        "계속사업자",
+                        "01",
+                        "부가가치세 일반과세자",
+                        "01",
+                        ""
+                );
+
+        when(userRepository.findById(USER_ID))
+                .thenReturn(Optional.of(user));
+
+        when(businessInfoRepository.findByBusinessNumber(
+                BUSINESS_NUMBER
+        )).thenReturn(Optional.empty());
+
+        when(ntsBusinessVerificationClient.verify(
+                BUSINESS_NUMBER,
+                OPENING_DATE,
+                REPRESENTATIVE_NAME
+        )).thenReturn(verificationResult);
+
+        when(ntsBusinessVerificationClient.getBusinessStatus(
+                BUSINESS_NUMBER
+        )).thenReturn(status);
+
+        // when
+        GeneralException exception = assertThrows(
+                GeneralException.class,
+                () -> businessVerificationService.verifyBusiness(
+                        USER_ID,
+                        request
+                )
+        );
+
+        // then
+        assertThat(exception.getErrorCode())
+                .isEqualTo(
+                        BusinessVerificationErrorCode.BUSINESS_VERIFICATION_FAILED
+                );
+
+        verify(ntsBusinessVerificationClient).verify(
+                BUSINESS_NUMBER,
+                OPENING_DATE,
+                REPRESENTATIVE_NAME
+        );
+
+        verify(ntsBusinessVerificationClient).getBusinessStatus(
+                BUSINESS_NUMBER
+        );
+
+        verifyNoInteractions(fileService);
     }
 }

@@ -9,7 +9,8 @@ public final class NtsBusinessVerifyDTO {
     private NtsBusinessVerifyDTO() {
     }
 
-    public record Request(List<Business> businesses) { }
+    public record Request(List<Business> businesses) {
+    }
 
     public record Business(
 
@@ -52,6 +53,27 @@ public final class NtsBusinessVerifyDTO {
             String validMessage,
 
             Status status
+
+    ) {
+    }
+
+    public record StatusRequest(
+
+            @JsonProperty("b_no")
+            List<String> businessNumbers
+
+    ) {
+    }
+
+    public record StatusResponse(
+
+            @JsonProperty("status_code")
+            String statusCode,
+
+            @JsonProperty("request_cnt")
+            Integer requestCount,
+
+            List<Status> data
 
     ) {
     }
