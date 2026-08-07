@@ -7,7 +7,6 @@ import com.yeogido.backend.domain.course.dto.request.CourseReqDTO;
 import com.yeogido.backend.domain.course.enums.CourseItemType;
 import com.yeogido.backend.domain.place.dto.response.PlaceResponse;
 import com.yeogido.backend.domain.place.entity.Place;
-import com.yeogido.backend.domain.place.entity.PlaceLike;
 import com.yeogido.backend.domain.place.enums.PlaceSource;
 import com.yeogido.backend.domain.place.exception.PlaceErrorCode;
 import com.yeogido.backend.domain.place.repository.PlaceLikeRepository;
@@ -15,8 +14,6 @@ import com.yeogido.backend.domain.place.repository.PlaceRepository;
 import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.region.exception.RegionErrorCode;
 import com.yeogido.backend.domain.region.repository.RegionRepository;
-import com.yeogido.backend.domain.user.entity.User;
-import com.yeogido.backend.domain.user.repository.UserRepository;
 import com.yeogido.backend.global.exception.GeneralException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -34,24 +31,14 @@ public class PlaceServiceImpl implements PlaceService {
 
     private final PlaceRepository placeRepository;
     private final PlaceLikeRepository placeLikeRepository;
-    private final UserRepository userRepository;
     private final RegionRepository regionRepository;
 
     @Override
     @Transactional
     public PlaceResponse.PlaceLikeRes createPlaceLike(Long userId, Long placeId) {
-        Place place = getPlace(placeId);
+        getPlace(placeId);
 
-        if (!placeLikeRepository.existsByUserIdAndPlaceId(userId, placeId)) {
-            User user = userRepository.getReferenceById(userId);
-
-            PlaceLike placeLike = PlaceLike.builder()
-                    .place(place)
-                    .user(user)
-                    .build();
-
-            placeLikeRepository.save(placeLike);
-        }
+        placeLikeRepository.insertIgnore(placeId, userId);
 
         return new PlaceResponse.PlaceLikeRes(
                 true,
