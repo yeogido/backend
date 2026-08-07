@@ -100,7 +100,10 @@ public class UserResDTO {
             @Schema(description = "게시물 내용")
             String content,
 
-            @Schema(description = "게시물 썸네일 이미지 URL")
+            @Schema(
+                    description = "게시물 대표 이미지 URL",
+                    example = "https://example-bucket.s3.ap-northeast-2.amazonaws.com/courses/thumbnail/course.jpg"
+            )
             String thumbnailUrl,
 
             @Schema(description = "여행 기간 유형")
