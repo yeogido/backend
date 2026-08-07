@@ -204,7 +204,10 @@ public class ContentResDTO {
             String regionName,
 
             @Schema(description = "해시태그", example = "[\"여름\", \"자연\", \"체험\"]")
-            List<String> hashtags
+            List<String> hashtags,
+
+            @Schema(description = "현재 사용자의 좋아요 여부. 비로그인 시 false", example = "true")
+            boolean liked
     ) {}
 
 

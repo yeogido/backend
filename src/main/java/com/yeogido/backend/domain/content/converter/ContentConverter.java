@@ -173,7 +173,8 @@ public class  ContentConverter {
     public static ContentResDTO.OngoingContentRes toOngoingContentRes(
             Content content,
             String thumbnailImageUrl,
-            List<String> hashtags
+            List<String> hashtags,
+            boolean liked
     ) {
         return new ContentResDTO.OngoingContentRes(
                 content.getId(),
@@ -182,7 +183,8 @@ public class  ContentConverter {
                 content.getStartDate(),
                 content.getEndDate(),
                 content.getPlace().getRegion().getFullName(),
-                hashtags
+                hashtags,
+                liked
         );
     }
 
