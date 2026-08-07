@@ -52,11 +52,6 @@ public class BusinessPromotion extends BaseEntity {
     @Column(name = "recommendation_priority", nullable = false)
     private Integer recommendationPriority = 0;
 
-    public void changePlace(Place place) {
-
-        this.place = place;
-    }
-
     public void clearSnsAccount() {
         this.snsAccount = null;
     }

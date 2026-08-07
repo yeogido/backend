@@ -168,12 +168,6 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
             validateDuplicateImageSortOrders(request.images());
         }
 
-        changePromotionPlaceIfRequested(
-                promotion,
-                request.businessInfoId(),
-                userId
-        );
-
         promotion.update(
                 request.shortDescription(),
                 request.ownerComment(),
@@ -341,54 +335,6 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
                 ));
     }
 
-    private void changePromotionPlaceIfRequested(
-            BusinessPromotion promotion,
-            Long businessInfoId,
-            Long userId
-    ) {
-        if (businessInfoId == null) {
-            return;
-        }
-
-        BusinessInfo businessInfo = businessInfoRepository
-                .findByIdAndUser_IdAndVerificationStatus(
-                        businessInfoId,
-                        userId,
-                        BusinessVerificationStatus.APPROVED
-                )
-                .orElseThrow(() -> new GeneralException(
-                        BusinessPromotionErrorCode
-                                .BUSINESS_PROMOTION_VERIFICATION_REQUIRED
-                ));
-
-        Place requestedPlace = businessInfo.getPlace();
-
-        if (requestedPlace == null) {
-            throw new GeneralException(
-                    BusinessPromotionErrorCode
-                            .BUSINESS_PROMOTION_VERIFICATION_REQUIRED
-            );
-        }
-
-        if (Objects.equals(
-                promotion.getPlace().getId(),
-                requestedPlace.getId()
-        )) {
-            return;
-        }
-
-        businessPromotionRepository
-                .findByPlaceId(requestedPlace.getId())
-                .ifPresent(existingPromotion -> {
-                    throw new GeneralException(
-                            BusinessPromotionErrorCode
-                                    .BUSINESS_PROMOTION_ALREADY_EXISTS
-                    );
-                });
-
-        promotion.changePlace(requestedPlace);
-    }
-
     private void validateBusinessPromotionOwner(
             BusinessPromotion promotion,
             Long userId,
@@ -413,8 +359,7 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
         }
 
         boolean hasUpdateValue =
-                request.businessInfoId() != null
-                        || request.shortDescription() != null
+                request.shortDescription() != null
                         || request.ownerComment() != null
                         || request.businessHours() != null
                         || request.snsAccount() != null

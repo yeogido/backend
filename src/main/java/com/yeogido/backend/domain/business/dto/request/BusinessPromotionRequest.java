@@ -61,12 +61,6 @@ public class BusinessPromotionRequest {
     public record Update(
 
             @Schema(
-                    description = "변경할 승인된 사업장 인증 정보 ID",
-                    example = "1"
-            )
-            Long businessInfoId,
-
-            @Schema(
                     description = "짧은 소개글",
                     example = "바다를 바라보며 즐기는 향긋한 커피와 디저트")
             String shortDescription,
