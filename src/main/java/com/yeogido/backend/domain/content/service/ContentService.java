@@ -10,7 +10,7 @@ import java.util.List;
 public interface ContentService {
 
     //문화콘텐츠 목록 조회
-    CursorResponse<ContentResDTO.ContentInfo> getContents(ContentReqDTO.ContentListReq request);
+    CursorResponse<ContentResDTO.ContentInfo> getContents(ContentReqDTO.ContentListReq request, Long userId);
 
     //문화콘텐츠 상세 조회
     ContentResDTO.ContentDetailRes getContentDetail(Long contentId, Long userId);

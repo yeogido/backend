@@ -17,6 +17,7 @@ import lombok.NoArgsConstructor;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class  ContentConverter {
@@ -24,16 +25,19 @@ public class  ContentConverter {
             Content content,
             String thumbnailImageUrl,
             Long likeCount,
-            List<String> hashtags
+            List<String> hashtags,
+            boolean isLiked
     ) {
         return new ContentResDTO.ContentInfo(
                 content.getId(),
                 content.getPlace().getId(),
                 content.getTitle(),
+                content.getCategory(),
                 thumbnailImageUrl,
-                content.getPlace().getRegion().getName(),
+                content.getPlace().getRegion().getFullName(),
                 hashtags,
                 likeCount,
+                isLiked,
                 content.getStartDate(),
                 content.getEndDate()
         );
@@ -44,7 +48,8 @@ public class  ContentConverter {
             QContent qContent,
             NumberExpression<Long> likeCountExpression,
             Map<Long, List<String>> hashtagMap,
-            String thumbnailImageUrl
+            String thumbnailImageUrl,
+            Set<Long> likedContentIds
     ) {
         Content content = tuple.get(qContent);
         Long likeCount = tuple.get(likeCountExpression);
@@ -53,7 +58,8 @@ public class  ContentConverter {
                 content,
                 thumbnailImageUrl,
                 likeCount,
-                hashtagMap.getOrDefault(content.getId(), List.of()));
+                hashtagMap.getOrDefault(content.getId(), List.of()),
+                likedContentIds.contains(content.getId()));
     }
 
     public static Place toPlace(

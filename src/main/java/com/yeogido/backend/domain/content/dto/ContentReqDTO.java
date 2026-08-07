@@ -19,25 +19,30 @@ public class ContentReqDTO {
             @Schema(description = "지역 ID")
             Long regionId,
 
-            @Schema(description = "카테고리")
+            @Schema(
+                    description = "카테고리 필터"
+            )
             ContentCategory category,
 
             @Schema(description = "검색어")
             String keyword,
 
-            @Schema(description = "정렬 기준")
+            @Schema(
+                    description = "서버 정렬 기준",
+                    defaultValue = "RECOMMEND"
+            )
             ContentSort sort,
 
-            @Schema(description = "위도")
+            @Schema(description = "거리순 정렬 기준 위도")
             Double latitude,
 
-            @Schema(description = "경도")
+            @Schema(description = "거리순 정렬 기준 경도")
             Double longitude,
 
-            @Schema(description = "커서 값")
+            @Schema(description = "이전 응답의 cursorValue")
             String cursorValue,
 
-            @Schema(description = "커서 ID")
+            @Schema(description = "이전 응답의 cursorId")
             Long cursorId,
 
             @Schema(description = "조회 개수")
