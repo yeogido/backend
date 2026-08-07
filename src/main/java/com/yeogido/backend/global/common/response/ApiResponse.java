@@ -1,14 +1,17 @@
 package com.yeogido.backend.global.common.response;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.yeogido.backend.global.exception.ErrorCode;
 import lombok.Builder;
+import org.springframework.http.HttpStatus;
 
 @Builder
 public record ApiResponse<T>(
         boolean isSuccess,
         String code,
         String message,
-        T result
+        T result,
+        @JsonIgnore HttpStatus httpStatus
 ) {
 
     public static <T> ApiResponse<T> onSuccess(BaseResponse successCode, T result) {
@@ -17,6 +20,7 @@ public record ApiResponse<T>(
                 .code(successCode.getCode())
                 .message(successCode.getMessage())
                 .result(result)
+                .httpStatus(successCode.getHttpStatus())
                 .build();
     }
 
@@ -26,6 +30,7 @@ public record ApiResponse<T>(
                 .code(successCode.getCode())
                 .message(successCode.getMessage())
                 .result(null)
+                .httpStatus(successCode.getHttpStatus())
                 .build();
     }
 
@@ -35,6 +40,7 @@ public record ApiResponse<T>(
                 .code(errorCode.getCode())
                 .message(errorCode.getMessage())
                 .result(null)
+                .httpStatus(errorCode.getHttpStatus())
                 .build();
     }
 }
