@@ -52,9 +52,7 @@ public class AuthServiceImpl implements AuthService {
   @Override
   @Transactional
   public AuthResDTO.SignUp signUp(AuthReqDTO.SignUp request) {
-    if (userRepository.existsByEmail(request.email())) {
-      throw new GeneralException(UserErrorCode.EMAIL_DUPLICATED);
-    }
+    validateEmailAvailable(request.email());
 
     emailVerificationService.verifyToken(request.email(), request.emailVerificationToken());
 
@@ -87,7 +85,7 @@ public class AuthServiceImpl implements AuthService {
   @Transactional(readOnly = true)
   public AuthResDTO.Token login(AuthReqDTO.Login request) {
     User user = userRepository.findByEmail(request.email())
-      .filter(foundUser -> foundUser.getStatus() == UserStatus.ACTIVE)
+      .map(this::validateActiveUser)
       .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
 
     if (!StringUtils.hasText(user.getPassword())
@@ -140,7 +138,8 @@ public class AuthServiceImpl implements AuthService {
   }
 
   private AuthResDTO.SocialLogin createExistingSocialLoginResponse(SocialAccount socialAccount) {
-    AuthResDTO.Token token = issueAndSaveToken(socialAccount.getUser());
+    User user = validateActiveUser(socialAccount.getUser());
+    AuthResDTO.Token token = issueAndSaveToken(user);
     return AuthConverter.toExistingSocialLoginResponse(token);
   }
 
@@ -158,9 +157,7 @@ public class AuthServiceImpl implements AuthService {
       throw new GeneralException(AuthErrorCode.SOCIAL_ACCOUNT_ALREADY_EXISTS);
     }
 
-    if (userRepository.existsByEmail(payload.email())) {
-      throw new GeneralException(UserErrorCode.EMAIL_DUPLICATED);
-    }
+    validateEmailAvailable(payload.email());
 
     Region region = regionRepository.findById(request.regionId())
       .orElseThrow(() -> new GeneralException(RegionErrorCode.REGION_NOT_FOUND));
@@ -193,7 +190,14 @@ public class AuthServiceImpl implements AuthService {
   @Override
   @Transactional(readOnly = true)
   public AuthResDTO.EmailCheck checkEmail(String email) {
-    return new AuthResDTO.EmailCheck(!userRepository.existsByEmail(email));
+    return new AuthResDTO.EmailCheck(userRepository.findByEmail(email)
+      .map(user -> {
+        if (user.getStatus() == UserStatus.DELETED) {
+          throw new GeneralException(UserErrorCode.USER_WITHDRAWN);
+        }
+        return false;
+      })
+      .orElse(true));
   }
 
   @Override
@@ -228,9 +232,7 @@ public class AuthServiceImpl implements AuthService {
   @Override
   @Transactional(readOnly = true)
   public void sendEmailVerificationCode(AuthReqDTO.EmailSendCode request) {
-    if (userRepository.existsByEmail(request.email())) {
-      throw new GeneralException(UserErrorCode.EMAIL_DUPLICATED);
-    }
+    validateEmailAvailable(request.email());
 
     String authCode = emailVerificationService.issueCode(request.email());
     mailService.sendEmailVerificationCode(request.email(), authCode);
@@ -250,7 +252,7 @@ public class AuthServiceImpl implements AuthService {
   @Transactional(readOnly = true)
   public void sendResetCode(AuthReqDTO.PasswordSendCode request) {
     User user = userRepository.findByEmail(request.email())
-      .filter(foundUser -> foundUser.getStatus() == UserStatus.ACTIVE)
+      .map(this::validateActiveUser)
       .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
 
     String authCode = passwordResetCodeService.issueCode(user.getEmail());
@@ -273,9 +275,32 @@ public class AuthServiceImpl implements AuthService {
     String email = passwordResetCodeService.verifyResetTokenAndDelete(request.resetToken());
 
     User user = userRepository.findByEmail(email)
-      .filter(foundUser -> foundUser.getStatus() == UserStatus.ACTIVE)
+      .map(this::validateActiveUser)
       .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
 
     user.updatePassword(passwordEncoder.encode(request.newPassword()));
+  }
+
+  private void validateEmailAvailable(String email) {
+    userRepository.findByEmail(email)
+      .ifPresent(user -> {
+        if (user.getStatus() == UserStatus.DELETED) {
+          throw new GeneralException(UserErrorCode.USER_WITHDRAWN);
+        }
+
+        throw new GeneralException(UserErrorCode.EMAIL_DUPLICATED);
+      });
+  }
+
+  private User validateActiveUser(User user) {
+    if (user.getStatus() == UserStatus.DELETED) {
+      throw new GeneralException(UserErrorCode.USER_WITHDRAWN);
+    }
+
+    if (user.getStatus() != UserStatus.ACTIVE) {
+      throw new GeneralException(UserErrorCode.USER_NOT_FOUND);
+    }
+
+    return user;
   }
 }

@@ -21,6 +21,12 @@ public enum UserErrorCode implements ErrorCode {
     "존재하지 않는 회원입니다."
   ),
 
+  USER_WITHDRAWN(
+    HttpStatus.GONE,
+    "USER4101",
+    "이미 탈퇴한 회원입니다."
+  ),
+
   FORBIDDEN(
           HttpStatus.FORBIDDEN,
         "USER4031",

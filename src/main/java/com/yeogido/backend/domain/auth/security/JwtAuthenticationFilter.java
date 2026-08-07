@@ -3,6 +3,9 @@ package com.yeogido.backend.domain.auth.security;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yeogido.backend.domain.auth.exception.AuthErrorCode;
 import com.yeogido.backend.domain.auth.service.JwtTokenProvider;
+import com.yeogido.backend.domain.user.enums.UserStatus;
+import com.yeogido.backend.domain.user.exception.UserErrorCode;
+import com.yeogido.backend.domain.user.repository.UserRepository;
 import com.yeogido.backend.global.common.response.ApiResponse;
 import com.yeogido.backend.global.exception.GeneralException;
 import jakarta.servlet.FilterChain;
@@ -29,6 +32,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
   private static final String BEARER_PREFIX = "Bearer ";
 
   private final JwtTokenProvider jwtTokenProvider;
+  private final UserRepository userRepository;
   private final ObjectMapper objectMapper;
 
   @Override
@@ -46,6 +50,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     try {
       AuthUser authUser = jwtTokenProvider.parseAccessToken(token);
+      validateActiveUser(authUser);
+
       UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
         authUser,
         null,
@@ -55,8 +61,23 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
       filterChain.doFilter(request, response);
     } catch (GeneralException e) {
       SecurityContextHolder.clearContext();
-      writeUnauthorizedResponse(response);
+      writeFailureResponse(response, e);
     }
+  }
+
+  private void validateActiveUser(AuthUser authUser) {
+    userRepository.findById(authUser.userId())
+      .ifPresentOrElse(user -> {
+        if (user.getStatus() == UserStatus.DELETED) {
+          throw new GeneralException(UserErrorCode.USER_WITHDRAWN);
+        }
+
+        if (user.getStatus() != UserStatus.ACTIVE) {
+          throw new GeneralException(AuthErrorCode.LOGIN_REQUIRED);
+        }
+      }, () -> {
+        throw new GeneralException(AuthErrorCode.LOGIN_REQUIRED);
+      });
   }
 
   private String resolveToken(HttpServletRequest request) {
@@ -69,10 +90,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     return authorization.substring(BEARER_PREFIX.length());
   }
 
-  private void writeUnauthorizedResponse(HttpServletResponse response) throws IOException {
-    response.setStatus(AuthErrorCode.LOGIN_REQUIRED.getHttpStatus().value());
+  private void writeFailureResponse(HttpServletResponse response, GeneralException exception) throws IOException {
+    response.setStatus(exception.getErrorCode().getHttpStatus().value());
     response.setContentType(MediaType.APPLICATION_JSON_VALUE);
     response.setCharacterEncoding(StandardCharsets.UTF_8.name());
-    objectMapper.writeValue(response.getWriter(), ApiResponse.onFailure(AuthErrorCode.LOGIN_REQUIRED));
+    objectMapper.writeValue(response.getWriter(), ApiResponse.onFailure(exception.getErrorCode()));
   }
 }
