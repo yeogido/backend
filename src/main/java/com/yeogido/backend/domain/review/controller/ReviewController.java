@@ -90,6 +90,6 @@ public class ReviewController {
     ) {
         reviewService.deleteReview(reviewId, authUser.userId());
 
-        return ApiResponse.onSuccess(SuccessCode.NO_CONTENT);
+        return ApiResponse.onSuccess(SuccessCode.OK);
     }
 }
