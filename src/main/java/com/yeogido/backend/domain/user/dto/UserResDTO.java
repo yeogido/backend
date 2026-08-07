@@ -73,6 +73,9 @@ public class UserResDTO {
             @Schema(description = "지역", example = "서울")
             String region,
 
+            @Schema(description = "지역 ID", example = "1")
+            Long regionId,
+
             @Schema(description = "출생연도", example = "2000")
             String birthYear,
 
