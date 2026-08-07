@@ -16,7 +16,7 @@ public class AuthResDTO {
     @Schema(description = "사용자 ID", example = "1")
     Long userId,
 
-    @Schema(description = "사용자 역할", example = "USER", allowableValues = {"USER", "ADMIN", "BUSINESS"})
+    @Schema(description = "사용자 역할. 관리자 화면 분기는 ADMIN 여부로 판단합니다.", example = "USER", allowableValues = {"USER", "ADMIN", "BUSINESS"})
     UserRole role,
 
     @Schema(description = "액세스 토큰", example = "eyJhbGciOiJIUzI1NiJ9.eyJzdWI...")
@@ -34,7 +34,7 @@ public class AuthResDTO {
     @Schema(description = "사용자 ID. 기존 사용자 로그인 성공 시 반환", example = "2")
     Long userId,
 
-    @Schema(description = "사용자 역할. 기존 사용자 로그인 성공 시 반환", example = "USER", allowableValues = {"USER", "ADMIN", "BUSINESS"})
+    @Schema(description = "사용자 역할. 기존 사용자 로그인 성공 시 반환되며 관리자 화면 분기는 ADMIN 여부로 판단합니다.", example = "USER", allowableValues = {"USER", "ADMIN", "BUSINESS"})
     UserRole role,
 
     @Schema(description = "액세스 토큰. 기존 사용자 로그인 성공 시 반환", example = "eyJhbGciOiJIUzI1NiJ9...")
