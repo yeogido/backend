@@ -22,9 +22,9 @@ public class PlaceController {
 
     @Operation(
             summary = "장소 좋아요 등록",
-            description = "사용자가 특정 장소에 좋아요를 등록합니다."
+            description = "사용자가 특정 장소에 좋아요를 등록합니다. 이미 좋아요한 장소인 경우에도 기존 좋아요 상태를 반환합니다."
     )
-    @PostMapping("/{placeId}/likes")
+    @PutMapping("/{placeId}/likes")
     public ApiResponse<PlaceResponse.PlaceLikeRes> createPlaceLike(
             @AuthenticationPrincipal AuthUser authUser,
             @Parameter(description = "장소 ID", example = "1")
@@ -33,12 +33,12 @@ public class PlaceController {
         PlaceResponse.PlaceLikeRes response =
                 placeService.createPlaceLike(authUser.userId(), placeId);
 
-        return ApiResponse.onSuccess(SuccessCode.CREATED, response);
+        return ApiResponse.onSuccess(SuccessCode.OK, response);
     }
 
     @Operation(
             summary = "장소 좋아요 취소",
-            description = "사용자가 특정 장소에 등록한 좋아요를 취소합니다"
+            description = "사용자가 특정 장소에 등록한 좋아요를 취소합니다. 좋아요가 없는 경우에도 정상적으로 해제 상태를 반환합니다."
     )
     @DeleteMapping("/{placeId}/likes")
     public ApiResponse<PlaceResponse.PlaceLikeRes> deletePlaceLike(

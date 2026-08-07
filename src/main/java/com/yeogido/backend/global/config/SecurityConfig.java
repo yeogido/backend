@@ -49,11 +49,9 @@ public class SecurityConfig {
             "/api/v1/files/presigned-url",
             "/api/v1/courses",
             "/api/v1/courses/*/reviews",
-            "/api/v1/courses/*/likes",
             "/api/v1/users/business-verify",
             "/api/v1/business-promotions",
             "/api/v1/contents",
-            "/api/v1/places/*/likes",
             "/api/v1/travel-records",
             "/api/v1/stickers"
     };
@@ -65,6 +63,12 @@ public class SecurityConfig {
             "/api/v1/business-promotions/**",
             "/api/v1/contents/*",
             "/api/v1/travel-records/**"
+    };
+
+    private static final String[] AUTHENTICATED_PUT_PATHS = {
+            "/api/v1/courses/*/likes",
+            "/api/v1/contents/*/likes",
+            "/api/v1/places/*/likes"
     };
 
     private static final String[] AUTHENTICATED_DELETE_PATHS = {
@@ -141,6 +145,7 @@ public class SecurityConfig {
 
                         .requestMatchers(HttpMethod.GET, AUTHENTICATED_GET_PATHS).authenticated()
                         .requestMatchers(HttpMethod.POST, AUTHENTICATED_POST_PATHS).authenticated()
+                        .requestMatchers(HttpMethod.PUT, AUTHENTICATED_PUT_PATHS).authenticated()
                         .requestMatchers(HttpMethod.PATCH, AUTHENTICATED_PATCH_PATHS).authenticated()
                         .requestMatchers(HttpMethod.DELETE, AUTHENTICATED_DELETE_PATHS).authenticated()
 
