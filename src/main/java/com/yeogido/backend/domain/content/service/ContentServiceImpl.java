@@ -644,9 +644,16 @@ public class ContentServiceImpl implements ContentService{
                     .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
         }
 
-        List<String> hashtags = contentHashtagRepository.findByContent(content)
+        List<ContentHashtag> contentHashtags = contentHashtagRepository.findByContent(content);
+
+        List<String> hashtags = contentHashtags
                 .stream()
                 .map(ch->ch.getHashtag().getHashtagName())
+                .toList();
+
+        List<Long> hashtagIds = contentHashtags
+                .stream()
+                .map(ch -> ch.getHashtag().getId())
                 .toList();
 
 
@@ -698,6 +705,7 @@ public class ContentServiceImpl implements ContentService{
                 content,
                 imageUrl,
                 hashtags,
+                hashtagIds,
                 liked,
                 placeInfo,
                 courses
