@@ -160,7 +160,9 @@ public class CourseConverter {
     public static CourseResDTO.CourseItem toCourseItem(
             CourseItem courseItem,
             boolean isLiked,
-            Function<String, String> imageUrlResolver
+            Function<String, String> imageUrlResolver,
+            List<CourseResDTO.OperatingDay> operatingDays,
+            List<CourseResDTO.CourseItemTime> timesFromPrevious
     ) {
         Place place = resolvePlace(courseItem);
         Content content = courseItem.getContent();
@@ -182,7 +184,9 @@ public class CourseConverter {
                     place.getLatitude(),
                     place.getLongitude(),
                     imageKey,
-                    imageUrlResolver.apply(imageKey)
+                    imageUrlResolver.apply(imageKey),
+                    operatingDays,
+                    timesFromPrevious
             );
         }
 
@@ -202,7 +206,23 @@ public class CourseConverter {
                 place.getLotAddress(),
                 place.getLatitude(),
                 place.getLongitude(),
-                imageUrlResolver.apply(imageKey)
+                imageUrlResolver.apply(imageKey),
+                timesFromPrevious
+        );
+    }
+
+    public static CourseResDTO.OperatingDay toOperatingDay(PlaceOperatingDay operatingDay) {
+        return new CourseResDTO.OperatingDay(
+                operatingDay.getDayOfWeek(),
+                operatingDay.getOpenTime(),
+                operatingDay.getCloseTime()
+        );
+    }
+
+    public static CourseResDTO.CourseItemTime toCourseItemTime(CourseItemTime itemTime) {
+        return new CourseResDTO.CourseItemTime(
+                itemTime.getTransportMode(),
+                itemTime.getDurationMinutes()
         );
     }
 

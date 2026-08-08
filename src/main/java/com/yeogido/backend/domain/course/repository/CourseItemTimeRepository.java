@@ -6,6 +6,8 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
+
 public interface CourseItemTimeRepository extends JpaRepository<CourseItemTime, Long> {
 
     @Modifying(flushAutomatically = true)
@@ -15,4 +17,14 @@ public interface CourseItemTimeRepository extends JpaRepository<CourseItemTime, 
                or cit.toCourseItem.course.id = :courseId
             """)
     void deleteAllByCourseId(@Param("courseId") Long courseId);
+
+    @Query("""
+            select cit
+            from CourseItemTime cit
+            join fetch cit.fromCourseItem fromItem
+            join fetch cit.toCourseItem toItem
+            where fromItem.course.id = :courseId
+               or toItem.course.id = :courseId
+            """)
+    List<CourseItemTime> findAllByCourseId(@Param("courseId") Long courseId);
 }

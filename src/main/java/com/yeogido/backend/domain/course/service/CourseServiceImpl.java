@@ -278,12 +278,17 @@ public class CourseServiceImpl implements CourseService {
         List<CourseItem> courseItemEntities = courseItemRepository.findByCourseIdOrderByOrderNoAsc(courseId);
         Set<Long> likedPlaceIds = getLikedPlaceIds(userId, courseItemEntities);
         Set<Long> likedContentIds = getLikedContentIds(userId, courseItemEntities);
+        Map<Long, List<CourseResDTO.OperatingDay>> operatingDayMap = getOperatingDayMap(courseItemEntities);
+        Map<Long, List<CourseResDTO.CourseItemTime>> timesFromPreviousMap =
+                getTimesFromPreviousMap(courseId, courseItemEntities);
 
         List<CourseResDTO.CourseItem> courseItems = courseItemEntities.stream()
                 .map(courseItem -> CourseConverter.toCourseItem(
                         courseItem,
                         isCourseItemLiked(courseItem, likedPlaceIds, likedContentIds),
-                        s3Service::getImageUrl
+                        s3Service::getImageUrl,
+                        getOperatingDays(courseItem, operatingDayMap),
+                        timesFromPreviousMap.getOrDefault(courseItem.getId(), List.of())
                 ))
                 .toList();
 
@@ -300,6 +305,65 @@ public class CourseServiceImpl implements CourseService {
                 courseItems,
                 profileImageUrl
         );
+    }
+
+    private Map<Long, List<CourseResDTO.OperatingDay>> getOperatingDayMap(List<CourseItem> courseItems) {
+        Set<Long> placeIds = courseItems.stream()
+                .filter(courseItem -> courseItem.getItemType() == CourseItemType.PLACE)
+                .map(CourseItem::getPlace)
+                .filter(Objects::nonNull)
+                .map(Place::getId)
+                .collect(Collectors.toSet());
+
+        if (placeIds.isEmpty()) {
+            return Map.of();
+        }
+
+        return placeOperatingDayRepository.findAllByPlace_IdIn(placeIds).stream()
+                .sorted(Comparator.comparing(PlaceOperatingDay::getDayOfWeek))
+                .collect(Collectors.groupingBy(
+                        operatingDay -> operatingDay.getPlace().getId(),
+                        Collectors.mapping(CourseConverter::toOperatingDay, Collectors.toList())
+                ));
+    }
+
+    private List<CourseResDTO.OperatingDay> getOperatingDays(
+            CourseItem courseItem,
+            Map<Long, List<CourseResDTO.OperatingDay>> operatingDayMap
+    ) {
+        if (courseItem.getItemType() != CourseItemType.PLACE || courseItem.getPlace() == null) {
+            return List.of();
+        }
+
+        return operatingDayMap.getOrDefault(courseItem.getPlace().getId(), List.of());
+    }
+
+    private Map<Long, List<CourseResDTO.CourseItemTime>> getTimesFromPreviousMap(
+            Long courseId,
+            List<CourseItem> courseItems
+    ) {
+        if (courseItems.size() <= 1) {
+            return Map.of();
+        }
+
+        Map<Long, Long> previousItemIdByItemId = new HashMap<>();
+        for (int index = 1; index < courseItems.size(); index++) {
+            previousItemIdByItemId.put(
+                    courseItems.get(index).getId(),
+                    courseItems.get(index - 1).getId()
+            );
+        }
+
+        return courseItemTimeRepository.findAllByCourseId(courseId).stream()
+                .filter(itemTime -> Objects.equals(
+                        previousItemIdByItemId.get(itemTime.getToCourseItem().getId()),
+                        itemTime.getFromCourseItem().getId()
+                ))
+                .sorted(Comparator.comparing(CourseItemTime::getTransportMode))
+                .collect(Collectors.groupingBy(
+                        itemTime -> itemTime.getToCourseItem().getId(),
+                        Collectors.mapping(CourseConverter::toCourseItemTime, Collectors.toList())
+                ));
     }
 
     @Override

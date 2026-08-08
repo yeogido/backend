@@ -6,7 +6,9 @@ import com.yeogido.backend.domain.course.enums.CompanionType;
 import com.yeogido.backend.domain.course.enums.CourseItemType;
 import com.yeogido.backend.domain.course.enums.CourseType;
 import com.yeogido.backend.domain.course.enums.DurationType;
+import com.yeogido.backend.domain.course.enums.TransportMode;
 import com.yeogido.backend.domain.course.enums.TransportType;
+import com.yeogido.backend.domain.business.enums.DayOfWeek;
 import com.yeogido.backend.domain.place.enums.PlaceSource;
 import com.yeogido.backend.domain.user.enums.AgeGroup;
 import com.yeogido.backend.domain.user.enums.Gender;
@@ -14,6 +16,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 
 public class CourseResDTO {
@@ -177,7 +180,32 @@ public class CourseResDTO {
         BigDecimal longitude();
 
         String imageUrl();
+
+        List<CourseItemTime> timesFromPrevious();
     }
+
+    @Schema(name = "PlaceOperatingDayResponse", description = "장소 영업시간 응답")
+    public record OperatingDay(
+
+            @Schema(description = "영업 요일", example = "MONDAY")
+            DayOfWeek dayOfWeek,
+
+            @Schema(description = "영업 시작 시간", example = "09:00")
+            LocalTime openTime,
+
+            @Schema(description = "영업 종료 시간", example = "18:00")
+            LocalTime closeTime
+    ) { }
+
+    @Schema(name = "CourseItemTimeResponse", description = "이전 코스 항목에서 현재 항목까지의 이동 소요시간 응답")
+    public record CourseItemTime(
+
+            @Schema(description = "이동 방식", example = "WALK")
+            TransportMode transportMode,
+
+            @Schema(description = "이동 소요시간(분)", example = "15")
+            Integer durationMinutes
+    ) { }
 
     @Schema(name = "PlaceCourseItemResponse", description = "장소 코스 구성 항목")
     public record PlaceCourseItem(
@@ -222,7 +250,13 @@ public class CourseResDTO {
             String imageKey,
 
             @Schema(description = "장소 이미지 URL. 화면 표시용입니다.", nullable = true, example = "https://example.com/place/jumunjin.jpg")
-            String imageUrl
+            String imageUrl,
+
+            @Schema(description = "장소 영업시간 목록. 없으면 빈 배열입니다.")
+            List<OperatingDay> operatingDays,
+
+            @Schema(description = "이전 코스 항목에서 현재 항목까지의 이동 소요시간 목록. 없으면 빈 배열입니다.")
+            List<CourseItemTime> timesFromPrevious
     ) implements CourseItem { }
 
     @Schema(name = "ContentCourseItemResponse", description = "문화 콘텐츠 코스 구성 항목")
@@ -268,7 +302,10 @@ public class CourseResDTO {
             BigDecimal longitude,
 
             @Schema(description = "콘텐츠 이미지 URL. CONTENT 타입은 imageKey를 응답하지 않습니다.", nullable = true, example = "https://example.com/content/coffee-festival.jpg")
-            String imageUrl
+            String imageUrl,
+
+            @Schema(description = "이전 코스 항목에서 현재 항목까지의 이동 소요시간 목록. 없으면 빈 배열입니다.")
+            List<CourseItemTime> timesFromPrevious
     ) implements CourseItem { }
 
     @Schema(name = "CourseAuthorResponse", description = "코스 작성자 정보")
