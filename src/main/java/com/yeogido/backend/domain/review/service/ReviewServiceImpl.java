@@ -2,6 +2,7 @@ package com.yeogido.backend.domain.review.service;
 
 import com.yeogido.backend.domain.course.entity.CourseReview;
 import com.yeogido.backend.domain.course.entity.CourseReviewImage;
+import com.yeogido.backend.domain.course.repository.CourseHashtagRepository;
 import com.yeogido.backend.domain.course.repository.CourseLikeRepository;
 import com.yeogido.backend.domain.course.repository.CourseReviewImageRepository;
 import com.yeogido.backend.domain.course.repository.CourseReviewRepository;
@@ -38,6 +39,7 @@ public class ReviewServiceImpl implements ReviewService {
     private final CourseReviewRepository courseReviewRepository;
     private final CourseReviewImageRepository courseReviewImageRepository;
     private final CourseLikeRepository courseLikeRepository;
+    private final CourseHashtagRepository courseHashtagRepository;
     private final FileService fileService;
     private final S3Service s3Service;
 
@@ -74,11 +76,13 @@ public class ReviewServiceImpl implements ReviewService {
 
         Map<Long, List<CourseReviewImage>> imageMap = getReviewImageMap(content);
         Set<Long> likedCourseIds = getLikedCourseIds(userId, content);
+        Map<Long, List<String>> courseTagMap = getCourseTagMap(content);
 
         List<ReviewResDTO.ReviewDetail> items = ReviewConverter.toReviewDetails(
                 content,
                 imageMap,
                 likedCourseIds,
+                courseTagMap,
                 userId,
                 s3Service::getImageUrl
         );
@@ -191,6 +195,27 @@ public class ReviewServiceImpl implements ReviewService {
                 userId,
                 courseIds
         ));
+    }
+
+    private Map<Long, List<String>> getCourseTagMap(List<CourseReview> reviews) {
+        List<Long> courseIds = reviews.stream()
+                .map(review -> review.getCourse().getId())
+                .distinct()
+                .toList();
+
+        if (courseIds.isEmpty()) {
+            return Map.of();
+        }
+
+        return courseHashtagRepository.findHashtagNamesByCourseIdIn(courseIds)
+                .stream()
+                .collect(Collectors.groupingBy(
+                        CourseHashtagRepository.CourseHashtagNameProjection::getCourseId,
+                        Collectors.mapping(
+                                CourseHashtagRepository.CourseHashtagNameProjection::getHashtagName,
+                                Collectors.toList()
+                        )
+                ));
     }
 
     private void validateReviewOwner(

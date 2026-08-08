@@ -1,5 +1,6 @@
 package com.yeogido.backend.domain.review.dto.response;
 
+import com.yeogido.backend.domain.course.enums.CompanionType;
 import com.yeogido.backend.domain.course.enums.CourseType;
 import com.yeogido.backend.domain.course.enums.DurationType;
 import com.yeogido.backend.domain.course.enums.TransportType;
@@ -123,6 +124,12 @@ public class ReviewResDTO {
 
             @Schema(description = "이동 수단 타입", example = "CAR")
             TransportType transportType,
+
+            @Schema(description = "동행 유형", example = "FRIEND")
+            CompanionType companionType,
+
+            @Schema(description = "태그", example = "[\"바다\", \"사진\", \"힐링\"]")
+            List<String> tags,
 
             @Schema(description = "좋아요 여부", example = "false")
             Boolean isLiked
