@@ -1,5 +1,6 @@
 package com.yeogido.backend.domain.business.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.yeogido.backend.domain.business.enums.PromotionCategory;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
@@ -69,6 +70,8 @@ public class BusinessPromotionResponse {
             @Schema(description = "현재 사용자의 장소 좋아요 여부", example = "true")
             Boolean isLiked,
 
+
+            @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
             @Schema(description = "생성일시", example = "2026-07-05T10:30:00")
             LocalDateTime createdAt
     ){ }
@@ -115,9 +118,11 @@ public class BusinessPromotionResponse {
             @Schema(description = "현재 사용자의 장소 좋아요 여부", example = "true")
             Boolean isLiked,
 
+            @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
             @Schema(description = "생성일시", example = "2026-07-05T10:30:00")
             LocalDateTime createdAt,
 
+            @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
             @Schema(description = "수정일시", example = "2026-07-05T12:00:00")
             LocalDateTime updatedAt
     ){ }
@@ -161,9 +166,11 @@ public class BusinessPromotionResponse {
             @Schema(description = "요일", example = "MONDAY")
             String dayOfWeek,
 
+            @JsonFormat(pattern = "HH:mm")
             @Schema(description = "오픈 시간", example = "10:00")
             LocalTime openTime,
 
+            @JsonFormat(pattern = "HH:mm")
             @Schema(description = "마감 시간", example = "22:00")
             LocalTime closeTime
     ) { }
@@ -216,9 +223,11 @@ public class BusinessPromotionResponse {
             @Schema(description = "연결된 장소의 좋아요 수", example = "24")
             Long likeCount,
 
+            @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
             @Schema(description = "생성일시", example = "2026-07-05T10:30:00")
             LocalDateTime createdAt,
 
+            @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
             @Schema(description = "수정일시", example = "2026-07-05T12:00:00")
             LocalDateTime updatedAt
     ) { }
