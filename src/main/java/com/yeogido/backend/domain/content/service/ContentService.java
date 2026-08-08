@@ -19,7 +19,7 @@ public interface ContentService {
     ContentResDTO.ContentCreateRes createContent(ContentReqDTO.ContentCreateReq request, Long userId);
 
     //문화콘텐츠 수정
-    ContentResDTO.ContentUpdateRes updateContent(Long contentId, ContentReqDTO.ContentCreateReq request, Long userId);
+    ContentResDTO.ContentUpdateRes updateContent(Long contentId, ContentReqDTO.ContentUpdateReq request, Long userId);
 
     //문화콘텐츠 삭제
     void deleteContent(Long contentId, Long userId);

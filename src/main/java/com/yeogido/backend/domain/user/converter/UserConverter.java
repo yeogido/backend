@@ -44,6 +44,7 @@ public class UserConverter {
                 LikeCategory.COURSE,
                 course.getTitle(),
                 null,
+                null,
                 thumbnailImage,
                 course.getDurationType().name(),
                 course.getTransportType(),
@@ -70,6 +71,7 @@ public class UserConverter {
                 LikeCategory.CONTENT,
                 content.getTitle(),
                 null,
+                null,
                 thumbnailImage,
                 null,
                 null,
@@ -87,7 +89,8 @@ public class UserConverter {
     public static UserResDTO.LikedResponse toLikedResponse(
             PlaceLike like,
             Double latitude,
-            Double longitude
+            Double longitude,
+            String thumbnailImage
     ) {
         Place place = like.getPlace();
 
@@ -107,7 +110,8 @@ public class UserConverter {
                 LikeCategory.PLACE,
                 place.getName(),
                 place.getExternalPlaceId(),
-                null,
+                place.getCategoryGroupCode(),
+                thumbnailImage,
                 null,
                 null,
                 null,

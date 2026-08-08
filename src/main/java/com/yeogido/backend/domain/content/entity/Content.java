@@ -86,17 +86,39 @@ public class Content extends BaseEntity {
             ContentCategory category,
             ContentSource source
     ) {
-        this.place = place;
-        this.externalContentId = externalContentId;
-        this.title = title;
-        this.description = description;
-        this.thumbnailImage = thumbnailImage;
-        this.startDate = startDate;
-        this.endDate = endDate;
-        this.contactPhone = contactPhone;
-        this.officialUrl = officialUrl;
-        this.category = category;
-        this.source = source;
+        if (place != null) {
+            this.place = place;
+        }
+        if (externalContentId != null) {
+            this.externalContentId = externalContentId;
+        }
+        if (title != null) {
+            this.title = title;
+        }
+        if (description != null) {
+            this.description = description;
+        }
+        if (thumbnailImage != null) {
+            this.thumbnailImage = thumbnailImage;
+        }
+        if (startDate != null) {
+            this.startDate = startDate;
+        }
+        if (endDate != null) {
+            this.endDate = endDate;
+        }
+        if (contactPhone != null) {
+            this.contactPhone = contactPhone;
+        }
+        if (officialUrl != null) {
+            this.officialUrl = officialUrl;
+        }
+        if (category != null) {
+            this.category = category;
+        }
+        if (source != null) {
+            this.source = source;
+        }
     }
 
     public void updateRecommendPriority(Integer recommendPriority) {
