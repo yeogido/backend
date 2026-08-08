@@ -88,6 +88,26 @@ public interface CourseRepository extends JpaRepository<Course, Long>, CourseQue
     @Query("""
             select
                 c.id as courseId,
+                c.thumbnailKey as thumbnailKey,
+                c.title as title,
+                c.durationType as durationType,
+                c.companionType as companionType,
+                c.user.id as userId,
+                c.user.nickname as nickname,
+                c.user.profileImage as profileImageKey,
+                c.createdAt as createdAt
+            from Course c
+            where c.id in :courseIds
+              and c.courseType = com.yeogido.backend.domain.course.enums.CourseType.LOCAL
+              and c.deletedAt is null
+            """)
+    List<CourseLocalPopularProjection> findLocalPopularCoursesByCourseIds(
+            @Param("courseIds") Collection<Long> courseIds
+    );
+
+    @Query("""
+            select
+                c.id as courseId,
                 c.region.id as regionId,
                 c.region.name as regionName,
                 c.region.fullName as regionFullName,
@@ -150,6 +170,19 @@ public interface CourseRepository extends JpaRepository<Course, Long>, CourseQue
             """)
     List<Long> findLatestLocalCourseIds(Pageable pageable);
 
+    @Query("""
+            select c.id
+            from Course c
+            where c.courseType = com.yeogido.backend.domain.course.enums.CourseType.LOCAL
+              and c.id not in :excludedCourseIds
+              and c.deletedAt is null
+            order by c.createdAt desc
+            """)
+    List<Long> findLatestLocalCourseIdsExcluding(
+            @Param("excludedCourseIds") Collection<Long> excludedCourseIds,
+            Pageable pageable
+    );
+
     interface CourseSummaryProjection {
 
         Long getCourseId();
@@ -193,6 +226,27 @@ public interface CourseRepository extends JpaRepository<Course, Long>, CourseQue
         TransportType getTransportType();
 
         CompanionType getCompanionType();
+    }
+
+    interface CourseLocalPopularProjection {
+
+        Long getCourseId();
+
+        String getThumbnailKey();
+
+        String getTitle();
+
+        DurationType getDurationType();
+
+        CompanionType getCompanionType();
+
+        Long getUserId();
+
+        String getNickname();
+
+        String getProfileImageKey();
+
+        LocalDateTime getCreatedAt();
     }
 
     interface RegionPopularityTargetProjection {

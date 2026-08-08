@@ -70,6 +70,7 @@ public class CourseServiceImpl implements CourseService {
 
     private static final Long MOCK_MEMBER_ID = 1L;
     private static final int POPULAR_COURSE_SIZE = 2;
+    private static final int POPULAR_LOCAL_COURSE_SIZE = 4;
     private static final int DEFAULT_COURSE_REVIEW_PAGE_SIZE = 10;
     private static final int RECOMMENDED_COURSE_SIZE = 5;
 
@@ -157,6 +158,10 @@ public class CourseServiceImpl implements CourseService {
         validateCourseAuthority(course, user);
 
         course.delete();
+
+        if (course.getCourseType() == CourseType.LOCAL) {
+            removeLocalRankingAfterCommit(courseId);
+        }
     }
 
     @Override
@@ -241,6 +246,81 @@ public class CourseServiceImpl implements CourseService {
                         likedCourseIds.contains(course.getCourseId())
                 ))
                 .toList();
+    }
+
+    @Override
+    public List<CourseResDTO.CourseLocalPopularPreview> getPopularLocalCourses(Long userId) {
+        List<Long> popularCourseIds =
+                coursePopularityRankingRedisRepository.findTopLocalCourseIds(POPULAR_LOCAL_COURSE_SIZE);
+
+        List<Long> courseIds = getActivePopularLocalCourseIds(popularCourseIds);
+        courseIds.addAll(getSupplementLatestLocalCourseIds(courseIds));
+
+        if (courseIds.isEmpty()) {
+            return List.of();
+        }
+
+        Map<Long, CourseRepository.CourseLocalPopularProjection> courseMap =
+                courseRepository.findLocalPopularCoursesByCourseIds(courseIds)
+                        .stream()
+                        .collect(Collectors.toMap(
+                                CourseRepository.CourseLocalPopularProjection::getCourseId,
+                                Function.identity()
+                        ));
+
+        Map<Long, List<String>> tagMap = getPopularCourseTagMap(courseIds);
+        Set<Long> likedCourseIds = getLikedCourseIds(userId, courseIds);
+
+        return courseIds.stream()
+                .map(courseMap::get)
+                .filter(Objects::nonNull)
+                .map(course -> CourseConverter.toLocalPopularCoursePreview(
+                        course,
+                        s3Service.getImageUrl(course.getThumbnailKey()),
+                        s3Service.getImageUrl(course.getProfileImageKey()),
+                        tagMap.getOrDefault(course.getCourseId(), List.of()),
+                        likedCourseIds.contains(course.getCourseId())
+                ))
+                .toList();
+    }
+
+    private List<Long> getActivePopularLocalCourseIds(List<Long> popularCourseIds) {
+        if (popularCourseIds.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        Map<Long, CourseRepository.CourseLocalPopularProjection> courseMap =
+                courseRepository.findLocalPopularCoursesByCourseIds(popularCourseIds)
+                        .stream()
+                        .collect(Collectors.toMap(
+                                CourseRepository.CourseLocalPopularProjection::getCourseId,
+                                Function.identity()
+                        ));
+
+        return popularCourseIds.stream()
+                .filter(courseMap::containsKey)
+                .distinct()
+                .limit(POPULAR_LOCAL_COURSE_SIZE)
+                .collect(Collectors.toCollection(ArrayList::new));
+    }
+
+    private List<Long> getSupplementLatestLocalCourseIds(List<Long> existingCourseIds) {
+        int supplementSize = POPULAR_LOCAL_COURSE_SIZE - existingCourseIds.size();
+
+        if (supplementSize <= 0) {
+            return List.of();
+        }
+
+        Pageable pageable = PageRequest.of(0, supplementSize);
+
+        if (existingCourseIds.isEmpty()) {
+            return courseRepository.findLatestLocalCourseIds(pageable);
+        }
+
+        return courseRepository.findLatestLocalCourseIdsExcluding(
+                existingCourseIds,
+                pageable
+        );
     }
 
     @Override
@@ -624,6 +704,28 @@ public class CourseServiceImpl implements CourseService {
             courseRedisRepository.saveCreatedEvent(courseId, LocalDate.now());
         } catch (RuntimeException exception) {
             log.warn("Failed to save course created event. courseId={}", courseId, exception);
+        }
+    }
+
+    private void removeLocalRankingAfterCommit(Long courseId) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            removeLocalRanking(courseId);
+            return;
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                removeLocalRanking(courseId);
+            }
+        });
+    }
+
+    private void removeLocalRanking(Long courseId) {
+        try {
+            coursePopularityRankingRedisRepository.removeLocalCourseId(courseId);
+        } catch (RuntimeException exception) {
+            log.warn("Failed to remove course from local popularity ranking. courseId={}", courseId, exception);
         }
     }
 
