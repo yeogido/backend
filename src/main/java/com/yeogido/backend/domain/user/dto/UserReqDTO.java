@@ -19,7 +19,13 @@ public class UserReqDTO {
 
             @Schema(description = "지역 ID", example = "1")
             @Positive(message = "지역 ID는 양수여야 합니다.")
-            Long regionId
+            Long regionId,
+
+            @Schema(
+                    description = "프로필 이미지 object key",
+                    example = "temp/156c9c65-acf8-4d82-bb12-c031e3eecda0.png"
+            )
+            String profileImageUrl
     ) {
     }
 }
