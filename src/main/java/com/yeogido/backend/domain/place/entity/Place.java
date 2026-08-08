@@ -57,13 +57,4 @@ public class Place extends BaseEntity {
     @Column(nullable = false, precision = 10, scale = 7)
     private BigDecimal longitude;
 
-    @Column(name = "thumbnail_key", length = 255)
-    private String thumbnailKey;
-
-    public void updateThumbnailKeyIfAbsent(String thumbnailKey) {
-        if (this.thumbnailKey == null && thumbnailKey != null) {
-            this.thumbnailKey = thumbnailKey;
-        }
-    }
-
 }

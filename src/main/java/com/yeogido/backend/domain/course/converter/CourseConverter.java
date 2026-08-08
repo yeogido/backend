@@ -61,7 +61,6 @@ public class CourseConverter {
                 .lotAddress(request.lotAddress())
                 .latitude(request.latitude())
                 .longitude(request.longitude())
-                .thumbnailKey(request.imageKey())
                 .build();
     }
 
