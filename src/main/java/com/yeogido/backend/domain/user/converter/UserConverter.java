@@ -87,7 +87,8 @@ public class UserConverter {
     public static UserResDTO.LikedResponse toLikedResponse(
             PlaceLike like,
             Double latitude,
-            Double longitude
+            Double longitude,
+            String thumbnailImage
     ) {
         Place place = like.getPlace();
 
@@ -107,7 +108,7 @@ public class UserConverter {
                 LikeCategory.PLACE,
                 place.getName(),
                 place.getExternalPlaceId(),
-                null,
+                thumbnailImage,
                 null,
                 null,
                 null,

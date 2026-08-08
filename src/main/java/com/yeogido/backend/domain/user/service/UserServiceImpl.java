@@ -239,7 +239,8 @@ public class UserServiceImpl implements UserService{
                                 .map(like -> UserConverter.toLikedResponse(
                                         like,
                                         resolvedLatitude,
-                                        resolvedLongitude
+                                        resolvedLongitude,
+                                        s3Service.getImageUrl(like.getPlace().getThumbnailKey())
                                 ))
                                 .toList();
 
@@ -512,7 +513,8 @@ public class UserServiceImpl implements UserService{
                 UserConverter.toLikedResponse(
                         like,
                         latitude,
-                        longitude
+                        longitude,
+                        s3Service.getImageUrl(like.getPlace().getThumbnailKey())
                 )
         );
     }

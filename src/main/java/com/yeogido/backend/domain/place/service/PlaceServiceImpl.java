@@ -81,6 +81,7 @@ public class PlaceServiceImpl implements PlaceService {
     public Place getOrCreatePlace(CourseReqDTO.CourseItemCreateReq item, Map<String, Place> placeMap) {
         Place place = placeMap.get(item.externalPlaceId());
         if (place != null) {
+            place.updateThumbnailKeyIfAbsent(item.imageKey());
             return place;
         }
 
