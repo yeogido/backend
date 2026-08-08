@@ -769,6 +769,7 @@ public class UserServiceImpl implements UserService{
                 .selectFrom(course)
                 .where(
                         course.user.eq(user),
+                        course.deletedAt.isNull(),
                         keywordCondition(course.title, keyword),
                         cursorCondition(
                                 course.createdAt,
@@ -870,6 +871,7 @@ public class UserServiceImpl implements UserService{
                 .join(review.course).fetchJoin()
                 .where(
                         review.user.eq(user),
+                        review.course.deletedAt.isNull(),
                         keywordCondition(review.content, keyword),
                         cursorCondition(
                                 review.createdAt,
