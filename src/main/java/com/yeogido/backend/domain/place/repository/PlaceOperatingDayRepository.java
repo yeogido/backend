@@ -7,7 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 
 public interface PlaceOperatingDayRepository extends JpaRepository<PlaceOperatingDay, Long> {
 
-    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Modifying(flushAutomatically = true)
     @Query("delete from PlaceOperatingDay pod where pod.place.id = :placeId")
     void deleteAllByPlace_Id(Long placeId);
 }

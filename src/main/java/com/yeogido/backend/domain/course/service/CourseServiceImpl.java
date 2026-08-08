@@ -924,8 +924,9 @@ public class CourseServiceImpl implements CourseService {
     ) { }
 
     private void replaceCourseItems(Course course, List<CourseReqDTO.CourseItemCreateReq> courseItems) {
+        courseItemTimeRepository.deleteAllByCourseId(course.getId());
         courseItemRepository.deleteAllByCourseId(course.getId());
-        saveCourseItems(course, courseItems, false);
+        saveCourseItems(course, courseItems, true);
     }
 
     private Map<Long, Content> getContentMap(List<CourseReqDTO.CourseItemCreateReq> courseItems) {
