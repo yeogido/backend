@@ -2,6 +2,7 @@ package com.yeogido.backend.domain.place.service;
 
 import com.yeogido.backend.domain.content.dto.ContentReqDTO;
 import com.yeogido.backend.domain.course.dto.request.CourseReqDTO;
+import com.yeogido.backend.domain.place.dto.request.PlaceLikeRequest;
 import com.yeogido.backend.domain.place.dto.response.PlaceResponse;
 import com.yeogido.backend.domain.place.entity.Place;
 
@@ -10,7 +11,11 @@ import java.util.Map;
 
 public interface PlaceService {
 
-    PlaceResponse.PlaceLikeRes createPlaceLike(Long userId, Long placeId);
+    PlaceResponse.PlaceLikeRes createPlaceLike(
+            Long userId,
+            Long placeId,
+            PlaceLikeRequest request
+    );
 
     PlaceResponse.PlaceLikeRes deletePlaceLike(Long userId, Long placeId);
 
@@ -21,5 +26,4 @@ public interface PlaceService {
     Map<String, Place> getPlaceMap(
             List<CourseReqDTO.CourseItemCreateReq> items
     );
-
 }

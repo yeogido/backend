@@ -1,12 +1,19 @@
 package com.yeogido.backend.domain.place.service;
 
+import com.yeogido.backend.domain.business.entity.BusinessPromotion;
+import com.yeogido.backend.domain.business.enums.PromotionStatus;
+import com.yeogido.backend.domain.business.repository.BusinessPromotionRepository;
 import com.yeogido.backend.domain.content.converter.ContentConverter;
 import com.yeogido.backend.domain.content.dto.ContentReqDTO;
 import com.yeogido.backend.domain.course.converter.CourseConverter;
 import com.yeogido.backend.domain.course.dto.request.CourseReqDTO;
+import com.yeogido.backend.domain.course.entity.CourseItem;
 import com.yeogido.backend.domain.course.enums.CourseItemType;
+import com.yeogido.backend.domain.course.repository.CourseItemRepository;
+import com.yeogido.backend.domain.place.dto.request.PlaceLikeRequest;
 import com.yeogido.backend.domain.place.dto.response.PlaceResponse;
 import com.yeogido.backend.domain.place.entity.Place;
+import com.yeogido.backend.domain.place.enums.PlaceLikeSourceType;
 import com.yeogido.backend.domain.place.enums.PlaceSource;
 import com.yeogido.backend.domain.place.exception.PlaceErrorCode;
 import com.yeogido.backend.domain.place.repository.PlaceLikeRepository;
@@ -32,13 +39,30 @@ public class PlaceServiceImpl implements PlaceService {
     private final PlaceRepository placeRepository;
     private final PlaceLikeRepository placeLikeRepository;
     private final RegionRepository regionRepository;
+    private final CourseItemRepository courseItemRepository;
+    private final BusinessPromotionRepository businessPromotionRepository;
 
     @Override
     @Transactional
-    public PlaceResponse.PlaceLikeRes createPlaceLike(Long userId, Long placeId) {
+    public PlaceResponse.PlaceLikeRes createPlaceLike(
+            Long userId,
+            Long placeId,
+            PlaceLikeRequest request
+    ) {
         getPlace(placeId);
 
-        placeLikeRepository.insertIgnore(placeId, userId);
+        validatePlaceLikeSource(
+                placeId,
+                request.sourceType(),
+                request.sourceId()
+        );
+
+        placeLikeRepository.insertIgnore(
+                placeId,
+                userId,
+                request.sourceType().name(),
+                request.sourceId()
+        );
 
         return new PlaceResponse.PlaceLikeRes(
                 true,
@@ -119,6 +143,59 @@ public class PlaceServiceImpl implements PlaceService {
         newPlace = placeRepository.save(newPlace);
 
         return newPlace;
+    }
+
+    private void validatePlaceLikeSource(
+            Long placeId,
+            PlaceLikeSourceType sourceType,
+            Long sourceId
+    ) {
+        switch (sourceType) {
+            case COURSE_ITEM -> validateCourseItemSource(placeId, sourceId);
+            case PROMOTION -> validatePromotionSource(placeId, sourceId);
+        }
+    }
+
+    private void validateCourseItemSource(
+            Long placeId,
+            Long courseItemId
+    ) {
+        CourseItem courseItem = courseItemRepository.findById(courseItemId)
+                .orElseThrow(
+                        () -> new GeneralException(
+                                PlaceErrorCode.INVALID_PLACE_LIKE_SOURCE
+                        )
+                );
+
+        if (courseItem.getItemType() != CourseItemType.PLACE
+                || courseItem.getPlace() == null
+                || !courseItem.getPlace().getId().equals(placeId)) {
+            throw new GeneralException(
+                    PlaceErrorCode.INVALID_PLACE_LIKE_SOURCE
+            );
+        }
+    }
+
+    private void validatePromotionSource(
+            Long placeId,
+            Long promotionId
+    ) {
+        BusinessPromotion promotion =
+                businessPromotionRepository.findByIdAndStatus(
+                                promotionId,
+                                PromotionStatus.ACTIVE
+                        )
+                        .orElseThrow(
+                                () -> new GeneralException(
+                                        PlaceErrorCode.INVALID_PLACE_LIKE_SOURCE
+                                )
+                        );
+
+        if (!promotion.getPlace().getId().equals(placeId)) {
+            throw new GeneralException(
+                    PlaceErrorCode.INVALID_PLACE_LIKE_SOURCE
+            );
+        }
     }
 
     private Region findRegionByAddress(String roadAddress, String lotAddress) {

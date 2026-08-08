@@ -14,6 +14,12 @@ public enum PlaceErrorCode implements ErrorCode {
             HttpStatus.NOT_FOUND,
             "PLACE4041",
             "장소를 찾을 수 없습니다"
+    ),
+
+    INVALID_PLACE_LIKE_SOURCE(
+            HttpStatus.BAD_REQUEST,
+            "PLACE4001",
+            "유효하지 않은 장소 좋아요 출처입니다."
     );
 
     private final HttpStatus httpStatus;

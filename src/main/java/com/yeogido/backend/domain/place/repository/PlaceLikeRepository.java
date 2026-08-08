@@ -51,12 +51,28 @@ public interface PlaceLikeRepository extends JpaRepository<PlaceLike, Long> {
 
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query(value = """
-        INSERT IGNORE INTO place_like (place_id, user_id, created_at, updated_at)
-        VALUES (:placeId, :userId, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        """, nativeQuery = true)
+    INSERT IGNORE INTO place_like (
+        place_id,
+        user_id,
+        source_type,
+        source_id,
+        created_at,
+        updated_at
+    )
+    VALUES (
+        :placeId,
+        :userId,
+        :sourceType,
+        :sourceId,
+        CURRENT_TIMESTAMP,
+        CURRENT_TIMESTAMP
+    )
+    """, nativeQuery = true)
     int insertIgnore(
             @Param("placeId") Long placeId,
-            @Param("userId") Long userId
+            @Param("userId") Long userId,
+            @Param("sourceType") String sourceType,
+            @Param("sourceId") Long sourceId
     );
 
     interface PlaceLikeCount {
