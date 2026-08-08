@@ -74,6 +74,9 @@ public class ReviewResDTO {
             @Schema(description = "생성 일시", example = "2026-07-05T15:30:00")
             LocalDateTime createdAt,
 
+            @Schema(description = "로그인 사용자가 작성한 리뷰 여부. 비로그인 요청 시 false", example = "false")
+            Boolean isMine,
+
             @Schema(description = "리뷰 이미지 목록")
             List<ReviewImage> images,
 
