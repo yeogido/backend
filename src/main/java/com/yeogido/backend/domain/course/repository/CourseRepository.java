@@ -170,6 +170,19 @@ public interface CourseRepository extends JpaRepository<Course, Long>, CourseQue
             """)
     List<Long> findLatestLocalCourseIds(Pageable pageable);
 
+    @Query("""
+            select c.id
+            from Course c
+            where c.courseType = com.yeogido.backend.domain.course.enums.CourseType.LOCAL
+              and c.id not in :excludedCourseIds
+              and c.deletedAt is null
+            order by c.createdAt desc
+            """)
+    List<Long> findLatestLocalCourseIdsExcluding(
+            @Param("excludedCourseIds") Collection<Long> excludedCourseIds,
+            Pageable pageable
+    );
+
     interface CourseSummaryProjection {
 
         Long getCourseId();
