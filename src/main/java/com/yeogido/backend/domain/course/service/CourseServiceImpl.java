@@ -95,14 +95,14 @@ public class CourseServiceImpl implements CourseService {
     @Transactional
     public CourseResDTO.CourseIdRes createCourse(Long userId, CourseReqDTO.CourseCreateReq request) {
         validateCourseCreateRequest(request);
-        CourseReqDTO.CourseCreateReq movedRequest = moveCourseImages(request);
-
         User user = getCurrentUser(userId);
-        Region courseRegion = getRegion(movedRequest.regionId());
-
         CourseType courseType = (user.getRole() == UserRole.ADMIN)
                 ? CourseType.OFFICIAL
                 : CourseType.LOCAL;
+        validateRequiredCourseItemImages(request, courseType);
+
+        CourseReqDTO.CourseCreateReq movedRequest = moveCourseImages(request);
+        Region courseRegion = getRegion(movedRequest.regionId());
 
         Course course = courseRepository.save(
                 CourseConverter.toCourse(movedRequest, user, courseRegion, courseType)
@@ -123,6 +123,7 @@ public class CourseServiceImpl implements CourseService {
 
         validateCourseAuthority(course, user);
         validateCourseUpdateRequest(request);
+        validateRequiredCourseItemImages(request, course.getCourseType());
         CourseReqDTO.CourseUpdateReq movedRequest = moveCourseImages(request);
 
         course.update(
@@ -664,6 +665,39 @@ public class CourseServiceImpl implements CourseService {
     private void validateCourseCreateRequest(CourseReqDTO.CourseCreateReq request) {
         validateHashtags(request.hashtagIds());
         validateCourseItems(request.courseItems());
+    }
+
+    private void validateRequiredCourseItemImages(
+            CourseReqDTO.CourseCreateReq request,
+            CourseType courseType
+    ) {
+        validateRequiredCourseItemImages(request.courseItems(), courseType);
+    }
+
+    private void validateRequiredCourseItemImages(
+            CourseReqDTO.CourseUpdateReq request,
+            CourseType courseType
+    ) {
+        if (request.courseItems() == null) {
+            return;
+        }
+
+        validateRequiredCourseItemImages(request.courseItems(), courseType);
+    }
+
+    private void validateRequiredCourseItemImages(
+            List<CourseReqDTO.CourseItemCreateReq> courseItems,
+            CourseType courseType
+    ) {
+        if (courseType != CourseType.LOCAL) {
+            return;
+        }
+
+        for (CourseReqDTO.CourseItemCreateReq item : courseItems) {
+            if (item.type() == CourseItemType.PLACE && !StringUtils.hasText(item.imageKey())) {
+                throw new GeneralException(CourseErrorCode.PLACE_ITEM_IMAGE_REQUIRED);
+            }
+        }
     }
 
     private void validateCourseUpdateRequest(CourseReqDTO.CourseUpdateReq request) {
