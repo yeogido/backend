@@ -28,6 +28,9 @@ public class UserResDTO {
             @Schema(description = "여러출처 장소ID")
             String externalPlaceId,
 
+            @Schema(description = "장소 카테고리 그룹 코드")
+            String categoryGroupCode,
+
             @Schema(description = "대표 사진")
             String thumbnailImage,
 
