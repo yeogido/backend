@@ -14,7 +14,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -192,7 +191,7 @@ class CoursePopularityRankingServiceTest {
     }
 
     @Test
-    void refreshPopularityRankingsStoresOnlyTotalRankingForLocalCourses() {
+    void refreshPopularityRankingsStoresLocalRankingsByTotalAndRegion() {
         when(coursePopularityScoreService.calculateRecentPopularityScores())
                 .thenReturn(Map.of(
                         1L, 80L,
@@ -225,12 +224,6 @@ class CoursePopularityRankingServiceTest {
 
         verify(coursePopularityRankingRedisRepository).deleteOfficialRegionRankings();
 
-        verify(coursePopularityRankingRedisRepository, never())
-                .replaceOfficialRegionRanking(
-                        10L,
-                        List.of(new CoursePopularityRankingEntry(1L, 80L, LocalDateTime.of(2026, 7, 21, 10, 0)))
-                );
-
         verify(coursePopularityRankingRedisRepository).replaceLocalRanking(List.of(
                 new CoursePopularityRankingEntry(
                         1L,
@@ -243,6 +236,30 @@ class CoursePopularityRankingServiceTest {
                         LocalDateTime.of(2026, 7, 20, 10, 0)
                 )
         ));
+
+        verify(coursePopularityRankingRedisRepository).deleteLocalRegionRankings();
+
+        verify(coursePopularityRankingRedisRepository).replaceLocalRegionRanking(
+                10L,
+                List.of(
+                        new CoursePopularityRankingEntry(
+                                1L,
+                                80L,
+                                LocalDateTime.of(2026, 7, 21, 10, 0)
+                        )
+                )
+        );
+
+        verify(coursePopularityRankingRedisRepository).replaceLocalRegionRanking(
+                20L,
+                List.of(
+                        new CoursePopularityRankingEntry(
+                                2L,
+                                20L,
+                                LocalDateTime.of(2026, 7, 20, 10, 0)
+                        )
+                )
+        );
     }
 
     @Test

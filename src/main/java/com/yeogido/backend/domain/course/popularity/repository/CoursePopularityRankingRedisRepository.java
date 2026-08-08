@@ -10,8 +10,8 @@ import org.springframework.stereotype.Repository;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.util.Locale;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 
@@ -71,6 +71,35 @@ public class CoursePopularityRankingRedisRepository {
 
     public List<Long> findTopLocalCourseIds(int size) {
         return findTopCourseIds(localRankingKey(), size);
+    }
+
+    public void replaceLocalRegionRanking(Long regionId, List<CoursePopularityRankingEntry> entries) {
+        replaceRanking(localRegionRankingKey(regionId), entries);
+
+        // 다음 재집계를 위한 지역별 Key 목록
+        stringRedisTemplate.opsForSet()
+                .add(localRegionSetKey(), regionId.toString());
+    }
+
+    public List<Long> findTopLocalRegionCourseIds(Long regionId, int size) {
+        return findTopCourseIds(localRegionRankingKey(regionId), size);
+    }
+
+    public void deleteLocalRegionRankings() {
+        Set<String> regionIds =
+                stringRedisTemplate.opsForSet().members(localRegionSetKey());
+
+        if (regionIds == null || regionIds.isEmpty()) {
+            return;
+        }
+
+        // 이전 지역별 랭킹 Key 삭제
+        List<String> keys = regionIds.stream()
+                .map(id -> localRegionRankingKey(Long.valueOf(id)))
+                .toList();
+
+        stringRedisTemplate.delete(keys);
+        stringRedisTemplate.delete(localRegionSetKey());
     }
 
     private void replaceRanking(String key, List<CoursePopularityRankingEntry> entries) {
@@ -162,5 +191,13 @@ public class CoursePopularityRankingRedisRepository {
 
     private String localRankingKey() {
         return RedisKey.of(DOMAIN, RANKING, LOCAL);
+    }
+
+    private String localRegionRankingKey(Long regionId) {
+        return RedisKey.of(DOMAIN, RANKING, LOCAL, regionId.toString());
+    }
+
+    private String localRegionSetKey() {
+        return RedisKey.of(DOMAIN, RANKING, LOCAL, REGIONS);
     }
 }

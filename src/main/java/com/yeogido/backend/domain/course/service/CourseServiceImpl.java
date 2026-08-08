@@ -849,11 +849,14 @@ public class CourseServiceImpl implements CourseService {
                         );
             }
             case LOCAL -> {
-                if (request.regionId() != null) {
-                    throw new GeneralException(CourseErrorCode.INVALID_POPULAR_COURSE_REGION);
-                }
+                validatePopularCourseRegionExists(request.regionId());
 
-                yield coursePopularityRankingRedisRepository.findTopLocalCourseIds(POPULAR_COURSE_SIZE);
+                yield request.regionId() == null
+                        ? coursePopularityRankingRedisRepository.findTopLocalCourseIds(POPULAR_COURSE_SIZE)
+                        : coursePopularityRankingRedisRepository.findTopLocalRegionCourseIds(
+                                request.regionId(),
+                                POPULAR_COURSE_SIZE
+                        );
             }
         };
     }
@@ -969,7 +972,9 @@ public class CourseServiceImpl implements CourseService {
         Pageable pageable = PageRequest.of(0, 2);
 
         if (courseType == CourseType.LOCAL) {
-            return courseRepository.findLatestLocalCourseIds(pageable);
+            return regionId == null
+                    ? courseRepository.findLatestLocalCourseIds(pageable)
+                    : courseRepository.findLatestLocalRegionCourseIds(regionId, pageable);
         }
 
         if (regionId == null) {
