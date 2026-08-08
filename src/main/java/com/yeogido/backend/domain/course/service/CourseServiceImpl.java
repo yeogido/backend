@@ -804,12 +804,16 @@ public class CourseServiceImpl implements CourseService {
 
     private List<Long> getPopularCourseIds(CourseReqDTO.CoursePopularReq request) {
         return switch (request.courseType()) {
-            case OFFICIAL -> request.regionId() == null
-                    ? coursePopularityRankingRedisRepository.findTopOfficialCourseIds(POPULAR_COURSE_SIZE)
-                    : coursePopularityRankingRedisRepository.findTopOfficialRegionCourseIds(
-                            request.regionId(),
-                            POPULAR_COURSE_SIZE
-                    );
+            case OFFICIAL -> {
+                validatePopularCourseRegionExists(request.regionId());
+
+                yield request.regionId() == null
+                        ? coursePopularityRankingRedisRepository.findTopOfficialCourseIds(POPULAR_COURSE_SIZE)
+                        : coursePopularityRankingRedisRepository.findTopOfficialRegionCourseIds(
+                                request.regionId(),
+                                POPULAR_COURSE_SIZE
+                        );
+            }
             case LOCAL -> {
                 if (request.regionId() != null) {
                     throw new GeneralException(CourseErrorCode.INVALID_POPULAR_COURSE_REGION);
@@ -818,6 +822,12 @@ public class CourseServiceImpl implements CourseService {
                 yield coursePopularityRankingRedisRepository.findTopLocalCourseIds(POPULAR_COURSE_SIZE);
             }
         };
+    }
+
+    private void validatePopularCourseRegionExists(Long regionId) {
+        if (regionId != null && !regionRepository.existsById(regionId)) {
+            throw new GeneralException(RegionErrorCode.REGION_NOT_FOUND);
+        }
     }
 
     private Map<Long, List<String>> getPopularCourseTagMap(List<Long> courseIds) {
