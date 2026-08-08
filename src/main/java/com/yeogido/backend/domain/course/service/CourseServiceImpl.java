@@ -70,6 +70,7 @@ public class CourseServiceImpl implements CourseService {
 
     private static final Long MOCK_MEMBER_ID = 1L;
     private static final int POPULAR_COURSE_SIZE = 2;
+    private static final int POPULAR_LOCAL_COURSE_SIZE = 4;
     private static final int DEFAULT_COURSE_REVIEW_PAGE_SIZE = 10;
     private static final int RECOMMENDED_COURSE_SIZE = 5;
 
@@ -236,6 +237,45 @@ public class CourseServiceImpl implements CourseService {
                 .map(course -> CourseConverter.toPopularCoursePreview(
                         course,
                         s3Service.getImageUrl(course.getThumbnailKey()),
+                        tagMap.getOrDefault(course.getCourseId(), List.of()),
+                        likedCourseIds.contains(course.getCourseId())
+                ))
+                .toList();
+    }
+
+    @Override
+    public List<CourseResDTO.CourseLocalPopularPreview> getPopularLocalCourses(Long userId) {
+        List<Long> courseIds =
+                coursePopularityRankingRedisRepository.findTopLocalCourseIds(POPULAR_LOCAL_COURSE_SIZE);
+
+        if (courseIds.isEmpty()) {
+            courseIds = courseRepository.findLatestLocalCourseIds(
+                    PageRequest.of(0, POPULAR_LOCAL_COURSE_SIZE)
+            );
+        }
+
+        if (courseIds.isEmpty()) {
+            return List.of();
+        }
+
+        Map<Long, CourseRepository.CourseLocalPopularProjection> courseMap =
+                courseRepository.findLocalPopularCoursesByCourseIds(courseIds)
+                        .stream()
+                        .collect(Collectors.toMap(
+                                CourseRepository.CourseLocalPopularProjection::getCourseId,
+                                Function.identity()
+                        ));
+
+        Map<Long, List<String>> tagMap = getPopularCourseTagMap(courseIds);
+        Set<Long> likedCourseIds = getLikedCourseIds(userId, courseIds);
+
+        return courseIds.stream()
+                .map(courseMap::get)
+                .filter(Objects::nonNull)
+                .map(course -> CourseConverter.toLocalPopularCoursePreview(
+                        course,
+                        s3Service.getImageUrl(course.getThumbnailKey()),
+                        s3Service.getImageUrl(course.getProfileImageKey()),
                         tagMap.getOrDefault(course.getCourseId(), List.of()),
                         likedCourseIds.contains(course.getCourseId())
                 ))

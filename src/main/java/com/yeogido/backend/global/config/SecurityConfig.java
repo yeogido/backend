@@ -89,6 +89,7 @@ public class SecurityConfig {
             "/api/v1/regions/**",
             "/api/v1/hashtags",
             "/api/v1/courses",
+            "/api/v1/courses/popular/local",
             "/api/v1/courses/*",
             "/api/v1/courses/*/reviews",
             "/api/v1/business-promotions",
