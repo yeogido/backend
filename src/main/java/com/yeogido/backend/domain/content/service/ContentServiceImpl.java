@@ -728,19 +728,23 @@ public class ContentServiceImpl implements ContentService{
 
     @Transactional
     @Override
-    public ContentResDTO.ContentUpdateRes updateContent(Long contentId, ContentReqDTO.ContentCreateReq request, Long userId){
+    public ContentResDTO.ContentUpdateRes updateContent(Long contentId, ContentReqDTO.ContentUpdateReq request, Long userId){
 
         validateAdmin(userId);
 
         Content content = contentRepository.findById(contentId)
                 .orElseThrow(() -> new GeneralException(ContentErrorCode.CONTENT_NOT_FOUND));
 
-        Place place = placeService.getOrCreatePlace(request.place());
-        ContentReqDTO.ContentCreateReq movedRequest = moveContentImage(request);
+        Place place = request.place() == null
+                ? null
+                : placeService.getOrCreatePlace(request.place());
+        ContentReqDTO.ContentUpdateReq movedRequest = moveContentImage(request);
 
         content.update(
                 place,
-                movedRequest.place().externalPlaceId(),
+                movedRequest.place() == null
+                        ? null
+                        : movedRequest.place().externalPlaceId(),
                 movedRequest.title(),
                 movedRequest.description(),
                 movedRequest.thumbnailImageKey(),
@@ -749,14 +753,17 @@ public class ContentServiceImpl implements ContentService{
                 movedRequest.contactPhone(),
                 movedRequest.officialUrl(),
                 movedRequest.category(),
-                movedRequest.place().source() == PlaceSource.KAKAO
-                        ? ContentSource.ADMIN
-                        : ContentSource.TOUR_API
+                movedRequest.place() == null
+                        ? null
+                        : movedRequest.place().source() == PlaceSource.KAKAO
+                                ? ContentSource.ADMIN
+                                : ContentSource.TOUR_API
         );
 
-        contentHashtagRepository.deleteByContentId(contentId);
-
-        saveContentHashtags(content, movedRequest.hashtagIds());
+        if (movedRequest.hashtagIds() != null) {
+            contentHashtagRepository.deleteByContentId(contentId);
+            saveContentHashtags(content, movedRequest.hashtagIds());
+        }
 
         return new ContentResDTO.ContentUpdateRes(content.getId());
     }
@@ -769,6 +776,27 @@ public class ContentServiceImpl implements ContentService{
         }
 
         return new ContentReqDTO.ContentCreateReq(
+                request.place(),
+                request.title(),
+                request.description(),
+                request.category(),
+                request.startDate(),
+                request.endDate(),
+                request.contactPhone(),
+                request.officialUrl(),
+                thumbnailImageKey,
+                request.hashtagIds()
+        );
+    }
+
+    private ContentReqDTO.ContentUpdateReq moveContentImage(ContentReqDTO.ContentUpdateReq request) {
+        String thumbnailImageKey = request.thumbnailImageKey();
+
+        if (StringUtils.hasText(thumbnailImageKey)) {
+            thumbnailImageKey = fileService.moveToDirectory(thumbnailImageKey, ImageDirectory.CONTENT);
+        }
+
+        return new ContentReqDTO.ContentUpdateReq(
                 request.place(),
                 request.title(),
                 request.description(),

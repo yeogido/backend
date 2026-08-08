@@ -85,7 +85,43 @@ public class ContentReqDTO {
 
     ){}
 
-        public record PlaceReq(
+    @Schema(name = "ContentUpdateRequest", description = "문화콘텐츠 수정 요청")
+    public record ContentUpdateReq(
+
+            @Valid
+            @Schema(description = "변경할 장소 정보. 생략하면 기존 장소를 유지합니다.")
+            PlaceReq place,
+
+            @Schema(description = "문화콘텐츠명. 생략하면 기존 값을 유지합니다.")
+            String title,
+
+            @Schema(description = "문화콘텐츠 설명. 생략하면 기존 값을 유지합니다.")
+            String description,
+
+            @Schema(description = "카테고리. 생략하면 기존 값을 유지합니다.")
+            ContentCategory category,
+
+            @Schema(description = "행사 시작일. 생략하면 기존 값을 유지합니다.")
+            LocalDate startDate,
+
+            @Schema(description = "행사 종료일. 생략하면 기존 값을 유지합니다.")
+            LocalDate endDate,
+
+            @Schema(description = "문의 연락처. 생략하면 기존 값을 유지합니다.")
+            String contactPhone,
+
+            @Schema(description = "공식 홈페이지. 생략하면 기존 값을 유지합니다.")
+            String officialUrl,
+
+            @Schema(description = "새 대표 사진 Key. 생략하면 기존 이미지를 유지합니다.")
+            String thumbnailImageKey,
+
+            @Schema(description = "교체할 해시태그 ID 목록. 생략하면 기존 목록을 유지합니다.")
+            List<Long> hashtagIds
+
+    ){}
+
+    public record PlaceReq(
 
                 @Schema(description = "외부 장소 식별 ID")
                 String externalPlaceId,
