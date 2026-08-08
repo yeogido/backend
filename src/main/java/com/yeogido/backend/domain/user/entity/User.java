@@ -77,7 +77,8 @@ public class User extends BaseEntity {
     public void updateProfile(
             String nickname,
             String birthYear,
-            Region region
+            Region region,
+            String profileImage
     ) {
         if (nickname != null) {
             this.nickname = nickname;
@@ -87,6 +88,9 @@ public class User extends BaseEntity {
         }
         if (region != null) {
             this.region = region;
+        }
+        if (profileImage != null) {
+            this.profileImage = profileImage;
         }
     }
 
