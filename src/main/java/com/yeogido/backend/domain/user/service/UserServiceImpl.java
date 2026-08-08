@@ -24,6 +24,8 @@ import com.yeogido.backend.domain.content.repository.ContentLikeRepository;
 import com.yeogido.backend.domain.course.converter.CourseConverter;
 import com.yeogido.backend.domain.course.entity.*;
 import com.yeogido.backend.domain.course.repository.*;
+import com.yeogido.backend.domain.file.enums.ImageDirectory;
+import com.yeogido.backend.domain.file.service.FileService;
 import com.yeogido.backend.domain.file.service.S3Service;
 import com.yeogido.backend.domain.place.entity.PlaceLike;
 import com.yeogido.backend.domain.place.entity.QPlace;
@@ -84,6 +86,7 @@ public class UserServiceImpl implements UserService{
     private final BusinessPromotionRepository businessPromotionRepository;
     private final BusinessPromotionHashtagRepository businessPromotionHashtagRepository;
     private final BusinessPromotionImageRepository businessPromotionImageRepository;
+    private final FileService fileService;
     private final S3Service s3Service;
     private final RefreshTokenService refreshTokenService;
 
@@ -837,6 +840,7 @@ public class UserServiceImpl implements UserService{
                 .selectFrom(course)
                 .where(
                         course.user.eq(user),
+                        course.deletedAt.isNull(),
                         keywordCondition(course.title, keyword),
                         cursorCondition(
                                 course.createdAt,
@@ -938,6 +942,7 @@ public class UserServiceImpl implements UserService{
                 .join(review.course).fetchJoin()
                 .where(
                         review.user.eq(user),
+                        review.course.deletedAt.isNull(),
                         keywordCondition(review.content, keyword),
                         cursorCondition(
                                 review.createdAt,
@@ -1278,10 +1283,19 @@ public class UserServiceImpl implements UserService{
                     .orElseThrow(() -> new GeneralException(RegionErrorCode.REGION_NOT_FOUND));
         }
 
+        String profileImage = null;
+        if (StringUtils.hasText(request.profileImageUrl())) {
+            profileImage = fileService.moveToDirectory(
+                    request.profileImageUrl(),
+                    ImageDirectory.PROFILE
+            );
+        }
+
         user.updateProfile(
                 request.nickname(),
                 request.birthYear(),
-                region
+                region,
+                profileImage
         );
 
         return new UserResDTO.UpdateProfile(user.getId());

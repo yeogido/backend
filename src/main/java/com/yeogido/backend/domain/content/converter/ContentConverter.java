@@ -31,6 +31,8 @@ public class  ContentConverter {
         return new ContentResDTO.ContentInfo(
                 content.getId(),
                 content.getPlace().getId(),
+                content.getPlace().getLatitude(),
+                content.getPlace().getLongitude(),
                 content.getTitle(),
                 content.getCategory(),
                 thumbnailImageUrl,
