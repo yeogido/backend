@@ -10,6 +10,7 @@ import com.yeogido.backend.domain.course.enums.CourseType;
 import com.yeogido.backend.domain.course.repository.CourseRepository;
 import com.yeogido.backend.domain.hashtag.entity.Hashtag;
 import com.yeogido.backend.domain.place.entity.Place;
+import com.yeogido.backend.domain.place.entity.PlaceOperatingDay;
 import com.yeogido.backend.domain.place.enums.PlaceSource;
 import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.user.dto.UserResDTO;
@@ -102,6 +103,31 @@ public class CourseConverter {
         return CourseLike.builder()
                 .user(user)
                 .course(course)
+                .build();
+    }
+
+    public static PlaceOperatingDay toPlaceOperatingDay(
+            Place place,
+            CourseReqDTO.PlaceOperatingDayReq request
+    ) {
+        return PlaceOperatingDay.builder()
+                .place(place)
+                .dayOfWeek(request.dayOfWeek())
+                .openTime(request.openTime())
+                .closeTime(request.closeTime())
+                .build();
+    }
+
+    public static CourseItemTime toCourseItemTime(
+            CourseItem fromCourseItem,
+            CourseItem toCourseItem,
+            CourseReqDTO.CourseItemTimeReq request
+    ) {
+        return CourseItemTime.builder()
+                .fromCourseItem(fromCourseItem)
+                .toCourseItem(toCourseItem)
+                .transportMode(request.transportMode())
+                .durationMinutes(request.durationMinutes())
                 .build();
     }
 
