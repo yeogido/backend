@@ -1,5 +1,6 @@
 package com.yeogido.backend.domain.place.entity;
 
+import com.yeogido.backend.domain.place.enums.PlaceLikeSourceType;
 import com.yeogido.backend.domain.user.entity.User;
 import com.yeogido.backend.global.entity.BaseEntity;
 import jakarta.persistence.*;
@@ -32,4 +33,11 @@ public class PlaceLike extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "source_type", length = 20)
+    private PlaceLikeSourceType sourceType;
+
+    @Column(name = "source_id")
+    private Long sourceId;
 }
