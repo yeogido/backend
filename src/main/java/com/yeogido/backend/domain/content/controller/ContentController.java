@@ -92,7 +92,7 @@ public class ContentController {
     @PatchMapping("/{contentId}")
     public ApiResponse<ContentResDTO.ContentUpdateRes> updateContent(
             @PathVariable Long contentId,
-            @RequestBody @Valid ContentReqDTO.ContentCreateReq request,
+            @RequestBody @Valid ContentReqDTO.ContentUpdateReq request,
             @AuthenticationPrincipal AuthUser authUser
     ){
         ContentResDTO.ContentUpdateRes result = contentService.updateContent(contentId,request, authUser.userId());
