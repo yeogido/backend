@@ -121,6 +121,6 @@ public class TravelRecordController {
     ) {
         travelRecordService.deleteTravelRecord(travelRecordId, authUser.userId());
 
-        return ApiResponse.onSuccess(SuccessCode.NO_CONTENT);
+        return ApiResponse.onSuccess(SuccessCode.OK);
     }
 }
