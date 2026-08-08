@@ -25,6 +25,12 @@ public class ContentResDTO {
             @Schema(description = "장소 ID")
             Long placeId,
 
+            @Schema(description = "장소 위도")
+            BigDecimal latitude,
+
+            @Schema(description = "장소 경도")
+            BigDecimal longitude,
+
             @Schema(description = "제목")
             String title,
 
