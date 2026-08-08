@@ -61,6 +61,12 @@ public enum CourseErrorCode implements ErrorCode {
             HttpStatus.BAD_REQUEST,
             "COURSE4008",
             "LOCAL 추천 코스 목록은 추천순 정렬을 지원하지 않습니다."
+    ),
+
+    PLACE_ITEM_IMAGE_REQUIRED(
+            HttpStatus.BAD_REQUEST,
+            "COURSE4009",
+            "LOCAL 추천 코스의 장소 항목 이미지는 필수입니다."
     );
 
     private final HttpStatus httpStatus;

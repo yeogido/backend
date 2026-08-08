@@ -164,6 +164,8 @@ public class CourseResDTO {
 
         String externalPlaceId();
 
+        String categoryGroupCode();
+
         String name();
 
         String roadAddress();
@@ -197,6 +199,9 @@ public class CourseResDTO {
 
             @Schema(description = "외부 장소 ID", example = "123456789")
             String externalPlaceId,
+
+            @Schema(description = "카테고리 그룹 코드", nullable = true, example = "AT4")
+            String categoryGroupCode,
 
             @Schema(description = "장소명", example = "주문진 해변")
             String name,
@@ -243,6 +248,9 @@ public class CourseResDTO {
 
             @Schema(description = "외부 장소 ID", example = "123456789")
             String externalPlaceId,
+
+            @Schema(description = "카테고리 그룹 코드", nullable = true, example = "AT4")
+            String categoryGroupCode,
 
             @Schema(description = "콘텐츠명", example = "강릉 커피 축제")
             String name,
