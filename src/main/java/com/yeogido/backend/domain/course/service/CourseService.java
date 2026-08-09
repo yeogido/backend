@@ -34,7 +34,8 @@ public interface CourseService {
 
     CursorResponse<CourseResDTO.ReviewPreview> getCourseReviews(
             Long courseId,
-            CourseReqDTO.CourseReviewListReq request
+            CourseReqDTO.CourseReviewListReq request,
+            Long userId
     );
 
     CourseResDTO.ReviewCreateRes createCourseReview(Long userId, Long courseId, CourseReqDTO.ReviewCreateReq request);

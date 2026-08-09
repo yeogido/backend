@@ -462,7 +462,8 @@ public class CourseServiceImpl implements CourseService {
     @Override
     public CursorResponse<CourseResDTO.ReviewPreview> getCourseReviews(
             Long courseId,
-            CourseReqDTO.CourseReviewListReq request
+            CourseReqDTO.CourseReviewListReq request,
+            Long userId
     ) {
         if (!courseRepository.existsByIdAndDeletedAtIsNull(courseId)) {
             throw new GeneralException(CourseErrorCode.COURSE_NOT_FOUND);
@@ -487,6 +488,7 @@ public class CourseServiceImpl implements CourseService {
         List<CourseResDTO.ReviewPreview> items = CourseConverter.toReviewPreviews(
                 content,
                 imageMap,
+                userId,
                 s3Service::getImageUrl
         );
 

@@ -332,12 +332,14 @@ public class CourseConverter {
     public static List<CourseResDTO.ReviewPreview> toReviewPreviews(
             List<CourseReview> reviews,
             Map<Long, List<CourseReviewImage>> imageMap,
+            Long currentUserId,
             Function<String, String> imageUrlResolver
     ) {
         return reviews.stream()
                 .map(review -> toReviewPreview(
                         review,
                         imageMap.getOrDefault(review.getId(), List.of()),
+                        currentUserId,
                         imageUrlResolver
                 ))
                 .toList();
@@ -346,6 +348,7 @@ public class CourseConverter {
     private static CourseResDTO.ReviewPreview toReviewPreview(
             CourseReview review,
             List<CourseReviewImage> images,
+            Long currentUserId,
             Function<String, String> imageUrlResolver
     ) {
         return new CourseResDTO.ReviewPreview(
@@ -353,9 +356,15 @@ public class CourseConverter {
                 toReviewAuthor(review.getUser(), imageUrlResolver),
                 review.getRating(),
                 review.getContent(),
+                isMine(review, currentUserId),
                 toReviewImages(images, imageUrlResolver),
                 review.getCreatedAt().toLocalDate()
         );
+    }
+
+    private static boolean isMine(CourseReview review, Long currentUserId) {
+        return currentUserId != null
+                && review.getUser().getId().equals(currentUserId);
     }
 
     private static CourseResDTO.ReviewAuthor toReviewAuthor(
