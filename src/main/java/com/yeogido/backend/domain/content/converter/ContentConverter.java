@@ -110,8 +110,11 @@ public class  ContentConverter {
     ){
         return new ContentResDTO.PlaceInfo(
                 place.getId(),
+                place.getExternalPlaceId(),
+                place.getSource(),
                 place.getName(),
                 place.getRoadAddress(),
+                place.getLotAddress(),
                 place.getLatitude(),
                 place.getLongitude()
         );
@@ -138,6 +141,7 @@ public class  ContentConverter {
             Content content,
             String thumbnailImageUrl,
             List<String> hashtags,
+            List<Long> hashtagIds,
             boolean liked,
             ContentResDTO.PlaceInfo placeInfo,
             List<ContentResDTO.CourseInfo> courses
@@ -146,8 +150,10 @@ public class  ContentConverter {
                 content.getId(),
                 content.getTitle(),
                 content.getDescription(),
+                content.getCategory(),
                 thumbnailImageUrl,
                 hashtags,
+                hashtagIds,
                 content.getStartDate(),
                 content.getEndDate(),
                 liked,

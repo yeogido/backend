@@ -4,6 +4,7 @@ import com.yeogido.backend.domain.content.enums.ContentCategory;
 import com.yeogido.backend.domain.course.enums.CompanionType;
 import com.yeogido.backend.domain.course.enums.DurationType;
 import com.yeogido.backend.domain.course.enums.TransportType;
+import com.yeogido.backend.domain.place.enums.PlaceSource;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -72,11 +73,17 @@ public class ContentResDTO {
             @Schema(description = "설명")
             String description,
 
+            @Schema(description = "카테고리", example = "FESTIVAL")
+            ContentCategory category,
+
             @Schema(description = "썸네일")
             String thumbnailImage,
 
             @Schema(description = "해시태그")
             List<String> hashtags,
+
+            @Schema(description = "해시태그 ID 목록")
+            List<Long> hashtagIds,
 
             @Schema(description = "시작일")
             LocalDate startDate,
@@ -106,11 +113,20 @@ public class ContentResDTO {
             @Schema(description = "장소 ID")
             Long placeId,
 
+            @Schema(description = "외부 장소 식별 ID")
+            String externalPlaceId,
+
+            @Schema(description = "장소 데이터 출처")
+            PlaceSource source,
+
             @Schema(description = "장소명")
             String name,
 
             @Schema(description = "도로명 주소")
             String roadAddress,
+
+            @Schema(description = "지번 주소")
+            String lotAddress,
 
             @Schema(description = "위도")
             BigDecimal latitude,

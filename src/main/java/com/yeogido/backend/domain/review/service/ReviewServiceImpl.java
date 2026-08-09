@@ -79,6 +79,7 @@ public class ReviewServiceImpl implements ReviewService {
                 content,
                 imageMap,
                 likedCourseIds,
+                userId,
                 s3Service::getImageUrl
         );
 

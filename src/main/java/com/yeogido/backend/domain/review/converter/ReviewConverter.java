@@ -36,6 +36,7 @@ public class ReviewConverter {
             List<CourseReview> reviews,
             Map<Long, List<CourseReviewImage>> imageMap,
             Set<Long> likedCourseIds,
+            Long currentUserId,
             Function<String, String> imageUrlResolver
     ) {
         return reviews.stream()
@@ -43,6 +44,7 @@ public class ReviewConverter {
                         review,
                         imageMap.getOrDefault(review.getId(), List.of()),
                         likedCourseIds,
+                        currentUserId,
                         imageUrlResolver
                 ))
                 .toList();
@@ -84,6 +86,7 @@ public class ReviewConverter {
             CourseReview review,
             List<CourseReviewImage> images,
             Set<Long> likedCourseIds,
+            Long currentUserId,
             Function<String, String> imageUrlResolver
     ) {
         Course course = review.getCourse();
@@ -93,10 +96,16 @@ public class ReviewConverter {
                 review.getContent(),
                 review.getRating(),
                 review.getCreatedAt(),
+                isMine(review, currentUserId),
                 toReviewImages(images, imageUrlResolver),
                 toAuthor(review.getUser()),
                 toCourse(course, likedCourseIds.contains(course.getId()), imageUrlResolver)
         );
+    }
+
+    private static boolean isMine(CourseReview review, Long currentUserId) {
+        return currentUserId != null
+                && review.getUser().getId().equals(currentUserId);
     }
 
     private static List<ReviewResDTO.ReviewImage> toReviewImages(

@@ -120,6 +120,20 @@ public class CourseController {
         return ApiResponse.onSuccess(SuccessCode.OK, response);
     }
 
+    @Operation(summary = "인기 로컬 추천 코스 조회", description = "인기순으로 최대 4개의 로컬 추천 코스 미리보기를 조회합니다. 인기 랭킹이 없으면 최신 등록순으로 조회합니다.")
+    @GetMapping("/popular/local")
+    public ApiResponse<List<CourseResDTO.CourseLocalPopularPreview>> getPopularLocalCourses(
+            @AuthenticationPrincipal AuthUser authUser
+    ) {
+        Long userId = authUser == null
+                ? null
+                : authUser.userId();
+
+        List<CourseResDTO.CourseLocalPopularPreview> response = courseService.getPopularLocalCourses(userId);
+
+        return ApiResponse.onSuccess(SuccessCode.OK, response);
+    }
+
     @Operation(summary = "여기도 코스 추천순 조회", description = "메인 화면 배너에 노출되는 여기도 추천 코스를 조회합니다.")
     @GetMapping("/recommended")
     public ApiResponse<List<CourseResDTO.CourseRecommendedPreview>> getRecommendedCourses() {
