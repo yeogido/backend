@@ -110,6 +110,9 @@ public class ContentResDTO {
     @Schema(description = "장소 정보")
     public record PlaceInfo(
 
+            @Schema(description = "문화콘텐츠와 연결된 대표 코스 아이템 ID")
+            Long courseItemId,
+
             @Schema(description = "장소 ID")
             Long placeId,
 

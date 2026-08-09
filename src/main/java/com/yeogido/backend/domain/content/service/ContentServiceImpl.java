@@ -686,11 +686,15 @@ public class ContentServiceImpl implements ContentService{
             liked = contentLikeRepository.existsByContentAndUser(content,currentUser);
         }
 
-        ContentResDTO.PlaceInfo placeInfo =
-                ContentConverter.toPlaceInfo(content.getPlace());
-
         List<CourseItem> courseItems =
                 courseItemRepository.findByContentOrderByOrderNoAsc(content);
+
+        Long courseItemId = courseItems.isEmpty()
+                ? null
+                : courseItems.get(0).getId();
+
+        ContentResDTO.PlaceInfo placeInfo =
+                ContentConverter.toPlaceInfo(content.getPlace(), courseItemId);
 
         final Set<Long> likedCourseIds;
 
