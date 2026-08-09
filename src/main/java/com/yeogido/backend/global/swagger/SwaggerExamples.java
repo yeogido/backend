@@ -28,12 +28,38 @@ public final class SwaggerExamples {
                   "lotAddress": "부산 수영구 광안동 192-20",
                   "latitude": 35.1531698,
                   "longitude": 129.118666,
-                  "imageKey": "courses/place/gwangalli.jpg"
+                  "imageKey": "courses/place/gwangalli.jpg",
+                  "operatingDays": [
+                    {
+                      "dayOfWeek": "MONDAY",
+                      "openTime": "09:00",
+                      "closeTime": "22:00"
+                    },
+                    {
+                      "dayOfWeek": "SATURDAY",
+                      "openTime": "10:00",
+                      "closeTime": "23:00"
+                    }
+                  ]
                 },
                 {
                   "order": 2,
                   "type": "CONTENT",
-                  "contentId": 1
+                  "contentId": 1,
+                  "timesFromPrevious": [
+                    {
+                      "transportMode": "WALK",
+                      "durationMinutes": 12
+                    },
+                    {
+                      "transportMode": "PUBLIC",
+                      "durationMinutes": 8
+                    },
+                    {
+                      "transportMode": "CAR",
+                      "durationMinutes": 5
+                    }
+                  ]
                 }
               ]
             }
@@ -58,12 +84,34 @@ public final class SwaggerExamples {
               "lotAddress": "부산 영도구 영선동4가",
               "latitude": 35.078961,
               "longitude": 129.045771,
-              "imageKey": "courses/place/huinnyeoul.jpg"
+              "imageKey": "courses/place/huinnyeoul.jpg",
+              "operatingDays": [
+                {
+                  "dayOfWeek": "TUESDAY",
+                  "openTime": "10:00",
+                  "closeTime": "20:00"
+                },
+                {
+                  "dayOfWeek": "SUNDAY",
+                  "openTime": "10:00",
+                  "closeTime": "18:00"
+                }
+              ]
             },
             {
               "order": 2,
               "type": "CONTENT",
-              "contentId": 8
+              "contentId": 8,
+              "timesFromPrevious": [
+                {
+                  "transportMode": "PUBLIC",
+                  "durationMinutes": 25
+                },
+                {
+                  "transportMode": "CAR",
+                  "durationMinutes": 14
+                }
+              ]
             },
             {
               "order": 3,
@@ -75,7 +123,18 @@ public final class SwaggerExamples {
               "lotAddress": "부산 해운대구 우동",
               "latitude": 35.158698,
               "longitude": 129.160384,
-              "imageKey": null
+              "imageKey": null,
+              "operatingDays": [],
+              "timesFromPrevious": [
+                {
+                  "transportMode": "WALK",
+                  "durationMinutes": 18
+                },
+                {
+                  "transportMode": "PUBLIC",
+                  "durationMinutes": 12
+                }
+              ]
             }
           ]
         }
@@ -116,7 +175,20 @@ public final class SwaggerExamples {
                 "latitude": 35.1531698,
                 "longitude": 129.118666,
                 "imageKey": "courses/place/gwangalli.jpg",
-                "imageUrl": "https://yeogido-images-174132708084-ap-northeast-2-an.s3.ap-northeast-2.amazonaws.com/courses/place/gwangalli.jpg"
+                "imageUrl": "https://yeogido-images-174132708084-ap-northeast-2-an.s3.ap-northeast-2.amazonaws.com/courses/place/gwangalli.jpg",
+                "operatingDays": [
+                  {
+                    "dayOfWeek": "MONDAY",
+                    "openTime": "09:00",
+                    "closeTime": "22:00"
+                  },
+                  {
+                    "dayOfWeek": "SATURDAY",
+                    "openTime": "10:00",
+                    "closeTime": "23:00"
+                  }
+                ],
+                "timesFromPrevious": []
               },
               {
                 "order": 2,
@@ -131,7 +203,21 @@ public final class SwaggerExamples {
                 "lotAddress": "부산광역시 수영구 광안동",
                 "latitude": 35.1531698,
                 "longitude": 129.118666,
-                "imageUrl": "https://yeogido-images-174132708084-ap-northeast-2-an.s3.ap-northeast-2.amazonaws.com/contents/fireworks.jpg"
+                "imageUrl": "https://yeogido-images-174132708084-ap-northeast-2-an.s3.ap-northeast-2.amazonaws.com/contents/fireworks.jpg",
+                "timesFromPrevious": [
+                  {
+                    "transportMode": "WALK",
+                    "durationMinutes": 12
+                  },
+                  {
+                    "transportMode": "PUBLIC",
+                    "durationMinutes": 8
+                  },
+                  {
+                    "transportMode": "CAR",
+                    "durationMinutes": 5
+                  }
+                ]
               }
             ]
           }

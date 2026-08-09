@@ -1,10 +1,12 @@
 package com.yeogido.backend.domain.course.dto.request;
 
+import com.yeogido.backend.domain.business.enums.DayOfWeek;
 import com.yeogido.backend.domain.course.enums.CompanionType;
 import com.yeogido.backend.domain.course.enums.CourseItemType;
 import com.yeogido.backend.domain.course.enums.CourseSortType;
 import com.yeogido.backend.domain.course.enums.CourseType;
 import com.yeogido.backend.domain.course.enums.DurationType;
+import com.yeogido.backend.domain.course.enums.TransportMode;
 import com.yeogido.backend.domain.course.enums.TransportType;
 import com.yeogido.backend.domain.review.enums.ReviewSortType;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -17,6 +19,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
+import java.time.LocalTime;
 import java.util.List;
 
 public class CourseReqDTO {
@@ -158,7 +161,74 @@ public class CourseReqDTO {
             BigDecimal longitude,
 
             @Schema(description = "장소 이미지 S3 key. type=PLACE인 경우에만 사용합니다.", nullable = true, example = "courses/place/efgh1234.jpg")
-            String imageKey
+            String imageKey,
+
+            @Valid
+            @Schema(description = "장소 영업시간 목록. type=PLACE에서 전달된 경우 Place 영업시간으로 저장/갱신합니다.", nullable = true)
+            List<@NotNull(message = "영업시간 정보가 올바르지 않습니다.") PlaceOperatingDayReq> operatingDays,
+
+            @Valid
+            @Schema(description = "이전 코스 항목에서 현재 항목까지의 이동 소요시간 목록. 전달된 경우에만 저장합니다.", nullable = true)
+            List<@NotNull(message = "이동 소요시간 정보가 올바르지 않습니다.") CourseItemTimeReq> timesFromPrevious
+    ) {
+        public CourseItemCreateReq(
+                Integer order,
+                CourseItemType type,
+                Long contentId,
+                String externalPlaceId,
+                String categoryGroupCode,
+                String name,
+                String roadAddress,
+                String lotAddress,
+                BigDecimal latitude,
+                BigDecimal longitude,
+                String imageKey
+        ) {
+            this(
+                    order,
+                    type,
+                    contentId,
+                    externalPlaceId,
+                    categoryGroupCode,
+                    name,
+                    roadAddress,
+                    lotAddress,
+                    latitude,
+                    longitude,
+                    imageKey,
+                    null,
+                    null
+            );
+        }
+    }
+
+    @Schema(name = "PlaceOperatingDayRequest", description = "장소 영업시간 요청")
+    public record PlaceOperatingDayReq(
+
+            @NotNull(message = "영업 요일은 필수입니다")
+            @Schema(description = "영업 요일", example = "MONDAY")
+            DayOfWeek dayOfWeek,
+
+            @NotNull(message = "영업 시작 시간은 필수입니다")
+            @Schema(description = "영업 시작 시간", example = "09:00")
+            LocalTime openTime,
+
+            @NotNull(message = "영업 종료 시간은 필수입니다")
+            @Schema(description = "영업 종료 시간", example = "18:00")
+            LocalTime closeTime
+    ) { }
+
+    @Schema(name = "CourseItemTimeRequest", description = "추천 코스 구성 항목 간 이동 소요시간 요청")
+    public record CourseItemTimeReq(
+
+            @NotNull(message = "이동 방식은 필수입니다")
+            @Schema(description = "이동 방식", example = "WALK")
+            TransportMode transportMode,
+
+            @NotNull(message = "이동 소요시간은 필수입니다")
+            @Min(value = 0, message = "이동 소요시간은 0 이상이어야 합니다")
+            @Schema(description = "이동 소요시간(분)", example = "15")
+            Integer durationMinutes
     ) { }
 
     @Schema(name = "CourseListRequest", description = "추천 코스 목록 조회 요청")

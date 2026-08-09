@@ -4,6 +4,7 @@ import com.yeogido.backend.domain.content.entity.Content;
 import com.yeogido.backend.domain.content.exception.ContentErrorCode;
 import com.yeogido.backend.domain.content.repository.ContentLikeRepository;
 import com.yeogido.backend.domain.content.repository.ContentRepository;
+import com.yeogido.backend.domain.business.enums.DayOfWeek;
 import com.yeogido.backend.domain.course.converter.CourseConverter;
 import com.yeogido.backend.domain.course.dto.request.CourseReqDTO;
 import com.yeogido.backend.domain.course.dto.response.CourseResDTO;
@@ -13,6 +14,7 @@ import com.yeogido.backend.domain.course.enums.CourseItemType;
 import com.yeogido.backend.domain.course.enums.CourseSortType;
 import com.yeogido.backend.domain.course.enums.CourseType;
 import com.yeogido.backend.domain.course.enums.DurationType;
+import com.yeogido.backend.domain.course.enums.TransportMode;
 import com.yeogido.backend.domain.course.enums.TransportType;
 import com.yeogido.backend.domain.course.exception.CourseErrorCode;
 import com.yeogido.backend.domain.course.repository.*;
@@ -30,7 +32,9 @@ import com.yeogido.backend.domain.hashtag.entity.Hashtag;
 import com.yeogido.backend.domain.hashtag.exception.HashtagErrorCode;
 import com.yeogido.backend.domain.hashtag.repository.HashtagRepository;
 import com.yeogido.backend.domain.place.entity.Place;
+import com.yeogido.backend.domain.place.entity.PlaceOperatingDay;
 import com.yeogido.backend.domain.place.repository.PlaceLikeRepository;
+import com.yeogido.backend.domain.place.repository.PlaceOperatingDayRepository;
 import com.yeogido.backend.domain.place.service.PlaceService;
 import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.region.exception.RegionErrorCode;
@@ -78,11 +82,13 @@ public class CourseServiceImpl implements CourseService {
     private final CourseLikeRepository courseLikeRepository;
     private final CourseHashtagRepository courseHashtagRepository;
     private final CourseItemRepository courseItemRepository;
+    private final CourseItemTimeRepository courseItemTimeRepository;
     private final CourseReviewImageRepository courseReviewImageRepository;
     private final HashtagRepository hashtagRepository;
     private final PlaceService placeService;
     private final ContentRepository contentRepository;
     private final PlaceLikeRepository placeLikeRepository;
+    private final PlaceOperatingDayRepository placeOperatingDayRepository;
     private final ContentLikeRepository contentLikeRepository;
     private final CourseReviewRepository courseReviewRepository;
     private final CourseRedisRepository courseRedisRepository;
@@ -110,7 +116,7 @@ public class CourseServiceImpl implements CourseService {
         );
 
         saveCourseHashtags(course, movedRequest.hashtagIds());
-        saveCourseItems(course, movedRequest.courseItems());
+        saveCourseItems(course, movedRequest.courseItems(), true);
         saveCreatedEventAfterCommit(course.getId());
 
         return new CourseResDTO.CourseIdRes(course.getId());
@@ -352,12 +358,17 @@ public class CourseServiceImpl implements CourseService {
         List<CourseItem> courseItemEntities = courseItemRepository.findByCourseIdOrderByOrderNoAsc(courseId);
         Set<Long> likedPlaceIds = getLikedPlaceIds(userId, courseItemEntities);
         Set<Long> likedContentIds = getLikedContentIds(userId, courseItemEntities);
+        Map<Long, List<CourseResDTO.OperatingDay>> operatingDayMap = getOperatingDayMap(courseItemEntities);
+        Map<Long, List<CourseResDTO.CourseItemTime>> timesFromPreviousMap =
+                getTimesFromPreviousMap(courseId, courseItemEntities);
 
         List<CourseResDTO.CourseItem> courseItems = courseItemEntities.stream()
                 .map(courseItem -> CourseConverter.toCourseItem(
                         courseItem,
                         isCourseItemLiked(courseItem, likedPlaceIds, likedContentIds),
-                        s3Service::getImageUrl
+                        s3Service::getImageUrl,
+                        getOperatingDays(courseItem, operatingDayMap),
+                        timesFromPreviousMap.getOrDefault(courseItem.getId(), List.of())
                 ))
                 .toList();
 
@@ -374,6 +385,65 @@ public class CourseServiceImpl implements CourseService {
                 courseItems,
                 profileImageUrl
         );
+    }
+
+    private Map<Long, List<CourseResDTO.OperatingDay>> getOperatingDayMap(List<CourseItem> courseItems) {
+        Set<Long> placeIds = courseItems.stream()
+                .filter(courseItem -> courseItem.getItemType() == CourseItemType.PLACE)
+                .map(CourseItem::getPlace)
+                .filter(Objects::nonNull)
+                .map(Place::getId)
+                .collect(Collectors.toSet());
+
+        if (placeIds.isEmpty()) {
+            return Map.of();
+        }
+
+        return placeOperatingDayRepository.findAllByPlace_IdIn(placeIds).stream()
+                .sorted(Comparator.comparing(PlaceOperatingDay::getDayOfWeek))
+                .collect(Collectors.groupingBy(
+                        operatingDay -> operatingDay.getPlace().getId(),
+                        Collectors.mapping(CourseConverter::toOperatingDay, Collectors.toList())
+                ));
+    }
+
+    private List<CourseResDTO.OperatingDay> getOperatingDays(
+            CourseItem courseItem,
+            Map<Long, List<CourseResDTO.OperatingDay>> operatingDayMap
+    ) {
+        if (courseItem.getItemType() != CourseItemType.PLACE || courseItem.getPlace() == null) {
+            return List.of();
+        }
+
+        return operatingDayMap.getOrDefault(courseItem.getPlace().getId(), List.of());
+    }
+
+    private Map<Long, List<CourseResDTO.CourseItemTime>> getTimesFromPreviousMap(
+            Long courseId,
+            List<CourseItem> courseItems
+    ) {
+        if (courseItems.size() <= 1) {
+            return Map.of();
+        }
+
+        Map<Long, Long> previousItemIdByItemId = new HashMap<>();
+        for (int index = 1; index < courseItems.size(); index++) {
+            previousItemIdByItemId.put(
+                    courseItems.get(index).getId(),
+                    courseItems.get(index - 1).getId()
+            );
+        }
+
+        return courseItemTimeRepository.findAllByCourseId(courseId).stream()
+                .filter(itemTime -> Objects.equals(
+                        previousItemIdByItemId.get(itemTime.getToCourseItem().getId()),
+                        itemTime.getFromCourseItem().getId()
+                ))
+                .sorted(Comparator.comparing(CourseItemTime::getTransportMode))
+                .collect(Collectors.groupingBy(
+                        itemTime -> itemTime.getToCourseItem().getId(),
+                        Collectors.mapping(CourseConverter::toCourseItemTime, Collectors.toList())
+                ));
     }
 
     @Override
@@ -661,7 +731,9 @@ public class CourseServiceImpl implements CourseService {
                 item.lotAddress(),
                 item.latitude(),
                 item.longitude(),
-                moveImage(item.imageKey(), ImageDirectory.COURSE)
+                moveImage(item.imageKey(), ImageDirectory.COURSE),
+                item.operatingDays(),
+                item.timesFromPrevious()
         );
     }
 
@@ -866,7 +938,8 @@ public class CourseServiceImpl implements CourseService {
                 || StringUtils.hasText(item.lotAddress())
                 || item.latitude() != null
                 || item.longitude() != null
-                || StringUtils.hasText(item.imageKey())) {
+                || StringUtils.hasText(item.imageKey())
+                || item.operatingDays() != null) {
             throw new GeneralException(CourseErrorCode.INVALID_COURSE_ITEM);
         }
     }
@@ -891,15 +964,22 @@ public class CourseServiceImpl implements CourseService {
         saveCourseHashtags(course, hashtagIds);
     }
 
-    private void saveCourseItems(Course course, List<CourseReqDTO.CourseItemCreateReq> courseItems) {
+    private void saveCourseItems(
+            Course course,
+            List<CourseReqDTO.CourseItemCreateReq> courseItems,
+            boolean saveItemDetails
+    ) {
         Map<String, Place> placeMap = placeService.getPlaceMap(courseItems);
         Map<Long, Content> contentMap = getContentMap(courseItems);
-        List<CourseItem> items = new ArrayList<>();
+        List<CourseItemWithRequest> items = new ArrayList<>();
 
         for (CourseReqDTO.CourseItemCreateReq item : courseItems) {
             if (item.type() == CourseItemType.PLACE) {
                 Place place = placeService.getOrCreatePlace(item, placeMap);
-                items.add(CourseConverter.toPlaceCourseItem(course, place, item));
+                items.add(new CourseItemWithRequest(
+                        CourseConverter.toPlaceCourseItem(course, place, item),
+                        item
+                ));
                 continue;
             }
 
@@ -907,15 +987,112 @@ public class CourseServiceImpl implements CourseService {
             if (content == null) {
                 throw new GeneralException(ContentErrorCode.CONTENT_NOT_FOUND);
             }
-            items.add(CourseConverter.toContentCourseItem(course, content, item));
+            items.add(new CourseItemWithRequest(
+                    CourseConverter.toContentCourseItem(course, content, item),
+                    item
+            ));
         }
 
-        courseItemRepository.saveAll(items);
+        courseItemRepository.saveAll(
+                items.stream()
+                        .map(CourseItemWithRequest::courseItem)
+                        .toList()
+        );
+        if (saveItemDetails) {
+            savePlaceOperatingDays(items);
+            saveCourseItemTimes(items);
+        }
     }
 
+    private void savePlaceOperatingDays(List<CourseItemWithRequest> items) {
+        List<PlaceOperatingDay> operatingDays = new ArrayList<>();
+        Map<Place, List<CourseReqDTO.PlaceOperatingDayReq>> operatingDaysByPlace = new LinkedHashMap<>();
+
+        for (CourseItemWithRequest item : items) {
+            List<CourseReqDTO.PlaceOperatingDayReq> requests = item.request().operatingDays();
+            if (item.courseItem().getItemType() != CourseItemType.PLACE || requests == null) {
+                continue;
+            }
+
+            validateDuplicatePlaceOperatingDays(requests);
+            Place place = item.courseItem().getPlace();
+            operatingDaysByPlace.put(place, requests);
+        }
+
+        for (Map.Entry<Place, List<CourseReqDTO.PlaceOperatingDayReq>> entry : operatingDaysByPlace.entrySet()) {
+            Place place = entry.getKey();
+            placeOperatingDayRepository.deleteAllByPlace_Id(place.getId());
+            operatingDays.addAll(entry.getValue().stream()
+                    .map(request -> CourseConverter.toPlaceOperatingDay(place, request))
+                    .toList());
+        }
+
+        if (!operatingDays.isEmpty()) {
+            placeOperatingDayRepository.saveAll(operatingDays);
+        }
+    }
+
+    private void saveCourseItemTimes(List<CourseItemWithRequest> items) {
+        List<CourseItemWithRequest> orderedItems = items.stream()
+                .sorted(Comparator.comparing(item -> item.courseItem().getOrderNo()))
+                .toList();
+        List<CourseItemTime> itemTimes = new ArrayList<>();
+
+        for (int index = 1; index < orderedItems.size(); index++) {
+            CourseItemWithRequest fromItem = orderedItems.get(index - 1);
+            CourseItemWithRequest toItem = orderedItems.get(index);
+            List<CourseReqDTO.CourseItemTimeReq> requests = toItem.request().timesFromPrevious();
+
+            if (requests == null || requests.isEmpty()) {
+                continue;
+            }
+
+            validateDuplicateCourseItemTimes(requests);
+            itemTimes.addAll(requests.stream()
+                    .map(request -> CourseConverter.toCourseItemTime(
+                            fromItem.courseItem(),
+                            toItem.courseItem(),
+                            request
+                    ))
+                    .toList());
+        }
+
+        if (!itemTimes.isEmpty()) {
+            courseItemTimeRepository.saveAll(itemTimes);
+        }
+    }
+
+    private void validateDuplicatePlaceOperatingDays(
+            List<CourseReqDTO.PlaceOperatingDayReq> operatingDays
+    ) {
+        Set<DayOfWeek> days = new HashSet<>();
+
+        for (CourseReqDTO.PlaceOperatingDayReq operatingDay : operatingDays) {
+            if (!days.add(operatingDay.dayOfWeek())) {
+                throw new GeneralException(GeneralErrorCode.INVALID_REQUEST);
+            }
+        }
+    }
+
+    private void validateDuplicateCourseItemTimes(List<CourseReqDTO.CourseItemTimeReq> itemTimes) {
+        Set<TransportMode> transportModes = new HashSet<>();
+
+        for (CourseReqDTO.CourseItemTimeReq itemTime : itemTimes) {
+            if (!transportModes.add(itemTime.transportMode())) {
+                throw new GeneralException(GeneralErrorCode.INVALID_REQUEST);
+            }
+        }
+    }
+
+    private record CourseItemWithRequest(
+            CourseItem courseItem,
+            CourseReqDTO.CourseItemCreateReq request
+    ) { }
+
     private void replaceCourseItems(Course course, List<CourseReqDTO.CourseItemCreateReq> courseItems) {
+        courseItemTimeRepository.deleteAllByCourseId(course.getId());
         courseItemRepository.deleteAllByCourseId(course.getId());
-        saveCourseItems(course, courseItems);
+        saveCourseItems(course, courseItems, true);
     }
 
     private Map<Long, Content> getContentMap(List<CourseReqDTO.CourseItemCreateReq> courseItems) {

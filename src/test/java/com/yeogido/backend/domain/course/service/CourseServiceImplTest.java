@@ -11,6 +11,7 @@ import com.yeogido.backend.domain.course.enums.DurationType;
 import com.yeogido.backend.domain.course.enums.TransportType;
 import com.yeogido.backend.domain.course.exception.CourseErrorCode;
 import com.yeogido.backend.domain.course.repository.CourseHashtagRepository;
+import com.yeogido.backend.domain.course.repository.CourseItemTimeRepository;
 import com.yeogido.backend.domain.course.repository.CourseItemRepository;
 import com.yeogido.backend.domain.course.repository.CourseLikeRepository;
 import com.yeogido.backend.domain.course.repository.CourseRedisRepository;
@@ -22,6 +23,7 @@ import com.yeogido.backend.domain.file.service.S3Service;
 import com.yeogido.backend.domain.hashtag.entity.Hashtag;
 import com.yeogido.backend.domain.hashtag.repository.HashtagRepository;
 import com.yeogido.backend.domain.place.entity.Place;
+import com.yeogido.backend.domain.place.repository.PlaceOperatingDayRepository;
 import com.yeogido.backend.domain.place.service.PlaceService;
 import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.region.enums.RegionType;
@@ -73,6 +75,9 @@ class CourseServiceImplTest {
     private CourseItemRepository courseItemRepository;
 
     @Mock
+    private CourseItemTimeRepository courseItemTimeRepository;
+
+    @Mock
     private HashtagRepository hashtagRepository;
 
     @Mock
@@ -80,6 +85,9 @@ class CourseServiceImplTest {
 
     @Mock
     private ContentRepository contentRepository;
+
+    @Mock
+    private PlaceOperatingDayRepository placeOperatingDayRepository;
 
     @Mock
     private CourseReviewRepository courseReviewRepository;
@@ -285,6 +293,7 @@ class CourseServiceImplTest {
 
         ArgumentCaptor<CourseReqDTO.CourseItemCreateReq> itemCaptor =
                 ArgumentCaptor.forClass(CourseReqDTO.CourseItemCreateReq.class);
+        verify(courseItemTimeRepository).deleteAllByCourseId(10L);
         verify(courseItemRepository).deleteAllByCourseId(10L);
         verify(placeService).getOrCreatePlace(itemCaptor.capture(), anyMap());
         assertThat(itemCaptor.getValue().categoryGroupCode()).isNull();
