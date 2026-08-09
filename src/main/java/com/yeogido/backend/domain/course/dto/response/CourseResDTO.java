@@ -385,6 +385,9 @@ public class CourseResDTO {
             @Schema(description = "리뷰 내용", example = "동선이 편하고 장소 구성이 좋았어요.")
             String content,
 
+            @Schema(description = "로그인 사용자가 작성한 리뷰 여부. 비로그인 요청 시 false", example = "false")
+            Boolean isMine,
+
             @Schema(description = "리뷰 이미지 목록")
             List<ReviewImage> images,
 

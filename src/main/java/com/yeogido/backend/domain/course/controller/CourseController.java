@@ -182,11 +182,17 @@ public class CourseController {
     public ApiResponse<CursorResponse<CourseResDTO.ReviewPreview>> getCourseReviews(
             @Parameter(description = "코스 ID", example = "1")
             @PathVariable Long courseId,
+            @AuthenticationPrincipal AuthUser authUser,
             @Valid @ParameterObject @ModelAttribute CourseReqDTO.CourseReviewListReq request
     ) {
+        Long userId = authUser == null
+                ? null
+                : authUser.userId();
+
         CursorResponse<CourseResDTO.ReviewPreview> response = courseService.getCourseReviews(
                 courseId,
-                request
+                request,
+                userId
         );
 
         return ApiResponse.onSuccess(SuccessCode.OK, response);
