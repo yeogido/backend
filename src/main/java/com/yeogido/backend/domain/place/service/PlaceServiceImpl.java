@@ -167,7 +167,8 @@ public class PlaceServiceImpl implements PlaceService {
                         )
                 );
 
-        if (courseItem.getItemType() != CourseItemType.PLACE
+        if (courseItem.getCourse().getDeletedAt() != null
+                || courseItem.getItemType() != CourseItemType.PLACE
                 || courseItem.getPlace() == null
                 || !courseItem.getPlace().getId().equals(placeId)) {
             throw new GeneralException(
