@@ -5,6 +5,8 @@ import com.yeogido.backend.domain.business.enums.PromotionStatus;
 import com.yeogido.backend.domain.business.repository.BusinessPromotionRepository;
 import com.yeogido.backend.domain.content.converter.ContentConverter;
 import com.yeogido.backend.domain.content.dto.ContentReqDTO;
+import com.yeogido.backend.domain.content.entity.Content;
+import com.yeogido.backend.domain.content.repository.ContentRepository;
 import com.yeogido.backend.domain.course.converter.CourseConverter;
 import com.yeogido.backend.domain.course.dto.request.CourseReqDTO;
 import com.yeogido.backend.domain.course.entity.CourseItem;
@@ -40,6 +42,7 @@ public class PlaceServiceImpl implements PlaceService {
     private final PlaceLikeRepository placeLikeRepository;
     private final RegionRepository regionRepository;
     private final CourseItemRepository courseItemRepository;
+    private final ContentRepository contentRepository;
     private final BusinessPromotionRepository businessPromotionRepository;
 
     @Override
@@ -65,7 +68,7 @@ public class PlaceServiceImpl implements PlaceService {
         );
 
         return new PlaceResponse.PlaceLikeRes(
-                true,
+                placeLikeRepository.existsByUserIdAndPlaceId(userId, placeId),
                 placeLikeRepository.countByPlaceId(placeId)
         );
     }
@@ -152,7 +155,26 @@ public class PlaceServiceImpl implements PlaceService {
     ) {
         switch (sourceType) {
             case COURSE_ITEM -> validateCourseItemSource(placeId, sourceId);
+            case CONTENT -> validateContentSource(placeId, sourceId);
             case PROMOTION -> validatePromotionSource(placeId, sourceId);
+        }
+    }
+
+    private void validateContentSource(
+            Long placeId,
+            Long contentId
+    ) {
+        Content content = contentRepository.findById(contentId)
+                .orElseThrow(
+                        () -> new GeneralException(
+                                PlaceErrorCode.INVALID_PLACE_LIKE_SOURCE
+                        )
+                );
+
+        if (!content.getPlace().getId().equals(placeId)) {
+            throw new GeneralException(
+                    PlaceErrorCode.INVALID_PLACE_LIKE_SOURCE
+            );
         }
     }
 

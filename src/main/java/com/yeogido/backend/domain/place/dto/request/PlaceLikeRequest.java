@@ -10,15 +10,15 @@ public record PlaceLikeRequest(
 
         @NotNull
         @Schema(
-                description = "좋아요 발생 출처",
-                example = "PROMOTION"
+                description = "좋아요 발생 출처 (COURSE_ITEM, CONTENT, PROMOTION)",
+                example = "CONTENT"
         )
         PlaceLikeSourceType sourceType,
 
         @NotNull
         @Positive
         @Schema(
-                description = "좋아요 발생 출처 ID",
+                description = "좋아요 발생 출처 ID. CONTENT인 경우 문화콘텐츠 ID",
                 example = "1"
         )
         Long sourceId
