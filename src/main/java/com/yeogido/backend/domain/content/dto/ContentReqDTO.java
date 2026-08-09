@@ -1,6 +1,7 @@
 package com.yeogido.backend.domain.content.dto;
 
 import com.yeogido.backend.domain.content.enums.ContentCategory;
+import com.yeogido.backend.domain.content.enums.ContentListStatus;
 import com.yeogido.backend.domain.content.enums.ContentSort;
 import com.yeogido.backend.domain.place.enums.PlaceSource;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -23,6 +24,12 @@ public class ContentReqDTO {
                     description = "카테고리 필터"
             )
             ContentCategory category,
+
+            @Schema(
+                    description = "행사 상태 목록 (UPCOMING: 진행 예정, ONGOING: 진행 중, ENDED: 종료). 여러 상태 선택 가능",
+                    defaultValue = "[UPCOMING, ONGOING]"
+            )
+            List<ContentListStatus> statuses,
 
             @Schema(description = "검색어")
             String keyword,

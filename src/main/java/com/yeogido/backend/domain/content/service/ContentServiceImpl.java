@@ -17,6 +17,7 @@ import com.yeogido.backend.domain.content.entity.ContentHashtag;
 import com.yeogido.backend.domain.content.entity.QContent;
 import com.yeogido.backend.domain.content.entity.QContentLike;
 import com.yeogido.backend.domain.content.enums.ContentCategory;
+import com.yeogido.backend.domain.content.enums.ContentListStatus;
 import com.yeogido.backend.domain.content.enums.ContentSort;
 
 import com.yeogido.backend.domain.content.enums.ContentSource;
@@ -96,7 +97,7 @@ public class ContentServiceImpl implements ContentService{
     public CursorResponse<ContentResDTO.ContentInfo> getContents(ContentReqDTO.ContentListReq request, Long userId){
 
         BooleanBuilder builder = new BooleanBuilder();
-        builder.and(qContent.endDate.goe(LocalDate.now()));
+        applyStatusFilter(builder, request.statuses(), LocalDate.now());
 
         int size = request.size() == null ? DEFAULT_PAGE_SIZE : request.size();
 
@@ -329,6 +330,31 @@ public class ContentServiceImpl implements ContentService{
                 nextCursorId,
                 hasNext
         );
+    }
+
+    private void applyStatusFilter(
+            BooleanBuilder builder,
+            List<ContentListStatus> statuses,
+            LocalDate today
+    ) {
+        List<ContentListStatus> effectiveStatuses = statuses == null || statuses.isEmpty()
+                ? List.of(ContentListStatus.UPCOMING, ContentListStatus.ONGOING)
+                : statuses;
+
+        BooleanBuilder statusBuilder = new BooleanBuilder();
+
+        for (ContentListStatus status : effectiveStatuses) {
+            switch (status) {
+                case UPCOMING -> statusBuilder.or(qContent.startDate.gt(today));
+                case ONGOING -> statusBuilder.or(
+                        qContent.startDate.loe(today)
+                                .and(qContent.endDate.goe(today))
+                );
+                case ENDED -> statusBuilder.or(qContent.endDate.lt(today));
+            }
+        }
+
+        builder.and(statusBuilder);
     }
 
 
