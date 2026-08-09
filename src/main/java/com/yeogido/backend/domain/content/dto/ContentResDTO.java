@@ -204,33 +204,4 @@ public class ContentResDTO {
             LocalDate endDate
     ) {}
 
-    @Schema(name = "OngoingContentResponse", description = "홈 화면 진행 중인 행사 정보")
-    public record OngoingContentRes(
-
-            @Schema(description = "문화 콘텐츠 ID", example = "1")
-            Long contentId,
-
-            @Schema(description = "행사명", example = "양평수박축제")
-            String title,
-
-            @Schema(description = "대표 이미지 URL", example = "https://example.com/content/watermelon-festival.jpg")
-            String thumbnailImageUrl,
-
-            @Schema(description = "행사 시작일", example = "2026-07-01")
-            LocalDate startDate,
-
-            @Schema(description = "행사 종료일", example = "2026-07-31")
-            LocalDate endDate,
-
-            @Schema(description = "시·도 및 시·군·구 지역명", example = "경기도 양평군")
-            String regionName,
-
-            @Schema(description = "해시태그", example = "[\"여름\", \"자연\", \"체험\"]")
-            List<String> hashtags,
-
-            @Schema(description = "현재 사용자의 좋아요 여부. 비로그인 시 false", example = "true")
-            boolean liked
-    ) {}
-
-
 }

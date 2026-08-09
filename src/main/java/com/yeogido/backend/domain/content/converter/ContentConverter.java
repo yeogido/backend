@@ -178,24 +178,4 @@ public class  ContentConverter {
         );
     }
 
-    public static ContentResDTO.OngoingContentRes toOngoingContentRes(
-            Content content,
-            String thumbnailImageUrl,
-            List<String> hashtags,
-            boolean liked
-    ) {
-        return new ContentResDTO.OngoingContentRes(
-                content.getId(),
-                content.getTitle(),
-                thumbnailImageUrl,
-                content.getStartDate(),
-                content.getEndDate(),
-                content.getPlace().getRegion().getFullName(),
-                hashtags,
-                liked
-        );
-    }
-
-
-
 }
