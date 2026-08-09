@@ -97,7 +97,7 @@ public class ContentServiceImpl implements ContentService{
     public CursorResponse<ContentResDTO.ContentInfo> getContents(ContentReqDTO.ContentListReq request, Long userId){
 
         BooleanBuilder builder = new BooleanBuilder();
-        applyStatusFilter(builder, request.status(), LocalDate.now());
+        applyStatusFilter(builder, request.statuses(), LocalDate.now());
 
         int size = request.size() == null ? DEFAULT_PAGE_SIZE : request.size();
 
@@ -334,20 +334,27 @@ public class ContentServiceImpl implements ContentService{
 
     private void applyStatusFilter(
             BooleanBuilder builder,
-            ContentListStatus status,
+            List<ContentListStatus> statuses,
             LocalDate today
     ) {
-        ContentListStatus effectiveStatus = status == null
-                ? ContentListStatus.UPCOMING_AND_ONGOING
-                : status;
+        List<ContentListStatus> effectiveStatuses = statuses == null || statuses.isEmpty()
+                ? List.of(ContentListStatus.UPCOMING, ContentListStatus.ONGOING)
+                : statuses;
 
-        switch (effectiveStatus) {
-            case UPCOMING_AND_ONGOING -> builder.and(qContent.endDate.goe(today));
-            case ONGOING -> builder.and(
-                    qContent.startDate.loe(today)
-                            .and(qContent.endDate.goe(today))
-            );
+        BooleanBuilder statusBuilder = new BooleanBuilder();
+
+        for (ContentListStatus status : effectiveStatuses) {
+            switch (status) {
+                case UPCOMING -> statusBuilder.or(qContent.startDate.gt(today));
+                case ONGOING -> statusBuilder.or(
+                        qContent.startDate.loe(today)
+                                .and(qContent.endDate.goe(today))
+                );
+                case ENDED -> statusBuilder.or(qContent.endDate.lt(today));
+            }
         }
+
+        builder.and(statusBuilder);
     }
 
 

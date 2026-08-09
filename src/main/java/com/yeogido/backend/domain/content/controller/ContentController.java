@@ -35,7 +35,7 @@ public class ContentController {
     //문화콘텐츠 목록 조회
     @Operation(
             summary = "문화콘텐츠 목록 조회",
-            description = "문화콘텐츠를 검색어, 카테고리, 지역 및 조회 범위로 필터링하고 추천순, 저장순, 거리순 또는 종료 임박순으로 정렬합니다. "
+            description = "문화콘텐츠를 검색어, 카테고리, 지역 및 행사 상태로 필터링하고 추천순, 저장순, 거리순 또는 종료 임박순으로 정렬합니다. "
     )
     @GetMapping
     public ApiResponse<CursorResponse<ContentResDTO.ContentInfo>> getContents(

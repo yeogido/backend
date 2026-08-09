@@ -26,10 +26,10 @@ public class ContentReqDTO {
             ContentCategory category,
 
             @Schema(
-                    description = "목록 조회 범위 (UPCOMING_AND_ONGOING: 진행 예정 및 진행 중, ONGOING: 진행 중)",
-                    defaultValue = "UPCOMING_AND_ONGOING"
+                    description = "행사 상태 목록 (UPCOMING: 진행 예정, ONGOING: 진행 중, ENDED: 종료). 여러 상태 선택 가능",
+                    defaultValue = "[UPCOMING, ONGOING]"
             )
-            ContentListStatus status,
+            List<ContentListStatus> statuses,
 
             @Schema(description = "검색어")
             String keyword,
