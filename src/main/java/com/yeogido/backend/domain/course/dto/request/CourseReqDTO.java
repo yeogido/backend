@@ -285,7 +285,7 @@ public class CourseReqDTO {
             @Schema(description = "코스 타입", example = "OFFICIAL")
             CourseType courseType,
 
-            @Schema(description = "지역 ID. OFFICIAL 코스에서만 사용할 수 있습니다.", example = "1")
+            @Schema(description = "지역 ID", example = "1")
             Long regionId
     ) { }
 

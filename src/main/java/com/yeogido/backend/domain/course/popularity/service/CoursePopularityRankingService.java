@@ -30,6 +30,7 @@ public class CoursePopularityRankingService {
             coursePopularityRankingRedisRepository.replaceOfficialRanking(List.of());
             coursePopularityRankingRedisRepository.deleteOfficialRegionRankings();
             coursePopularityRankingRedisRepository.replaceLocalRanking(List.of());
+            coursePopularityRankingRedisRepository.deleteLocalRegionRankings();
             return;
         }
 
@@ -43,6 +44,8 @@ public class CoursePopularityRankingService {
         coursePopularityRankingRedisRepository.deleteOfficialRegionRankings();
         replaceOfficialRegionRankings(officialTargets);
         coursePopularityRankingRedisRepository.replaceLocalRanking(toRankingEntries(localTargets));
+        coursePopularityRankingRedisRepository.deleteLocalRegionRankings();
+        replaceLocalRegionRankings(localTargets);
     }
 
     private List<CourseRankingTarget> filterTargets(
@@ -84,6 +87,32 @@ public class CoursePopularityRankingService {
 
         targetsByRegion.forEach((regionId, targets) ->
                 coursePopularityRankingRedisRepository.replaceOfficialRegionRanking(
+                        regionId,
+                        toRankingEntries(targets)
+                ));
+    }
+
+    private void replaceLocalRegionRankings(List<CourseRankingTarget> localTargets) {
+
+        Map<Long, List<CourseRankingTarget>> targetsByRegion = new HashMap<>();
+
+        for (CourseRankingTarget target : localTargets) {
+
+            // 자신의 지역
+            targetsByRegion
+                    .computeIfAbsent(target.regionId(), ignored -> new ArrayList<>())
+                    .add(target);
+
+            // 부모 지역(시/도)
+            if (target.parentRegionId() != null) {
+                targetsByRegion
+                        .computeIfAbsent(target.parentRegionId(), ignored -> new ArrayList<>())
+                        .add(target);
+            }
+        }
+
+        targetsByRegion.forEach((regionId, targets) ->
+                coursePopularityRankingRedisRepository.replaceLocalRegionRanking(
                         regionId,
                         toRankingEntries(targets)
                 ));

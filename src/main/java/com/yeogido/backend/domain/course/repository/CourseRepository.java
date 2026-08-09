@@ -183,6 +183,22 @@ public interface CourseRepository extends JpaRepository<Course, Long>, CourseQue
             Pageable pageable
     );
 
+    @Query("""
+            select c.id
+            from Course c
+            where c.courseType = com.yeogido.backend.domain.course.enums.CourseType.LOCAL
+              and (
+                  c.region.id = :regionId
+                  or c.region.parent.id = :regionId
+              )
+              and c.deletedAt is null
+            order by c.createdAt desc
+            """)
+    List<Long> findLatestLocalRegionCourseIds(
+            @Param("regionId") Long regionId,
+            Pageable pageable
+    );
+
     interface CourseSummaryProjection {
 
         Long getCourseId();
