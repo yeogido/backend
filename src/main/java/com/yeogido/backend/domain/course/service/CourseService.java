@@ -24,6 +24,8 @@ public interface CourseService {
             Long userId
     );
 
+    List<CourseResDTO.CourseLocalPopularPreview> getPopularLocalCourses(Long userId);
+
     List<CourseResDTO.CourseRecommendedPreview> getRecommendedCourses();
 
     CourseResDTO.CourseDetail getCourseDetail(Long courseId, Long userId);

@@ -17,6 +17,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.LocalDateTime;
 import java.util.List;
 
 public class CourseResDTO {
@@ -79,6 +80,50 @@ public class CourseResDTO {
 
             @Schema(description = "이동 수단", example = "CAR")
             TransportType transportType
+    ) { }
+
+    @Schema(name = "CourseLocalPopularPreviewResponse", description = "인기 로컬 코스 미리보기 정보")
+    public record CourseLocalPopularPreview(
+
+            @Schema(description = "코스 ID", example = "1")
+            Long courseId,
+
+            @Schema(description = "대표 이미지 URL", example = "https://example.com/course1.jpg")
+            String thumbnailUrl,
+
+            @Schema(description = "코스 제목", example = "강릉 혼자 여행 코스")
+            String title,
+
+            @Schema(description = "여행 기간", example = "DAY_TRIP")
+            DurationType durationType,
+
+            @Schema(description = "동행 유형", example = "SOLO")
+            CompanionType companionType,
+
+            @Schema(description = "작성자 정보")
+            LocalPopularAuthor author,
+
+            @Schema(description = "생성일시", example = "2026-07-26T15:30:00")
+            LocalDateTime createdAt,
+
+            @Schema(description = "태그", example = "[\"여름\", \"자연\", \"바다\"]")
+            List<String> tags,
+
+            @Schema(description = "현재 사용자의 코스 좋아요 여부", example = "true")
+            Boolean isLiked
+    ) { }
+
+    @Schema(name = "CourseLocalPopularAuthorResponse", description = "인기 로컬 코스 작성자 정보")
+    public record LocalPopularAuthor(
+
+            @Schema(description = "작성자 사용자 ID", example = "10")
+            Long userId,
+
+            @Schema(description = "작성자 닉네임", nullable = true, example = "홍길동")
+            String nickname,
+
+            @Schema(description = "작성자 프로필 이미지 URL", nullable = true, example = "https://example.com/profile.jpg")
+            String profileImageUrl
     ) { }
 
     @Schema(name = "CourseDetailResponse", description = "추천 코스 상세 조회 응답")

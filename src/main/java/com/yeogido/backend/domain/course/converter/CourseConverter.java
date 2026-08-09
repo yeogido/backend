@@ -305,6 +305,30 @@ public class CourseConverter {
         );
     }
 
+    public static CourseResDTO.CourseLocalPopularPreview toLocalPopularCoursePreview(
+            CourseRepository.CourseLocalPopularProjection course,
+            String thumbnailUrl,
+            String profileImageUrl,
+            List<String> tags,
+            boolean isLiked
+    ) {
+        return new CourseResDTO.CourseLocalPopularPreview(
+                course.getCourseId(),
+                thumbnailUrl,
+                course.getTitle(),
+                course.getDurationType(),
+                course.getCompanionType(),
+                new CourseResDTO.LocalPopularAuthor(
+                        course.getUserId(),
+                        course.getNickname(),
+                        profileImageUrl
+                ),
+                course.getCreatedAt(),
+                tags,
+                isLiked
+        );
+    }
+
     public static List<CourseResDTO.ReviewPreview> toReviewPreviews(
             List<CourseReview> reviews,
             Map<Long, List<CourseReviewImage>> imageMap,

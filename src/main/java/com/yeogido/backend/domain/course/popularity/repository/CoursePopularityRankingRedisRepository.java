@@ -73,6 +73,10 @@ public class CoursePopularityRankingRedisRepository {
         return findTopCourseIds(localRankingKey(), size);
     }
 
+    public void removeLocalCourseId(Long courseId) {
+        removeCourseId(localRankingKey(), courseId);
+    }
+
     private void replaceRanking(String key, List<CoursePopularityRankingEntry> entries) {
         if (entries.isEmpty()) {
             stringRedisTemplate.delete(key);
@@ -121,6 +125,27 @@ public class CoursePopularityRankingRedisRepository {
                 .map(this::courseIdFromRedisMember)
                 .map(Long::valueOf)
                 .toList();
+    }
+
+    private void removeCourseId(String key, Long courseId) {
+        Set<String> members = stringRedisTemplate.opsForZSet()
+                .range(key, 0, -1);
+
+        if (members == null || members.isEmpty()) {
+            return;
+        }
+
+        String courseIdValue = courseId.toString();
+        Object[] removableMembers = members.stream()
+                .filter(member -> courseIdValue.equals(courseIdFromRedisMember(member)))
+                .toArray();
+
+        if (removableMembers.length == 0) {
+            return;
+        }
+
+        stringRedisTemplate.opsForZSet()
+                .remove(key, removableMembers);
     }
 
     private String redisMember(CoursePopularityRankingEntry entry) {
