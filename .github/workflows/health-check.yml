@@ -1,0 +1,87 @@
+name: Health Check
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+
+    env:
+      HEALTH_CHECK_URL: ${{ secrets.HEALTH_CHECK_URL }}
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+
+    steps:
+      - name: Check application health
+        id: health
+        shell: bash
+        run: |
+          set -u
+
+          failure_reason="health check did not complete"
+          last_http_code="none"
+          last_health_status="none"
+
+          for attempt in 1 2 3; do
+            response_file="$(mktemp)"
+            http_code="$(curl -fsS --connect-timeout 5 --max-time 10 \
+              -w "%{http_code}" \
+              -o "$response_file" \
+              "$HEALTH_CHECK_URL" 2>/tmp/health-check-error || true)"
+
+            status="$(jq -r '.status // empty' "$response_file" 2>/dev/null || true)"
+            rm -f "$response_file"
+            last_http_code="${http_code:-none}"
+            last_health_status="${status:-none}"
+
+            if [[ "$http_code" == "200" && "$status" == "UP" ]]; then
+              echo "Health check succeeded on attempt ${attempt}."
+              exit 0
+            fi
+
+            curl_error="$(cat /tmp/health-check-error 2>/dev/null || true)"
+            failure_reason="attempt ${attempt} failed: http_code=${http_code:-none}, status=${status:-none}, error=${curl_error:-none}"
+            echo "$failure_reason"
+
+            if [[ "$attempt" -lt 3 ]]; then
+              sleep 30
+            fi
+          done
+
+          {
+            echo "failure_reason<<EOF"
+            echo "$failure_reason"
+            echo "EOF"
+            echo "http_code=$last_http_code"
+            echo "health_status=$last_health_status"
+          } >> "$GITHUB_OUTPUT"
+
+          exit 1
+
+      - name: Send Discord failure alert
+        if: failure() && steps.health.outcome == 'failure'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${DISCORD_WEBHOOK_URL}" ]]; then
+            echo "Discord webhook secret is not configured." >&2
+            exit 1
+          fi
+
+          checked_at="$(TZ=Asia/Seoul date '+%Y-%m-%d %H:%M:%S KST')"
+          content="$(printf '🚨 여기도 운영 서버 장애 감지\n\n상태: DOWN\nHTTP Status: %s\nHealth Status: %s\n재시도: 3/3\n확인 시각: %s' \
+            "${{ steps.health.outputs.http_code }}" \
+            "${{ steps.health.outputs.health_status }}" \
+            "$checked_at")"
+          payload="$(jq -n --arg content "$content" '{content: $content}')"
+
+          curl -fsS \
+            -H "Content-Type: application/json" \
+            -d "$payload" \
+            "$DISCORD_WEBHOOK_URL"
