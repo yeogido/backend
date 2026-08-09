@@ -1,6 +1,7 @@
 package com.yeogido.backend.domain.course.repository;
 
 import com.querydsl.core.BooleanBuilder;
+import com.querydsl.core.types.dsl.CaseBuilder;
 import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.Projections;
 import com.querydsl.core.types.dsl.BooleanExpression;
@@ -17,6 +18,7 @@ import com.yeogido.backend.domain.region.entity.QRegion;
 import jakarta.persistence.EntityManager;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
 
@@ -40,6 +42,7 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
     public List<CourseListRow> findCoursesByCursor(
             CourseReqDTO.CourseListReq request,
             CourseLocation location,
+            Map<Long, Long> popularityScores,
             int limit
     ) {
         CourseSortType sort = CourseSortType.resolve(request.sort());
@@ -55,6 +58,7 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
                 : Expressions.numberTemplate(Long.class, "0");
         NumberExpression<Double> distance = distanceExpression(location);
         NumberExpression<Integer> recommendOrder = recommendOrderExpression();
+        NumberExpression<Long> popularityScore = popularityScoreExpression(popularityScores);
 
         JPAQuery<CourseListRow> query = queryFactory
                 .select(Projections.constructor(
@@ -70,7 +74,8 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
                         recommendOrder,
                         savedCount,
                         reviewCount,
-                        distance
+                        distance,
+                        popularityScore
                 ))
                 .from(course)
                 .join(course.region, region);
@@ -100,7 +105,7 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
         }
 
         query.where(courseListCondition(request))
-                .orderBy(orderSpecifiers(sort, savedCount, reviewCount, distance))
+                .orderBy(orderSpecifiers(sort, savedCount, reviewCount, distance, popularityScore))
                 .limit(limit);
 
         BooleanExpression cursorHavingCondition = cursorHavingCondition(
@@ -108,7 +113,8 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
                 recommendOrder,
                 savedCount,
                 reviewCount,
-                distance
+                distance,
+                popularityScore
         );
 
         if (cursorHavingCondition != null) {
@@ -191,7 +197,8 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
             CourseSortType sort,
             NumberExpression<Long> savedCount,
             NumberExpression<Long> reviewCount,
-            NumberExpression<Double> distance
+            NumberExpression<Double> distance,
+            NumberExpression<Long> popularityScore
     ) {
         return switch (CourseSortType.resolve(sort)) {
             case DISTANCE -> new OrderSpecifier<?>[] {
@@ -204,6 +211,10 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
             };
             case REVIEW -> new OrderSpecifier<?>[] {
                     reviewCount.desc(),
+                    course.id.desc()
+            };
+            case POPULAR -> new OrderSpecifier<?>[] {
+                    popularityScore.desc(),
                     course.id.desc()
             };
             case LATEST -> new OrderSpecifier<?>[] {
@@ -222,7 +233,8 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
             NumberExpression<Integer> recommendOrder,
             NumberExpression<Long> savedCount,
             NumberExpression<Long> reviewCount,
-            NumberExpression<Double> distance
+            NumberExpression<Double> distance,
+            NumberExpression<Long> popularityScore
     ) {
         if (request.cursorValue() == null || request.cursorId() == null) {
             return null;
@@ -232,6 +244,11 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
             case DISTANCE -> distanceCursor(distance, request.cursorValue(), request.cursorId());
             case SAVED -> descendingNumberCursor(savedCount, Long.valueOf(request.cursorValue()), request.cursorId());
             case REVIEW -> descendingNumberCursor(reviewCount, Long.valueOf(request.cursorValue()), request.cursorId());
+            case POPULAR -> descendingNumberCursor(
+                    popularityScore,
+                    Long.valueOf(request.cursorValue()),
+                    request.cursorId()
+            );
             case LATEST -> latestCursor(request.cursorValue(), request.cursorId());
             case RECOMMEND -> recommendCursor(
                     recommendOrder,
@@ -286,6 +303,29 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
 
     private NumberExpression<Integer> recommendOrderExpression() {
         return course.recommendOrder.coalesce(RECOMMEND_NULL_ORDER);
+    }
+
+    private NumberExpression<Long> popularityScoreExpression(Map<Long, Long> popularityScores) {
+        if (popularityScores == null || popularityScores.isEmpty()) {
+            return Expressions.numberTemplate(Long.class, "0");
+        }
+
+        CaseBuilder.Cases<Long, NumberExpression<Long>> cases = null;
+        for (Map.Entry<Long, Long> entry : popularityScores.entrySet()) {
+            if (cases == null) {
+                cases = new CaseBuilder()
+                        .when(course.id.eq(entry.getKey()))
+                        .then(entry.getValue());
+            } else {
+                cases = cases
+                        .when(course.id.eq(entry.getKey()))
+                        .then(entry.getValue());
+            }
+        }
+
+        return cases == null
+                ? Expressions.numberTemplate(Long.class, "0")
+                : cases.otherwise(0L);
     }
 
     private NumberExpression<Double> distanceExpression(CourseLocation location) {

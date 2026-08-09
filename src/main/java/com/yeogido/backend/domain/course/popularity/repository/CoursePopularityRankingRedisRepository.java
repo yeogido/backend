@@ -1,6 +1,7 @@
 package com.yeogido.backend.domain.course.popularity.repository;
 
 import com.yeogido.backend.domain.course.popularity.dto.CoursePopularityRankingEntry;
+import com.yeogido.backend.domain.course.enums.CourseType;
 import com.yeogido.backend.global.redis.RedisKey;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisCallback;
@@ -11,9 +12,12 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import org.springframework.data.redis.core.ZSetOperations;
 
 @Repository
 @RequiredArgsConstructor
@@ -34,6 +38,10 @@ public class CoursePopularityRankingRedisRepository {
 
     public List<Long> findTopOfficialCourseIds(int size) {
         return findTopCourseIds(officialRankingKey(), size);
+    }
+
+    public Map<Long, Long> findOfficialCourseScores() {
+        return findCourseScores(officialRankingKey());
     }
 
     public void replaceOfficialRegionRanking(Long regionId, List<CoursePopularityRankingEntry> entries) {
@@ -71,6 +79,16 @@ public class CoursePopularityRankingRedisRepository {
 
     public List<Long> findTopLocalCourseIds(int size) {
         return findTopCourseIds(localRankingKey(), size);
+    }
+
+    public Map<Long, Long> findLocalCourseScores() {
+        return findCourseScores(localRankingKey());
+    }
+
+    public Map<Long, Long> findCourseScores(CourseType courseType) {
+        return courseType == CourseType.LOCAL
+                ? findLocalCourseScores()
+                : findOfficialCourseScores();
     }
 
     public void replaceLocalRegionRanking(Long regionId, List<CoursePopularityRankingEntry> entries) {
@@ -154,6 +172,29 @@ public class CoursePopularityRankingRedisRepository {
                 .map(this::courseIdFromRedisMember)
                 .map(Long::valueOf)
                 .toList();
+    }
+
+    private Map<Long, Long> findCourseScores(String key) {
+        Set<ZSetOperations.TypedTuple<String>> entries = stringRedisTemplate.opsForZSet()
+                .reverseRangeWithScores(key, 0, -1);
+
+        if (entries == null || entries.isEmpty()) {
+            return Map.of();
+        }
+
+        Map<Long, Long> scores = new LinkedHashMap<>();
+        for (ZSetOperations.TypedTuple<String> entry : entries) {
+            String member = entry.getValue();
+            Double score = entry.getScore();
+
+            if (member == null || score == null) {
+                continue;
+            }
+
+            scores.put(Long.valueOf(courseIdFromRedisMember(member)), score.longValue());
+        }
+
+        return scores;
     }
 
     private void removeCourseId(String key, Long courseId) {

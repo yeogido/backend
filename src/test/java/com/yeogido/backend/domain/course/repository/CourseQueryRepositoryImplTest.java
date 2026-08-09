@@ -20,6 +20,7 @@ import com.yeogido.backend.domain.user.enums.UserStatus;
 import com.yeogido.backend.global.config.JpaConfig;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
@@ -62,6 +63,7 @@ class CourseQueryRepositoryImplTest {
         List<CourseQueryRepository.CourseListRow> rows = courseRepository.findCoursesByCursor(
                 courseListRequest(CourseSortType.SAVED),
                 new CourseQueryRepository.CourseLocation(null, null),
+                Map.of(),
                 10
         );
 
@@ -91,6 +93,7 @@ class CourseQueryRepositoryImplTest {
         List<CourseQueryRepository.CourseListRow> rows = courseRepository.findCoursesByCursor(
                 courseListRequest(CourseSortType.REVIEW),
                 new CourseQueryRepository.CourseLocation(null, null),
+                Map.of(),
                 10
         );
 
@@ -117,6 +120,7 @@ class CourseQueryRepositoryImplTest {
         List<CourseQueryRepository.CourseListRow> rows = courseRepository.findCoursesByCursor(
                 courseListRequest(CourseSortType.DISTANCE),
                 new CourseQueryRepository.CourseLocation(37.5665, 126.9780),
+                Map.of(),
                 10
         );
 
