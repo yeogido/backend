@@ -171,6 +171,7 @@ public class CourseConverter {
             String imageKey = courseItem.getImageKey();
 
             return new CourseResDTO.PlaceCourseItem(
+                    courseItem.getId(),
                     courseItem.getOrderNo(),
                     courseItem.getItemType(),
                     place.getId(),
@@ -193,6 +194,7 @@ public class CourseConverter {
         String imageKey = content.getThumbnailImage();
 
         return new CourseResDTO.ContentCourseItem(
+                courseItem.getId(),
                 courseItem.getOrderNo(),
                 courseItem.getItemType(),
                 content.getId(),

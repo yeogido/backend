@@ -202,6 +202,8 @@ public class CourseResDTO {
     )
     public sealed interface CourseItem permits PlaceCourseItem, ContentCourseItem {
 
+        Long courseItemId();
+
         Integer order();
 
         CourseItemType type();
@@ -255,6 +257,9 @@ public class CourseResDTO {
     @Schema(name = "PlaceCourseItemResponse", description = "장소 코스 구성 항목")
     public record PlaceCourseItem(
 
+            @Schema(description = "코스 항목 ID", example = "101")
+            Long courseItemId,
+
             @Schema(description = "코스 내 순서", example = "1")
             Integer order,
 
@@ -306,6 +311,9 @@ public class CourseResDTO {
 
     @Schema(name = "ContentCourseItemResponse", description = "문화 콘텐츠 코스 구성 항목")
     public record ContentCourseItem(
+
+            @Schema(description = "코스 항목 ID", example = "102")
+            Long courseItemId,
 
             @Schema(description = "코스 내 순서", example = "2")
             Integer order,

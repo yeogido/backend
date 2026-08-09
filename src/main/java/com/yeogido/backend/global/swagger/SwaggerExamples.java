@@ -163,6 +163,7 @@ public final class SwaggerExamples {
             "isLiked": false,
             "courseItems": [
               {
+                "courseItemId": 101,
                 "order": 1,
                 "type": "PLACE",
                 "placeId": 12,
@@ -191,6 +192,7 @@ public final class SwaggerExamples {
                 "timesFromPrevious": []
               },
               {
+                "courseItemId": 102,
                 "order": 2,
                 "type": "CONTENT",
                 "contentId": 3,
