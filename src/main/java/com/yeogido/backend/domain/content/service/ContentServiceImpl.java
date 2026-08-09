@@ -17,6 +17,7 @@ import com.yeogido.backend.domain.content.entity.ContentHashtag;
 import com.yeogido.backend.domain.content.entity.QContent;
 import com.yeogido.backend.domain.content.entity.QContentLike;
 import com.yeogido.backend.domain.content.enums.ContentCategory;
+import com.yeogido.backend.domain.content.enums.ContentListStatus;
 import com.yeogido.backend.domain.content.enums.ContentSort;
 
 import com.yeogido.backend.domain.content.enums.ContentSource;
@@ -96,7 +97,7 @@ public class ContentServiceImpl implements ContentService{
     public CursorResponse<ContentResDTO.ContentInfo> getContents(ContentReqDTO.ContentListReq request, Long userId){
 
         BooleanBuilder builder = new BooleanBuilder();
-        builder.and(qContent.endDate.goe(LocalDate.now()));
+        applyStatusFilter(builder, request.status(), LocalDate.now());
 
         int size = request.size() == null ? DEFAULT_PAGE_SIZE : request.size();
 
@@ -329,6 +330,24 @@ public class ContentServiceImpl implements ContentService{
                 nextCursorId,
                 hasNext
         );
+    }
+
+    private void applyStatusFilter(
+            BooleanBuilder builder,
+            ContentListStatus status,
+            LocalDate today
+    ) {
+        ContentListStatus effectiveStatus = status == null
+                ? ContentListStatus.UPCOMING_AND_ONGOING
+                : status;
+
+        switch (effectiveStatus) {
+            case UPCOMING_AND_ONGOING -> builder.and(qContent.endDate.goe(today));
+            case ONGOING -> builder.and(
+                    qContent.startDate.loe(today)
+                            .and(qContent.endDate.goe(today))
+            );
+        }
     }
 
 
