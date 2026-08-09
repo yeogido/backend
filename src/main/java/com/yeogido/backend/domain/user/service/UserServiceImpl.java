@@ -17,10 +17,12 @@ import com.yeogido.backend.domain.business.repository.BusinessPromotionHashtagRe
 import com.yeogido.backend.domain.business.repository.BusinessPromotionImageRepository;
 import com.yeogido.backend.domain.business.repository.BusinessPromotionRepository;
 import com.yeogido.backend.domain.content.entity.ContentLike;
+import com.yeogido.backend.domain.content.entity.Content;
 import com.yeogido.backend.domain.content.entity.QContent;
 import com.yeogido.backend.domain.content.entity.QContentLike;
 import com.yeogido.backend.domain.content.repository.ContentHashtagRepository;
 import com.yeogido.backend.domain.content.repository.ContentLikeRepository;
+import com.yeogido.backend.domain.content.repository.ContentRepository;
 import com.yeogido.backend.domain.course.converter.CourseConverter;
 import com.yeogido.backend.domain.course.entity.*;
 import com.yeogido.backend.domain.course.repository.*;
@@ -76,6 +78,7 @@ public class UserServiceImpl implements UserService{
     private final CourseHashtagRepository courseHashtagRepository;
     private final CourseItemRepository courseItemRepository;
     private final ContentHashtagRepository contentHashtagRepository;
+    private final ContentRepository contentRepository;
     private final CourseRepository courseRepository;
     private final CourseReviewRepository courseReviewRepository;
     private final CourseReviewImageRepository courseReviewImageRepository;
@@ -552,6 +555,22 @@ public class UserServiceImpl implements UserService{
                                 item -> s3Service.getImageUrl(item.getImageKey())
                         ));
 
+        List<Long> contentIds = placeLikes.stream()
+                .filter(like -> like.getSourceType() == PlaceLikeSourceType.CONTENT)
+                .map(PlaceLike::getSourceId)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
+
+        Map<Long, String> contentImageUrls = contentIds.isEmpty()
+                ? Map.of()
+                : contentRepository.findAllById(contentIds).stream()
+                        .filter(content -> StringUtils.hasText(content.getThumbnailImage()))
+                        .collect(Collectors.toMap(
+                                Content::getId,
+                                content -> s3Service.getImageUrl(content.getThumbnailImage())
+                        ));
+
         List<Long> promotionIds = placeLikes.stream()
                 .filter(like -> like.getSourceType() == PlaceLikeSourceType.PROMOTION)
                 .map(PlaceLike::getSourceId)
@@ -569,11 +588,16 @@ public class UserServiceImpl implements UserService{
                                 image -> s3Service.getImageUrl(image.getImageKey())
                         ));
 
-        return new PlaceLikeImageSources(courseItemImageUrls, promotionImageUrls);
+        return new PlaceLikeImageSources(
+                courseItemImageUrls,
+                contentImageUrls,
+                promotionImageUrls
+        );
     }
 
     private record PlaceLikeImageSources(
             Map<Long, String> courseItemImageUrls,
+            Map<Long, String> contentImageUrls,
             Map<Long, String> promotionImageUrls
     ) {
         private String thumbnailUrl(PlaceLike like) {
@@ -583,6 +607,7 @@ public class UserServiceImpl implements UserService{
 
             return switch (like.getSourceType()) {
                 case COURSE_ITEM -> courseItemImageUrls.get(like.getSourceId());
+                case CONTENT -> contentImageUrls.get(like.getSourceId());
                 case PROMOTION -> promotionImageUrls.get(like.getSourceId());
             };
         }

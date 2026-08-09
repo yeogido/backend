@@ -105,16 +105,10 @@ public class  ContentConverter {
                 .category(request.category())
                 .build();
     }
-    public static ContentResDTO.PlaceInfo toPlaceInfo(Place place) {
-        return toPlaceInfo(place, null);
-    }
-
     public static ContentResDTO.PlaceInfo toPlaceInfo(
-            Place place,
-            Long courseItemId
+            Place place
     ){
         return new ContentResDTO.PlaceInfo(
-                courseItemId,
                 place.getId(),
                 place.getExternalPlaceId(),
                 place.getSource(),
