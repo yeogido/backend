@@ -6,12 +6,14 @@ import com.yeogido.backend.domain.course.enums.DurationType;
 import com.yeogido.backend.domain.course.enums.TransportType;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 public interface CourseQueryRepository {
 
     List<CourseListRow> findCoursesByCursor(
             CourseReqDTO.CourseListReq request,
             CourseLocation location,
+            Map<Long, Long> popularityScores,
             int limit
     );
 
@@ -36,6 +38,7 @@ public interface CourseQueryRepository {
             Integer recommendOrder,
             Long savedCount,
             Long reviewCount,
-            Double distance
+            Double distance,
+            Long popularityScore
     ) { }
 }

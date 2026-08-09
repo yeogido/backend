@@ -179,8 +179,9 @@ public class CourseServiceImpl implements CourseService {
 
         int size = request.size();
         CourseQueryRepository.CourseLocation location = resolveCourseLocation(request, userId);
+        Map<Long, Long> popularityScores = getPopularityScores(request);
         List<CourseQueryRepository.CourseListRow> rows =
-                courseRepository.findCoursesByCursor(request, location, size + 1);
+                courseRepository.findCoursesByCursor(request, location, popularityScores, size + 1);
 
         boolean hasNext = rows.size() > size;
         if (hasNext) {
@@ -1298,7 +1299,7 @@ public class CourseServiceImpl implements CourseService {
         try {
             switch (resolvedSort) {
                 case DISTANCE -> Double.valueOf(cursorValue);
-                case SAVED, REVIEW -> Long.valueOf(cursorValue);
+                case SAVED, REVIEW, POPULAR -> Long.valueOf(cursorValue);
                 case LATEST -> LocalDateTime.parse(cursorValue);
                 case RECOMMEND -> Integer.valueOf(cursorValue);
             }
@@ -1352,9 +1353,18 @@ public class CourseServiceImpl implements CourseService {
             case DISTANCE -> row.distance();
             case SAVED -> row.savedCount();
             case REVIEW -> row.reviewCount();
+            case POPULAR -> row.popularityScore();
             case LATEST -> row.createdAt();
             case RECOMMEND -> row.recommendOrder();
         };
+    }
+
+    private Map<Long, Long> getPopularityScores(CourseReqDTO.CourseListReq request) {
+        if (CourseSortType.resolve(request.sort()) != CourseSortType.POPULAR) {
+            return Map.of();
+        }
+
+        return coursePopularityRankingRedisRepository.findCourseScores(request.courseType());
     }
 
     private CourseResDTO.CoursePreview toCoursePreview(
