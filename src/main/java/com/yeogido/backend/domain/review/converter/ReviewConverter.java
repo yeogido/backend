@@ -36,6 +36,7 @@ public class ReviewConverter {
             List<CourseReview> reviews,
             Map<Long, List<CourseReviewImage>> imageMap,
             Set<Long> likedCourseIds,
+            Map<Long, List<String>> courseTagMap,
             Long currentUserId,
             Function<String, String> imageUrlResolver
     ) {
@@ -44,6 +45,7 @@ public class ReviewConverter {
                         review,
                         imageMap.getOrDefault(review.getId(), List.of()),
                         likedCourseIds,
+                        courseTagMap,
                         currentUserId,
                         imageUrlResolver
                 ))
@@ -86,6 +88,7 @@ public class ReviewConverter {
             CourseReview review,
             List<CourseReviewImage> images,
             Set<Long> likedCourseIds,
+            Map<Long, List<String>> courseTagMap,
             Long currentUserId,
             Function<String, String> imageUrlResolver
     ) {
@@ -99,7 +102,12 @@ public class ReviewConverter {
                 isMine(review, currentUserId),
                 toReviewImages(images, imageUrlResolver),
                 toAuthor(review.getUser()),
-                toCourse(course, likedCourseIds.contains(course.getId()), imageUrlResolver)
+                toCourse(
+                        course,
+                        likedCourseIds.contains(course.getId()),
+                        courseTagMap.getOrDefault(course.getId(), List.of()),
+                        imageUrlResolver
+                )
         );
     }
 
@@ -133,6 +141,7 @@ public class ReviewConverter {
     private static ReviewResDTO.Course toCourse(
             Course course,
             boolean isLiked,
+            List<String> tags,
             Function<String, String> imageUrlResolver
     ) {
         return new ReviewResDTO.Course(
@@ -142,6 +151,8 @@ public class ReviewConverter {
                 imageUrlResolver.apply(course.getThumbnailKey()),
                 course.getDurationType(),
                 course.getTransportType(),
+                course.getCompanionType(),
+                tags,
                 isLiked
         );
     }
