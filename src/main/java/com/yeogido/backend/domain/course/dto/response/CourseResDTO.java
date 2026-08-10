@@ -38,6 +38,9 @@ public class CourseResDTO {
             @Schema(description = "대표 이미지 URL", example = "https://example.com/course1.jpg")
             String thumbnailUrl,
 
+            @Schema(description = "경로 이미지 URL. 경로 이미지가 없으면 null입니다.", nullable = true, example = "https://example.com/course-route1.png")
+            String routeImageUrl,
+
             @Schema(description = "코스 제목", example = "강릉 혼자 여행 코스")
             String title,
 

@@ -67,6 +67,9 @@ public class Course extends BaseEntity {
     @Column(name = "thumbnail_key", length = 255)
     private String thumbnailKey;
 
+    @Column(name = "route_image_key", length = 255)
+    private String routeImageKey;
+
     @Builder.Default
     @Column(name = "view_count", nullable = false)
     private Long viewCount = 0L;
@@ -85,7 +88,8 @@ public class Course extends BaseEntity {
             CompanionType companionType,
             Integer monthStart,
             Integer monthEnd,
-            String thumbnailKey
+            String thumbnailKey,
+            String routeImageKey
     ) {
         if (title != null) {
             this.title = title;
@@ -110,6 +114,9 @@ public class Course extends BaseEntity {
         }
         if (thumbnailKey != null) {
             this.thumbnailKey = thumbnailKey;
+        }
+        if (routeImageKey != null) {
+            this.routeImageKey = routeImageKey;
         }
     }
 

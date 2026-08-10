@@ -72,6 +72,7 @@ public interface CourseRepository extends JpaRepository<Course, Long>, CourseQue
             select
                 c.id as courseId,
                 c.thumbnailKey as thumbnailKey,
+                c.routeImageKey as routeImageKey,
                 c.title as title,
                 c.region.name as region,
                 c.durationType as durationType,
@@ -232,6 +233,8 @@ public interface CourseRepository extends JpaRepository<Course, Long>, CourseQue
         Long getCourseId();
 
         String getThumbnailKey();
+
+        String getRouteImageKey();
 
         String getTitle();
 

@@ -6,6 +6,7 @@ import com.yeogido.backend.domain.course.dto.response.CourseResDTO;
 import com.yeogido.backend.domain.course.entity.Course;
 import com.yeogido.backend.domain.course.enums.CompanionType;
 import com.yeogido.backend.domain.course.enums.CourseItemType;
+import com.yeogido.backend.domain.course.enums.CourseSortType;
 import com.yeogido.backend.domain.course.enums.CourseType;
 import com.yeogido.backend.domain.course.enums.DurationType;
 import com.yeogido.backend.domain.course.enums.TransportType;
@@ -14,6 +15,7 @@ import com.yeogido.backend.domain.course.repository.CourseHashtagRepository;
 import com.yeogido.backend.domain.course.repository.CourseItemTimeRepository;
 import com.yeogido.backend.domain.course.repository.CourseItemRepository;
 import com.yeogido.backend.domain.course.repository.CourseLikeRepository;
+import com.yeogido.backend.domain.course.repository.CourseQueryRepository;
 import com.yeogido.backend.domain.course.repository.CourseRedisRepository;
 import com.yeogido.backend.domain.course.repository.CourseRepository;
 import com.yeogido.backend.domain.course.repository.CourseReviewRepository;
@@ -231,6 +233,97 @@ class CourseServiceImplTest {
     }
 
     @Test
+    void createCourse_WhenRouteImageKeyExists_SavesRouteImageKeyWithoutMovingIt() {
+        CourseReqDTO.CourseCreateReq request = createRequestWithRouteImageKey("courses/route/sample.png");
+        stubSuccessfulCreateCourse(createUser());
+
+        courseService.createCourse(1L, request);
+
+        ArgumentCaptor<Course> courseCaptor = ArgumentCaptor.forClass(Course.class);
+        verify(courseRepository).save(courseCaptor.capture());
+        assertThat(courseCaptor.getValue().getRouteImageKey())
+                .isEqualTo("courses/route/sample.png");
+        verify(fileService).moveToDirectory("courses/thumbnail/sample.jpg", ImageDirectory.COURSE);
+        verify(fileService).moveToDirectory("courses/place/sample.jpg", ImageDirectory.COURSE);
+    }
+
+    @Test
+    void updateCourse_WhenRouteImageKeyIsNull_KeepsExistingRouteImageKey() {
+        Course course = createCourse(10L);
+        ReflectionTestUtils.setField(course, "routeImageKey", "courses/route/existing.png");
+        CourseReqDTO.CourseUpdateReq request = new CourseReqDTO.CourseUpdateReq(
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+
+        when(courseRepository.findByIdAndDeletedAtIsNull(10L)).thenReturn(Optional.of(course));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(createUser()));
+
+        courseService.updateCourse(1L, 10L, request);
+
+        assertThat(course.getRouteImageKey()).isEqualTo("courses/route/existing.png");
+    }
+
+    @Test
+    void getCourses_WhenRouteImageKeyExists_ReturnsRouteImageUrl() {
+        CourseReqDTO.CourseListReq request = new CourseReqDTO.CourseListReq(
+                CourseType.OFFICIAL,
+                null,
+                null,
+                null,
+                null,
+                null,
+                CourseSortType.LATEST,
+                null,
+                null,
+                null,
+                null,
+                20
+        );
+        CourseQueryRepository.CourseListRow row = new CourseQueryRepository.CourseListRow(
+                10L,
+                "courses/thumbnail/sample.jpg",
+                "courses/route/sample.png",
+                "Busan night course",
+                "Busan",
+                DurationType.DAY_TRIP,
+                TransportType.CAR,
+                CompanionType.FRIEND,
+                null,
+                null,
+                0L,
+                0L,
+                0.0,
+                0L
+        );
+
+        when(courseRepository.findCoursesByCursor(eq(request), any(), anyMap(), eq(21)))
+                .thenReturn(List.of(row));
+        when(courseHashtagRepository.findHashtagNamesByCourseIdIn(List.of(10L))).thenReturn(List.of());
+        when(s3Service.getImageUrl("courses/thumbnail/sample.jpg"))
+                .thenReturn("https://cdn.example.com/courses/thumbnail/sample.jpg");
+        when(s3Service.getImageUrl("courses/route/sample.png"))
+                .thenReturn("https://cdn.example.com/courses/route/sample.png");
+
+        var response = courseService.getCourses(request, null);
+
+        assertThat(response.getItems()).hasSize(1);
+        assertThat(response.getItems().get(0).thumbnailUrl())
+                .isEqualTo("https://cdn.example.com/courses/thumbnail/sample.jpg");
+        assertThat(response.getItems().get(0).routeImageUrl())
+                .isEqualTo("https://cdn.example.com/courses/route/sample.png");
+    }
+
+    @Test
     void createCourse_WhenPlaceCategoryGroupCodeIsNull_Succeeds() {
         CourseReqDTO.CourseCreateReq request = createRequestWithPlaceItem(createPlaceItem(null));
         stubSuccessfulCreateCourse(createUser());
@@ -378,6 +471,25 @@ class CourseServiceImplTest {
 
     private CourseReqDTO.CourseCreateReq createRequest() {
         return createRequestWithPlaceItem(createPlaceItem("AT4"));
+    }
+
+    private CourseReqDTO.CourseCreateReq createRequestWithRouteImageKey(String routeImageKey) {
+        CourseReqDTO.CourseCreateReq request = createRequest();
+
+        return new CourseReqDTO.CourseCreateReq(
+                request.title(),
+                request.regionId(),
+                request.description(),
+                request.durationType(),
+                request.transportType(),
+                request.companionType(),
+                request.monthStart(),
+                request.monthEnd(),
+                request.thumbnailKey(),
+                routeImageKey,
+                request.hashtagIds(),
+                request.courseItems()
+        );
     }
 
     private CourseReqDTO.CourseCreateReq createRequestWithPlaceItem(CourseReqDTO.CourseItemCreateReq courseItem) {

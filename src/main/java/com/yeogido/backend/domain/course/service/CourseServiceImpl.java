@@ -141,7 +141,8 @@ public class CourseServiceImpl implements CourseService {
                 movedRequest.companionType(),
                 movedRequest.monthStart(),
                 movedRequest.monthEnd(),
-                movedRequest.thumbnailKey()
+                movedRequest.thumbnailKey(),
+                movedRequest.routeImageKey()
         );
 
         if (movedRequest.hashtagIds() != null) {
@@ -249,6 +250,7 @@ public class CourseServiceImpl implements CourseService {
                 .map(course -> CourseConverter.toPopularCoursePreview(
                         course,
                         s3Service.getImageUrl(course.getThumbnailKey()),
+                        s3Service.getImageUrl(course.getRouteImageKey()),
                         tagMap.getOrDefault(course.getCourseId(), List.of()),
                         likedCourseIds.contains(course.getCourseId())
                 ))
@@ -694,6 +696,7 @@ public class CourseServiceImpl implements CourseService {
                 request.monthStart(),
                 request.monthEnd(),
                 moveImage(request.thumbnailKey(), ImageDirectory.COURSE),
+                request.routeImageKey(),
                 request.hashtagIds(),
                 moveCourseItemImages(request.courseItems())
         );
@@ -709,6 +712,7 @@ public class CourseServiceImpl implements CourseService {
                 request.monthStart(),
                 request.monthEnd(),
                 moveImage(request.thumbnailKey(), ImageDirectory.COURSE),
+                request.routeImageKey(),
                 request.hashtagIds(),
                 request.courseItems() == null ? null : moveCourseItemImages(request.courseItems())
         );
@@ -1375,6 +1379,7 @@ public class CourseServiceImpl implements CourseService {
         return new CourseResDTO.CoursePreview(
                 row.courseId(),
                 s3Service.getImageUrl(row.thumbnailKey()),
+                s3Service.getImageUrl(row.routeImageKey()),
                 row.title(),
                 row.region(),
                 row.durationType(),
