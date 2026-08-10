@@ -25,10 +25,6 @@ public class BusinessPromotionRequest {
             @Schema(description = "짧은 소개글", example = "바다 뷰 완전 잘 보이는 카페!")
             String shortDescription,
 
-            @NotBlank(message = "사장님의 한마디는 필수입니다")
-            @Schema(description = "사장님의 한마디", example = "부산 바다를 담은 공간, 웨이브온 커피에 오신 걸 환영합니다!")
-            String ownerComment,
-
             @Valid
             @NotNull(message = "영업시간 정보는 필수입니다")
             @Schema(description = "요일별 영업시간")
@@ -65,11 +61,6 @@ public class BusinessPromotionRequest {
                     description = "짧은 소개글",
                     example = "바다를 바라보며 즐기는 향긋한 커피와 디저트")
             String shortDescription,
-
-            @Schema(
-                    description = "사장님의 한마디",
-                    example = "부산 바다를 담은 공간, 웨이브온 커피에 오신 걸 환영합니다!")
-            String ownerComment,
 
             @Valid
             @Size(min = 1, message = "영업시간은 최소 1개 이상 입력해야 합니다")

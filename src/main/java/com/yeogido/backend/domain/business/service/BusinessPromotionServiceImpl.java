@@ -170,7 +170,6 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
 
         promotion.update(
                 request.shortDescription(),
-                request.ownerComment(),
                 request.promotionCategory(),
                 request.phoneNumber(),
                 request.snsAccount()
@@ -360,7 +359,6 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
 
         boolean hasUpdateValue =
                 request.shortDescription() != null
-                        || request.ownerComment() != null
                         || request.businessHours() != null
                         || request.snsAccount() != null
                         || Boolean.TRUE.equals(request.clearSnsAccount())
@@ -376,7 +374,6 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
         }
 
         if (isBlank(request.shortDescription())
-                || isBlank(request.ownerComment())
                 || isBlank(request.snsAccount())
                 || isBlank(request.phoneNumber())) {
             throw new GeneralException(
@@ -1097,7 +1094,6 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
 
         existingPromotion.reactivate(
                 request.shortDescription(),
-                request.ownerComment(),
                 request.promotionCategory(),
                 request.phoneNumber(),
                 request.snsAccount()

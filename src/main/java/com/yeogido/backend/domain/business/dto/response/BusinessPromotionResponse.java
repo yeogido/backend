@@ -91,9 +91,6 @@ public class BusinessPromotionResponse {
             @Schema(description = "짧은 소개글", example = "바다 뷰 완전 잘 보이는 카페!")
             String shortDescription,
 
-            @Schema(description = "사장님의 한마디", example = "부산 바다를 담은 공간, 웨이브온 커피에 오신 걸 환영합니다!")
-            String ownerComment,
-
             @Schema(description = "요일별 영업시간")
             List<BusinessHourInfo> businessHours,
 

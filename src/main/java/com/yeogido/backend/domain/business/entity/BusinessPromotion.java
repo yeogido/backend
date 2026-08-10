@@ -28,9 +28,6 @@ public class BusinessPromotion extends BaseEntity {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @Column(name = "owner_comment", columnDefinition = "TEXT")
-    private String ownerComment;
-
     @Column(name = "short_description", length = 255)
     private String shortDescription;
 
@@ -58,17 +55,12 @@ public class BusinessPromotion extends BaseEntity {
 
     public void update(
             String shortDescription,
-            String ownerComment,
             PromotionCategory promotionCategory,
             String phoneNumber,
             String snsAccount
     ) {
         if (shortDescription != null) {
             this.shortDescription = shortDescription;
-        }
-
-        if (ownerComment != null) {
-            this.ownerComment = ownerComment;
         }
 
         if (promotionCategory != null) {
@@ -90,13 +82,11 @@ public class BusinessPromotion extends BaseEntity {
 
     public void reactivate(
             String shortDescription,
-            String ownerComment,
             PromotionCategory promotionCategory,
             String phoneNumber,
             String snsAccount
     ) {
         this.shortDescription = shortDescription;
-        this.ownerComment = ownerComment;
         this.promotionCategory = promotionCategory;
         this.phoneNumber = phoneNumber;
         this.snsAccount = snsAccount;
