@@ -286,6 +286,7 @@ public class CourseServiceImpl implements CourseService {
                 .map(course -> CourseConverter.toLocalPopularCoursePreview(
                         course,
                         s3Service.getImageUrl(course.getThumbnailKey()),
+                        s3Service.getImageUrl(course.getRouteImageKey()),
                         s3Service.getImageUrl(course.getProfileImageKey()),
                         tagMap.getOrDefault(course.getCourseId(), List.of()),
                         likedCourseIds.contains(course.getCourseId())

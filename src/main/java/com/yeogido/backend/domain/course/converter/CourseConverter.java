@@ -313,6 +313,7 @@ public class CourseConverter {
     public static CourseResDTO.CourseLocalPopularPreview toLocalPopularCoursePreview(
             CourseRepository.CourseLocalPopularProjection course,
             String thumbnailUrl,
+            String routeImageUrl,
             String profileImageUrl,
             List<String> tags,
             boolean isLiked
@@ -320,6 +321,7 @@ public class CourseConverter {
         return new CourseResDTO.CourseLocalPopularPreview(
                 course.getCourseId(),
                 thumbnailUrl,
+                routeImageUrl,
                 course.getTitle(),
                 course.getDurationType(),
                 course.getCompanionType(),

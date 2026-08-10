@@ -11,6 +11,7 @@ import com.yeogido.backend.domain.course.enums.CourseType;
 import com.yeogido.backend.domain.course.enums.DurationType;
 import com.yeogido.backend.domain.course.enums.TransportType;
 import com.yeogido.backend.domain.course.exception.CourseErrorCode;
+import com.yeogido.backend.domain.course.popularity.repository.CoursePopularityRankingRedisRepository;
 import com.yeogido.backend.domain.course.repository.CourseHashtagRepository;
 import com.yeogido.backend.domain.course.repository.CourseItemTimeRepository;
 import com.yeogido.backend.domain.course.repository.CourseItemRepository;
@@ -49,6 +50,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -96,6 +98,9 @@ class CourseServiceImplTest {
 
     @Mock
     private CourseRedisRepository courseRedisRepository;
+
+    @Mock
+    private CoursePopularityRankingRedisRepository coursePopularityRankingRedisRepository;
 
     @Mock
     private UserRepository userRepository;
@@ -320,6 +325,39 @@ class CourseServiceImplTest {
         assertThat(response.getItems().get(0).thumbnailUrl())
                 .isEqualTo("https://cdn.example.com/courses/thumbnail/sample.jpg");
         assertThat(response.getItems().get(0).routeImageUrl())
+                .isEqualTo("https://cdn.example.com/courses/route/sample.png");
+    }
+
+    @Test
+    void getPopularLocalCourses_WhenRouteImageKeyExists_ReturnsRouteImageUrl() {
+        CourseRepository.CourseLocalPopularProjection course = new LocalPopularProjection(
+                10L,
+                "courses/thumbnail/sample.jpg",
+                "courses/route/sample.png",
+                "Busan night course",
+                DurationType.DAY_TRIP,
+                CompanionType.FRIEND,
+                1L,
+                "user",
+                null,
+                LocalDateTime.now()
+        );
+
+        when(coursePopularityRankingRedisRepository.findTopLocalCourseIds(4)).thenReturn(List.of(10L));
+        when(courseRepository.findLocalPopularCoursesByCourseIds(anyCollection())).thenReturn(List.of(course));
+        when(courseRepository.findLatestLocalCourseIdsExcluding(anyCollection(), any())).thenReturn(List.of());
+        when(courseHashtagRepository.findHashtagNamesByCourseIdIn(List.of(10L))).thenReturn(List.of());
+        when(s3Service.getImageUrl("courses/thumbnail/sample.jpg"))
+                .thenReturn("https://cdn.example.com/courses/thumbnail/sample.jpg");
+        when(s3Service.getImageUrl("courses/route/sample.png"))
+                .thenReturn("https://cdn.example.com/courses/route/sample.png");
+
+        List<CourseResDTO.CourseLocalPopularPreview> response = courseService.getPopularLocalCourses(null);
+
+        assertThat(response).hasSize(1);
+        assertThat(response.get(0).thumbnailUrl())
+                .isEqualTo("https://cdn.example.com/courses/thumbnail/sample.jpg");
+        assertThat(response.get(0).routeImageUrl())
                 .isEqualTo("https://cdn.example.com/courses/route/sample.png");
     }
 
@@ -601,5 +639,69 @@ class CourseServiceImplTest {
                 .latitude(BigDecimal.valueOf(35.1531698))
                 .longitude(BigDecimal.valueOf(129.118666))
                 .build();
+    }
+
+    private record LocalPopularProjection(
+            Long courseId,
+            String thumbnailKey,
+            String routeImageKey,
+            String title,
+            DurationType durationType,
+            CompanionType companionType,
+            Long userId,
+            String nickname,
+            String profileImageKey,
+            LocalDateTime createdAt
+    ) implements CourseRepository.CourseLocalPopularProjection {
+
+        @Override
+        public Long getCourseId() {
+            return courseId;
+        }
+
+        @Override
+        public String getThumbnailKey() {
+            return thumbnailKey;
+        }
+
+        @Override
+        public String getRouteImageKey() {
+            return routeImageKey;
+        }
+
+        @Override
+        public String getTitle() {
+            return title;
+        }
+
+        @Override
+        public DurationType getDurationType() {
+            return durationType;
+        }
+
+        @Override
+        public CompanionType getCompanionType() {
+            return companionType;
+        }
+
+        @Override
+        public Long getUserId() {
+            return userId;
+        }
+
+        @Override
+        public String getNickname() {
+            return nickname;
+        }
+
+        @Override
+        public String getProfileImageKey() {
+            return profileImageKey;
+        }
+
+        @Override
+        public LocalDateTime getCreatedAt() {
+            return createdAt;
+        }
     }
 }
