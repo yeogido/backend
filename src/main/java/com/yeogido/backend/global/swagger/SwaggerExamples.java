@@ -16,6 +16,7 @@ public final class SwaggerExamples {
               "monthStart": 4,
               "monthEnd": 10,
               "thumbnailKey": "courses/thumbnail/abcd1234.jpg",
+              "routeImageKey": "courses/route/busan-night-route.png",
               "hashtagIds": [1, 3],
               "courseItems": [
                 {
@@ -72,6 +73,7 @@ public final class SwaggerExamples {
           "monthStart": 5,
           "monthEnd": 9,
           "thumbnailKey": "courses/thumbnail/busan-emotion.jpg",
+          "routeImageKey": "courses/route/busan-emotion-route.png",
           "hashtagIds": [2, 4, 6],
           "courseItems": [
             {
