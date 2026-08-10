@@ -1272,12 +1272,19 @@ public class CourseServiceImpl implements CourseService {
             throw new GeneralException(CourseErrorCode.INVALID_COURSE_LIST_SORT);
         }
 
+        CourseSortType sort = CourseSortType.resolve(request.sort());
         boolean firstPage = request.cursorValue() == null && request.cursorId() == null;
-        if (!firstPage && (request.cursorValue() == null || request.cursorId() == null)) {
+        boolean recommendNullCursor = sort == CourseSortType.RECOMMEND
+                && request.cursorValue() == null
+                && request.cursorId() != null;
+
+        if (!firstPage
+                && !recommendNullCursor
+                && (request.cursorValue() == null || request.cursorId() == null)) {
             throw new GeneralException(GeneralErrorCode.INVALID_PARAMETER);
         }
 
-        if (!firstPage) {
+        if (!firstPage && request.cursorValue() != null) {
             validateCourseCursorValue(request.sort(), request.cursorValue());
         }
 

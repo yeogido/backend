@@ -132,7 +132,13 @@ public interface CourseRepository extends JpaRepository<Course, Long>, CourseQue
             where c.courseType = com.yeogido.backend.domain.course.enums.CourseType.OFFICIAL
               and c.recommendOrder is not null
               and c.deletedAt is null
-            order by c.recommendOrder asc
+            order by
+                case
+                    when c.recommendOrder is null then 2
+                    when c.recommendOrder = 0 then 1
+                    else 0
+                end asc,
+                c.recommendOrder asc
             """)
     List<CourseRecommendedProjection> findRecommendedCourses(Pageable pageable);
 
