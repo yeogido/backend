@@ -43,6 +43,7 @@ public class BusinessPromotionRequest {
             String phoneNumber,
 
             @Schema(description = "해시태그 ID 목록", example = "[1, 2, 3]")
+            @Size(max = 5, message = "해시태그는 최대 5개까지 선택할 수 있습니다.")
             List<Long> hashtagIds,
 
             @NotNull(message = "카테고리는 필수입니다")
@@ -90,6 +91,7 @@ public class BusinessPromotionRequest {
             String phoneNumber,
 
             @Schema(description = "해시태그 ID 목록", example = "[1, 2, 3]")
+            @Size(max = 5, message = "해시태그는 최대 5개까지 선택할 수 있습니다.")
             List<Long> hashtagIds,
 
             @Schema(description = "홍보 카테고리", example = "CAFE")
