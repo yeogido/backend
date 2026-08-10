@@ -416,6 +416,7 @@ public class CourseConverter {
     public static UserResDTO.MyCourseResponse toMyCourseResponse(
             Course course,
             String thumbnailUrl,
+            String routeImageUrl,
             List<String> hashtags
     ) {
         return new UserResDTO.MyCourseResponse(
@@ -423,6 +424,7 @@ public class CourseConverter {
                 course.getTitle(),
                 course.getDescription(),
                 thumbnailUrl,
+                routeImageUrl,
                 course.getDurationType().name(),
                 course.getTransportType().name(),
                 course.getCompanionType().name(),
