@@ -152,8 +152,24 @@ public class UserResDTO {
             @Schema(description = "후기 내용")
             String content,
 
+            @Schema(description = "후기 이미지 목록")
+            List<MyReviewImage> images,
+
             @Schema(description = "후기 작성일")
             LocalDateTime createdAt
+
+    ) {}
+
+    public record MyReviewImage(
+
+            @Schema(description = "후기 이미지 key")
+            String imageKey,
+
+            @Schema(description = "후기 이미지 URL")
+            String imageUrl,
+
+            @Schema(description = "후기 이미지 순서")
+            Integer imageOrder
 
     ) {}
 

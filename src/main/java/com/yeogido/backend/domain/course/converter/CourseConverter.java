@@ -428,7 +428,9 @@ public class CourseConverter {
 
     public static UserResDTO.MyReviewResponse toMyReviewResponse(
             CourseReview review,
-            String profileImageUrl
+            String profileImageUrl,
+            List<CourseReviewImage> images,
+            Function<String, String> imageUrlResolver
     ) {
         User user = review.getUser();
 
@@ -440,8 +442,22 @@ public class CourseConverter {
                 user.getGender(),
                 review.getRating(),
                 review.getContent(),
+                toMyReviewImages(images, imageUrlResolver),
                 review.getCreatedAt()
         );
+    }
+
+    private static List<UserResDTO.MyReviewImage> toMyReviewImages(
+            List<CourseReviewImage> images,
+            Function<String, String> imageUrlResolver
+    ) {
+        return images.stream()
+                .map(image -> new UserResDTO.MyReviewImage(
+                        image.getImageKey(),
+                        imageUrlResolver.apply(image.getImageKey()),
+                        image.getImageOrder()
+                ))
+                .toList();
     }
 
 
