@@ -21,7 +21,7 @@ public class TourContentController {
 
     private final TourContentSyncService tourContentSyncService;
 
-    @Operation(summary = "한국관광공사 행사 데이터 즉시 동기화")
+    @Operation(summary = "한국관광공사 문화콘텐츠 데이터 즉시 동기화")
     @PostMapping("/sync")
     public ApiResponse<TourContentSyncDTO.Result> synchronize(
             @AuthenticationPrincipal AuthUser authUser
