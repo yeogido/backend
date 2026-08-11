@@ -214,10 +214,12 @@ public class ContentResDTO {
             @Schema(description = "문화 콘텐츠 설명")
             String description,
 
-            @Schema(description = "행사 시작일")
+            @JsonFormat(pattern = "yyyy.MM.dd")
+            @Schema(description = "행사 시작일", example = "2026.07.04")
             LocalDate startDate,
 
-            @Schema(description = "행사 종료일")
+            @JsonFormat(pattern = "yyyy.MM.dd")
+            @Schema(description = "행사 종료일", example = "2026.07.05")
             LocalDate endDate
     ) {}
 
