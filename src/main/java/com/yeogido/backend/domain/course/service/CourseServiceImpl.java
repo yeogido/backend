@@ -363,6 +363,13 @@ public class CourseServiceImpl implements CourseService {
         courseRedisRepository.increaseViewCount(courseId, LocalDate.now());
 
         boolean isLiked = (userId != null) && courseLikeRepository.existsByUserIdAndCourseId(userId, courseId);
+        User currentUser = userId == null
+                ? null
+                : getCurrentUser(userId);
+        Long courseUserId = course.getUser() == null
+                ? null
+                : course.getUser().getId();
+        boolean canManage = canManageCourse(course.getCourseType(), courseUserId, currentUser);
 
         List<String> tags = courseHashtagRepository.findByCourseId(courseId).stream()
                 .map(courseHashtag -> courseHashtag.getHashtag().getHashtagName())
@@ -395,6 +402,7 @@ public class CourseServiceImpl implements CourseService {
                 s3Service.getImageUrl(course.getThumbnailKey()),
                 tags,
                 isLiked,
+                canManage,
                 courseItems,
                 profileImageUrl
         );
