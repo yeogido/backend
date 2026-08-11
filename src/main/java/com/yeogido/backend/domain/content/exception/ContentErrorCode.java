@@ -24,15 +24,10 @@ public enum ContentErrorCode implements ErrorCode {
             "CONTENT5021",
             "한국관광공사 API 호출에 실패했습니다."
     ),
-    TOUR_CONTENT_NOT_FOUND(
-            HttpStatus.NOT_FOUND,
-            "CONTENT4042",
-            "한국관광공사 콘텐츠가 존재하지 않습니다."
-    ),
-    TOUR_IMAGE_IMPORT_FAILED(
-            HttpStatus.BAD_GATEWAY,
-            "CONTENT5022",
-            "한국관광공사 이미지 저장에 실패했습니다."
+    TOUR_CONTENT_SYNC_FAILED(
+            HttpStatus.INTERNAL_SERVER_ERROR,
+            "CONTENT5001",
+            "한국관광공사 콘텐츠를 DB에 반영하지 못했습니다. 지역 데이터와 서버 로그를 확인해주세요."
     ),
     TOUR_CONTENT_DUPLICATED(
             HttpStatus.CONFLICT,

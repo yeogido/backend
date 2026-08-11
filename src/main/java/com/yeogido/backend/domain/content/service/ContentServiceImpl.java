@@ -14,15 +14,18 @@ import com.yeogido.backend.domain.content.dto.ContentResDTO;
 import com.yeogido.backend.domain.content.entity.Content;
 import com.yeogido.backend.domain.content.entity.ContentLike;
 import com.yeogido.backend.domain.content.entity.ContentHashtag;
+import com.yeogido.backend.domain.content.entity.ContentExternalLink;
 import com.yeogido.backend.domain.content.entity.QContent;
 import com.yeogido.backend.domain.content.entity.QContentLike;
 import com.yeogido.backend.domain.content.enums.ContentCategory;
 import com.yeogido.backend.domain.content.enums.ContentListStatus;
+import com.yeogido.backend.domain.content.enums.ContentLinkSource;
 import com.yeogido.backend.domain.content.enums.ContentSort;
 
 import com.yeogido.backend.domain.content.enums.ContentSource;
 import com.yeogido.backend.domain.content.exception.ContentErrorCode;
 import com.yeogido.backend.domain.content.repository.ContentHashtagRepository;
+import com.yeogido.backend.domain.content.repository.ContentExternalLinkRepository;
 import com.yeogido.backend.domain.content.repository.ContentRepository;
 import com.yeogido.backend.domain.course.entity.CourseItem;
 import com.yeogido.backend.domain.file.enums.ImageDirectory;
@@ -79,6 +82,7 @@ public class ContentServiceImpl implements ContentService{
     private final ContentRepository contentRepository;
     private final PlaceService placeService;
     private final ContentHashtagRepository contentHashtagRepository;
+    private final ContentExternalLinkRepository contentExternalLinkRepository;
     private final HashtagRepository hashtagRepository;
 
     private final ContentLikeRepository contentLikeRepository;
@@ -725,6 +729,17 @@ public class ContentServiceImpl implements ContentService{
 
         String imageUrl = s3Service.getImageUrl(content.getThumbnailImage());
 
+        List<ContentResDTO.OfficialLink> officialLinks =
+                contentExternalLinkRepository
+                        .findAllByContentIdOrderByDisplayOrderAsc(contentId)
+                        .stream()
+                        .map(link -> new ContentResDTO.OfficialLink(
+                                link.getType(),
+                                link.getLabel(),
+                                link.getUrl()
+                        ))
+                        .toList();
+
         return ContentConverter.toContentDetailRes(
                 content,
                 imageUrl,
@@ -732,7 +747,8 @@ public class ContentServiceImpl implements ContentService{
                 hashtagIds,
                 liked,
                 placeInfo,
-                courses
+                courses,
+                officialLinks
         );
 
     }
@@ -762,6 +778,7 @@ public class ContentServiceImpl implements ContentService{
         Content savedContent = contentRepository.save(content);
 
         saveContentHashtags(savedContent, movedRequest.hashtagIds());
+        replaceAdminExternalLinks(savedContent, movedRequest.officialLinks());
 
         return new ContentResDTO.ContentCreateRes(
                 savedContent.getId()
@@ -793,7 +810,6 @@ public class ContentServiceImpl implements ContentService{
                 movedRequest.startDate(),
                 movedRequest.endDate(),
                 movedRequest.contactPhone(),
-                movedRequest.officialUrl(),
                 movedRequest.category(),
                 movedRequest.place() == null
                         ? null
@@ -805,6 +821,10 @@ public class ContentServiceImpl implements ContentService{
         if (movedRequest.hashtagIds() != null) {
             contentHashtagRepository.deleteByContentId(contentId);
             saveContentHashtags(content, movedRequest.hashtagIds());
+        }
+
+        if (movedRequest.officialLinks() != null) {
+            replaceAdminExternalLinks(content, movedRequest.officialLinks());
         }
 
         return new ContentResDTO.ContentUpdateRes(content.getId());
@@ -825,7 +845,7 @@ public class ContentServiceImpl implements ContentService{
                 request.startDate(),
                 request.endDate(),
                 request.contactPhone(),
-                request.officialUrl(),
+                request.officialLinks(),
                 thumbnailImageKey,
                 request.hashtagIds()
         );
@@ -846,7 +866,7 @@ public class ContentServiceImpl implements ContentService{
                 request.startDate(),
                 request.endDate(),
                 request.contactPhone(),
-                request.officialUrl(),
+                request.officialLinks(),
                 thumbnailImageKey,
                 request.hashtagIds()
         );
@@ -946,6 +966,37 @@ public class ContentServiceImpl implements ContentService{
                             .build()
             );
         }
+    }
+
+    private void replaceAdminExternalLinks(
+            Content content,
+            List<ContentReqDTO.ExternalLinkReq> links
+    ) {
+        if (links == null) {
+            return;
+        }
+
+        contentExternalLinkRepository.deleteAllByContentIdAndSource(
+                content.getId(),
+                ContentLinkSource.ADMIN
+        );
+
+        List<ContentExternalLink> entities = java.util.stream.IntStream
+                .range(0, links.size())
+                .mapToObj(index -> {
+                    ContentReqDTO.ExternalLinkReq link = links.get(index);
+                    return ContentExternalLink.builder()
+                            .content(content)
+                            .type(link.type())
+                            .source(ContentLinkSource.ADMIN)
+                            .label(link.label())
+                            .url(link.url())
+                            .displayOrder(index)
+                            .build();
+                })
+                .toList();
+
+        contentExternalLinkRepository.saveAll(entities);
     }
 
     private User getUserOrThrow(Long userId) {

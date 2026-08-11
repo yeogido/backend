@@ -37,31 +37,6 @@ public class TourApiClient {
     @Value("${app.tour-api.mobile-app:Yeogido}")
     private String mobileApp;
 
-    public JsonNode searchKeyword(
-            String keyword,
-            Integer areaCode,
-            int page,
-            int size
-    ) {
-        return execute(
-                "/searchKeyword2",
-                uriBuilder -> {
-                    var builder = commonQuery(uriBuilder)
-                            .queryParam("keyword", keyword)
-                            .queryParam("contentTypeId", 15)
-                            .queryParam("arrange", "A")
-                            .queryParam("pageNo", page)
-                            .queryParam("numOfRows", size);
-
-                    if (areaCode != null) {
-                        builder.queryParam("areaCode", areaCode);
-                    }
-
-                    return builder.build();
-                }
-        );
-    }
-
     public JsonNode searchFestivals(
             LocalDate startDate,
             LocalDate endDate,
@@ -85,29 +60,6 @@ public class TourApiClient {
                 "/detailCommon2",
                 uriBuilder -> commonQuery(uriBuilder)
                         .queryParam("contentId", contentId)
-                        .build()
-        );
-    }
-
-    public JsonNode detailIntro(String contentId, String contentTypeId) {
-        return execute(
-                "/detailIntro2",
-                uriBuilder -> commonQuery(uriBuilder)
-                        .queryParam("contentId", contentId)
-                        .queryParam("contentTypeId", contentTypeId)
-                        .build()
-        );
-    }
-
-    public JsonNode detailImages(String contentId) {
-        return execute(
-                "/detailImage2",
-                uriBuilder -> commonQuery(uriBuilder)
-                        .queryParam("contentId", contentId)
-                        .queryParam("imageYN", "Y")
-                        .queryParam("subImageYN", "Y")
-                        .queryParam("numOfRows", 30)
-                        .queryParam("pageNo", 1)
                         .build()
         );
     }

@@ -1,6 +1,7 @@
 package com.yeogido.backend.domain.content.dto;
 
 import com.yeogido.backend.domain.content.enums.ContentCategory;
+import com.yeogido.backend.domain.content.enums.ContentLinkType;
 import com.yeogido.backend.domain.course.enums.CompanionType;
 import com.yeogido.backend.domain.course.enums.DurationType;
 import com.yeogido.backend.domain.course.enums.TransportType;
@@ -97,14 +98,25 @@ public class ContentResDTO {
             @Schema(description = "전화번호")
             String phone,
 
-            @Schema(description = "공식 홈페이지")
-            String officialUrl,
+            @Schema(description = "공식 홈페이지와 SNS 등 외부 링크 목록")
+            List<OfficialLink> officialLinks,
 
             @Schema(description = "장소 정보")
             PlaceInfo place,
 
             @Schema(description = "코스 정보")
             List<CourseInfo> courses
+    ) {}
+
+    public record OfficialLink(
+            @Schema(description = "링크 유형", example = "INSTAGRAM")
+            ContentLinkType type,
+
+            @Schema(description = "화면 표시명", example = "공식 인스타그램")
+            String label,
+
+            @Schema(description = "링크 URL")
+            String url
     ) {}
 
     @Schema(description = "장소 정보")

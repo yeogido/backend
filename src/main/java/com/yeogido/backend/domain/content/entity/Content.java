@@ -49,9 +49,6 @@ public class Content extends BaseEntity {
     @Column(name = "contact_phone", length = 20)
     private String contactPhone;
 
-    @Column(name = "official_url", length = 500)
-    private String officialUrl;
-
     @Column(name = "external_details_synced_at")
     private java.time.LocalDateTime externalDetailsSyncedAt;
 
@@ -85,7 +82,6 @@ public class Content extends BaseEntity {
             LocalDate startDate,
             LocalDate endDate,
             String contactPhone,
-            String officialUrl,
             ContentCategory category,
             ContentSource source
     ) {
@@ -113,9 +109,6 @@ public class Content extends BaseEntity {
         if (contactPhone != null) {
             this.contactPhone = contactPhone;
         }
-        if (officialUrl != null) {
-            this.officialUrl = officialUrl;
-        }
         if (category != null) {
             this.category = category;
         }
@@ -130,11 +123,9 @@ public class Content extends BaseEntity {
 
     public void updateExternalDetails(
             String description,
-            String officialUrl,
             java.time.LocalDateTime synchronizedAt
     ) {
         this.description = description;
-        this.officialUrl = officialUrl;
         this.externalDetailsSyncedAt = synchronizedAt;
     }
 }
