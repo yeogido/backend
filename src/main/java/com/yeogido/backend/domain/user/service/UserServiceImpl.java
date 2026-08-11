@@ -997,6 +997,7 @@ public class UserServiceImpl implements UserService{
                         .distinct()
                         .toList()
         );
+        Map<Long, List<CourseReviewImage>> reviewImageMap = getReviewImageMap(reviews);
 
         List<UserResDTO.MyPostResponse> items = reviews.stream()
                 .map(r -> {
@@ -1009,7 +1010,9 @@ public class UserServiceImpl implements UserService{
                     );
                     UserResDTO.MyReviewResponse reviewResponse = CourseConverter.toMyReviewResponse(
                             r,
-                            s3Service.getImageUrl(r.getUser().getProfileImage())
+                            s3Service.getImageUrl(r.getUser().getProfileImage()),
+                            reviewImageMap.getOrDefault(r.getId(), List.of()),
+                            s3Service::getImageUrl
                     );
 
                     return CourseConverter.toMyPostResponse(courseResponse, reviewResponse, null);
@@ -1033,6 +1036,21 @@ public class UserServiceImpl implements UserService{
         );
 
 
+    }
+
+    private Map<Long, List<CourseReviewImage>> getReviewImageMap(List<CourseReview> reviews) {
+        List<Long> reviewIds = reviews.stream()
+                .map(CourseReview::getId)
+                .toList();
+
+        if (reviewIds.isEmpty()) {
+            return Map.of();
+        }
+
+        return courseReviewImageRepository
+                .findAllByCourseReview_IdInOrderByCourseReview_IdAscImageOrderAsc(reviewIds)
+                .stream()
+                .collect(Collectors.groupingBy(image -> image.getCourseReview().getId()));
     }
 
     private CursorResponse<BusinessPromotionResponse.MySummary> getMyPromotions(
