@@ -6,6 +6,7 @@ import com.yeogido.backend.domain.business.repository.BusinessPromotionRepositor
 import com.yeogido.backend.domain.content.converter.ContentConverter;
 import com.yeogido.backend.domain.content.dto.ContentReqDTO;
 import com.yeogido.backend.domain.content.entity.Content;
+import com.yeogido.backend.domain.content.enums.ContentPublicationStatus;
 import com.yeogido.backend.domain.content.repository.ContentRepository;
 import com.yeogido.backend.domain.course.converter.CourseConverter;
 import com.yeogido.backend.domain.course.dto.request.CourseReqDTO;
@@ -165,6 +166,8 @@ public class PlaceServiceImpl implements PlaceService {
             Long contentId
     ) {
         Content content = contentRepository.findById(contentId)
+                .filter(found -> found.getPublicationStatus()
+                        == ContentPublicationStatus.PUBLISHED)
                 .orElseThrow(
                         () -> new GeneralException(
                                 PlaceErrorCode.INVALID_PLACE_LIKE_SOURCE

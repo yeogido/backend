@@ -2,6 +2,7 @@ package com.yeogido.backend.domain.content.dto;
 
 import com.yeogido.backend.domain.content.enums.ContentCategory;
 import com.yeogido.backend.domain.content.enums.ContentLinkType;
+import com.yeogido.backend.domain.content.enums.ContentPublicationStatus;
 import com.yeogido.backend.domain.course.enums.CompanionType;
 import com.yeogido.backend.domain.course.enums.DurationType;
 import com.yeogido.backend.domain.course.enums.TransportType;
@@ -185,6 +186,21 @@ public class ContentResDTO {
     public record ContentUpdateRes(
             @Schema(description = "문화콘텐츠 ID")
             Long contentId
+    ) {}
+
+    @Schema(description = "관리자 확인 대기 중인 관광공사 콘텐츠")
+    public record PendingContentRes(
+            Long contentId,
+            String title,
+            String description,
+            ContentCategory category,
+            String thumbnailImageUrl,
+            LocalDate startDate,
+            LocalDate endDate,
+            String contactPhone,
+            ContentPublicationStatus publicationStatus,
+            PlaceInfo place,
+            List<OfficialLink> officialLinks
     ) {}
 
     public record ContentLikeRes(

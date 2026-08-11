@@ -14,6 +14,11 @@ public enum ContentErrorCode implements ErrorCode {
             "CONTENT4041",
             "콘텐츠가 존재하지 않습니다."
     ),
+    INVALID_DATE_RANGE(
+            HttpStatus.BAD_REQUEST,
+            "CONTENT4002",
+            "행사 시작일은 종료일보다 늦을 수 없습니다."
+    ),
     TOUR_API_NOT_CONFIGURED(
             HttpStatus.SERVICE_UNAVAILABLE,
             "CONTENT5031",
@@ -33,6 +38,11 @@ public enum ContentErrorCode implements ErrorCode {
             HttpStatus.CONFLICT,
             "CONTENT4091",
             "이미 등록된 한국관광공사 콘텐츠입니다."
+    ),
+    TOUR_CONTENT_NOT_PENDING(
+            HttpStatus.CONFLICT,
+            "CONTENT4092",
+            "관리자 확인 대기 중인 관광공사 콘텐츠가 아닙니다."
     );
 
 

@@ -20,6 +20,7 @@ import com.yeogido.backend.domain.content.entity.ContentLike;
 import com.yeogido.backend.domain.content.entity.Content;
 import com.yeogido.backend.domain.content.entity.QContent;
 import com.yeogido.backend.domain.content.entity.QContentLike;
+import com.yeogido.backend.domain.content.enums.ContentPublicationStatus;
 import com.yeogido.backend.domain.content.repository.ContentHashtagRepository;
 import com.yeogido.backend.domain.content.repository.ContentLikeRepository;
 import com.yeogido.backend.domain.content.repository.ContentRepository;
@@ -335,6 +336,9 @@ public class UserServiceImpl implements UserService{
                 .leftJoin(contentLike.content.place).fetchJoin()
                 .where(
                         contentLike.user.eq(user),
+                        contentLike.content.publicationStatus.eq(
+                                ContentPublicationStatus.PUBLISHED
+                        ),
                         contentTitleContains(keyword),
                         cursorCondition(contentLike.createdAt,
                                 contentLike.id,

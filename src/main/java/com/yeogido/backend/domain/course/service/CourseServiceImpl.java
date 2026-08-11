@@ -4,6 +4,7 @@ import com.yeogido.backend.domain.content.entity.Content;
 import com.yeogido.backend.domain.content.exception.ContentErrorCode;
 import com.yeogido.backend.domain.content.repository.ContentLikeRepository;
 import com.yeogido.backend.domain.content.repository.ContentRepository;
+import com.yeogido.backend.domain.content.enums.ContentPublicationStatus;
 import com.yeogido.backend.domain.business.enums.DayOfWeek;
 import com.yeogido.backend.domain.course.converter.CourseConverter;
 import com.yeogido.backend.domain.course.dto.request.CourseReqDTO;
@@ -1113,7 +1114,12 @@ public class CourseServiceImpl implements CourseService {
             return new HashMap<>();
         }
 
-        Map<Long, Content> contentMap = contentRepository.findAllById(contentIds).stream()
+        Map<Long, Content> contentMap = contentRepository
+                .findAllByIdInAndPublicationStatus(
+                        contentIds,
+                        ContentPublicationStatus.PUBLISHED
+                )
+                .stream()
                 .collect(Collectors.toMap(Content::getId, Function.identity()));
 
         if (contentMap.size() != contentIds.size()) {

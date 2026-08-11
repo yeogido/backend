@@ -21,6 +21,14 @@ public interface ContentService {
     //문화콘텐츠 수정
     ContentResDTO.ContentUpdateRes updateContent(Long contentId, ContentReqDTO.ContentUpdateReq request, Long userId);
 
+    List<ContentResDTO.PendingContentRes> getPendingTourContents(Long userId);
+
+    ContentResDTO.ContentUpdateRes publishTourContent(
+            Long contentId,
+            ContentReqDTO.ContentPublishReq request,
+            Long userId
+    );
+
     //문화콘텐츠 삭제
     void deleteContent(Long contentId, Long userId);
 
