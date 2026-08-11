@@ -8,6 +8,7 @@ import com.yeogido.backend.domain.content.entity.ContentExternalLink;
 import com.yeogido.backend.domain.content.enums.ContentCategory;
 import com.yeogido.backend.domain.content.enums.ContentLinkSource;
 import com.yeogido.backend.domain.content.enums.ContentLinkType;
+import com.yeogido.backend.domain.content.enums.ContentPublicationStatus;
 import com.yeogido.backend.domain.content.enums.ContentSource;
 import com.yeogido.backend.domain.content.exception.ContentErrorCode;
 import com.yeogido.backend.domain.content.repository.ContentExternalLinkRepository;
@@ -283,6 +284,7 @@ public class TourContentSyncServiceImpl implements TourContentSyncService {
                 .endDate(command.endDate())
                 .contactPhone(command.contactPhone())
                 .category(ContentCategory.FESTIVAL)
+                .publicationStatus(ContentPublicationStatus.PENDING)
                 .build();
 
         if (command.detail() != null) {

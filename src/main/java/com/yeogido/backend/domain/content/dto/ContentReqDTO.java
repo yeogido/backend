@@ -3,6 +3,7 @@ package com.yeogido.backend.domain.content.dto;
 import com.yeogido.backend.domain.content.enums.ContentCategory;
 import com.yeogido.backend.domain.content.enums.ContentLinkType;
 import com.yeogido.backend.domain.content.enums.ContentListStatus;
+import com.yeogido.backend.domain.content.enums.ContentPublicationStatus;
 import com.yeogido.backend.domain.content.enums.ContentSort;
 import com.yeogido.backend.domain.place.enums.PlaceSource;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -10,6 +11,8 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.PositiveOrZero;
+import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -33,6 +36,9 @@ public class ContentReqDTO {
                     defaultValue = "[UPCOMING, ONGOING]"
             )
             List<ContentListStatus> statuses,
+
+            @Schema(description = "게시 상태 필터. PENDING은 관리자만 조회할 수 있습니다.", defaultValue = "PUBLISHED")
+            ContentPublicationStatus publicationStatus,
 
             @Schema(description = "검색어")
             String keyword,
@@ -89,9 +95,11 @@ public class ContentReqDTO {
             List<ExternalLinkReq> officialLinks,
 
             @Schema(description = "대표 사진 Key")
+            @NotBlank(message = "대표 이미지는 필수입니다.")
             String thumbnailImageKey,
 
-            @Schema(description = "해시태그 ID 목록")
+            @Schema(description = "해시태그 ID 목록 (최대 5개)")
+            @Size(max = 5, message = "해시태그는 최대 5개까지 선택할 수 있습니다.")
             List<Long> hashtagIds
 
     ){}
@@ -128,7 +136,8 @@ public class ContentReqDTO {
             @Schema(description = "새 대표 사진 Key. 생략하면 기존 이미지를 유지합니다.")
             String thumbnailImageKey,
 
-            @Schema(description = "교체할 해시태그 ID 목록. 생략하면 기존 목록을 유지합니다.")
+            @Schema(description = "교체할 해시태그 ID 목록. 생략하면 기존 목록을 유지합니다. (최대 5개)")
+            @Size(max = 5, message = "해시태그는 최대 5개까지 선택할 수 있습니다.")
             List<Long> hashtagIds
 
     ){}
@@ -144,6 +153,27 @@ public class ContentReqDTO {
             @Schema(description = "링크 URL")
             @NotBlank
             String url
+    ) {}
+
+    @Schema(name = "ContentPublishRequest", description = "동기화 콘텐츠 게시 요청")
+    public record ContentPublishReq(
+
+            @Schema(description = "수정할 문화콘텐츠명. 생략하면 동기화된 값을 유지합니다.")
+            String title,
+
+            @Schema(description = "수정할 설명. 생략하면 동기화된 값을 유지합니다.")
+            String description,
+
+            @Schema(description = "수정할 카테고리. 생략하면 동기화된 값을 유지합니다.")
+            ContentCategory category,
+
+            @Schema(description = "교체할 해시태그 ID 목록. 생략하면 기존 목록을 유지합니다. (최대 5개)")
+            @Size(max = 5, message = "해시태그는 최대 5개까지 선택할 수 있습니다.")
+            List<Long> hashtagIds,
+
+            @Schema(description = "추천 우선순위", example = "0")
+            @PositiveOrZero
+            Integer recommendPriority
     ) {}
 
     public record PlaceReq(

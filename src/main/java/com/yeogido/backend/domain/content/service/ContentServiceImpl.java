@@ -19,6 +19,7 @@ import com.yeogido.backend.domain.content.entity.QContent;
 import com.yeogido.backend.domain.content.entity.QContentLike;
 import com.yeogido.backend.domain.content.enums.ContentCategory;
 import com.yeogido.backend.domain.content.enums.ContentListStatus;
+import com.yeogido.backend.domain.content.enums.ContentPublicationStatus;
 import com.yeogido.backend.domain.content.enums.ContentLinkSource;
 import com.yeogido.backend.domain.content.enums.ContentSort;
 
@@ -99,6 +100,18 @@ public class ContentServiceImpl implements ContentService{
     public CursorResponse<ContentResDTO.ContentInfo> getContents(ContentReqDTO.ContentListReq request, Long userId){
 
         BooleanBuilder builder = new BooleanBuilder();
+        ContentPublicationStatus publicationStatus = request.publicationStatus() == null
+                ? ContentPublicationStatus.PUBLISHED
+                : request.publicationStatus();
+
+        if (publicationStatus != ContentPublicationStatus.PUBLISHED) {
+            if (userId == null) {
+                throw new GeneralException(GeneralErrorCode.FORBIDDEN);
+            }
+            validateAdmin(userId);
+        }
+
+        builder.and(qContent.publicationStatus.eq(publicationStatus));
         applyStatusFilter(builder, request.statuses(), LocalDate.now());
 
         int size = request.size() == null ? DEFAULT_PAGE_SIZE : request.size();
@@ -672,6 +685,12 @@ public class ContentServiceImpl implements ContentService{
                     .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
         }
 
+        if (content.getPublicationStatus() != ContentPublicationStatus.PUBLISHED) {
+            if (currentUser == null || currentUser.getRole() != UserRole.ADMIN) {
+                throw new GeneralException(ContentErrorCode.CONTENT_NOT_FOUND);
+            }
+        }
+
         List<ContentHashtag> contentHashtags = contentHashtagRepository.findByContent(content);
 
         List<String> hashtags = contentHashtags
@@ -759,6 +778,7 @@ public class ContentServiceImpl implements ContentService{
     public ContentResDTO.ContentCreateRes createContent(ContentReqDTO.ContentCreateReq request, Long userId) {
 
         validateAdmin(userId);
+        validateDateRange(request.startDate(), request.endDate());
 
         if (
                 request.place().source() == PlaceSource.TOUR_API
@@ -794,6 +814,14 @@ public class ContentServiceImpl implements ContentService{
         Content content = contentRepository.findById(contentId)
                 .orElseThrow(() -> new GeneralException(ContentErrorCode.CONTENT_NOT_FOUND));
 
+        LocalDate updatedStartDate = request.startDate() == null
+                ? content.getStartDate()
+                : request.startDate();
+        LocalDate updatedEndDate = request.endDate() == null
+                ? content.getEndDate()
+                : request.endDate();
+        validateDateRange(updatedStartDate, updatedEndDate);
+
         Place place = request.place() == null
                 ? null
                 : placeService.getOrCreatePlace(request.place());
@@ -827,6 +855,49 @@ public class ContentServiceImpl implements ContentService{
             replaceAdminExternalLinks(content, movedRequest.officialLinks());
         }
 
+        return new ContentResDTO.ContentUpdateRes(content.getId());
+    }
+
+    @Override
+    @Transactional
+    public ContentResDTO.ContentUpdateRes publishTourContent(
+            Long contentId,
+            ContentReqDTO.ContentPublishReq request,
+            Long userId
+    ) {
+        validateAdmin(userId);
+
+        Content content = contentRepository.findById(contentId)
+                .filter(found -> found.getSource() == ContentSource.TOUR_API)
+                .filter(found -> found.getPublicationStatus()
+                        == ContentPublicationStatus.PENDING)
+                .orElseThrow(() -> new GeneralException(
+                        ContentErrorCode.TOUR_CONTENT_NOT_PENDING
+                ));
+
+        content.update(
+                null,
+                null,
+                request.title(),
+                request.description(),
+                null,
+                null,
+                null,
+                null,
+                request.category(),
+                null
+        );
+
+        if (request.hashtagIds() != null) {
+            contentHashtagRepository.deleteByContentId(contentId);
+            saveContentHashtags(content, request.hashtagIds());
+        }
+
+        if (request.recommendPriority() != null) {
+            content.updateRecommendPriority(request.recommendPriority());
+        }
+
+        content.publish();
         return new ContentResDTO.ContentUpdateRes(content.getId());
     }
 
@@ -950,6 +1021,12 @@ public class ContentServiceImpl implements ContentService{
         }
     }
 
+    private void validateDateRange(LocalDate startDate, LocalDate endDate) {
+        if (startDate != null && endDate != null && startDate.isAfter(endDate)) {
+            throw new GeneralException(ContentErrorCode.INVALID_DATE_RANGE);
+        }
+    }
+
     private void saveContentHashtags(Content content, List<Long> hashtagIds) {
         if (hashtagIds == null || hashtagIds.isEmpty()) {
             return;
@@ -1006,6 +1083,8 @@ public class ContentServiceImpl implements ContentService{
 
     private Content getContentOrThrow(Long contentId) {
         return contentRepository.findById(contentId)
+                .filter(content -> content.getPublicationStatus()
+                        == ContentPublicationStatus.PUBLISHED)
                 .orElseThrow(() -> new GeneralException(ContentErrorCode.CONTENT_NOT_FOUND));
     }
 
@@ -1014,7 +1093,10 @@ public class ContentServiceImpl implements ContentService{
     public List<ContentResDTO.BannerRes> getBannerContents() {
 
         List<Content> contents =
-                contentRepository.findTop5ByEndDateGreaterThanEqualOrderByEndDateAsc(LocalDate.now());
+                contentRepository.findTop5ByPublicationStatusAndEndDateGreaterThanEqualOrderByEndDateAsc(
+                        ContentPublicationStatus.PUBLISHED,
+                        LocalDate.now()
+                );
 
         return contents.stream()
                 .map(content -> ContentConverter.toBannerRes(

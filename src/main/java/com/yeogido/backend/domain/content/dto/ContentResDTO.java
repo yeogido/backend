@@ -3,6 +3,7 @@ package com.yeogido.backend.domain.content.dto;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.yeogido.backend.domain.content.enums.ContentCategory;
 import com.yeogido.backend.domain.content.enums.ContentLinkType;
+import com.yeogido.backend.domain.content.enums.ContentPublicationStatus;
 import com.yeogido.backend.domain.course.enums.CompanionType;
 import com.yeogido.backend.domain.course.enums.DurationType;
 import com.yeogido.backend.domain.course.enums.TransportType;
@@ -58,10 +59,15 @@ public class ContentResDTO {
             @JsonFormat(pattern = "yyyy.MM")
             @Schema(description = "시작일", example = "2026.07")
             LocalDate startDate,
-
+      
             @JsonFormat(pattern = "yyyy.MM")
             @Schema(description = "종료일", example = "2026.07")
-            LocalDate endDate
+            LocalDate endDate,
+
+            @Schema(description = "게시 상태", example = "PUBLISHED")
+            ContentPublicationStatus publicationStatus
+      
+           
     ) {}
 
 

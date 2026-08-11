@@ -3,6 +3,7 @@ package com.yeogido.backend.domain.content.entity;
 import com.yeogido.backend.domain.content.enums.ContentCategory;
 import com.yeogido.backend.domain.content.enums.ContentSource;
 import com.yeogido.backend.domain.content.enums.ContentStatus;
+import com.yeogido.backend.domain.content.enums.ContentPublicationStatus;
 import com.yeogido.backend.domain.place.entity.Place;
 import com.yeogido.backend.global.entity.BaseEntity;
 import jakarta.persistence.*;
@@ -51,6 +52,12 @@ public class Content extends BaseEntity {
 
     @Column(name = "external_details_synced_at")
     private java.time.LocalDateTime externalDetailsSyncedAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "publication_status", nullable = false, length = 20)
+    @Builder.Default
+    private ContentPublicationStatus publicationStatus =
+            ContentPublicationStatus.PUBLISHED;
 
     @Enumerated(EnumType.STRING)
     private ContentCategory category;
@@ -127,5 +134,9 @@ public class Content extends BaseEntity {
     ) {
         this.description = description;
         this.externalDetailsSyncedAt = synchronizedAt;
+    }
+
+    public void publish() {
+        this.publicationStatus = ContentPublicationStatus.PUBLISHED;
     }
 }
