@@ -35,7 +35,8 @@ public class UserConverter {
     public static UserResDTO.LikedResponse toLikedResponse(
             CourseLike like,
             List<String> hashtags,
-            String thumbnailImage
+            String thumbnailImage,
+            String routeImageUrl
     ) {
         Course course = like.getCourse();
 
@@ -46,6 +47,7 @@ public class UserConverter {
                 null,
                 null,
                 thumbnailImage,
+                routeImageUrl,
                 course.getDurationType().name(),
                 course.getTransportType(),
                 course.getCompanionType(),
@@ -73,6 +75,7 @@ public class UserConverter {
                 null,
                 null,
                 thumbnailImage,
+                null,
                 null,
                 null,
                 null,
@@ -112,6 +115,7 @@ public class UserConverter {
                 place.getExternalPlaceId(),
                 place.getCategoryGroupCode(),
                 thumbnailImage,
+                null,
                 null,
                 null,
                 null,

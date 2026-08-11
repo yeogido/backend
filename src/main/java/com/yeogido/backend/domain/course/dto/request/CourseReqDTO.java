@@ -67,6 +67,9 @@ public class CourseReqDTO {
             @NotBlank(message = "대표 이미지는 필수입니다")
             String thumbnailKey,
 
+            @Schema(description = "경로 이미지 S3 key. 전달된 경우에만 저장합니다.", nullable = true, example = "courses/route/abcd1234.png")
+            String routeImageKey,
+
             @Schema(description = "해시태그 ID 목록", example = "[1, 3, 5]")
             @NotNull(message = "해시태그를 선택해주세요.")
             @Size(
@@ -80,7 +83,36 @@ public class CourseReqDTO {
             @NotEmpty(message = "코스 구성 항목은 최소 1개 이상 필요합니다.")
             @Schema(description = "코스 구성 항목")
             List<@NotNull(message = "코스 구성 항목이 올바르지 않습니다.") CourseItemCreateReq> courseItems
-    ) { }
+    ) {
+        public CourseCreateReq(
+                String title,
+                Long regionId,
+                String description,
+                DurationType durationType,
+                TransportType transportType,
+                CompanionType companionType,
+                Integer monthStart,
+                Integer monthEnd,
+                String thumbnailKey,
+                List<Long> hashtagIds,
+                List<CourseItemCreateReq> courseItems
+        ) {
+            this(
+                    title,
+                    regionId,
+                    description,
+                    durationType,
+                    transportType,
+                    companionType,
+                    monthStart,
+                    monthEnd,
+                    thumbnailKey,
+                    null,
+                    hashtagIds,
+                    courseItems
+            );
+        }
+    }
 
     @Schema(name = "CourseUpdateRequest", description = "추천 코스 수정 요청")
     public record CourseUpdateReq(
@@ -113,6 +145,9 @@ public class CourseReqDTO {
             @Schema(description = "대표 이미지 S3 key", example = "courses/thumbnail/abcd1234.jpg")
             String thumbnailKey,
 
+            @Schema(description = "경로 이미지 S3 key. null이면 기존 값을 유지합니다.", nullable = true, example = "courses/route/abcd1234.png")
+            String routeImageKey,
+
             @Schema(description = "해시태그 ID 목록", example = "[1, 3, 5]")
             @Size(
                     max = 5,
@@ -123,7 +158,34 @@ public class CourseReqDTO {
             @Valid
             @Schema(description = "코스 구성 항목")
             List<@NotNull(message = "코스 구성 항목이 올바르지 않습니다.") CourseItemCreateReq> courseItems
-    ) { }
+    ) {
+        public CourseUpdateReq(
+                String title,
+                String description,
+                DurationType durationType,
+                TransportType transportType,
+                CompanionType companionType,
+                Integer monthStart,
+                Integer monthEnd,
+                String thumbnailKey,
+                List<Long> hashtagIds,
+                List<CourseItemCreateReq> courseItems
+        ) {
+            this(
+                    title,
+                    description,
+                    durationType,
+                    transportType,
+                    companionType,
+                    monthStart,
+                    monthEnd,
+                    thumbnailKey,
+                    null,
+                    hashtagIds,
+                    courseItems
+            );
+        }
+    }
 
     @Schema(name = "CourseItemCreateRequest", description = "추천 코스 구성 항목 등록 요청")
     public record CourseItemCreateReq(

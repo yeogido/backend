@@ -44,6 +44,7 @@ public class CourseConverter {
                 .monthStart(request.monthStart())
                 .monthEnd(request.monthEnd())
                 .thumbnailKey(request.thumbnailKey())
+                .routeImageKey(request.routeImageKey())
                 .build();
     }
 
@@ -291,12 +292,14 @@ public class CourseConverter {
     public static CourseResDTO.CoursePreview toPopularCoursePreview(
             CourseRepository.CoursePopularProjection course,
             String thumbnailUrl,
+            String routeImageUrl,
             List<String> tags,
             boolean isLiked
     ) {
         return new CourseResDTO.CoursePreview(
                 course.getCourseId(),
                 thumbnailUrl,
+                routeImageUrl,
                 course.getTitle(),
                 course.getRegion(),
                 course.getDurationType(),
@@ -310,6 +313,7 @@ public class CourseConverter {
     public static CourseResDTO.CourseLocalPopularPreview toLocalPopularCoursePreview(
             CourseRepository.CourseLocalPopularProjection course,
             String thumbnailUrl,
+            String routeImageUrl,
             String profileImageUrl,
             List<String> tags,
             boolean isLiked
@@ -317,6 +321,7 @@ public class CourseConverter {
         return new CourseResDTO.CourseLocalPopularPreview(
                 course.getCourseId(),
                 thumbnailUrl,
+                routeImageUrl,
                 course.getTitle(),
                 course.getDurationType(),
                 course.getCompanionType(),
@@ -411,6 +416,7 @@ public class CourseConverter {
     public static UserResDTO.MyCourseResponse toMyCourseResponse(
             Course course,
             String thumbnailUrl,
+            String routeImageUrl,
             List<String> hashtags
     ) {
         return new UserResDTO.MyCourseResponse(
@@ -418,6 +424,7 @@ public class CourseConverter {
                 course.getTitle(),
                 course.getDescription(),
                 thumbnailUrl,
+                routeImageUrl,
                 course.getDurationType().name(),
                 course.getTransportType().name(),
                 course.getCompanionType().name(),

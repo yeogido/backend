@@ -63,6 +63,7 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
                         CourseListRow.class,
                         course.id,
                         course.thumbnailKey,
+                        course.routeImageKey,
                         course.title,
                         region.name,
                         course.durationType,
@@ -90,6 +91,7 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
             query.groupBy(
                     course.id,
                     course.thumbnailKey,
+                    course.routeImageKey,
                     course.title,
                     region.name,
                     course.durationType,

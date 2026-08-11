@@ -34,6 +34,9 @@ public class UserResDTO {
             @Schema(description = "대표 사진")
             String thumbnailImage,
 
+            @Schema(description = "코스 경로 이미지 URL. 코스가 아니거나 경로 이미지가 없으면 null입니다.", nullable = true)
+            String routeImageUrl,
+
             @Schema(description = "여행 기간")
             String duration,
 
@@ -111,6 +114,13 @@ public class UserResDTO {
                     example = "https://example-bucket.s3.ap-northeast-2.amazonaws.com/courses/thumbnail/course.jpg"
             )
             String thumbnailUrl,
+
+            @Schema(
+                    description = "코스 경로 이미지 URL. 경로 이미지가 없으면 null입니다.",
+                    nullable = true,
+                    example = "https://example-bucket.s3.ap-northeast-2.amazonaws.com/courses/route/course.png"
+            )
+            String routeImageUrl,
 
             @Schema(description = "여행 기간 유형")
             String durationType,
