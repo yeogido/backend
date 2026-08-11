@@ -238,8 +238,8 @@ class CourseServiceImplTest {
     }
 
     @Test
-    void createCourse_WhenRouteImageKeyExists_SavesRouteImageKeyWithoutMovingIt() {
-        CourseReqDTO.CourseCreateReq request = createRequestWithRouteImageKey("courses/route/sample.png");
+    void createCourse_WhenRouteImageKeyExists_MovesAndSavesRouteImageKey() {
+        CourseReqDTO.CourseCreateReq request = createRequestWithRouteImageKey("temp/route/sample.png");
         stubSuccessfulCreateCourse(createUser());
 
         courseService.createCourse(1L, request);
@@ -247,8 +247,9 @@ class CourseServiceImplTest {
         ArgumentCaptor<Course> courseCaptor = ArgumentCaptor.forClass(Course.class);
         verify(courseRepository).save(courseCaptor.capture());
         assertThat(courseCaptor.getValue().getRouteImageKey())
-                .isEqualTo("courses/route/sample.png");
+                .isEqualTo("courses/moved/temp/route/sample.png");
         verify(fileService).moveToDirectory("courses/thumbnail/sample.jpg", ImageDirectory.COURSE);
+        verify(fileService).moveToDirectory("temp/route/sample.png", ImageDirectory.COURSE);
         verify(fileService).moveToDirectory("courses/place/sample.jpg", ImageDirectory.COURSE);
     }
 
@@ -276,6 +277,35 @@ class CourseServiceImplTest {
         courseService.updateCourse(1L, 10L, request);
 
         assertThat(course.getRouteImageKey()).isEqualTo("courses/route/existing.png");
+    }
+
+    @Test
+    void updateCourse_WhenRouteImageKeyExists_MovesAndUpdatesRouteImageKey() {
+        Course course = createCourse(10L);
+        ReflectionTestUtils.setField(course, "routeImageKey", "courses/route/existing.png");
+        CourseReqDTO.CourseUpdateReq request = new CourseReqDTO.CourseUpdateReq(
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "temp/route/updated.png",
+                null,
+                null
+        );
+
+        when(courseRepository.findByIdAndDeletedAtIsNull(10L)).thenReturn(Optional.of(course));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(createUser()));
+        when(fileService.moveToDirectory("temp/route/updated.png", ImageDirectory.COURSE))
+                .thenReturn("courses/moved/temp/route/updated.png");
+
+        courseService.updateCourse(1L, 10L, request);
+
+        assertThat(course.getRouteImageKey()).isEqualTo("courses/moved/temp/route/updated.png");
+        verify(fileService).moveToDirectory("temp/route/updated.png", ImageDirectory.COURSE);
     }
 
     @Test

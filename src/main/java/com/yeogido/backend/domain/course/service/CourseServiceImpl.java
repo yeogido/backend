@@ -697,7 +697,7 @@ public class CourseServiceImpl implements CourseService {
                 request.monthStart(),
                 request.monthEnd(),
                 moveImage(request.thumbnailKey(), ImageDirectory.COURSE),
-                request.routeImageKey(),
+                moveImage(request.routeImageKey(), ImageDirectory.COURSE),
                 request.hashtagIds(),
                 moveCourseItemImages(request.courseItems())
         );
@@ -713,7 +713,7 @@ public class CourseServiceImpl implements CourseService {
                 request.monthStart(),
                 request.monthEnd(),
                 moveImage(request.thumbnailKey(), ImageDirectory.COURSE),
-                request.routeImageKey(),
+                moveImage(request.routeImageKey(), ImageDirectory.COURSE),
                 request.hashtagIds(),
                 request.courseItems() == null ? null : moveCourseItemImages(request.courseItems())
         );
