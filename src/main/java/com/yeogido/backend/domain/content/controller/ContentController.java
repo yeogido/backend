@@ -98,6 +98,25 @@ public class ContentController {
         return ApiResponse.onSuccess(SuccessCode.OK,result);
     }
 
+    @Operation(
+            summary = "관광공사 콘텐츠 승인·게시",
+            description = "동기화된 콘텐츠를 보완한 후 게시합니다. 새로운 콘텐츠 행을 생성하지 않습니다. 관리자만 접근할 수 있습니다."
+    )
+    @PatchMapping("/{contentId}/publish")
+    public ApiResponse<ContentResDTO.ContentUpdateRes> publishTourContent(
+            @PathVariable Long contentId,
+            @RequestBody @Valid ContentReqDTO.ContentPublishReq request,
+            @AuthenticationPrincipal AuthUser authUser
+    ) {
+        ContentResDTO.ContentUpdateRes result =
+                contentService.publishTourContent(
+                        contentId,
+                        request,
+                        authUser.userId()
+                );
+        return ApiResponse.onSuccess(SuccessCode.OK, result);
+    }
+
     // 문화콘텐츠 삭제
     @Operation(
             summary = "문화콘텐츠 삭제",

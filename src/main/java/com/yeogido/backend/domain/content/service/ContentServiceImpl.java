@@ -100,7 +100,18 @@ public class ContentServiceImpl implements ContentService{
     public CursorResponse<ContentResDTO.ContentInfo> getContents(ContentReqDTO.ContentListReq request, Long userId){
 
         BooleanBuilder builder = new BooleanBuilder();
-        builder.and(qContent.publicationStatus.eq(ContentPublicationStatus.PUBLISHED));
+        ContentPublicationStatus publicationStatus = request.publicationStatus() == null
+                ? ContentPublicationStatus.PUBLISHED
+                : request.publicationStatus();
+
+        if (publicationStatus != ContentPublicationStatus.PUBLISHED) {
+            if (userId == null) {
+                throw new GeneralException(GeneralErrorCode.FORBIDDEN);
+            }
+            validateAdmin(userId);
+        }
+
+        builder.and(qContent.publicationStatus.eq(publicationStatus));
         applyStatusFilter(builder, request.statuses(), LocalDate.now());
 
         int size = request.size() == null ? DEFAULT_PAGE_SIZE : request.size();
@@ -675,7 +686,9 @@ public class ContentServiceImpl implements ContentService{
         }
 
         if (content.getPublicationStatus() != ContentPublicationStatus.PUBLISHED) {
-            throw new GeneralException(ContentErrorCode.CONTENT_NOT_FOUND);
+            if (currentUser == null || currentUser.getRole() != UserRole.ADMIN) {
+                throw new GeneralException(ContentErrorCode.CONTENT_NOT_FOUND);
+            }
         }
 
         List<ContentHashtag> contentHashtags = contentHashtagRepository.findByContent(content);
@@ -846,23 +859,6 @@ public class ContentServiceImpl implements ContentService{
     }
 
     @Override
-    @Transactional(readOnly = true)
-    public List<ContentResDTO.PendingContentRes> getPendingTourContents(
-            Long userId
-    ) {
-        validateAdmin(userId);
-
-        return contentRepository
-                .findAllBySourceAndPublicationStatusOrderByCreatedAtDesc(
-                        ContentSource.TOUR_API,
-                        ContentPublicationStatus.PENDING
-                )
-                .stream()
-                .map(this::toPendingContentResponse)
-                .toList();
-    }
-
-    @Override
     @Transactional
     public ContentResDTO.ContentUpdateRes publishTourContent(
             Long contentId,
@@ -903,35 +899,6 @@ public class ContentServiceImpl implements ContentService{
 
         content.publish();
         return new ContentResDTO.ContentUpdateRes(content.getId());
-    }
-
-    private ContentResDTO.PendingContentRes toPendingContentResponse(
-            Content content
-    ) {
-        List<ContentResDTO.OfficialLink> officialLinks =
-                contentExternalLinkRepository
-                        .findAllByContentIdOrderByDisplayOrderAsc(content.getId())
-                        .stream()
-                        .map(link -> new ContentResDTO.OfficialLink(
-                                link.getType(),
-                                link.getLabel(),
-                                link.getUrl()
-                        ))
-                        .toList();
-
-        return new ContentResDTO.PendingContentRes(
-                content.getId(),
-                content.getTitle(),
-                content.getDescription(),
-                content.getCategory(),
-                s3Service.getImageUrl(content.getThumbnailImage()),
-                content.getStartDate(),
-                content.getEndDate(),
-                content.getContactPhone(),
-                content.getPublicationStatus(),
-                ContentConverter.toPlaceInfo(content.getPlace()),
-                officialLinks
-        );
     }
 
     private ContentReqDTO.ContentCreateReq moveContentImage(ContentReqDTO.ContentCreateReq request) {

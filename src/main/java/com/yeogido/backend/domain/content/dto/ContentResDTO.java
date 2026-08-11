@@ -59,7 +59,10 @@ public class ContentResDTO {
             LocalDate startDate,
 
             @Schema(description = "종료일")
-            LocalDate endDate
+            LocalDate endDate,
+
+            @Schema(description = "게시 상태", example = "PUBLISHED")
+            ContentPublicationStatus publicationStatus
     ) {}
 
 
@@ -186,21 +189,6 @@ public class ContentResDTO {
     public record ContentUpdateRes(
             @Schema(description = "문화콘텐츠 ID")
             Long contentId
-    ) {}
-
-    @Schema(description = "관리자 확인 대기 중인 관광공사 콘텐츠")
-    public record PendingContentRes(
-            Long contentId,
-            String title,
-            String description,
-            ContentCategory category,
-            String thumbnailImageUrl,
-            LocalDate startDate,
-            LocalDate endDate,
-            String contactPhone,
-            ContentPublicationStatus publicationStatus,
-            PlaceInfo place,
-            List<OfficialLink> officialLinks
     ) {}
 
     public record ContentLikeRes(

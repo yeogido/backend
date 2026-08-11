@@ -19,11 +19,6 @@ public interface ContentRepository extends JpaRepository<Content,Long> {
             LocalDate today
     );
 
-    List<Content> findAllBySourceAndPublicationStatusOrderByCreatedAtDesc(
-            ContentSource source,
-            ContentPublicationStatus publicationStatus
-    );
-
     List<Content> findAllByIdInAndPublicationStatus(
             Collection<Long> ids,
             ContentPublicationStatus publicationStatus

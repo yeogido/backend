@@ -41,7 +41,8 @@ public class  ContentConverter {
                 likeCount,
                 isLiked,
                 content.getStartDate(),
-                content.getEndDate()
+                content.getEndDate(),
+                content.getPublicationStatus()
         );
     }
 
