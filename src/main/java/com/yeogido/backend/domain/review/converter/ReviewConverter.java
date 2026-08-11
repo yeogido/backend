@@ -16,22 +16,6 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class ReviewConverter {
 
-    public static ReviewResDTO.RecentReviewsResponse toRecentReviewsResponse(
-            List<CourseReview> reviews,
-            Map<Long, List<CourseReviewImage>> imageMap,
-            Function<String, String> imageUrlResolver
-    ) {
-        List<ReviewResDTO.RecentReview> recentReviews = reviews.stream()
-                .map(review -> toRecentReview(
-                        review,
-                        imageMap.getOrDefault(review.getId(), List.of()),
-                        imageUrlResolver
-                ))
-                .toList();
-
-        return new ReviewResDTO.RecentReviewsResponse(recentReviews);
-    }
-
     public static List<ReviewResDTO.ReviewDetail> toReviewDetails(
             List<CourseReview> reviews,
             Map<Long, List<CourseReviewImage>> imageMap,
@@ -67,21 +51,6 @@ public class ReviewConverter {
                         .imageOrder(image.imageOrder())
                         .build())
                 .toList();
-    }
-
-    private static ReviewResDTO.RecentReview toRecentReview(
-            CourseReview review,
-            List<CourseReviewImage> images,
-            Function<String, String> imageUrlResolver
-    ) {
-        return new ReviewResDTO.RecentReview(
-                review.getId(),
-                review.getContent(),
-                review.getRating(),
-                review.getCreatedAt(),
-                toReviewImages(images, imageUrlResolver),
-                toAuthor(review.getUser(), imageUrlResolver)
-        );
     }
 
     private static ReviewResDTO.ReviewDetail toReviewDetail(

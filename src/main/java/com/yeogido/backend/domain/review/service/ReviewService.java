@@ -6,8 +6,6 @@ import com.yeogido.backend.global.common.response.CursorResponse;
 
 public interface ReviewService {
 
-    ReviewResDTO.RecentReviewsResponse getRecentReviews();
-
     CursorResponse<ReviewResDTO.ReviewDetail> getReviews(
             ReviewReqDTO.ListRequest request,
             Long userId
