@@ -444,6 +444,82 @@ class CourseServiceImplTest {
     }
 
     @Test
+    void getCourses_WhenAdminRequestsLocalCourse_ReturnsCanManageTrue() {
+        CourseReqDTO.CourseListReq request = new CourseReqDTO.CourseListReq(
+                CourseType.LOCAL,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                CourseSortType.LATEST,
+                null,
+                null,
+                null,
+                null,
+                20
+        );
+        CourseQueryRepository.CourseListRow localCourse = courseListRow(
+                10L,
+                CourseType.LOCAL,
+                2L,
+                "Local course"
+        );
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(createAdmin()));
+        when(courseRepository.findCoursesByCursor(eq(request), any(), anyMap(), eq(21)))
+                .thenReturn(List.of(localCourse));
+        when(courseHashtagRepository.findHashtagNamesByCourseIdIn(List.of(10L))).thenReturn(List.of());
+        when(courseLikeRepository.findLikedCourseIdsByUserIdAndCourseIdIn(1L, List.of(10L)))
+                .thenReturn(List.of());
+
+        var response = courseService.getCourses(request, 1L);
+
+        assertThat(response.getItems())
+                .extracting(CourseResDTO.CoursePreview::canManage)
+                .containsExactly(true);
+    }
+
+    @Test
+    void updateCourse_WhenAdminUpdatesLocalCourse_Succeeds() {
+        Course course = createCourse(10L, CourseType.LOCAL, createOtherUser());
+        CourseReqDTO.CourseUpdateReq request = new CourseReqDTO.CourseUpdateReq(
+                "Admin updated course",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+
+        when(courseRepository.findByIdAndDeletedAtIsNull(10L)).thenReturn(Optional.of(course));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(createAdmin()));
+
+        CourseResDTO.CourseIdRes response = courseService.updateCourse(1L, 10L, request);
+
+        assertThat(response.courseId()).isEqualTo(10L);
+        assertThat(course.getTitle()).isEqualTo("Admin updated course");
+    }
+
+    @Test
+    void deleteCourse_WhenAdminDeletesLocalCourse_Succeeds() {
+        Course course = createCourse(10L, CourseType.LOCAL, createOtherUser());
+
+        when(courseRepository.findByIdAndDeletedAtIsNull(10L)).thenReturn(Optional.of(course));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(createAdmin()));
+
+        courseService.deleteCourse(1L, 10L);
+
+        assertThat(course.getDeletedAt()).isNotNull();
+    }
+
+    @Test
     void getPopularLocalCourses_WhenRouteImageKeyExists_ReturnsRouteImageUrl() {
         CourseRepository.CourseLocalPopularProjection course = new LocalPopularProjection(
                 10L,
@@ -693,12 +769,16 @@ class CourseServiceImplTest {
     }
 
     private Course createCourse(Long courseId) {
+        return createCourse(courseId, CourseType.LOCAL, createUser());
+    }
+
+    private Course createCourse(Long courseId, CourseType courseType, User user) {
         Course course = Course.builder()
-                .user(createUser())
+                .user(user)
                 .region(createRegion())
                 .title("Busan night course")
                 .description("Enjoy Busan night views.")
-                .courseType(CourseType.LOCAL)
+                .courseType(courseType)
                 .durationType(DurationType.DAY_TRIP)
                 .transportType(TransportType.CAR)
                 .companionType(CompanionType.FRIEND)
@@ -741,6 +821,19 @@ class CourseServiceImplTest {
                 .id(1L)
                 .nickname("user")
                 .email("user@example.com")
+                .gender(Gender.MALE)
+                .birthYear("2000")
+                .region(createRegion())
+                .role(UserRole.USER)
+                .status(UserStatus.ACTIVE)
+                .build();
+    }
+
+    private User createOtherUser() {
+        return User.builder()
+                .id(2L)
+                .nickname("other")
+                .email("other@example.com")
                 .gender(Gender.MALE)
                 .birthYear("2000")
                 .region(createRegion())

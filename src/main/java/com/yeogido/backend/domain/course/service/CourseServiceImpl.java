@@ -860,8 +860,12 @@ public class CourseServiceImpl implements CourseService {
             return false;
         }
 
+        if (user.getRole() == UserRole.ADMIN) {
+            return true;
+        }
+
         return switch (courseType) {
-            case OFFICIAL -> user.getRole() == UserRole.ADMIN;
+            case OFFICIAL -> false;
             case LOCAL -> courseUserId != null && Objects.equals(courseUserId, user.getId());
         };
     }
