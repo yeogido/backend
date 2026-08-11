@@ -242,6 +242,7 @@ class CourseQueryRepositoryImplTest {
                 null,
                 null,
                 null,
+                null,
                 sort,
                 null,
                 null,

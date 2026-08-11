@@ -1272,7 +1272,7 @@ public class CourseServiceImpl implements CourseService {
     }
 
     private void validateCourseListRequest(CourseReqDTO.CourseListReq request) {
-        if (request.courseType() == CourseType.LOCAL
+        if (request.courseType() != CourseType.OFFICIAL
                 && CourseSortType.resolve(request.sort()) == CourseSortType.RECOMMEND) {
             throw new GeneralException(CourseErrorCode.INVALID_COURSE_LIST_SORT);
         }
@@ -1374,6 +1374,13 @@ public class CourseServiceImpl implements CourseService {
     private Map<Long, Long> getPopularityScores(CourseReqDTO.CourseListReq request) {
         if (CourseSortType.resolve(request.sort()) != CourseSortType.POPULAR) {
             return Map.of();
+        }
+
+        if (request.courseType() == null) {
+            Map<Long, Long> courseScores = new HashMap<>();
+            courseScores.putAll(coursePopularityRankingRedisRepository.findOfficialCourseScores());
+            courseScores.putAll(coursePopularityRankingRedisRepository.findLocalCourseScores());
+            return courseScores;
         }
 
         return coursePopularityRankingRedisRepository.findCourseScores(request.courseType());
