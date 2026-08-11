@@ -12,6 +12,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
@@ -73,6 +74,7 @@ public class ContentReqDTO {
             PlaceReq place,
 
             @Schema(description = "문화콘텐츠명")
+            @NotBlank(message = "문화콘텐츠 제목은 필수입니다.")
             String title,
 
             @Schema(description = "문화콘텐츠 설명")
@@ -112,6 +114,7 @@ public class ContentReqDTO {
             PlaceReq place,
 
             @Schema(description = "문화콘텐츠명. 생략하면 기존 값을 유지합니다.")
+            @Pattern(regexp = ".*\\S.*", message = "문화콘텐츠 제목은 공백일 수 없습니다.")
             String title,
 
             @Schema(description = "문화콘텐츠 설명. 생략하면 기존 값을 유지합니다.")
@@ -159,6 +162,7 @@ public class ContentReqDTO {
     public record ContentPublishReq(
 
             @Schema(description = "수정할 문화콘텐츠명. 생략하면 동기화된 값을 유지합니다.")
+            @Pattern(regexp = ".*\\S.*", message = "문화콘텐츠 제목은 공백일 수 없습니다.")
             String title,
 
             @Schema(description = "수정할 설명. 생략하면 동기화된 값을 유지합니다.")
