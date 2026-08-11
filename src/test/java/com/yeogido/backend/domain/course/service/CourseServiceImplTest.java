@@ -327,6 +327,8 @@ class CourseServiceImplTest {
         );
         CourseQueryRepository.CourseListRow row = new CourseQueryRepository.CourseListRow(
                 10L,
+                CourseType.OFFICIAL,
+                null,
                 "courses/thumbnail/sample.jpg",
                 "courses/route/sample.png",
                 "Busan night course",
@@ -357,6 +359,88 @@ class CourseServiceImplTest {
                 .isEqualTo("https://cdn.example.com/courses/thumbnail/sample.jpg");
         assertThat(response.getItems().get(0).routeImageUrl())
                 .isEqualTo("https://cdn.example.com/courses/route/sample.png");
+    }
+
+    @Test
+    void getCourses_ReturnsCanManageBySameCourseAuthorityPolicy() {
+        CourseReqDTO.CourseListReq request = new CourseReqDTO.CourseListReq(
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                CourseSortType.LATEST,
+                null,
+                null,
+                null,
+                null,
+                20
+        );
+        CourseQueryRepository.CourseListRow localOwnerCourse = courseListRow(
+                10L,
+                CourseType.LOCAL,
+                1L,
+                "Local owner course"
+        );
+        CourseQueryRepository.CourseListRow officialCourse = courseListRow(
+                11L,
+                CourseType.OFFICIAL,
+                null,
+                "Official course"
+        );
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(createUser()));
+        when(courseRepository.findCoursesByCursor(eq(request), any(), anyMap(), eq(21)))
+                .thenReturn(List.of(localOwnerCourse, officialCourse));
+        when(courseHashtagRepository.findHashtagNamesByCourseIdIn(List.of(10L, 11L))).thenReturn(List.of());
+        when(courseLikeRepository.findLikedCourseIdsByUserIdAndCourseIdIn(1L, List.of(10L, 11L)))
+                .thenReturn(List.of());
+
+        var response = courseService.getCourses(request, 1L);
+
+        assertThat(response.getItems())
+                .extracting(CourseResDTO.CoursePreview::canManage)
+                .containsExactly(true, false);
+    }
+
+    @Test
+    void getCourses_WhenAdminRequestsOfficialCourse_ReturnsCanManageTrue() {
+        CourseReqDTO.CourseListReq request = new CourseReqDTO.CourseListReq(
+                CourseType.OFFICIAL,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                CourseSortType.LATEST,
+                null,
+                null,
+                null,
+                null,
+                20
+        );
+        CourseQueryRepository.CourseListRow officialCourse = courseListRow(
+                10L,
+                CourseType.OFFICIAL,
+                null,
+                "Official course"
+        );
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(createAdmin()));
+        when(courseRepository.findCoursesByCursor(eq(request), any(), anyMap(), eq(21)))
+                .thenReturn(List.of(officialCourse));
+        when(courseHashtagRepository.findHashtagNamesByCourseIdIn(List.of(10L))).thenReturn(List.of());
+        when(courseLikeRepository.findLikedCourseIdsByUserIdAndCourseIdIn(1L, List.of(10L)))
+                .thenReturn(List.of());
+
+        var response = courseService.getCourses(request, 1L);
+
+        assertThat(response.getItems())
+                .extracting(CourseResDTO.CoursePreview::canManage)
+                .containsExactly(true);
     }
 
     @Test
@@ -624,6 +708,32 @@ class CourseServiceImplTest {
                 .build();
         ReflectionTestUtils.setField(course, "id", courseId);
         return course;
+    }
+
+    private CourseQueryRepository.CourseListRow courseListRow(
+            Long courseId,
+            CourseType courseType,
+            Long authorUserId,
+            String title
+    ) {
+        return new CourseQueryRepository.CourseListRow(
+                courseId,
+                courseType,
+                authorUserId,
+                "courses/thumbnail/sample-" + courseId + ".jpg",
+                null,
+                title,
+                "Busan",
+                DurationType.DAY_TRIP,
+                TransportType.CAR,
+                CompanionType.FRIEND,
+                LocalDateTime.now(),
+                null,
+                0L,
+                0L,
+                0.0,
+                0L
+        );
     }
 
     private User createUser() {
