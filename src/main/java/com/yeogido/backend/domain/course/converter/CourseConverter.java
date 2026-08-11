@@ -137,6 +137,7 @@ public class CourseConverter {
             String thumbnailUrl,
             List<String> tags,
             boolean isLiked,
+            boolean canManage,
             List<CourseResDTO.CourseItem> courseItems,
             String profileImageUrl
     ) {
@@ -153,6 +154,7 @@ public class CourseConverter {
                 course.getMonthEnd(),
                 course.getCompanionType(),
                 isLiked,
+                canManage,
                 courseItems,
                 toAuthor(course, profileImageUrl)
         );
