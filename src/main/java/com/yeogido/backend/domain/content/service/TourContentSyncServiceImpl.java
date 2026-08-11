@@ -27,9 +27,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.TransactionDefinition;
-import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.util.HtmlUtils;
 
@@ -73,7 +71,6 @@ public class TourContentSyncServiceImpl implements TourContentSyncService {
     private final PlaceRepository placeRepository;
     private final RegionRepository regionRepository;
     private final UserRepository userRepository;
-    private final PlatformTransactionManager transactionManager;
 
     @Value("${app.tour-api.sync-months:12}")
     private int syncMonths;
@@ -88,6 +85,7 @@ public class TourContentSyncServiceImpl implements TourContentSyncService {
     private int maxDetailCalls;
 
     @Override
+    @Transactional
     public TourContentSyncDTO.Result synchronize() {
         LocalDate startDate = LocalDate.now();
         LocalDate endDate = startDate.plusMonths(syncMonths);
@@ -114,20 +112,13 @@ public class TourContentSyncServiceImpl implements TourContentSyncService {
                 receivedCount++;
 
                 try {
-                    SyncCommand command = prepareCommand(
-                            item,
-                            remainingDetailCalls
-                    );
-                    if (command == null) {
-                        skippedCount++;
-                        continue;
-                    }
-
-                    SyncOutcome outcome = persistItem(command);
+                    SyncOutcome outcome = synchronizeItem(item, remainingDetailCalls);
                     if (outcome == SyncOutcome.CREATED) {
                         createdCount++;
-                    } else {
+                    } else if (outcome == SyncOutcome.UPDATED) {
                         updatedCount++;
+                    } else {
+                        skippedCount++;
                     }
                 } catch (RuntimeException exception) {
                     skippedCount++;
@@ -169,12 +160,13 @@ public class TourContentSyncServiceImpl implements TourContentSyncService {
     }
 
     @Override
+    @Transactional
     public TourContentSyncDTO.Result synchronize(Long userId) {
         validateAdmin(userId);
         return synchronize();
     }
 
-    private SyncCommand prepareCommand(
+    private SyncOutcome synchronizeItem(
             JsonNode item,
             AtomicInteger remainingDetailCalls
     ) {
@@ -191,8 +183,19 @@ public class TourContentSyncServiceImpl implements TourContentSyncService {
                         || latitude == null
                         || longitude == null
         ) {
-            return null;
+            return SyncOutcome.SKIPPED;
         }
+
+        Region region = findRegionByAddress(address);
+        Place place = getOrCreatePlace(
+                contentId,
+                title,
+                address,
+                text(item, "addr2"),
+                latitude,
+                longitude,
+                region
+        );
 
         Optional<Content> existingContent =
                 contentRepository.findBySourceAndExternalContentId(
@@ -208,113 +211,96 @@ public class TourContentSyncServiceImpl implements TourContentSyncService {
         LocalDate endDate = date(text(item, "eventenddate"));
         String contactPhone = firstPhoneNumber(text(item, "tel"));
 
-        DetailData detail = null;
+        DetailData detailData = null;
         boolean needsDetail = existingContent
                 .map(content -> content.getExternalDetailsSyncedAt() == null)
                 .orElse(true);
 
         if (needsDetail && reserveDetailCall(remainingDetailCalls)) {
-            detail = fetchDetail(contentId);
+            detailData = fetchDetail(contentId);
         }
-
-        return new SyncCommand(
-                contentId,
-                title,
-                address,
-                text(item, "addr2"),
-                latitude,
-                longitude,
-                thumbnailImage,
-                startDate,
-                endDate,
-                contactPhone,
-                detail
-        );
-    }
-
-    private SyncOutcome persistItem(SyncCommand command) {
-        TransactionTemplate transactionTemplate =
-                new TransactionTemplate(transactionManager);
-        transactionTemplate.setPropagationBehavior(
-                TransactionDefinition.PROPAGATION_REQUIRES_NEW
-        );
-
-        return transactionTemplate.execute(
-                status -> synchronizeItem(command)
-        );
-    }
-
-    private SyncOutcome synchronizeItem(SyncCommand command) {
-        Region region = findRegionByAddress(command.roadAddress());
-        Place place = getOrCreatePlace(command, region);
-
-        Optional<Content> existingContent =
-                contentRepository.findBySourceAndExternalContentId(
-                        ContentSource.TOUR_API,
-                        command.contentId()
-                );
 
         if (existingContent.isPresent()) {
             Content content = existingContent.get();
             content.update(
                     place,
-                    command.contentId(),
-                    truncate(command.title(), 100),
+                    contentId,
+                    truncate(title, 100),
                     null,
-                    command.thumbnailImage(),
-                    command.startDate(),
-                    command.endDate(),
-                    command.contactPhone(),
+                    thumbnailImage,
+                    startDate,
+                    endDate,
+                    contactPhone,
                     ContentCategory.FESTIVAL,
                     ContentSource.TOUR_API
             );
 
-            updateDetail(content, command.detail());
+            if (detailData != null) {
+                content.updateExternalDetails(
+                        detailData.description(),
+                        LocalDateTime.now()
+                );
+                replaceExternalLinks(content, detailData.links());
+            }
             return SyncOutcome.UPDATED;
         }
 
         Content newContent = Content.builder()
-                .place(place)
-                .externalContentId(command.contentId())
-                .source(ContentSource.TOUR_API)
-                .title(truncate(command.title(), 100))
-                .thumbnailImage(command.thumbnailImage())
-                .startDate(command.startDate())
-                .endDate(command.endDate())
-                .contactPhone(command.contactPhone())
-                .category(ContentCategory.FESTIVAL)
-                .build();
+                        .place(place)
+                        .externalContentId(contentId)
+                        .source(ContentSource.TOUR_API)
+                        .title(truncate(title, 100))
+                        .thumbnailImage(thumbnailImage)
+                        .startDate(startDate)
+                        .endDate(endDate)
+                        .contactPhone(contactPhone)
+                        .category(ContentCategory.FESTIVAL)
+                        .build();
 
-        if (command.detail() != null) {
+        if (detailData != null) {
             newContent.updateExternalDetails(
-                    command.detail().description(),
+                    detailData.description(),
                     LocalDateTime.now()
             );
         }
 
         contentRepository.save(newContent);
-        if (command.detail() != null) {
-            replaceExternalLinks(newContent, command.detail().links());
+        if (detailData != null) {
+            replaceExternalLinks(newContent, detailData.links());
         }
         return SyncOutcome.CREATED;
     }
 
-    private void updateDetail(Content content, DetailData detail) {
-        if (detail == null) {
-            return;
-        }
+    private DetailData fetchDetail(String contentId) {
+        try {
+            JsonNode common = tourApiClient.items(
+                            tourApiClient.detailCommon(contentId)
+                    )
+                    .stream()
+                    .findFirst()
+                    .orElse(null);
 
-        content.updateExternalDetails(
-                detail.description(),
-                LocalDateTime.now()
-        );
-        replaceExternalLinks(content, detail.links());
+            if (common == null) {
+                return null;
+            }
+
+            List<LinkData> links = extractLinks(text(common, "homepage"));
+
+            return new DetailData(
+                    plainText(text(common, "overview")),
+                    links
+            );
+        } catch (RuntimeException exception) {
+            log.warn(
+                    "Tour content detail synchronization failed. contentId={}",
+                    contentId,
+                    exception
+            );
+            return null;
+        }
     }
 
-    private void replaceExternalLinks(
-            Content content,
-            List<LinkData> links
-    ) {
+    private void replaceExternalLinks(Content content, List<LinkData> links) {
         contentExternalLinkRepository.deleteAllByContentIdAndSource(
                 content.getId(),
                 ContentLinkSource.TOUR_API
@@ -340,36 +326,6 @@ public class TourContentSyncServiceImpl implements TourContentSyncService {
                 .toList();
 
         contentExternalLinkRepository.saveAll(entities);
-    }
-
-    private DetailData fetchDetail(String contentId) {
-        try {
-            JsonNode common = tourApiClient.items(
-                            tourApiClient.detailCommon(contentId)
-                    )
-                    .stream()
-                    .findFirst()
-                    .orElse(null);
-
-            if (common == null) {
-                return null;
-            }
-
-            List<LinkData> links =
-                    extractLinks(text(common, "homepage"));
-
-            return new DetailData(
-                    plainText(text(common, "overview")),
-                    links
-            );
-        } catch (RuntimeException exception) {
-            log.warn(
-                    "Tour content detail synchronization failed. contentId={}",
-                    contentId,
-                    exception
-            );
-            return null;
-        }
     }
 
     private List<LinkData> extractLinks(String homepageValue) {
@@ -411,10 +367,7 @@ public class TourContentSyncServiceImpl implements TourContentSyncService {
         String label = StringUtils.hasText(rawLabel)
                 ? rawLabel
                 : defaultLabel(type);
-        links.putIfAbsent(
-                url,
-                new LinkData(type, label, url)
-        );
+        links.putIfAbsent(url, new LinkData(type, label, url));
     }
 
     private String normalizeUrl(String rawUrl) {
@@ -469,22 +422,27 @@ public class TourContentSyncServiceImpl implements TourContentSyncService {
         }
     }
 
-    private Place getOrCreatePlace(SyncCommand command, Region region) {
+    private Place getOrCreatePlace(
+            String contentId,
+            String title,
+            String roadAddress,
+            String lotAddress,
+            BigDecimal latitude,
+            BigDecimal longitude,
+            Region region
+    ) {
         Optional<Place> existingPlace = placeRepository
-                .findBySourceAndExternalPlaceId(
-                        PlaceSource.TOUR_API,
-                        command.contentId()
-                );
+                .findBySourceAndExternalPlaceId(PlaceSource.TOUR_API, contentId);
 
         if (existingPlace.isPresent()) {
             Place place = existingPlace.get();
             place.updateTourData(
                     region,
-                    truncate(command.title(), 100),
-                    command.roadAddress(),
-                    command.lotAddress(),
-                    command.latitude(),
-                    command.longitude()
+                    truncate(title, 100),
+                    roadAddress,
+                    lotAddress,
+                    latitude,
+                    longitude
             );
             return place;
         }
@@ -492,13 +450,13 @@ public class TourContentSyncServiceImpl implements TourContentSyncService {
         return placeRepository.save(
                 Place.builder()
                         .region(region)
-                        .externalPlaceId(command.contentId())
+                        .externalPlaceId(contentId)
                         .source(PlaceSource.TOUR_API)
-                        .name(truncate(command.title(), 100))
-                        .roadAddress(command.roadAddress())
-                        .lotAddress(command.lotAddress())
-                        .latitude(command.latitude())
-                        .longitude(command.longitude())
+                        .name(truncate(title, 100))
+                        .roadAddress(roadAddress)
+                        .lotAddress(lotAddress)
+                        .latitude(latitude)
+                        .longitude(longitude)
                         .build()
         );
     }
@@ -594,22 +552,8 @@ public class TourContentSyncServiceImpl implements TourContentSyncService {
 
     private enum SyncOutcome {
         CREATED,
-        UPDATED
-    }
-
-    private record SyncCommand(
-            String contentId,
-            String title,
-            String roadAddress,
-            String lotAddress,
-            BigDecimal latitude,
-            BigDecimal longitude,
-            String thumbnailImage,
-            LocalDate startDate,
-            LocalDate endDate,
-            String contactPhone,
-            DetailData detail
-    ) {
+        UPDATED,
+        SKIPPED
     }
 
     private record DetailData(
@@ -624,5 +568,4 @@ public class TourContentSyncServiceImpl implements TourContentSyncService {
             String url
     ) {
     }
-
 }
