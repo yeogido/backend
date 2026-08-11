@@ -296,12 +296,14 @@ public class CourseReqDTO {
     @Schema(name = "CourseListRequest", description = "추천 코스 목록 조회 요청")
     public record CourseListReq(
 
-            @NotNull(message = "코스 타입은 필수입니다")
-            @Schema(description = "코스 타입", example = "OFFICIAL")
+            @Schema(description = "코스 타입. 미전달 시 OFFICIAL, LOCAL 코스를 모두 조회합니다.", nullable = true, example = "OFFICIAL")
             CourseType courseType,
 
             @Schema(description = "검색어", example = "강릉")
             String keyword,
+
+            @Schema(description = "코스에 CONTENT 타입 항목으로 포함된 콘텐츠 ID", nullable = true, example = "1")
+            Long contentId,
 
             @Schema(description = "지역 ID", nullable = true, example = "1")
             Long regionId,

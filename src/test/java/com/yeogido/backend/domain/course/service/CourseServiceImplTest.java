@@ -317,6 +317,7 @@ class CourseServiceImplTest {
                 null,
                 null,
                 null,
+                null,
                 CourseSortType.LATEST,
                 null,
                 null,

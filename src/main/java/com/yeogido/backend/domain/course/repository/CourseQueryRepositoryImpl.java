@@ -7,12 +7,15 @@ import com.querydsl.core.types.Projections;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.core.types.dsl.NumberExpression;
+import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQuery;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import com.yeogido.backend.domain.course.dto.request.CourseReqDTO;
 import com.yeogido.backend.domain.course.entity.QCourse;
+import com.yeogido.backend.domain.course.entity.QCourseItem;
 import com.yeogido.backend.domain.course.entity.QCourseLike;
 import com.yeogido.backend.domain.course.entity.QCourseReview;
+import com.yeogido.backend.domain.course.enums.CourseItemType;
 import com.yeogido.backend.domain.course.enums.CourseSortType;
 import com.yeogido.backend.domain.region.entity.QRegion;
 import jakarta.persistence.EntityManager;
@@ -31,6 +34,7 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
     private final QRegion region = QRegion.region;
     private final QCourseLike courseLike = QCourseLike.courseLike;
     private final QCourseReview courseReview = QCourseReview.courseReview;
+    private final QCourseItem courseItem = QCourseItem.courseItem;
 
     public CourseQueryRepositoryImpl(EntityManager entityManager) {
         this.queryFactory = new JPAQueryFactory(entityManager);
@@ -131,8 +135,9 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
     private BooleanBuilder courseListCondition(CourseReqDTO.CourseListReq request) {
         BooleanBuilder builder = new BooleanBuilder();
 
-        builder.and(course.courseType.eq(request.courseType()));
+        builder.and(courseTypeEq(request));
         builder.and(course.deletedAt.isNull());
+        builder.and(contentItemExists(request.contentId()));
         builder.and(regionIdEq(request.regionId()));
         builder.and(transportTypeEq(request));
         builder.and(durationTypeEq(request));
@@ -141,6 +146,26 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
         builder.and(distanceSortRegionCoordinateExists(request));
 
         return builder;
+    }
+
+    private BooleanExpression courseTypeEq(CourseReqDTO.CourseListReq request) {
+        return request.courseType() == null
+                ? null
+                : course.courseType.eq(request.courseType());
+    }
+
+    private BooleanExpression contentItemExists(Long contentId) {
+        if (contentId == null) {
+            return null;
+        }
+
+        return JPAExpressions
+                .selectOne()
+                .from(courseItem)
+                .where(courseItem.course.eq(course)
+                        .and(courseItem.itemType.eq(CourseItemType.CONTENT))
+                        .and(courseItem.content.id.eq(contentId)))
+                .exists();
     }
 
     private BooleanExpression regionIdEq(Long regionId) {
