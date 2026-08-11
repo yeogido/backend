@@ -291,29 +291,6 @@ public class CourseConverter {
                 .build();
     }
 
-    public static CourseResDTO.CoursePreview toPopularCoursePreview(
-            CourseRepository.CoursePopularProjection course,
-            String thumbnailUrl,
-            String routeImageUrl,
-            List<String> tags,
-            boolean isLiked,
-            boolean canManage
-    ) {
-        return new CourseResDTO.CoursePreview(
-                course.getCourseId(),
-                thumbnailUrl,
-                routeImageUrl,
-                course.getTitle(),
-                course.getRegion(),
-                course.getDurationType(),
-                course.getTransportType(),
-                course.getCompanionType(),
-                tags,
-                isLiked,
-                canManage
-        );
-    }
-
     public static CourseResDTO.CourseLocalPopularPreview toLocalPopularCoursePreview(
             CourseRepository.CourseLocalPopularProjection course,
             String thumbnailUrl,

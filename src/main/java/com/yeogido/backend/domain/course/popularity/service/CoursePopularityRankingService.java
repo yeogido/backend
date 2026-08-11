@@ -8,9 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -28,9 +26,7 @@ public class CoursePopularityRankingService {
 
         if (scores.isEmpty()) {
             coursePopularityRankingRedisRepository.replaceOfficialRanking(List.of());
-            coursePopularityRankingRedisRepository.deleteOfficialRegionRankings();
             coursePopularityRankingRedisRepository.replaceLocalRanking(List.of());
-            coursePopularityRankingRedisRepository.deleteLocalRegionRankings();
             return;
         }
 
@@ -41,11 +37,7 @@ public class CoursePopularityRankingService {
         List<CourseRankingTarget> localTargets = filterTargets(courses, CourseType.LOCAL, scores);
 
         coursePopularityRankingRedisRepository.replaceOfficialRanking(toRankingEntries(officialTargets));
-        coursePopularityRankingRedisRepository.deleteOfficialRegionRankings();
-        replaceOfficialRegionRankings(officialTargets);
         coursePopularityRankingRedisRepository.replaceLocalRanking(toRankingEntries(localTargets));
-        coursePopularityRankingRedisRepository.deleteLocalRegionRankings();
-        replaceLocalRegionRankings(localTargets);
     }
 
     private List<CourseRankingTarget> filterTargets(
@@ -57,65 +49,11 @@ public class CoursePopularityRankingService {
                 .filter(course -> course.getCourseType() == courseType)
                 .map(course -> new CourseRankingTarget(
                         course.getCourseId(),
-                        course.getRegionId(),
-                        course.getParentRegionId(),
                         scores.get(course.getCourseId()),
                         course.getCreatedAt()
                 ))
                 .filter(target -> target.score() != null)
                 .toList();
-    }
-
-    private void replaceOfficialRegionRankings(List<CourseRankingTarget> officialTargets) {
-
-        Map<Long, List<CourseRankingTarget>> targetsByRegion = new HashMap<>();
-
-        for (CourseRankingTarget target : officialTargets) {
-
-            // 자신의 지역
-            targetsByRegion
-                    .computeIfAbsent(target.regionId(), ignored -> new ArrayList<>())
-                    .add(target);
-
-            // 부모 지역(시/도)
-            if (target.parentRegionId() != null) {
-                targetsByRegion
-                        .computeIfAbsent(target.parentRegionId(), ignored -> new ArrayList<>())
-                        .add(target);
-            }
-        }
-
-        targetsByRegion.forEach((regionId, targets) ->
-                coursePopularityRankingRedisRepository.replaceOfficialRegionRanking(
-                        regionId,
-                        toRankingEntries(targets)
-                ));
-    }
-
-    private void replaceLocalRegionRankings(List<CourseRankingTarget> localTargets) {
-
-        Map<Long, List<CourseRankingTarget>> targetsByRegion = new HashMap<>();
-
-        for (CourseRankingTarget target : localTargets) {
-
-            // 자신의 지역
-            targetsByRegion
-                    .computeIfAbsent(target.regionId(), ignored -> new ArrayList<>())
-                    .add(target);
-
-            // 부모 지역(시/도)
-            if (target.parentRegionId() != null) {
-                targetsByRegion
-                        .computeIfAbsent(target.parentRegionId(), ignored -> new ArrayList<>())
-                        .add(target);
-            }
-        }
-
-        targetsByRegion.forEach((regionId, targets) ->
-                coursePopularityRankingRedisRepository.replaceLocalRegionRanking(
-                        regionId,
-                        toRankingEntries(targets)
-                ));
     }
 
     private List<CoursePopularityRankingEntry> toRankingEntries(List<CourseRankingTarget> targets) {
@@ -139,8 +77,6 @@ public class CoursePopularityRankingService {
 
     private record CourseRankingTarget(
             Long courseId,
-            Long regionId,
-            Long parentRegionId,
             Long score,
             LocalDateTime createdAt
     ) {

@@ -27,7 +27,6 @@ public class CoursePopularityRankingRedisRepository {
     private static final String RANKING = "ranking";
     private static final String OFFICIAL = "official";
     private static final String LOCAL = "local";
-    private static final String REGIONS = "regions";
     private static final String TMP = "tmp";
 
     private final StringRedisTemplate stringRedisTemplate;
@@ -36,41 +35,8 @@ public class CoursePopularityRankingRedisRepository {
         replaceRanking(officialRankingKey(), entries);
     }
 
-    public List<Long> findTopOfficialCourseIds(int size) {
-        return findTopCourseIds(officialRankingKey(), size);
-    }
-
     public Map<Long, Long> findOfficialCourseScores() {
         return findCourseScores(officialRankingKey());
-    }
-
-    public void replaceOfficialRegionRanking(Long regionId, List<CoursePopularityRankingEntry> entries) {
-        replaceRanking(officialRegionRankingKey(regionId), entries);
-
-        // 다음 재집계를 위한 지역별 Key 목록
-        stringRedisTemplate.opsForSet()
-                .add(officialRegionSetKey(), regionId.toString());
-    }
-
-    public List<Long> findTopOfficialRegionCourseIds(Long regionId, int size) {
-        return findTopCourseIds(officialRegionRankingKey(regionId), size);
-    }
-
-    public void deleteOfficialRegionRankings() {
-        Set<String> regionIds =
-                stringRedisTemplate.opsForSet().members(officialRegionSetKey());
-
-        if (regionIds == null || regionIds.isEmpty()) {
-            return;
-        }
-
-        // 이전 지역별 랭킹 Key 삭제
-        List<String> keys = regionIds.stream()
-                .map(id -> officialRegionRankingKey(Long.valueOf(id)))
-                .toList();
-
-        stringRedisTemplate.delete(keys);
-        stringRedisTemplate.delete(officialRegionSetKey());
     }
 
     public void replaceLocalRanking(List<CoursePopularityRankingEntry> entries) {
@@ -89,35 +55,6 @@ public class CoursePopularityRankingRedisRepository {
         return courseType == CourseType.LOCAL
                 ? findLocalCourseScores()
                 : findOfficialCourseScores();
-    }
-
-    public void replaceLocalRegionRanking(Long regionId, List<CoursePopularityRankingEntry> entries) {
-        replaceRanking(localRegionRankingKey(regionId), entries);
-
-        // 다음 재집계를 위한 지역별 Key 목록
-        stringRedisTemplate.opsForSet()
-                .add(localRegionSetKey(), regionId.toString());
-    }
-
-    public List<Long> findTopLocalRegionCourseIds(Long regionId, int size) {
-        return findTopCourseIds(localRegionRankingKey(regionId), size);
-    }
-
-    public void deleteLocalRegionRankings() {
-        Set<String> regionIds =
-                stringRedisTemplate.opsForSet().members(localRegionSetKey());
-
-        if (regionIds == null || regionIds.isEmpty()) {
-            return;
-        }
-
-        // 이전 지역별 랭킹 Key 삭제
-        List<String> keys = regionIds.stream()
-                .map(id -> localRegionRankingKey(Long.valueOf(id)))
-                .toList();
-
-        stringRedisTemplate.delete(keys);
-        stringRedisTemplate.delete(localRegionSetKey());
     }
 
     public void removeLocalCourseId(Long courseId) {
@@ -247,23 +184,7 @@ public class CoursePopularityRankingRedisRepository {
         return RedisKey.of(DOMAIN, RANKING, OFFICIAL);
     }
 
-    private String officialRegionRankingKey(Long regionId) {
-        return RedisKey.of(DOMAIN, RANKING, OFFICIAL, regionId.toString());
-    }
-
-    private String officialRegionSetKey() {
-        return RedisKey.of(DOMAIN, RANKING, OFFICIAL, REGIONS);
-    }
-
     private String localRankingKey() {
         return RedisKey.of(DOMAIN, RANKING, LOCAL);
-    }
-
-    private String localRegionRankingKey(Long regionId) {
-        return RedisKey.of(DOMAIN, RANKING, LOCAL, regionId.toString());
-    }
-
-    private String localRegionSetKey() {
-        return RedisKey.of(DOMAIN, RANKING, LOCAL, REGIONS);
     }
 }
