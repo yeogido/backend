@@ -2,6 +2,7 @@ package com.yeogido.backend.domain.course.repository;
 
 import com.yeogido.backend.domain.course.dto.request.CourseReqDTO;
 import com.yeogido.backend.domain.course.enums.CompanionType;
+import com.yeogido.backend.domain.course.enums.CourseType;
 import com.yeogido.backend.domain.course.enums.DurationType;
 import com.yeogido.backend.domain.course.enums.TransportType;
 import java.time.LocalDateTime;
@@ -28,6 +29,8 @@ public interface CourseQueryRepository {
 
     record CourseListRow(
             Long courseId,
+            CourseType courseType,
+            Long authorUserId,
             String thumbnailKey,
             String routeImageKey,
             String title,

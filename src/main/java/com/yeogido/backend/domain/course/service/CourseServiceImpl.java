@@ -179,7 +179,10 @@ public class CourseServiceImpl implements CourseService {
         validateCourseListRequest(request);
 
         int size = request.size();
-        CourseQueryRepository.CourseLocation location = resolveCourseLocation(request, userId);
+        User currentUser = userId == null
+                ? null
+                : getCurrentUser(userId);
+        CourseQueryRepository.CourseLocation location = resolveCourseLocation(request, currentUser);
         Map<Long, Long> popularityScores = getPopularityScores(request);
         List<CourseQueryRepository.CourseListRow> rows =
                 courseRepository.findCoursesByCursor(request, location, popularityScores, size + 1);
@@ -199,7 +202,8 @@ public class CourseServiceImpl implements CourseService {
                 .map(row -> toCoursePreview(
                         row,
                         tagMap.getOrDefault(row.courseId(), List.of()),
-                        likedCourseIds.contains(row.courseId())
+                        likedCourseIds.contains(row.courseId()),
+                        canManageCourse(row, currentUser)
                 ))
                 .toList();
 
@@ -243,6 +247,9 @@ public class CourseServiceImpl implements CourseService {
 
         Map<Long, List<String>> tagMap = getPopularCourseTagMap(courseIds);
         Set<Long> likedCourseIds = getLikedCourseIds(userId, courseIds);
+        User currentUser = userId == null
+                ? null
+                : getCurrentUser(userId);
 
         return courseIds.stream()
                 .map(courseMap::get)
@@ -252,7 +259,8 @@ public class CourseServiceImpl implements CourseService {
                         s3Service.getImageUrl(course.getThumbnailKey()),
                         s3Service.getImageUrl(course.getRouteImageKey()),
                         tagMap.getOrDefault(course.getCourseId(), List.of()),
-                        likedCourseIds.contains(course.getCourseId())
+                        likedCourseIds.contains(course.getCourseId()),
+                        canManageCourse(course, currentUser)
                 ))
                 .toList();
     }
@@ -826,22 +834,36 @@ public class CourseServiceImpl implements CourseService {
     }
 
     private void validateCourseAuthority(Course course, User user) {
-        switch (course.getCourseType()) {
-            case OFFICIAL -> {
-                if (user.getRole() != UserRole.ADMIN) {
-                    throw new GeneralException(GeneralErrorCode.FORBIDDEN);
-                }
-            }
+        Long courseUserId = course.getUser() == null
+                ? null
+                : course.getUser().getId();
 
-            case LOCAL -> {
-                if (course.getUser() == null ||
-                        !Objects.equals(course.getUser().getId(), user.getId())) {
-                    throw new GeneralException(GeneralErrorCode.FORBIDDEN);
-                }
-            }
-
-            default -> throw new GeneralException(GeneralErrorCode.FORBIDDEN);
+        if (!canManageCourse(course.getCourseType(), courseUserId, user)) {
+            throw new GeneralException(GeneralErrorCode.FORBIDDEN);
         }
+    }
+
+    private boolean canManageCourse(CourseQueryRepository.CourseListRow row, User user) {
+        return canManageCourse(row.courseType(), row.authorUserId(), user);
+    }
+
+    private boolean canManageCourse(CourseRepository.CoursePopularProjection course, User user) {
+        return canManageCourse(course.getCourseType(), course.getUserId(), user);
+    }
+
+    private boolean canManageCourse(
+            CourseType courseType,
+            Long courseUserId,
+            User user
+    ) {
+        if (user == null) {
+            return false;
+        }
+
+        return switch (courseType) {
+            case OFFICIAL -> user.getRole() == UserRole.ADMIN;
+            case LOCAL -> courseUserId != null && Objects.equals(courseUserId, user.getId());
+        };
     }
 
     private void validateCourseCreateRequest(CourseReqDTO.CourseCreateReq request) {
@@ -1322,7 +1344,7 @@ public class CourseServiceImpl implements CourseService {
 
     private CourseQueryRepository.CourseLocation resolveCourseLocation(
             CourseReqDTO.CourseListReq request,
-            Long userId
+            User currentUser
     ) {
         if (request.sort() != CourseSortType.DISTANCE) {
             return new CourseQueryRepository.CourseLocation(null, null);
@@ -1335,12 +1357,11 @@ public class CourseServiceImpl implements CourseService {
             );
         }
 
-        if (userId == null) {
+        if (currentUser == null) {
             throw new GeneralException(CourseErrorCode.LOCATION_REQUIRED_FOR_DISTANCE_SORT);
         }
 
-        User user = getCurrentUser(userId);
-        Region region = user.getRegion();
+        Region region = currentUser.getRegion();
         if (region.getLatitude() == null || region.getLongitude() == null) {
             throw new GeneralException(CourseErrorCode.REGION_COORDINATE_NOT_FOUND);
         }
@@ -1389,7 +1410,8 @@ public class CourseServiceImpl implements CourseService {
     private CourseResDTO.CoursePreview toCoursePreview(
             CourseQueryRepository.CourseListRow row,
             List<String> tags,
-            boolean isLiked
+            boolean isLiked,
+            boolean canManage
     ) {
         return new CourseResDTO.CoursePreview(
                 row.courseId(),
@@ -1401,7 +1423,8 @@ public class CourseServiceImpl implements CourseService {
                 row.transportType(),
                 row.companionType(),
                 tags,
-                isLiked
+                isLiked,
+                canManage
         );
     }
 
