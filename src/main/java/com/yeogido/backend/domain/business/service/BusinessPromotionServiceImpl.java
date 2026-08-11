@@ -317,6 +317,7 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
                 images,
                 likeCount,
                 isLiked,
+                userId,
                 profileImageUrl
         );
     }
@@ -716,7 +717,8 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
                                     hashtags,
                                     author,
                                     likeCount,
-                                    isLiked
+                                    isLiked,
+                                    userId
                             );
                         })
                         .toList();
