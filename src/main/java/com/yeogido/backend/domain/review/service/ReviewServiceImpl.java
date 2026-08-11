@@ -33,7 +33,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class ReviewServiceImpl implements ReviewService {
 
-    private static final int RECENT_REVIEW_LIMIT = 3;
     private static final int DEFAULT_PAGE_SIZE = 10;
 
     private final CourseReviewRepository courseReviewRepository;
@@ -42,17 +41,6 @@ public class ReviewServiceImpl implements ReviewService {
     private final CourseHashtagRepository courseHashtagRepository;
     private final FileService fileService;
     private final S3Service s3Service;
-
-    @Override
-    public ReviewResDTO.RecentReviewsResponse getRecentReviews() {
-        List<CourseReview> reviews = courseReviewRepository.findRecentReviews(
-                PageRequest.of(0, RECENT_REVIEW_LIMIT)
-        );
-
-        Map<Long, List<CourseReviewImage>> imageMap = getReviewImageMap(reviews);
-
-        return ReviewConverter.toRecentReviewsResponse(reviews, imageMap, s3Service::getImageUrl);
-    }
 
     @Override
     public CursorResponse<ReviewResDTO.ReviewDetail> getReviews(

@@ -31,16 +31,6 @@ public class ReviewController {
     private final ReviewService reviewService;
 
     @Operation(
-            summary = "최근 후기 조회",
-            description = "홈 화면에 표시할 최근 등록된 여행 후기 3개를 조회합니다."
-    )
-    @GetMapping("/recent")
-    public ApiResponse<ReviewResDTO.RecentReviewsResponse> getRecentReviews() {
-        ReviewResDTO.RecentReviewsResponse result = reviewService.getRecentReviews();
-        return ApiResponse.onSuccess(SuccessCode.OK, result);
-    }
-
-    @Operation(
             summary = "최근 후기 목록 조회",
             description = "전체 여행 후기를 최신순 또는 별점순으로 조회합니다."
     )

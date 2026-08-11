@@ -96,8 +96,7 @@ public class SecurityConfig {
             "/api/v1/business-promotions/*",
             "/api/v1/contents",
             "/api/v1/contents/*",
-            "/api/v1/reviews",
-            "/api/v1/reviews/recent"
+            "/api/v1/reviews"
     };
 
     private static final String[] PUBLIC_POST_PATHS = {
