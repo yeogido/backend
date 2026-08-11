@@ -67,9 +67,11 @@ public class BusinessPromotionResponse {
             @Schema(description = "연결된 장소의 좋아요 수", example = "24")
             Long likeCount,
 
+            @Schema(description = "로그인 사용자가 작성한 홍보글 여부. 비로그인 요청 시 false", example = "false")
+            Boolean isMine,
+
             @Schema(description = "현재 사용자의 장소 좋아요 여부", example = "true")
             Boolean isLiked,
-
 
             @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
             @Schema(description = "생성일시", example = "2026-07-05T10:30:00")
@@ -111,6 +113,9 @@ public class BusinessPromotionResponse {
 
             @Schema(description = "연결된 장소의 좋아요 수", example = "24")
             Long likeCount,
+
+            @Schema(description = "로그인 사용자가 작성한 홍보글 여부. 비로그인 요청 시 false", example = "false")
+            Boolean isMine,
 
             @Schema(description = "현재 사용자의 장소 좋아요 여부", example = "true")
             Boolean isLiked,

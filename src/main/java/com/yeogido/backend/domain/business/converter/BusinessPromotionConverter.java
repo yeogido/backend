@@ -13,6 +13,7 @@ import com.yeogido.backend.domain.place.entity.Place;
 import com.yeogido.backend.domain.user.entity.User;
 
 import java.util.List;
+import java.util.Objects;
 
 public final class BusinessPromotionConverter {
 
@@ -129,6 +130,7 @@ public final class BusinessPromotionConverter {
             List<BusinessPromotionResponse.ImageInfo> images,
             long likeCount,
             boolean isLiked,
+            Long currentUserId,
             String profileImageUrl
     ) {
         return BusinessPromotionResponse.Detail.builder()
@@ -144,6 +146,7 @@ public final class BusinessPromotionConverter {
                 .author(toAuthorResponse(promotion.getUser(), profileImageUrl))
                 .likeCount(likeCount)
                 .isLiked(isLiked)
+                .isMine(isMine(promotion, currentUserId))
                 .createdAt(promotion.getCreatedAt())
                 .updatedAt(promotion.getUpdatedAt())
                 .build();
@@ -155,7 +158,8 @@ public final class BusinessPromotionConverter {
             List<String> hashtags,
             BusinessPromotionResponse.Author author,
             long likeCount,
-            boolean isLiked
+            boolean isLiked,
+            Long currentUserId
     ) {
         Place place = promotion.getPlace();
 
@@ -173,6 +177,7 @@ public final class BusinessPromotionConverter {
                 .author(author)
                 .likeCount(likeCount)
                 .isLiked(isLiked)
+                .isMine(isMine(promotion, currentUserId))
                 .createdAt(promotion.getCreatedAt())
                 .build();
     }
@@ -209,5 +214,16 @@ public final class BusinessPromotionConverter {
                 .nickname(user.getNickname())
                 .profileImageUrl(profileImageUrl)
                 .build();
+    }
+
+    private static boolean isMine(
+            BusinessPromotion promotion,
+            Long currentUserId
+    ) {
+        return currentUserId != null
+                && Objects.equals(
+                promotion.getUser().getId(),
+                currentUserId
+        );
     }
 }
