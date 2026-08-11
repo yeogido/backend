@@ -327,6 +327,8 @@ class CourseServiceImplTest {
         );
         CourseQueryRepository.CourseListRow row = new CourseQueryRepository.CourseListRow(
                 10L,
+                CourseType.OFFICIAL,
+                null,
                 "courses/thumbnail/sample.jpg",
                 "courses/route/sample.png",
                 "Busan night course",
@@ -357,6 +359,164 @@ class CourseServiceImplTest {
                 .isEqualTo("https://cdn.example.com/courses/thumbnail/sample.jpg");
         assertThat(response.getItems().get(0).routeImageUrl())
                 .isEqualTo("https://cdn.example.com/courses/route/sample.png");
+    }
+
+    @Test
+    void getCourses_ReturnsCanManageBySameCourseAuthorityPolicy() {
+        CourseReqDTO.CourseListReq request = new CourseReqDTO.CourseListReq(
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                CourseSortType.LATEST,
+                null,
+                null,
+                null,
+                null,
+                20
+        );
+        CourseQueryRepository.CourseListRow localOwnerCourse = courseListRow(
+                10L,
+                CourseType.LOCAL,
+                1L,
+                "Local owner course"
+        );
+        CourseQueryRepository.CourseListRow officialCourse = courseListRow(
+                11L,
+                CourseType.OFFICIAL,
+                null,
+                "Official course"
+        );
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(createUser()));
+        when(courseRepository.findCoursesByCursor(eq(request), any(), anyMap(), eq(21)))
+                .thenReturn(List.of(localOwnerCourse, officialCourse));
+        when(courseHashtagRepository.findHashtagNamesByCourseIdIn(List.of(10L, 11L))).thenReturn(List.of());
+        when(courseLikeRepository.findLikedCourseIdsByUserIdAndCourseIdIn(1L, List.of(10L, 11L)))
+                .thenReturn(List.of());
+
+        var response = courseService.getCourses(request, 1L);
+
+        assertThat(response.getItems())
+                .extracting(CourseResDTO.CoursePreview::canManage)
+                .containsExactly(true, false);
+    }
+
+    @Test
+    void getCourses_WhenAdminRequestsOfficialCourse_ReturnsCanManageTrue() {
+        CourseReqDTO.CourseListReq request = new CourseReqDTO.CourseListReq(
+                CourseType.OFFICIAL,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                CourseSortType.LATEST,
+                null,
+                null,
+                null,
+                null,
+                20
+        );
+        CourseQueryRepository.CourseListRow officialCourse = courseListRow(
+                10L,
+                CourseType.OFFICIAL,
+                null,
+                "Official course"
+        );
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(createAdmin()));
+        when(courseRepository.findCoursesByCursor(eq(request), any(), anyMap(), eq(21)))
+                .thenReturn(List.of(officialCourse));
+        when(courseHashtagRepository.findHashtagNamesByCourseIdIn(List.of(10L))).thenReturn(List.of());
+        when(courseLikeRepository.findLikedCourseIdsByUserIdAndCourseIdIn(1L, List.of(10L)))
+                .thenReturn(List.of());
+
+        var response = courseService.getCourses(request, 1L);
+
+        assertThat(response.getItems())
+                .extracting(CourseResDTO.CoursePreview::canManage)
+                .containsExactly(true);
+    }
+
+    @Test
+    void getCourses_WhenAdminRequestsLocalCourse_ReturnsCanManageTrue() {
+        CourseReqDTO.CourseListReq request = new CourseReqDTO.CourseListReq(
+                CourseType.LOCAL,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                CourseSortType.LATEST,
+                null,
+                null,
+                null,
+                null,
+                20
+        );
+        CourseQueryRepository.CourseListRow localCourse = courseListRow(
+                10L,
+                CourseType.LOCAL,
+                2L,
+                "Local course"
+        );
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(createAdmin()));
+        when(courseRepository.findCoursesByCursor(eq(request), any(), anyMap(), eq(21)))
+                .thenReturn(List.of(localCourse));
+        when(courseHashtagRepository.findHashtagNamesByCourseIdIn(List.of(10L))).thenReturn(List.of());
+        when(courseLikeRepository.findLikedCourseIdsByUserIdAndCourseIdIn(1L, List.of(10L)))
+                .thenReturn(List.of());
+
+        var response = courseService.getCourses(request, 1L);
+
+        assertThat(response.getItems())
+                .extracting(CourseResDTO.CoursePreview::canManage)
+                .containsExactly(true);
+    }
+
+    @Test
+    void updateCourse_WhenAdminUpdatesLocalCourse_Succeeds() {
+        Course course = createCourse(10L, CourseType.LOCAL, createOtherUser());
+        CourseReqDTO.CourseUpdateReq request = new CourseReqDTO.CourseUpdateReq(
+                "Admin updated course",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+
+        when(courseRepository.findByIdAndDeletedAtIsNull(10L)).thenReturn(Optional.of(course));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(createAdmin()));
+
+        CourseResDTO.CourseIdRes response = courseService.updateCourse(1L, 10L, request);
+
+        assertThat(response.courseId()).isEqualTo(10L);
+        assertThat(course.getTitle()).isEqualTo("Admin updated course");
+    }
+
+    @Test
+    void deleteCourse_WhenAdminDeletesLocalCourse_Succeeds() {
+        Course course = createCourse(10L, CourseType.LOCAL, createOtherUser());
+
+        when(courseRepository.findByIdAndDeletedAtIsNull(10L)).thenReturn(Optional.of(course));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(createAdmin()));
+
+        courseService.deleteCourse(1L, 10L);
+
+        assertThat(course.getDeletedAt()).isNotNull();
     }
 
     @Test
@@ -609,12 +769,16 @@ class CourseServiceImplTest {
     }
 
     private Course createCourse(Long courseId) {
+        return createCourse(courseId, CourseType.LOCAL, createUser());
+    }
+
+    private Course createCourse(Long courseId, CourseType courseType, User user) {
         Course course = Course.builder()
-                .user(createUser())
+                .user(user)
                 .region(createRegion())
                 .title("Busan night course")
                 .description("Enjoy Busan night views.")
-                .courseType(CourseType.LOCAL)
+                .courseType(courseType)
                 .durationType(DurationType.DAY_TRIP)
                 .transportType(TransportType.CAR)
                 .companionType(CompanionType.FRIEND)
@@ -626,11 +790,50 @@ class CourseServiceImplTest {
         return course;
     }
 
+    private CourseQueryRepository.CourseListRow courseListRow(
+            Long courseId,
+            CourseType courseType,
+            Long authorUserId,
+            String title
+    ) {
+        return new CourseQueryRepository.CourseListRow(
+                courseId,
+                courseType,
+                authorUserId,
+                "courses/thumbnail/sample-" + courseId + ".jpg",
+                null,
+                title,
+                "Busan",
+                DurationType.DAY_TRIP,
+                TransportType.CAR,
+                CompanionType.FRIEND,
+                LocalDateTime.now(),
+                null,
+                0L,
+                0L,
+                0.0,
+                0L
+        );
+    }
+
     private User createUser() {
         return User.builder()
                 .id(1L)
                 .nickname("user")
                 .email("user@example.com")
+                .gender(Gender.MALE)
+                .birthYear("2000")
+                .region(createRegion())
+                .role(UserRole.USER)
+                .status(UserStatus.ACTIVE)
+                .build();
+    }
+
+    private User createOtherUser() {
+        return User.builder()
+                .id(2L)
+                .nickname("other")
+                .email("other@example.com")
                 .gender(Gender.MALE)
                 .birthYear("2000")
                 .region(createRegion())

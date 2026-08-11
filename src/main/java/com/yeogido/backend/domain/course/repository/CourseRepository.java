@@ -71,6 +71,8 @@ public interface CourseRepository extends JpaRepository<Course, Long>, CourseQue
     @Query("""
             select
                 c.id as courseId,
+                c.courseType as courseType,
+                c.user.id as userId,
                 c.thumbnailKey as thumbnailKey,
                 c.routeImageKey as routeImageKey,
                 c.title as title,
@@ -238,6 +240,10 @@ public interface CourseRepository extends JpaRepository<Course, Long>, CourseQue
     interface CoursePopularProjection {
 
         Long getCourseId();
+
+        CourseType getCourseType();
+
+        Long getUserId();
 
         String getThumbnailKey();
 

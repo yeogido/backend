@@ -66,6 +66,8 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
                 .select(Projections.constructor(
                         CourseListRow.class,
                         course.id,
+                        course.courseType,
+                        course.user.id,
                         course.thumbnailKey,
                         course.routeImageKey,
                         course.title,
@@ -94,6 +96,8 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
         if (aggregateSort) {
             query.groupBy(
                     course.id,
+                    course.courseType,
+                    course.user.id,
                     course.thumbnailKey,
                     course.routeImageKey,
                     course.title,

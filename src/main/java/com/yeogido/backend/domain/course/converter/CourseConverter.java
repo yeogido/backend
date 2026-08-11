@@ -294,7 +294,8 @@ public class CourseConverter {
             String thumbnailUrl,
             String routeImageUrl,
             List<String> tags,
-            boolean isLiked
+            boolean isLiked,
+            boolean canManage
     ) {
         return new CourseResDTO.CoursePreview(
                 course.getCourseId(),
@@ -306,7 +307,8 @@ public class CourseConverter {
                 course.getTransportType(),
                 course.getCompanionType(),
                 tags,
-                isLiked
+                isLiked,
+                canManage
         );
     }
 

@@ -207,6 +207,26 @@ class CourseQueryRepositoryImplTest {
     }
 
     @Test
+    void findCoursesByCursorIncludesCourseTypeAndAuthorUserId() {
+        Region region = persistRegion("Local Author", "37.5665", "126.9780");
+        User user = persistUser(region, "author@example.com");
+        Course course = persistLocalCourse(region, user, "local author course");
+        flushAndClear();
+
+        List<CourseQueryRepository.CourseListRow> rows = courseRepository.findCoursesByCursor(
+                courseListRequest(CourseType.LOCAL, CourseSortType.LATEST),
+                new CourseQueryRepository.CourseLocation(null, null),
+                Map.of(),
+                10
+        );
+
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).courseId()).isEqualTo(course.getId());
+        assertThat(rows.get(0).courseType()).isEqualTo(CourseType.LOCAL);
+        assertThat(rows.get(0).authorUserId()).isEqualTo(user.getId());
+    }
+
+    @Test
     void findRecommendedCoursesSortsZeroRecommendOrderAfterPositiveOrders() {
         Region region = persistRegion("Recommended Courses", "37.5665", "126.9780");
         Course second = persistCourse(region, "repository second", 2);
@@ -227,7 +247,14 @@ class CourseQueryRepositoryImplTest {
     }
 
     private CourseReqDTO.CourseListReq courseListRequest(CourseSortType sort) {
-        return courseListRequest(sort, null, null);
+        return courseListRequest(CourseType.OFFICIAL, sort, null, null);
+    }
+
+    private CourseReqDTO.CourseListReq courseListRequest(
+            CourseType courseType,
+            CourseSortType sort
+    ) {
+        return courseListRequest(courseType, sort, null, null);
     }
 
     private CourseReqDTO.CourseListReq courseListRequest(
@@ -235,8 +262,17 @@ class CourseQueryRepositoryImplTest {
             String cursorValue,
             Long cursorId
     ) {
+        return courseListRequest(CourseType.OFFICIAL, sort, cursorValue, cursorId);
+    }
+
+    private CourseReqDTO.CourseListReq courseListRequest(
+            CourseType courseType,
+            CourseSortType sort,
+            String cursorValue,
+            Long cursorId
+    ) {
         return new CourseReqDTO.CourseListReq(
-                CourseType.OFFICIAL,
+                courseType,
                 null,
                 null,
                 null,
@@ -272,6 +308,19 @@ class CourseQueryRepositoryImplTest {
                 .title(title)
                 .courseType(CourseType.OFFICIAL)
                 .recommendOrder(recommendOrder)
+                .durationType(DurationType.DAY_TRIP)
+                .transportType(TransportType.CAR)
+                .companionType(CompanionType.FRIEND)
+                .thumbnailKey("courses/" + title + ".jpg")
+                .build());
+    }
+
+    private Course persistLocalCourse(Region region, User user, String title) {
+        return entityManager.persistFlushFind(Course.builder()
+                .region(region)
+                .user(user)
+                .title(title)
+                .courseType(CourseType.LOCAL)
                 .durationType(DurationType.DAY_TRIP)
                 .transportType(TransportType.CAR)
                 .companionType(CompanionType.FRIEND)
