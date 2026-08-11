@@ -205,6 +205,23 @@ public class S3Service {
         return objectKey;
     }
 
+    public void deleteImage(String objectKey) {
+        if (
+                objectKey == null
+                        || objectKey.isBlank()
+                        || objectKey.startsWith("http://")
+                        || objectKey.startsWith("https://")
+        ) {
+            return;
+        }
+
+        try {
+            deleteObject(normalizeObjectKey(objectKey));
+        } catch (AwsServiceException | SdkClientException e) {
+            log.error("Failed to delete S3 image. objectKey={}", objectKey, e);
+        }
+    }
+
     private String createObjectKey(String fileName) {
         return TEMP_PREFIX
                 + UUID.randomUUID()
