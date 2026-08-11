@@ -167,7 +167,8 @@ public class UserServiceImpl implements UserService{
                                                 like.getCourse().getId(),
                                                 List.of()
                                         ),
-                                        s3Service.getImageUrl(like.getCourse().getThumbnailKey())
+                                        s3Service.getImageUrl(like.getCourse().getThumbnailKey()),
+                                        s3Service.getImageUrl(like.getCourse().getRouteImageKey())
                                 ))
                                 .toList();
 
@@ -501,7 +502,8 @@ public class UserServiceImpl implements UserService{
                 UserConverter.toLikedResponse(
                         like,
                         hashtags,
-                        s3Service.getImageUrl(like.getCourse().getThumbnailKey())
+                        s3Service.getImageUrl(like.getCourse().getThumbnailKey()),
+                        s3Service.getImageUrl(like.getCourse().getRouteImageKey())
                 )
         );
     }
@@ -894,10 +896,12 @@ public class UserServiceImpl implements UserService{
                             hashtagMap.getOrDefault(c.getId(), List.of());
 
                     String thumbnailUrl = s3Service.getImageUrl(c.getThumbnailKey());
+                    String routeImageUrl = s3Service.getImageUrl(c.getRouteImageKey());
 
                     return CourseConverter.toMyCourseResponse(
                             c,
                             thumbnailUrl,
+                            routeImageUrl,
                             hashtags
                     );
                 })
@@ -1000,6 +1004,7 @@ public class UserServiceImpl implements UserService{
                     UserResDTO.MyCourseResponse courseResponse = CourseConverter.toMyCourseResponse(
                             course,
                             s3Service.getImageUrl(course.getThumbnailKey()),
+                            s3Service.getImageUrl(course.getRouteImageKey()),
                             hashtagMap.getOrDefault(course.getId(), List.of())
                     );
                     UserResDTO.MyReviewResponse reviewResponse = CourseConverter.toMyReviewResponse(

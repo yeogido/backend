@@ -80,7 +80,7 @@ public class ReviewConverter {
                 review.getRating(),
                 review.getCreatedAt(),
                 toReviewImages(images, imageUrlResolver),
-                toAuthor(review.getUser())
+                toAuthor(review.getUser(), imageUrlResolver)
         );
     }
 
@@ -101,7 +101,7 @@ public class ReviewConverter {
                 review.getCreatedAt(),
                 isMine(review, currentUserId),
                 toReviewImages(images, imageUrlResolver),
-                toAuthor(review.getUser()),
+                toAuthor(review.getUser(), imageUrlResolver),
                 toCourse(
                         course,
                         likedCourseIds.contains(course.getId()),
@@ -129,12 +129,15 @@ public class ReviewConverter {
                 .toList();
     }
 
-    private static ReviewResDTO.Author toAuthor(User user) {
+    private static ReviewResDTO.Author toAuthor(
+            User user,
+            Function<String, String> imageUrlResolver
+    ) {
         return new ReviewResDTO.Author(
                 user.getNickname(),
                 user.getAgeGroup(),
                 user.getGender(),
-                user.getProfileImage()
+                imageUrlResolver.apply(user.getProfileImage())
         );
     }
 

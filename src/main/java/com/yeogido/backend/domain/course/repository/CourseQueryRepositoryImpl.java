@@ -25,8 +25,6 @@ import org.springframework.util.StringUtils;
 @Repository
 public class CourseQueryRepositoryImpl implements CourseQueryRepository {
 
-    private static final int RECOMMEND_NULL_ORDER = 1_000_000_000;
-
     private final JPAQueryFactory queryFactory;
 
     private final QCourse course = QCourse.course;
@@ -57,7 +55,7 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
                 ? courseReview.id.count()
                 : Expressions.numberTemplate(Long.class, "0");
         NumberExpression<Double> distance = distanceExpression(location);
-        NumberExpression<Integer> recommendOrder = recommendOrderExpression();
+        NumberExpression<Integer> recommendOrderSortGroup = recommendOrderSortGroupExpression();
         NumberExpression<Long> popularityScore = popularityScoreExpression(popularityScores);
 
         JPAQuery<CourseListRow> query = queryFactory
@@ -65,13 +63,14 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
                         CourseListRow.class,
                         course.id,
                         course.thumbnailKey,
+                        course.routeImageKey,
                         course.title,
                         region.name,
                         course.durationType,
                         course.transportType,
                         course.companionType,
                         course.createdAt,
-                        recommendOrder,
+                        course.recommendOrder,
                         savedCount,
                         reviewCount,
                         distance,
@@ -92,6 +91,7 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
             query.groupBy(
                     course.id,
                     course.thumbnailKey,
+                    course.routeImageKey,
                     course.title,
                     region.name,
                     course.durationType,
@@ -110,7 +110,7 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
 
         BooleanExpression cursorHavingCondition = cursorHavingCondition(
                 request,
-                recommendOrder,
+                recommendOrderSortGroup,
                 savedCount,
                 reviewCount,
                 distance,
@@ -222,7 +222,8 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
                     course.id.desc()
             };
             case RECOMMEND -> new OrderSpecifier<?>[] {
-                    recommendOrderExpression().asc(),
+                    recommendOrderSortGroupExpression().asc(),
+                    course.recommendOrder.asc(),
                     course.id.desc()
             };
         };
@@ -230,17 +231,19 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
 
     private BooleanExpression cursorHavingCondition(
             CourseReqDTO.CourseListReq request,
-            NumberExpression<Integer> recommendOrder,
+            NumberExpression<Integer> recommendOrderSortGroup,
             NumberExpression<Long> savedCount,
             NumberExpression<Long> reviewCount,
             NumberExpression<Double> distance,
             NumberExpression<Long> popularityScore
     ) {
-        if (request.cursorValue() == null || request.cursorId() == null) {
+        CourseSortType sort = CourseSortType.resolve(request.sort());
+        if (request.cursorId() == null
+                || (request.cursorValue() == null && sort != CourseSortType.RECOMMEND)) {
             return null;
         }
 
-        return switch (CourseSortType.resolve(request.sort())) {
+        return switch (sort) {
             case DISTANCE -> distanceCursor(distance, request.cursorValue(), request.cursorId());
             case SAVED -> descendingNumberCursor(savedCount, Long.valueOf(request.cursorValue()), request.cursorId());
             case REVIEW -> descendingNumberCursor(reviewCount, Long.valueOf(request.cursorValue()), request.cursorId());
@@ -251,8 +254,8 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
             );
             case LATEST -> latestCursor(request.cursorValue(), request.cursorId());
             case RECOMMEND -> recommendCursor(
-                    recommendOrder,
-                    Integer.valueOf(request.cursorValue()),
+                    recommendOrderSortGroup,
+                    request.cursorValue() == null ? null : Integer.valueOf(request.cursorValue()),
                     request.cursorId()
             );
         };
@@ -292,17 +295,56 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
     }
 
     private BooleanExpression recommendCursor(
-            NumberExpression<Integer> recommendOrder,
+            NumberExpression<Integer> recommendOrderSortGroup,
             Integer cursorValue,
             Long cursorId
     ) {
-        return recommendOrder.gt(cursorValue)
-                .or(recommendOrder.eq(cursorValue)
+        int cursorSortGroup = recommendOrderSortGroup(cursorValue);
+
+        return recommendOrderSortGroup.gt(cursorSortGroup)
+                .or(recommendOrderSortGroup.eq(cursorSortGroup)
+                        .and(recommendCursorWithinSameSortGroup(
+                                cursorSortGroup,
+                                cursorValue,
+                                cursorId
+                        )));
+    }
+
+    private BooleanExpression recommendCursorWithinSameSortGroup(
+            int cursorSortGroup,
+            Integer cursorValue,
+            Long cursorId
+    ) {
+        if (cursorSortGroup == 2) {
+            return course.recommendOrder.isNull()
+                    .and(course.id.lt(cursorId));
+        }
+
+        if (cursorSortGroup == 1) {
+            return course.recommendOrder.eq(0)
+                    .and(course.id.lt(cursorId));
+        }
+
+        return course.recommendOrder.gt(cursorValue)
+                .or(course.recommendOrder.eq(cursorValue)
                         .and(course.id.lt(cursorId)));
     }
 
-    private NumberExpression<Integer> recommendOrderExpression() {
-        return course.recommendOrder.coalesce(RECOMMEND_NULL_ORDER);
+    private int recommendOrderSortGroup(Integer recommendOrder) {
+        if (recommendOrder == null) {
+            return 2;
+        }
+
+        return recommendOrder == 0 ? 1 : 0;
+    }
+
+    private NumberExpression<Integer> recommendOrderSortGroupExpression() {
+        return new CaseBuilder()
+                .when(course.recommendOrder.isNull())
+                .then(2)
+                .when(course.recommendOrder.eq(0))
+                .then(1)
+                .otherwise(0);
     }
 
     private NumberExpression<Long> popularityScoreExpression(Map<Long, Long> popularityScores) {

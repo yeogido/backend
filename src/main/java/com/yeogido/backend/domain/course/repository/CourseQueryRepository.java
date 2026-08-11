@@ -29,6 +29,7 @@ public interface CourseQueryRepository {
     record CourseListRow(
             Long courseId,
             String thumbnailKey,
+            String routeImageKey,
             String title,
             String region,
             DurationType durationType,
