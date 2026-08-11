@@ -57,34 +57,12 @@ public interface CourseRepository extends JpaRepository<Course, Long>, CourseQue
             select
                 c.id as courseId,
                 c.courseType as courseType,
-                c.region.id as regionId,
-                c.region.parent.id as parentRegionId,
                 c.createdAt as createdAt
             from Course c
             where c.id in :courseIds
               and c.deletedAt is null
             """)
     List<CourseRankingProjection> findRankingTargetsByCourseIds(
-            @Param("courseIds") Collection<Long> courseIds
-    );
-
-    @Query("""
-            select
-                c.id as courseId,
-                c.courseType as courseType,
-                c.user.id as userId,
-                c.thumbnailKey as thumbnailKey,
-                c.routeImageKey as routeImageKey,
-                c.title as title,
-                c.region.name as region,
-                c.durationType as durationType,
-                c.transportType as transportType,
-                c.companionType as companionType
-            from Course c
-            where c.id in :courseIds
-              and c.deletedAt is null
-            """)
-    List<CoursePopularProjection> findPopularCoursesByCourseIds(
             @Param("courseIds") Collection<Long> courseIds
     );
 
@@ -149,31 +127,6 @@ public interface CourseRepository extends JpaRepository<Course, Long>, CourseQue
     @Query("""
             select c.id
             from Course c
-            where c.courseType = com.yeogido.backend.domain.course.enums.CourseType.OFFICIAL
-              and c.deletedAt is null
-            order by c.createdAt desc
-            """)
-    List<Long> findLatestOfficialCourseIds(Pageable pageable);
-
-    @Query("""
-            select c.id
-            from Course c
-            where c.courseType = com.yeogido.backend.domain.course.enums.CourseType.OFFICIAL
-              and (
-                  c.region.id = :regionId
-                  or c.region.parent.id = :regionId
-              )
-              and c.deletedAt is null
-            order by c.createdAt desc
-            """)
-    List<Long> findLatestOfficialRegionCourseIds(
-            @Param("regionId") Long regionId,
-            Pageable pageable
-    );
-
-    @Query("""
-            select c.id
-            from Course c
             where c.courseType = com.yeogido.backend.domain.course.enums.CourseType.LOCAL
               and c.deletedAt is null
             order by c.createdAt desc
@@ -190,22 +143,6 @@ public interface CourseRepository extends JpaRepository<Course, Long>, CourseQue
             """)
     List<Long> findLatestLocalCourseIdsExcluding(
             @Param("excludedCourseIds") Collection<Long> excludedCourseIds,
-            Pageable pageable
-    );
-
-    @Query("""
-            select c.id
-            from Course c
-            where c.courseType = com.yeogido.backend.domain.course.enums.CourseType.LOCAL
-              and (
-                  c.region.id = :regionId
-                  or c.region.parent.id = :regionId
-              )
-              and c.deletedAt is null
-            order by c.createdAt desc
-            """)
-    List<Long> findLatestLocalRegionCourseIds(
-            @Param("regionId") Long regionId,
             Pageable pageable
     );
 
@@ -230,34 +167,7 @@ public interface CourseRepository extends JpaRepository<Course, Long>, CourseQue
 
         CourseType getCourseType();
 
-        Long getRegionId();
-
-        Long getParentRegionId();
-
         LocalDateTime getCreatedAt();
-    }
-
-    interface CoursePopularProjection {
-
-        Long getCourseId();
-
-        CourseType getCourseType();
-
-        Long getUserId();
-
-        String getThumbnailKey();
-
-        String getRouteImageKey();
-
-        String getTitle();
-
-        String getRegion();
-
-        DurationType getDurationType();
-
-        TransportType getTransportType();
-
-        CompanionType getCompanionType();
     }
 
     interface CourseLocalPopularProjection {

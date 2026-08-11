@@ -74,7 +74,6 @@ import java.util.stream.Collectors;
 public class CourseServiceImpl implements CourseService {
 
     private static final Long MOCK_MEMBER_ID = 1L;
-    private static final int POPULAR_COURSE_SIZE = 2;
     private static final int POPULAR_LOCAL_COURSE_SIZE = 4;
     private static final int DEFAULT_COURSE_REVIEW_PAGE_SIZE = 10;
     private static final int RECOMMENDED_COURSE_SIZE = 5;
@@ -218,52 +217,6 @@ public class CourseServiceImpl implements CourseService {
                 lastRow == null ? null : lastRow.courseId(),
                 hasNext
         );
-    }
-
-    @Override
-    public List<CourseResDTO.CoursePreview> getPopularCourses(
-            CourseReqDTO.CoursePopularReq request,
-            Long userId
-    ) {
-        List<Long> courseIds = getPopularCourseIds(request);
-
-        if (courseIds.isEmpty()) {
-            courseIds = getLatestCourseIds(
-                    request.courseType(),
-                    request.regionId()
-            );
-        }
-
-        if (courseIds.isEmpty()) {
-            return List.of();
-        }
-
-        Map<Long, CourseRepository.CoursePopularProjection> courseMap =
-                courseRepository.findPopularCoursesByCourseIds(courseIds)
-                        .stream()
-                        .collect(Collectors.toMap(
-                                CourseRepository.CoursePopularProjection::getCourseId,
-                                Function.identity()
-                        ));
-
-        Map<Long, List<String>> tagMap = getPopularCourseTagMap(courseIds);
-        Set<Long> likedCourseIds = getLikedCourseIds(userId, courseIds);
-        User currentUser = userId == null
-                ? null
-                : getCurrentUser(userId);
-
-        return courseIds.stream()
-                .map(courseMap::get)
-                .filter(Objects::nonNull)
-                .map(course -> CourseConverter.toPopularCoursePreview(
-                        course,
-                        s3Service.getImageUrl(course.getThumbnailKey()),
-                        s3Service.getImageUrl(course.getRouteImageKey()),
-                        tagMap.getOrDefault(course.getCourseId(), List.of()),
-                        likedCourseIds.contains(course.getCourseId()),
-                        canManageCourse(course, currentUser)
-                ))
-                .toList();
     }
 
     @Override
@@ -856,10 +809,6 @@ public class CourseServiceImpl implements CourseService {
         return canManageCourse(row.courseType(), row.authorUserId(), user);
     }
 
-    private boolean canManageCourse(CourseRepository.CoursePopularProjection course, User user) {
-        return canManageCourse(course.getCourseType(), course.getUserId(), user);
-    }
-
     private boolean canManageCourse(
             CourseType courseType,
             Long courseUserId,
@@ -1163,37 +1112,6 @@ public class CourseServiceImpl implements CourseService {
         return contentMap;
     }
 
-    private List<Long> getPopularCourseIds(CourseReqDTO.CoursePopularReq request) {
-        return switch (request.courseType()) {
-            case OFFICIAL -> {
-                validatePopularCourseRegionExists(request.regionId());
-
-                yield request.regionId() == null
-                        ? coursePopularityRankingRedisRepository.findTopOfficialCourseIds(POPULAR_COURSE_SIZE)
-                        : coursePopularityRankingRedisRepository.findTopOfficialRegionCourseIds(
-                                request.regionId(),
-                                POPULAR_COURSE_SIZE
-                        );
-            }
-            case LOCAL -> {
-                validatePopularCourseRegionExists(request.regionId());
-
-                yield request.regionId() == null
-                        ? coursePopularityRankingRedisRepository.findTopLocalCourseIds(POPULAR_COURSE_SIZE)
-                        : coursePopularityRankingRedisRepository.findTopLocalRegionCourseIds(
-                                request.regionId(),
-                                POPULAR_COURSE_SIZE
-                        );
-            }
-        };
-    }
-
-    private void validatePopularCourseRegionExists(Long regionId) {
-        if (regionId != null && !regionRepository.existsById(regionId)) {
-            throw new GeneralException(RegionErrorCode.REGION_NOT_FOUND);
-        }
-    }
-
     private Map<Long, List<String>> getPopularCourseTagMap(List<Long> courseIds) {
         if (courseIds.isEmpty()) {
             return Map.of();
@@ -1290,25 +1208,6 @@ public class CourseServiceImpl implements CourseService {
 
         Content content = courseItem.getContent();
         return content != null && likedContentIds.contains(content.getId());
-    }
-
-    private List<Long> getLatestCourseIds(
-            CourseType courseType,
-            Long regionId
-    ) {
-        Pageable pageable = PageRequest.of(0, 2);
-
-        if (courseType == CourseType.LOCAL) {
-            return regionId == null
-                    ? courseRepository.findLatestLocalCourseIds(pageable)
-                    : courseRepository.findLatestLocalRegionCourseIds(regionId, pageable);
-        }
-
-        if (regionId == null) {
-            return courseRepository.findLatestOfficialCourseIds(pageable);
-        }
-
-        return courseRepository.findLatestOfficialRegionCourseIds(regionId, pageable);
     }
 
     private void validateCourseListRequest(CourseReqDTO.CourseListReq request) {
