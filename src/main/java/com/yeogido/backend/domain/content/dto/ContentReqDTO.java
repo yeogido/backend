@@ -1,11 +1,14 @@
 package com.yeogido.backend.domain.content.dto;
 
 import com.yeogido.backend.domain.content.enums.ContentCategory;
+import com.yeogido.backend.domain.content.enums.ContentLinkType;
 import com.yeogido.backend.domain.content.enums.ContentListStatus;
 import com.yeogido.backend.domain.content.enums.ContentSort;
 import com.yeogido.backend.domain.place.enums.PlaceSource;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 
 import java.math.BigDecimal;
@@ -81,8 +84,9 @@ public class ContentReqDTO {
             @Schema(description = "문의 연락처")
             String contactPhone,
 
-            @Schema(description = "공식 홈페이지")
-            String officialUrl,
+            @Valid
+            @Schema(description = "공식 홈페이지와 SNS 등 외부 링크")
+            List<ExternalLinkReq> officialLinks,
 
             @Schema(description = "대표 사진 Key")
             String thumbnailImageKey,
@@ -117,8 +121,9 @@ public class ContentReqDTO {
             @Schema(description = "문의 연락처. 생략하면 기존 값을 유지합니다.")
             String contactPhone,
 
-            @Schema(description = "공식 홈페이지. 생략하면 기존 값을 유지합니다.")
-            String officialUrl,
+            @Valid
+            @Schema(description = "교체할 외부 링크 목록. 생략하면 기존 목록을 유지합니다.")
+            List<ExternalLinkReq> officialLinks,
 
             @Schema(description = "새 대표 사진 Key. 생략하면 기존 이미지를 유지합니다.")
             String thumbnailImageKey,
@@ -127,6 +132,19 @@ public class ContentReqDTO {
             List<Long> hashtagIds
 
     ){}
+
+    public record ExternalLinkReq(
+            @Schema(description = "링크 유형", example = "INSTAGRAM")
+            @NotNull
+            ContentLinkType type,
+
+            @Schema(description = "화면 표시명", example = "공식 인스타그램")
+            String label,
+
+            @Schema(description = "링크 URL")
+            @NotBlank
+            String url
+    ) {}
 
     public record PlaceReq(
 

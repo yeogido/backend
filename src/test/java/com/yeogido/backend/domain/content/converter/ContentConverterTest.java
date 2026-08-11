@@ -52,6 +52,7 @@ class ContentConverterTest {
                 List.of(10L),
                 false,
                 null,
+                List.of(),
                 List.of()
         );
 

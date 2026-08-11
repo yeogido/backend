@@ -57,4 +57,20 @@ public class Place extends BaseEntity {
     @Column(nullable = false, precision = 10, scale = 7)
     private BigDecimal longitude;
 
+    public void updateTourData(
+            Region region,
+            String name,
+            String roadAddress,
+            String lotAddress,
+            BigDecimal latitude,
+            BigDecimal longitude
+    ) {
+        this.region = region;
+        this.name = name;
+        this.roadAddress = roadAddress;
+        this.lotAddress = lotAddress;
+        this.latitude = latitude;
+        this.longitude = longitude;
+    }
+
 }

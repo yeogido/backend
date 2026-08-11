@@ -101,7 +101,6 @@ public class  ContentConverter {
                 .startDate(request.startDate())
                 .endDate(request.endDate())
                 .contactPhone(request.contactPhone())
-                .officialUrl(request.officialUrl())
                 .category(request.category())
                 .build();
     }
@@ -144,7 +143,8 @@ public class  ContentConverter {
             List<Long> hashtagIds,
             boolean liked,
             ContentResDTO.PlaceInfo placeInfo,
-            List<ContentResDTO.CourseInfo> courses
+            List<ContentResDTO.CourseInfo> courses,
+            List<ContentResDTO.OfficialLink> officialLinks
     ) {
         return new ContentResDTO.ContentDetailRes(
                 content.getId(),
@@ -158,7 +158,7 @@ public class  ContentConverter {
                 content.getEndDate(),
                 liked,
                 content.getContactPhone(),
-                content.getOfficialUrl(),
+                officialLinks,
                 placeInfo,
                 courses
         );

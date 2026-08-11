@@ -76,6 +76,18 @@ app:
     base-url: https://api.odcloud.kr/api/nts-businessman/v1
     service-key: ${NTS_SERVICE_KEY:}
 
+  tour-api:
+    base-url: https://apis.data.go.kr/B551011/KorService2
+    service-key: ${TOUR_API_SERVICE_KEY:}
+    mobile-os: ETC
+    mobile-app: Yeogido
+    sync-enabled: ${TOUR_API_SYNC_ENABLED:true}
+    sync-cron: ${TOUR_API_SYNC_CRON:0 0 4 * * *}
+    sync-months: ${TOUR_API_SYNC_MONTHS:12}
+    sync-page-size: ${TOUR_API_SYNC_PAGE_SIZE:100}
+    sync-max-pages: ${TOUR_API_SYNC_MAX_PAGES:50}
+    sync-max-detail-calls: ${TOUR_API_SYNC_MAX_DETAIL_CALLS:800}
+
 server:
   forward-headers-strategy: framework
 

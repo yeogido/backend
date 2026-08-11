@@ -39,6 +39,7 @@ public class S3Service {
     private static final Duration PRESIGNED_URL_DURATION = Duration.ofMinutes(10);
     private static final Duration EXTERNAL_IMAGE_CONNECT_TIMEOUT = Duration.ofSeconds(3);
     private static final Duration EXTERNAL_IMAGE_REQUEST_TIMEOUT = Duration.ofSeconds(5);
+    private static final int MAX_EXTERNAL_IMAGE_BYTES = 10 * 1024 * 1024;
 
     private static final String TEMP_DIRECTORY = "temp";
     private static final String TEMP_PREFIX = TEMP_DIRECTORY + "/";
@@ -87,6 +88,13 @@ public class S3Service {
             return null;
         }
 
+        if (
+                objectKey.startsWith("https://")
+                        || objectKey.startsWith("http://")
+        ) {
+            return objectKey;
+        }
+
         return normalizeCloudFrontDomain()
                 + "/"
                 + normalizeObjectKey(objectKey);
@@ -112,6 +120,14 @@ public class S3Service {
             String contentType = response.headers()
                     .firstValue("Content-Type")
                     .orElse("image/jpeg");
+
+            if (
+                    !contentType.toLowerCase(Locale.ROOT).startsWith("image/")
+                            || response.body().length == 0
+                            || response.body().length > MAX_EXTERNAL_IMAGE_BYTES
+            ) {
+                return null;
+            }
 
             String objectKey = createObjectKey(
                     directory,
