@@ -12,39 +12,10 @@ import java.util.List;
 
 public class ReviewResDTO {
 
-    @Schema(name = "RecentReviewsResponse", description = "최근 후기 조회 응답")
-    public record RecentReviewsResponse(
-            @Schema(description = "최근 후기 목록")
-            List<RecentReview> reviews
-    ) {
-    }
-
     @Schema(name = "ReviewUpdateResponse", description = "추천 코스 리뷰 수정 응답")
     public record UpdateResponse(
             @Schema(description = "수정된 리뷰 ID", example = "1")
             Long reviewId
-    ) {
-    }
-
-    @Schema(name = "RecentReview", description = "최근 후기 정보")
-    public record RecentReview(
-            @Schema(description = "리뷰 ID", example = "101")
-            Long reviewId,
-
-            @Schema(description = "리뷰 내용", example = "지도 동선이 너무 편했어요.")
-            String content,
-
-            @Schema(description = "별점", example = "5")
-            Integer rating,
-
-            @Schema(description = "생성 일시", example = "2026-07-05T15:30:00")
-            LocalDateTime createdAt,
-
-            @Schema(description = "리뷰 이미지 목록")
-            List<ReviewImage> images,
-
-            @Schema(description = "작성자 정보")
-            Author author
     ) {
     }
 
