@@ -25,6 +25,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
@@ -135,7 +136,105 @@ class CourseQueryRepositoryImplTest {
                 .containsOnly(0L);
     }
 
+    @Test
+    void findCoursesByCursorSortsZeroRecommendOrderAfterPositiveOrdersAndBeforeNull() {
+        Region region = persistRegion("Recommend", "37.5665", "126.9780");
+        Course second = persistCourse(region, "recommend second", 2);
+        Course high = persistCourse(region, "recommend high", 1_000_000_000);
+        Course zero = persistCourse(region, "recommend zero", 0);
+        Course unspecified = persistCourse(region, "recommend unspecified", null);
+        Course first = persistCourse(region, "recommend first", 1);
+        flushAndClear();
+
+        List<CourseQueryRepository.CourseListRow> rows = courseRepository.findCoursesByCursor(
+                courseListRequest(CourseSortType.RECOMMEND),
+                new CourseQueryRepository.CourseLocation(null, null),
+                Map.of(),
+                10
+        );
+
+        assertThat(rows)
+                .extracting(CourseQueryRepository.CourseListRow::courseId)
+                .containsExactly(
+                        first.getId(),
+                        second.getId(),
+                        high.getId(),
+                        zero.getId(),
+                        unspecified.getId()
+                );
+    }
+
+    @Test
+    void findCoursesByCursorKeepsRecommendCursorOrderForZeroAndNullOrders() {
+        Region region = persistRegion("Recommend Cursor", "37.5665", "126.9780");
+        Course second = persistCourse(region, "cursor second", 2);
+        Course high = persistCourse(region, "cursor high", 1_000_000_000);
+        Course zero = persistCourse(region, "cursor zero", 0);
+        Course unspecified = persistCourse(region, "cursor unspecified", null);
+        persistCourse(region, "cursor first", 1);
+        flushAndClear();
+
+        List<CourseQueryRepository.CourseListRow> rows = courseRepository.findCoursesByCursor(
+                courseListRequest(CourseSortType.RECOMMEND, "2", second.getId()),
+                new CourseQueryRepository.CourseLocation(null, null),
+                Map.of(),
+                10
+        );
+
+        assertThat(rows)
+                .extracting(CourseQueryRepository.CourseListRow::courseId)
+                .containsExactly(high.getId(), zero.getId(), unspecified.getId());
+    }
+
+    @Test
+    void findCoursesByCursorKeepsRecommendCursorOrderWithinNullOrders() {
+        Region region = persistRegion("Recommend Null Cursor", "37.5665", "126.9780");
+        persistCourse(region, "null cursor first", 1);
+        Course olderNull = persistCourse(region, "null cursor older", null);
+        Course newerNull = persistCourse(region, "null cursor newer", null);
+        flushAndClear();
+
+        List<CourseQueryRepository.CourseListRow> rows = courseRepository.findCoursesByCursor(
+                courseListRequest(CourseSortType.RECOMMEND, null, newerNull.getId()),
+                new CourseQueryRepository.CourseLocation(null, null),
+                Map.of(),
+                10
+        );
+
+        assertThat(rows)
+                .extracting(CourseQueryRepository.CourseListRow::courseId)
+                .containsExactly(olderNull.getId());
+    }
+
+    @Test
+    void findRecommendedCoursesSortsZeroRecommendOrderAfterPositiveOrders() {
+        Region region = persistRegion("Recommended Courses", "37.5665", "126.9780");
+        Course second = persistCourse(region, "repository second", 2);
+        Course high = persistCourse(region, "repository high", 1_000_000_000);
+        Course zero = persistCourse(region, "repository zero", 0);
+        Course unspecified = persistCourse(region, "repository unspecified", null);
+        Course first = persistCourse(region, "repository first", 1);
+        flushAndClear();
+
+        List<CourseRepository.CourseRecommendedProjection> rows = courseRepository.findRecommendedCourses(
+                PageRequest.of(0, 10)
+        );
+
+        assertThat(rows)
+                .extracting(CourseRepository.CourseRecommendedProjection::getCourseId)
+                .containsExactly(first.getId(), second.getId(), high.getId(), zero.getId())
+                .doesNotContain(unspecified.getId());
+    }
+
     private CourseReqDTO.CourseListReq courseListRequest(CourseSortType sort) {
+        return courseListRequest(sort, null, null);
+    }
+
+    private CourseReqDTO.CourseListReq courseListRequest(
+            CourseSortType sort,
+            String cursorValue,
+            Long cursorId
+    ) {
         return new CourseReqDTO.CourseListReq(
                 CourseType.OFFICIAL,
                 null,
@@ -146,8 +245,8 @@ class CourseQueryRepositoryImplTest {
                 sort,
                 null,
                 null,
-                null,
-                null,
+                cursorValue,
+                cursorId,
                 20
         );
     }
@@ -163,10 +262,15 @@ class CourseQueryRepositoryImplTest {
     }
 
     private Course persistCourse(Region region, String title) {
+        return persistCourse(region, title, null);
+    }
+
+    private Course persistCourse(Region region, String title, Integer recommendOrder) {
         return entityManager.persistFlushFind(Course.builder()
                 .region(region)
                 .title(title)
                 .courseType(CourseType.OFFICIAL)
+                .recommendOrder(recommendOrder)
                 .durationType(DurationType.DAY_TRIP)
                 .transportType(TransportType.CAR)
                 .companionType(CompanionType.FRIEND)
