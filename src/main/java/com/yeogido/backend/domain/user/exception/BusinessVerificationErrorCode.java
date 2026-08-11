@@ -9,12 +9,6 @@ import org.springframework.http.HttpStatus;
 @RequiredArgsConstructor
 public enum BusinessVerificationErrorCode implements ErrorCode {
 
-    INVALID_BUSINESS_NUMBER(
-            HttpStatus.BAD_REQUEST,
-            "BUSINESS_VERIFY4001",
-            "사업자 등록번호 형식이 올바르지 않습니다"
-    ),
-
     BUSINESS_VERIFICATION_FAILED(
             HttpStatus.BAD_REQUEST,
             "BUSINESS_VERIFY4002",
