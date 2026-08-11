@@ -36,7 +36,7 @@ public class Content extends BaseEntity {
     @Column(nullable = false, length = 100)
     private String title;
 
-    @Column(length = 500)
+    @Column(columnDefinition = "TEXT")
     private String description;
 
     @Column(name = "thumbnail_image", length = 500)
@@ -51,6 +51,9 @@ public class Content extends BaseEntity {
 
     @Column(name = "official_url", length = 500)
     private String officialUrl;
+
+    @Column(name = "external_details_synced_at")
+    private java.time.LocalDateTime externalDetailsSyncedAt;
 
     @Enumerated(EnumType.STRING)
     private ContentCategory category;
@@ -123,5 +126,15 @@ public class Content extends BaseEntity {
 
     public void updateRecommendPriority(Integer recommendPriority) {
         this.recommendPriority = recommendPriority;
+    }
+
+    public void updateExternalDetails(
+            String description,
+            String officialUrl,
+            java.time.LocalDateTime synchronizedAt
+    ) {
+        this.description = description;
+        this.officialUrl = officialUrl;
+        this.externalDetailsSyncedAt = synchronizedAt;
     }
 }

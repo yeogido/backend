@@ -744,6 +744,16 @@ public class ContentServiceImpl implements ContentService{
 
         validateAdmin(userId);
 
+        if (
+                request.place().source() == PlaceSource.TOUR_API
+                        && contentRepository.existsBySourceAndExternalContentId(
+                        ContentSource.TOUR_API,
+                        request.place().externalPlaceId()
+                )
+        ) {
+            throw new GeneralException(ContentErrorCode.TOUR_CONTENT_DUPLICATED);
+        }
+
         Place place = placeService.getOrCreatePlace(request.place());
         ContentReqDTO.ContentCreateReq movedRequest = moveContentImage(request);
 
