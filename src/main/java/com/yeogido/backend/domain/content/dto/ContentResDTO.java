@@ -1,5 +1,6 @@
 package com.yeogido.backend.domain.content.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.yeogido.backend.domain.content.enums.ContentCategory;
 import com.yeogido.backend.domain.course.enums.CompanionType;
 import com.yeogido.backend.domain.course.enums.DurationType;
@@ -53,10 +54,12 @@ public class ContentResDTO {
             @Schema(description = "현재 사용자의 좋아요 여부", example = "false")
             Boolean isLiked,
 
-            @Schema(description = "시작일")
+            @JsonFormat(pattern = "yyyy.MM")
+            @Schema(description = "시작일", example = "2026.07")
             LocalDate startDate,
 
-            @Schema(description = "종료일")
+            @JsonFormat(pattern = "yyyy.MM")
+            @Schema(description = "종료일", example = "2026.07")
             LocalDate endDate
     ) {}
 
@@ -85,10 +88,12 @@ public class ContentResDTO {
             @Schema(description = "해시태그 ID 목록")
             List<Long> hashtagIds,
 
-            @Schema(description = "시작일")
+            @JsonFormat(pattern = "yyyy.MM.dd")
+            @Schema(description = "시작일", example = "2026.07.04")
             LocalDate startDate,
 
-            @Schema(description = "종료일")
+            @JsonFormat(pattern = "yyyy.MM.dd")
+            @Schema(description = "종료일", example = "2026.07.05")
             LocalDate endDate,
 
             @Schema(description = "좋아요 여부")
