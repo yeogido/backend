@@ -14,7 +14,6 @@ import com.yeogido.backend.domain.content.dto.ContentResDTO;
 import com.yeogido.backend.domain.content.entity.Content;
 import com.yeogido.backend.domain.content.entity.ContentLike;
 import com.yeogido.backend.domain.content.entity.ContentHashtag;
-import com.yeogido.backend.domain.content.entity.ContentExternalLink;
 import com.yeogido.backend.domain.content.entity.QContent;
 import com.yeogido.backend.domain.content.entity.QContentLike;
 import com.yeogido.backend.domain.content.enums.ContentCategory;
@@ -36,7 +35,6 @@ import com.yeogido.backend.domain.hashtag.entity.Hashtag;
 import com.yeogido.backend.domain.hashtag.exception.HashtagErrorCode;
 import com.yeogido.backend.domain.hashtag.repository.HashtagRepository;
 import com.yeogido.backend.domain.place.entity.Place;
-import com.yeogido.backend.domain.place.entity.QPlace;
 import com.yeogido.backend.domain.place.enums.PlaceSource;
 import com.yeogido.backend.domain.place.service.PlaceService;
 import com.yeogido.backend.domain.content.repository.ContentLikeRepository;
@@ -51,12 +49,11 @@ import com.yeogido.backend.domain.user.entity.User;
 import com.yeogido.backend.domain.user.enums.UserRole;
 import com.yeogido.backend.domain.user.exception.UserErrorCode;
 import com.yeogido.backend.domain.user.repository.UserRepository;
+import com.yeogido.backend.domain.user.service.AdminAuthorizationService;
 
 import com.yeogido.backend.global.common.response.CursorResponse;
-import com.yeogido.backend.global.exception.ErrorCode;
 import com.yeogido.backend.global.exception.GeneralErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
-import jdk.jshell.spi.ExecutionControl;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -64,9 +61,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import java.net.ContentHandler;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -79,7 +74,6 @@ public class ContentServiceImpl implements ContentService{
     private final JPAQueryFactory queryFactory;
     private static final int DEFAULT_PAGE_SIZE = 6;
     private final QContent qContent = QContent.content;
-    private final QPlace qPlace = QPlace.place;
     private final QContentLike qContentLike = QContentLike.contentLike;
     private final NumberExpression<Long> likeCountExpression = qContentLike.id.count();
     private final ContentRepository contentRepository;
@@ -87,7 +81,6 @@ public class ContentServiceImpl implements ContentService{
     private final ContentHashtagRepository contentHashtagRepository;
     private final ContentExternalLinkRepository contentExternalLinkRepository;
     private final HashtagRepository hashtagRepository;
-
     private final ContentLikeRepository contentLikeRepository;
     private final CourseItemRepository courseItemRepository;
     private final CourseLikeRepository courseLikeRepository;
@@ -96,6 +89,8 @@ public class ContentServiceImpl implements ContentService{
 
     private final FileService fileService;
     private final S3Service s3Service;
+    private final AdminAuthorizationService adminAuthorizationService;
+    private final ContentExternalLinkService contentExternalLinkService;
 
 
     @Override
@@ -110,7 +105,7 @@ public class ContentServiceImpl implements ContentService{
             if (userId == null) {
                 throw new GeneralException(GeneralErrorCode.FORBIDDEN);
             }
-            validateAdmin(userId);
+            adminAuthorizationService.validateAdmin(userId);
         }
 
         builder.and(qContent.publicationStatus.eq(publicationStatus));
@@ -137,8 +132,6 @@ public class ContentServiceImpl implements ContentService{
         Long nextCursorId = null;
 
         Integer cursorRecommendPriority = null;
-        LocalDateTime nextCursorCreatedAt = null;
-
         if (request.regionId() != null
                 && request.sort() != ContentSort.DISTANCE) {
             Region region = regionRepository.findById(request.regionId())
@@ -203,38 +196,13 @@ public class ContentServiceImpl implements ContentService{
                         .map(tuple -> tuple.get(qContent))
                         .toList();
 
-                Set<Long> likedContentIds = getLikedContentIds(userId, contents);
+                Map<Long, Long> likeCountMap = tuples.stream()
+                        .collect(Collectors.toMap(
+                                tuple -> Objects.requireNonNull(tuple.get(qContent)).getId(),
+                                tuple -> Objects.requireNonNull(tuple.get(likeCountExpression))
+                        ));
 
-                List<ContentHashtag> contentHashtags =
-                        contentHashtagRepository.findAllByContentIn(contents);
-
-                Map<Long, List<String>> hashtagMap =
-                        contentHashtags.stream()
-                                .collect(Collectors.groupingBy(
-                                        ch -> ch.getContent().getId(),
-                                        Collectors.mapping(
-                                                ch -> ch.getHashtag().getHashtagName(),
-                                                Collectors.toList()
-                                        )
-                                ));
-
-                result = tuples.stream()
-                        .map(tuple -> {
-                            Content content = tuple.get(qContent);
-
-                            String imageUrl =
-                                    s3Service.getImageUrl(content.getThumbnailImage());
-
-                            return ContentConverter.toContentInfo(
-                                    tuple,
-                                    qContent,
-                                    likeCountExpression,
-                                    hashtagMap,
-                                    imageUrl,
-                                    likedContentIds
-                            );
-                        })
-                        .toList();
+                result = createContentInfos(contents, userId, likeCountMap);
             }
 
             case DEADLINE -> {
@@ -329,12 +297,8 @@ public class ContentServiceImpl implements ContentService{
                     Content last = contents.get(contents.size() - 1);
 
                     nextCursorValue = last.getRecommendPriority();
-                    nextCursorCreatedAt = last.getCreatedAt();
                     nextCursorId = last.getId();
                 }
-
-                List<ContentHashtag> contentHashtags =
-                        contentHashtagRepository.findAllByContentIn(contents);
 
                 result = createContentInfos(contents, userId);
             }
@@ -444,9 +408,6 @@ public class ContentServiceImpl implements ContentService{
             Long cursorId,
             List<Content> contents
     ) {
-
-        NumberExpression<Double> avgLatitude = qPlace.latitude.avg();
-        NumberExpression<Double> avgLongitude = qPlace.longitude.avg();
 
         double baseLatitude;
         double baseLongitude;
@@ -626,8 +587,14 @@ public class ContentServiceImpl implements ContentService{
     }
 
     private List<ContentResDTO.ContentInfo> createContentInfos(List<Content> contents, Long userId) {
+        return createContentInfos(contents, userId, getLikeCountMap(contents));
+    }
 
-        Map<Long, Long> likeCountMap = getLikeCountMap(contents);
+    private List<ContentResDTO.ContentInfo> createContentInfos(
+            List<Content> contents,
+            Long userId,
+            Map<Long, Long> likeCountMap
+    ) {
         Set<Long> likedContentIds = getLikedContentIds(userId, contents);
 
         List<ContentHashtag> contentHashtags =
@@ -708,7 +675,7 @@ public class ContentServiceImpl implements ContentService{
 
         boolean liked = false;
         if(currentUser!=null){
-            liked = contentLikeRepository.existsByContentAndUser(content,currentUser);
+            liked = contentLikeRepository.existsByUserAndContent(currentUser, content);
         }
 
         List<CourseItem> courseItems =
@@ -779,7 +746,7 @@ public class ContentServiceImpl implements ContentService{
     @Transactional
     public ContentResDTO.ContentCreateRes createContent(ContentReqDTO.ContentCreateReq request, Long userId) {
 
-        validateAdmin(userId);
+        adminAuthorizationService.validateAdmin(userId);
         validateDateRange(request.startDate(), request.endDate());
 
         if (
@@ -799,7 +766,7 @@ public class ContentServiceImpl implements ContentService{
 
         Content savedContent = contentRepository.save(content);
 
-        saveContentHashtags(savedContent, movedRequest.hashtagIds());
+        replaceContentHashtags(savedContent, movedRequest.hashtagIds());
         replaceAdminExternalLinks(savedContent, movedRequest.officialLinks());
 
         return new ContentResDTO.ContentCreateRes(
@@ -811,7 +778,7 @@ public class ContentServiceImpl implements ContentService{
     @Override
     public ContentResDTO.ContentUpdateRes updateContent(Long contentId, ContentReqDTO.ContentUpdateReq request, Long userId){
 
-        validateAdmin(userId);
+        adminAuthorizationService.validateAdmin(userId);
 
         Content content = getContentOrThrow(contentId);
         String previousThumbnailImage = content.getThumbnailImage();
@@ -849,8 +816,7 @@ public class ContentServiceImpl implements ContentService{
         );
 
         if (movedRequest.hashtagIds() != null) {
-            contentHashtagRepository.deleteByContentId(contentId);
-            saveContentHashtags(content, movedRequest.hashtagIds());
+            replaceContentHashtags(content, movedRequest.hashtagIds());
         }
 
         if (movedRequest.officialLinks() != null) {
@@ -877,7 +843,7 @@ public class ContentServiceImpl implements ContentService{
             ContentReqDTO.ContentPublishReq request,
             Long userId
     ) {
-        validateAdmin(userId);
+        adminAuthorizationService.validateAdmin(userId);
 
         Content content = contentRepository.findById(contentId)
                 .filter(found -> found.getSource() == ContentSource.TOUR_API)
@@ -901,8 +867,7 @@ public class ContentServiceImpl implements ContentService{
         );
 
         if (request.hashtagIds() != null) {
-            contentHashtagRepository.deleteByContentId(contentId);
-            saveContentHashtags(content, request.hashtagIds());
+            replaceContentHashtags(content, request.hashtagIds());
         }
 
         if (request.recommendPriority() != null) {
@@ -914,11 +879,7 @@ public class ContentServiceImpl implements ContentService{
     }
 
     private ContentReqDTO.ContentCreateReq moveContentImage(ContentReqDTO.ContentCreateReq request) {
-        String thumbnailImageKey = request.thumbnailImageKey();
-
-        if (StringUtils.hasText(thumbnailImageKey)) {
-            thumbnailImageKey = fileService.moveToDirectory(thumbnailImageKey, ImageDirectory.CONTENT);
-        }
+        String thumbnailImageKey = moveContentImageKey(request.thumbnailImageKey());
 
         return new ContentReqDTO.ContentCreateReq(
                 request.place(),
@@ -935,11 +896,7 @@ public class ContentServiceImpl implements ContentService{
     }
 
     private ContentReqDTO.ContentUpdateReq moveContentImage(ContentReqDTO.ContentUpdateReq request) {
-        String thumbnailImageKey = request.thumbnailImageKey();
-
-        if (StringUtils.hasText(thumbnailImageKey)) {
-            thumbnailImageKey = fileService.moveToDirectory(thumbnailImageKey, ImageDirectory.CONTENT);
-        }
+        String thumbnailImageKey = moveContentImageKey(request.thumbnailImageKey());
 
         return new ContentReqDTO.ContentUpdateReq(
                 request.place(),
@@ -955,12 +912,20 @@ public class ContentServiceImpl implements ContentService{
         );
     }
 
+    private String moveContentImageKey(String imageKey) {
+        if (!StringUtils.hasText(imageKey)) {
+            return imageKey;
+        }
+
+        return fileService.moveToDirectory(imageKey, ImageDirectory.CONTENT);
+    }
+
 
     @Override
     @Transactional
     public void deleteContent(Long contentId, Long userId) {
 
-        validateAdmin(userId);
+        adminAuthorizationService.validateAdmin(userId);
 
         Content content = getContentOrThrow(contentId);
         String thumbnailImage = content.getThumbnailImage();
@@ -1026,14 +991,6 @@ public class ContentServiceImpl implements ContentService{
         );
     }
 
-    private void validateAdmin(Long userId) {
-        User user = getUserOrThrow(userId);
-
-        if (user.getRole() != UserRole.ADMIN) {
-            throw new GeneralException(GeneralErrorCode.FORBIDDEN);
-        }
-    }
-
     private void validateDateRange(LocalDate startDate, LocalDate endDate) {
         if (startDate != null && endDate != null && startDate.isAfter(endDate)) {
             throw new GeneralException(ContentErrorCode.INVALID_DATE_RANGE);
@@ -1060,53 +1017,51 @@ public class ContentServiceImpl implements ContentService{
         );
     }
 
-    private void saveContentHashtags(Content content, List<Long> hashtagIds) {
-        if (hashtagIds == null || hashtagIds.isEmpty()) {
-            return;
-        }
-
-        for (Long hashtagId : hashtagIds) {
-            Hashtag hashtag = hashtagRepository.findById(hashtagId)
-                    .orElseThrow(() -> new GeneralException(HashtagErrorCode.HASHTAG_NOT_FOUND));
-
-            contentHashtagRepository.save(
-                    ContentHashtag.builder()
-                            .content(content)
-                            .hashtag(hashtag)
-                            .build()
-            );
-        }
-    }
-
     private void replaceAdminExternalLinks(
             Content content,
             List<ContentReqDTO.ExternalLinkReq> links
     ) {
-        if (links == null) {
+        List<ContentExternalLinkService.LinkCommand> commands = links == null
+                ? null
+                : links.stream()
+                        .map(link -> new ContentExternalLinkService.LinkCommand(
+                                link.type(),
+                                link.label(),
+                                link.url()
+                        ))
+                        .toList();
+
+        contentExternalLinkService.replace(
+                content,
+                ContentLinkSource.ADMIN,
+                commands
+        );
+    }
+
+    private void replaceContentHashtags(Content content, List<Long> hashtagIds) {
+        if (hashtagIds == null) {
             return;
         }
 
-        contentExternalLinkRepository.deleteAllByContentIdAndSource(
-                content.getId(),
-                ContentLinkSource.ADMIN
-        );
+        contentHashtagRepository.deleteByContent(content);
 
-        List<ContentExternalLink> entities = java.util.stream.IntStream
-                .range(0, links.size())
-                .mapToObj(index -> {
-                    ContentReqDTO.ExternalLinkReq link = links.get(index);
-                    return ContentExternalLink.builder()
-                            .content(content)
-                            .type(link.type())
-                            .source(ContentLinkSource.ADMIN)
-                            .label(link.label())
-                            .url(link.url())
-                            .displayOrder(index)
-                            .build();
-                })
+        if (hashtagIds.isEmpty()) {
+            return;
+        }
+
+        List<ContentHashtag> contentHashtags = hashtagIds.stream()
+                .map(hashtagId -> ContentHashtag.builder()
+                        .content(content)
+                        .hashtag(getHashtagOrThrow(hashtagId))
+                        .build())
                 .toList();
 
-        contentExternalLinkRepository.saveAll(entities);
+        contentHashtagRepository.saveAll(contentHashtags);
+    }
+
+    private Hashtag getHashtagOrThrow(Long hashtagId) {
+        return hashtagRepository.findById(hashtagId)
+                .orElseThrow(() -> new GeneralException(HashtagErrorCode.HASHTAG_NOT_FOUND));
     }
 
     private User getUserOrThrow(Long userId) {
