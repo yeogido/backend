@@ -1,11 +1,8 @@
 package com.yeogido.backend.domain.content.converter;
 
-import com.querydsl.core.Tuple;
-import com.querydsl.core.types.dsl.NumberExpression;
 import com.yeogido.backend.domain.content.dto.ContentReqDTO;
 import com.yeogido.backend.domain.content.dto.ContentResDTO;
 import com.yeogido.backend.domain.content.entity.Content;
-import com.yeogido.backend.domain.content.entity.QContent;
 import com.yeogido.backend.domain.content.enums.ContentCategory;
 import com.yeogido.backend.domain.content.enums.ContentSource;
 import com.yeogido.backend.domain.place.entity.Place;
@@ -16,8 +13,6 @@ import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class  ContentConverter {
@@ -44,25 +39,6 @@ public class  ContentConverter {
                 content.getEndDate(),
                 content.getPublicationStatus()
         );
-    }
-
-    public static ContentResDTO.ContentInfo toContentInfo(
-            Tuple tuple,
-            QContent qContent,
-            NumberExpression<Long> likeCountExpression,
-            Map<Long, List<String>> hashtagMap,
-            String thumbnailImageUrl,
-            Set<Long> likedContentIds
-    ) {
-        Content content = tuple.get(qContent);
-        Long likeCount = tuple.get(likeCountExpression);
-
-        return toContentInfo(
-                content,
-                thumbnailImageUrl,
-                likeCount,
-                hashtagMap.getOrDefault(content.getId(), List.of()),
-                likedContentIds.contains(content.getId()));
     }
 
     public static Place toPlace(

@@ -4,14 +4,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.yeogido.backend.domain.content.client.TourApiClient;
 import com.yeogido.backend.domain.content.dto.TourContentSyncDTO;
 import com.yeogido.backend.domain.content.entity.Content;
-import com.yeogido.backend.domain.content.entity.ContentExternalLink;
 import com.yeogido.backend.domain.content.enums.ContentCategory;
 import com.yeogido.backend.domain.content.enums.ContentLinkSource;
 import com.yeogido.backend.domain.content.enums.ContentLinkType;
 import com.yeogido.backend.domain.content.enums.ContentPublicationStatus;
 import com.yeogido.backend.domain.content.enums.ContentSource;
 import com.yeogido.backend.domain.content.exception.ContentErrorCode;
-import com.yeogido.backend.domain.content.repository.ContentExternalLinkRepository;
 import com.yeogido.backend.domain.content.repository.ContentRepository;
 import com.yeogido.backend.domain.place.entity.Place;
 import com.yeogido.backend.domain.place.enums.PlaceSource;
@@ -19,10 +17,7 @@ import com.yeogido.backend.domain.place.repository.PlaceRepository;
 import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.region.repository.RegionRepository;
 import com.yeogido.backend.domain.user.entity.User;
-import com.yeogido.backend.domain.user.enums.UserRole;
-import com.yeogido.backend.domain.user.exception.UserErrorCode;
-import com.yeogido.backend.domain.user.repository.UserRepository;
-import com.yeogido.backend.global.exception.GeneralErrorCode;
+import com.yeogido.backend.domain.user.service.AdminAuthorizationService;
 import com.yeogido.backend.global.exception.GeneralException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -70,10 +65,10 @@ public class TourContentSyncServiceImpl implements TourContentSyncService {
 
     private final TourApiClient tourApiClient;
     private final ContentRepository contentRepository;
-    private final ContentExternalLinkRepository contentExternalLinkRepository;
+    private final ContentExternalLinkService contentExternalLinkService;
     private final PlaceRepository placeRepository;
     private final RegionRepository regionRepository;
-    private final UserRepository userRepository;
+    private final AdminAuthorizationService adminAuthorizationService;
     private final PlatformTransactionManager transactionManager;
 
     @Value("${app.tour-api.sync-months:12}")
@@ -171,7 +166,7 @@ public class TourContentSyncServiceImpl implements TourContentSyncService {
 
     @Override
     public TourContentSyncDTO.Result synchronize(Long userId) {
-        validateAdmin(userId);
+        adminAuthorizationService.validateAdmin(userId);
         return synchronize();
     }
 
@@ -317,31 +312,19 @@ public class TourContentSyncServiceImpl implements TourContentSyncService {
             Content content,
             List<LinkData> links
     ) {
-        contentExternalLinkRepository.deleteAllByContentIdAndSource(
-                content.getId(),
-                ContentLinkSource.TOUR_API
-        );
-
-        if (links.isEmpty()) {
-            return;
-        }
-
-        List<ContentExternalLink> entities = java.util.stream.IntStream
-                .range(0, links.size())
-                .mapToObj(index -> {
-                    LinkData link = links.get(index);
-                    return ContentExternalLink.builder()
-                            .content(content)
-                            .type(link.type())
-                            .source(ContentLinkSource.TOUR_API)
-                            .label(truncate(link.label(), 100))
-                            .url(truncate(link.url(), 1000))
-                            .displayOrder(index)
-                            .build();
-                })
+        List<ContentExternalLinkService.LinkCommand> commands = links.stream()
+                .map(link -> new ContentExternalLinkService.LinkCommand(
+                        link.type(),
+                        truncate(link.label(), 100),
+                        truncate(link.url(), 1000)
+                ))
                 .toList();
 
-        contentExternalLinkRepository.saveAll(entities);
+        contentExternalLinkService.replace(
+                content,
+                ContentLinkSource.TOUR_API,
+                commands
+        );
     }
 
     private DetailData fetchDetail(String contentId) {
@@ -583,15 +566,6 @@ public class TourContentSyncServiceImpl implements TourContentSyncService {
         return HtmlUtils.htmlUnescape(
                 HTML_TAG_PATTERN.matcher(value).replaceAll(" ")
         ).replaceAll("\\s+", " ").trim();
-    }
-
-    private void validateAdmin(Long userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
-
-        if (user.getRole() != UserRole.ADMIN) {
-            throw new GeneralException(GeneralErrorCode.FORBIDDEN);
-        }
     }
 
     private enum SyncOutcome {

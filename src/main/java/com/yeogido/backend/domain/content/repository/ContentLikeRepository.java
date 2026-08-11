@@ -17,8 +17,6 @@ public interface ContentLikeRepository extends JpaRepository<ContentLike,Long> {
 
     long countByContent(Content content);
 
-    boolean existsByContentAndUser(Content content, User user);
-
     boolean existsByUserAndContent(User user, Content content);
 
     Optional<ContentLike> findByUserAndContent(User user, Content content);
