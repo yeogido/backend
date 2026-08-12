@@ -13,6 +13,12 @@ public enum FileErrorCode implements ErrorCode {
             HttpStatus.BAD_REQUEST,
             "FILE4001",
             "업로드되지 않았거나 유효하지 않은 이미지 키입니다."
+    ),
+
+    INVALID_CONTENT_TYPE(
+            HttpStatus.BAD_REQUEST,
+            "FILE4002",
+            "허용되지 않은 Content-Type입니다."
     );
 
     private final HttpStatus httpStatus;

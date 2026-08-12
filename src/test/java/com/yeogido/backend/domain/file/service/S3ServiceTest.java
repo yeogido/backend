@@ -7,17 +7,28 @@ import com.yeogido.backend.global.exception.GeneralException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
+import software.amazon.awssdk.http.SdkHttpMethod;
+import software.amazon.awssdk.http.SdkHttpFullRequest;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.S3Exception;
+import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
+import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+
+import java.net.URI;
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -56,6 +67,85 @@ class S3ServiceTest {
                 "cloudFrontDomain",
                 "cdn.example.com"
         );
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "image/jpeg",
+            "image/jpg",
+            "image/png",
+            "image/webp",
+            "image/gif"
+    })
+    void createPresignedUrlAllowsImageContentType(String contentType) {
+        PresignedPutObjectRequest presignedPutObjectRequest =
+                PresignedPutObjectRequest.builder()
+                        .expiration(Instant.now().plusSeconds(600))
+                        .isBrowserExecutable(false)
+                        .signedHeaders(
+                                Map.of(
+                                        "host",
+                                        List.of("test-bucket.s3.amazonaws.com")
+                                )
+                        )
+                        .httpRequest(
+                                SdkHttpFullRequest.builder()
+                                        .method(SdkHttpMethod.PUT)
+                                        .uri(
+                                                URI.create(
+                                                        "https://test-bucket.s3.amazonaws.com/temp/image.jpg"
+                                                )
+                                        )
+                                        .build()
+                        )
+                        .build();
+
+        when(
+                s3Presigner.presignPutObject(
+                        any(PutObjectPresignRequest.class)
+                )
+        ).thenReturn(presignedPutObjectRequest);
+
+        s3Service.createPresignedUrl("image.jpg", contentType);
+
+        ArgumentCaptor<PutObjectPresignRequest> presignCaptor =
+                ArgumentCaptor.forClass(
+                        PutObjectPresignRequest.class
+                );
+
+        verify(s3Presigner)
+                .presignPutObject(presignCaptor.capture());
+
+        assertThat(
+                presignCaptor.getValue()
+                        .putObjectRequest()
+                        .contentType()
+        ).isEqualTo(contentType);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "image/svg+xml",
+            "text/html",
+            "application/x-msdownload",
+            "image/not-real",
+            "invalid-content-type"
+    })
+    void createPresignedUrlRejectsInvalidContentType(String contentType) {
+        assertThatThrownBy(
+                () -> s3Service.createPresignedUrl(
+                        "image.jpg",
+                        contentType
+                )
+        )
+                .isInstanceOf(GeneralException.class)
+                .extracting("errorCode")
+                .isEqualTo(FileErrorCode.INVALID_CONTENT_TYPE);
+
+        verify(
+                s3Presigner,
+                never()
+        ).presignPutObject(any(PutObjectPresignRequest.class));
     }
 
     @Test
