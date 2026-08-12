@@ -14,6 +14,7 @@ import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
+import software.amazon.awssdk.http.SdkHttpMethod;
 import software.amazon.awssdk.http.SdkHttpFullRequest;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
@@ -26,6 +27,8 @@ import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 
 import java.net.URI;
 import java.time.Instant;
+import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -78,8 +81,16 @@ class S3ServiceTest {
         PresignedPutObjectRequest presignedPutObjectRequest =
                 PresignedPutObjectRequest.builder()
                         .expiration(Instant.now().plusSeconds(600))
+                        .isBrowserExecutable(false)
+                        .signedHeaders(
+                                Map.of(
+                                        "host",
+                                        List.of("test-bucket.s3.amazonaws.com")
+                                )
+                        )
                         .httpRequest(
                                 SdkHttpFullRequest.builder()
+                                        .method(SdkHttpMethod.PUT)
                                         .uri(
                                                 URI.create(
                                                         "https://test-bucket.s3.amazonaws.com/temp/image.jpg"
