@@ -29,6 +29,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -37,6 +38,13 @@ import java.util.UUID;
 public class S3Service {
 
     private static final Duration PRESIGNED_URL_DURATION = Duration.ofMinutes(10);
+    private static final Set<String> ALLOWED_PRESIGNED_CONTENT_TYPES = Set.of(
+            "image/jpeg",
+            "image/jpg",
+            "image/png",
+            "image/webp",
+            "image/gif"
+    );
     private static final Duration EXTERNAL_IMAGE_CONNECT_TIMEOUT = Duration.ofSeconds(3);
     private static final Duration EXTERNAL_IMAGE_REQUEST_TIMEOUT = Duration.ofSeconds(5);
     private static final int MAX_EXTERNAL_IMAGE_BYTES = 10 * 1024 * 1024;
@@ -61,6 +69,8 @@ public class S3Service {
             String fileName,
             String contentType
     ) {
+        validatePresignedContentType(contentType);
+
         String objectKey = createObjectKey(fileName);
 
         PutObjectRequest putObjectRequest = PutObjectRequest.builder()
@@ -81,6 +91,12 @@ public class S3Service {
                 .uploadUrl(presignedRequest.url().toString())
                 .objectKey(objectKey)
                 .build();
+    }
+
+    private void validatePresignedContentType(String contentType) {
+        if (!ALLOWED_PRESIGNED_CONTENT_TYPES.contains(contentType)) {
+            throw new GeneralException(FileErrorCode.INVALID_CONTENT_TYPE);
+        }
     }
 
     public String getImageUrl(String objectKey) {
