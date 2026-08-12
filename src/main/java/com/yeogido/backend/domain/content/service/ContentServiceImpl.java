@@ -1007,6 +1007,7 @@ public class ContentServiceImpl implements ContentService{
         }
 
         contentHashtagRepository.deleteByContent(content);
+        contentHashtagRepository.flush();
 
         if (hashtagIds.isEmpty()) {
             return;
