@@ -14,6 +14,15 @@ public interface ContentExternalLinkRepository
 
     List<ContentExternalLink> findAllByContentIdOrderByDisplayOrderAsc(Long contentId);
 
+    List<ContentExternalLink> findAllByContentIdAndSource(
+            Long contentId,
+            ContentLinkSource source
+    );
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("delete from ContentExternalLink link where link.content.id = :contentId")
+    void deleteAllByContentId(@Param("contentId") Long contentId);
+
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("delete from ContentExternalLink link where link.content.id = :contentId and link.source = :source")
     void deleteAllByContentIdAndSource(
