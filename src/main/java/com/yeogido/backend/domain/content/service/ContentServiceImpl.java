@@ -55,8 +55,6 @@ import com.yeogido.backend.global.common.response.CursorResponse;
 import com.yeogido.backend.global.exception.GeneralErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -781,8 +779,6 @@ public class ContentServiceImpl implements ContentService{
         adminAuthorizationService.validateAdmin(userId);
 
         Content content = getContentOrThrow(contentId);
-        String previousThumbnailImage = content.getThumbnailImage();
-
         LocalDate updatedStartDate = request.startDate() == null
                 ? content.getStartDate()
                 : request.startDate();
@@ -821,16 +817,6 @@ public class ContentServiceImpl implements ContentService{
 
         if (movedRequest.officialLinks() != null) {
             replaceAdminExternalLinks(content, movedRequest.officialLinks());
-        }
-
-        if (
-                StringUtils.hasText(movedRequest.thumbnailImageKey())
-                        && !Objects.equals(
-                        previousThumbnailImage,
-                        movedRequest.thumbnailImageKey()
-                )
-        ) {
-            deleteImageAfterCommit(previousThumbnailImage);
         }
 
         return new ContentResDTO.ContentUpdateRes(content.getId());
@@ -928,8 +914,6 @@ public class ContentServiceImpl implements ContentService{
         adminAuthorizationService.validateAdmin(userId);
 
         Content content = getContentOrThrow(contentId);
-        String thumbnailImage = content.getThumbnailImage();
-
         List<CourseItem> courseItems =
                 courseItemRepository.findByContentOrderByOrderNoAsc(content);
 
@@ -953,7 +937,6 @@ public class ContentServiceImpl implements ContentService{
         contentHashtagRepository.deleteByContent(content);
         contentLikeRepository.deleteByContent(content);
         contentRepository.delete(content);
-        deleteImageAfterCommit(thumbnailImage);
     }
 
 
@@ -995,26 +978,6 @@ public class ContentServiceImpl implements ContentService{
         if (startDate != null && endDate != null && startDate.isAfter(endDate)) {
             throw new GeneralException(ContentErrorCode.INVALID_DATE_RANGE);
         }
-    }
-
-    private void deleteImageAfterCommit(String imageKey) {
-        if (!StringUtils.hasText(imageKey)) {
-            return;
-        }
-
-        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            s3Service.deleteImage(imageKey);
-            return;
-        }
-
-        TransactionSynchronizationManager.registerSynchronization(
-                new TransactionSynchronization() {
-                    @Override
-                    public void afterCommit() {
-                        s3Service.deleteImage(imageKey);
-                    }
-                }
-        );
     }
 
     private void replaceAdminExternalLinks(
