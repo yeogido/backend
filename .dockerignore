@@ -1,0 +1,25 @@
+# Git
+.git
+.github
+
+# IDE
+.idea
+.vscode
+.omx
+*.iml
+
+# Gradle
+.gradle
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+
+# Environment
+.env
+
+# Documentation
+README.md
+HELP.md

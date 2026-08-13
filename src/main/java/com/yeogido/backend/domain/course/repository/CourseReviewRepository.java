@@ -1,0 +1,147 @@
+package com.yeogido.backend.domain.course.repository;
+
+import com.yeogido.backend.domain.course.entity.CourseReview;
+import java.time.LocalDateTime;
+import java.util.List;
+
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+public interface CourseReviewRepository extends JpaRepository<CourseReview, Long> {
+
+    @Modifying(flushAutomatically = true)
+    @Query("""
+            delete from CourseReview cr
+            where cr.user.id = :userId
+            """)
+    int deleteAllByUserId(@Param("userId") Long userId);
+
+    @Query("""
+            select cr
+            from CourseReview cr
+            join fetch cr.user
+            join fetch cr.course c
+            where c.id = :courseId
+              and c.deletedAt is null
+            order by cr.createdAt desc, cr.id desc
+            """)
+    List<CourseReview> findLatestReviewsByCourseId(
+            @Param("courseId") Long courseId,
+            Pageable pageable
+    );
+
+    @Query("""
+            select cr
+            from CourseReview cr
+            join fetch cr.user
+            join fetch cr.course c
+            where c.id = :courseId
+              and c.deletedAt is null
+            order by cr.rating desc, cr.id desc
+            """)
+    List<CourseReview> findReviewsByCourseIdOrderByRating(
+            @Param("courseId") Long courseId,
+            Pageable pageable
+    );
+
+    @Query("""
+            select cr
+            from CourseReview cr
+            join fetch cr.user
+            join fetch cr.course c
+            where c.id = :courseId
+              and c.deletedAt is null
+              and (
+                    cr.createdAt < :cursorCreatedAt
+                    or (cr.createdAt = :cursorCreatedAt and cr.id < :cursorId)
+              )
+            order by cr.createdAt desc, cr.id desc
+            """)
+    List<CourseReview> findReviewsByCourseIdOrderByLatestAfterCursor(
+            @Param("courseId") Long courseId,
+            @Param("cursorCreatedAt") LocalDateTime cursorCreatedAt,
+            @Param("cursorId") Long cursorId,
+            Pageable pageable
+    );
+
+    @Query("""
+            select cr
+            from CourseReview cr
+            join fetch cr.user
+            join fetch cr.course c
+            where c.id = :courseId
+              and c.deletedAt is null
+              and (
+                    cr.rating < :cursorRating
+                    or (cr.rating = :cursorRating and cr.id < :cursorId)
+              )
+            order by cr.rating desc, cr.id desc
+            """)
+    List<CourseReview> findReviewsByCourseIdOrderByRatingAfterCursor(
+            @Param("courseId") Long courseId,
+            @Param("cursorRating") Integer cursorRating,
+            @Param("cursorId") Long cursorId,
+            Pageable pageable
+    );
+
+    @Query("""
+            select cr
+            from CourseReview cr
+            join fetch cr.user
+            join fetch cr.course c
+            where c.deletedAt is null
+            order by cr.createdAt desc, cr.id desc
+            """)
+    List<CourseReview> findReviewsOrderByLatest(Pageable pageable);
+
+    @Query("""
+            select cr
+            from CourseReview cr
+            join fetch cr.user
+            join fetch cr.course c
+            where c.deletedAt is null
+              and (
+                    cr.createdAt < :cursorCreatedAt
+                    or (cr.createdAt = :cursorCreatedAt and cr.id < :cursorId)
+              )
+            order by cr.createdAt desc, cr.id desc
+            """)
+    List<CourseReview> findReviewsOrderByLatestAfterCursor(
+            @Param("cursorCreatedAt") LocalDateTime cursorCreatedAt,
+            @Param("cursorId") Long cursorId,
+            Pageable pageable
+    );
+
+    @Query("""
+            select cr
+            from CourseReview cr
+            join fetch cr.user
+            join fetch cr.course c
+            where c.deletedAt is null
+            order by cr.rating desc, cr.id desc
+            """)
+    List<CourseReview> findReviewsOrderByRating(Pageable pageable);
+
+    @Query("""
+            select cr
+            from CourseReview cr
+            join fetch cr.user
+            join fetch cr.course c
+            where c.deletedAt is null
+              and (
+                    cr.rating < :cursorRating
+                    or (cr.rating = :cursorRating and cr.id < :cursorId)
+              )
+            order by cr.rating desc, cr.id desc
+            """)
+    List<CourseReview> findReviewsOrderByRatingAfterCursor(
+            @Param("cursorRating") Integer cursorRating,
+            @Param("cursorId") Long cursorId,
+            Pageable pageable
+    );
+
+
+}

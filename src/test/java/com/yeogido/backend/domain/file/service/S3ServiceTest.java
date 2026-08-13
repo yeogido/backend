@@ -1,0 +1,467 @@
+package com.yeogido.backend.domain.file.service;
+
+import com.yeogido.backend.domain.file.enums.ImageDirectory;
+import com.yeogido.backend.domain.file.exception.FileErrorCode;
+import com.yeogido.backend.global.exception.GeneralErrorCode;
+import com.yeogido.backend.global.exception.GeneralException;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
+import software.amazon.awssdk.http.SdkHttpMethod;
+import software.amazon.awssdk.http.SdkHttpFullRequest;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
+import software.amazon.awssdk.services.s3.model.S3Exception;
+import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
+import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+
+import java.net.URI;
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
+class S3ServiceTest {
+
+    @Mock
+    private S3Client s3Client;
+
+    @Mock
+    private S3Presigner s3Presigner;
+
+    private S3Service s3Service;
+
+    @BeforeEach
+    void setUp() {
+        s3Service = new S3Service(
+                s3Client,
+                s3Presigner
+        );
+
+        ReflectionTestUtils.setField(
+                s3Service,
+                "bucket",
+                "test-bucket"
+        );
+
+        ReflectionTestUtils.setField(
+                s3Service,
+                "cloudFrontDomain",
+                "cdn.example.com"
+        );
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "image/jpeg",
+            "image/jpg",
+            "image/png",
+            "image/webp",
+            "image/gif"
+    })
+    void createPresignedUrlAllowsImageContentType(String contentType) {
+        PresignedPutObjectRequest presignedPutObjectRequest =
+                PresignedPutObjectRequest.builder()
+                        .expiration(Instant.now().plusSeconds(600))
+                        .isBrowserExecutable(false)
+                        .signedHeaders(
+                                Map.of(
+                                        "host",
+                                        List.of("test-bucket.s3.amazonaws.com")
+                                )
+                        )
+                        .httpRequest(
+                                SdkHttpFullRequest.builder()
+                                        .method(SdkHttpMethod.PUT)
+                                        .uri(
+                                                URI.create(
+                                                        "https://test-bucket.s3.amazonaws.com/temp/image.jpg"
+                                                )
+                                        )
+                                        .build()
+                        )
+                        .build();
+
+        when(
+                s3Presigner.presignPutObject(
+                        any(PutObjectPresignRequest.class)
+                )
+        ).thenReturn(presignedPutObjectRequest);
+
+        s3Service.createPresignedUrl("image.jpg", contentType);
+
+        ArgumentCaptor<PutObjectPresignRequest> presignCaptor =
+                ArgumentCaptor.forClass(
+                        PutObjectPresignRequest.class
+                );
+
+        verify(s3Presigner)
+                .presignPutObject(presignCaptor.capture());
+
+        assertThat(
+                presignCaptor.getValue()
+                        .putObjectRequest()
+                        .contentType()
+        ).isEqualTo(contentType);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "image/svg+xml",
+            "text/html",
+            "application/x-msdownload",
+            "image/not-real",
+            "invalid-content-type"
+    })
+    void createPresignedUrlRejectsInvalidContentType(String contentType) {
+        assertThatThrownBy(
+                () -> s3Service.createPresignedUrl(
+                        "image.jpg",
+                        contentType
+                )
+        )
+                .isInstanceOf(GeneralException.class)
+                .extracting("errorCode")
+                .isEqualTo(FileErrorCode.INVALID_CONTENT_TYPE);
+
+        verify(
+                s3Presigner,
+                never()
+        ).presignPutObject(any(PutObjectPresignRequest.class));
+    }
+
+    @Test
+    void getImageUrlReturnsCloudFrontUrl() {
+        String imageUrl =
+                s3Service.getImageUrl("courses/image.jpg");
+
+        assertThat(imageUrl)
+                .isEqualTo(
+                        "https://cdn.example.com/courses/image.jpg"
+                );
+    }
+
+    @Test
+    void getImageUrlDoesNotDuplicateSlashes() {
+        ReflectionTestUtils.setField(
+                s3Service,
+                "cloudFrontDomain",
+                "https://cdn.example.com/"
+        );
+
+        String imageUrl =
+                s3Service.getImageUrl("/courses/image.jpg");
+
+        assertThat(imageUrl)
+                .isEqualTo(
+                        "https://cdn.example.com/courses/image.jpg"
+                );
+    }
+
+    @Test
+    void getImageUrlTrimsWhitespace() {
+        ReflectionTestUtils.setField(
+                s3Service,
+                "cloudFrontDomain",
+                "  https://cdn.example.com/  "
+        );
+
+        String imageUrl =
+                s3Service.getImageUrl(
+                        " /courses/image.jpg "
+                );
+
+        assertThat(imageUrl)
+                .isEqualTo(
+                        "https://cdn.example.com/courses/image.jpg"
+                );
+    }
+
+    @Test
+    void getImageUrlReturnsNullForNullOrBlankObjectKey() {
+        assertThat(s3Service.getImageUrl(null))
+                .isNull();
+
+        assertThat(s3Service.getImageUrl(" "))
+                .isNull();
+    }
+
+    @Test
+    void moveToDirectoryCopiesTempObjectAndDeletesSource() {
+        String tempKey = "temp/source-image.jpg";
+
+        String objectKey = s3Service.moveToDirectory(
+                tempKey,
+                ImageDirectory.COURSE
+        );
+
+        assertThat(objectKey)
+                .matches(
+                        "courses/[0-9a-f-]{36}\\.jpg"
+                );
+
+        ArgumentCaptor<CopyObjectRequest> copyCaptor =
+                ArgumentCaptor.forClass(
+                        CopyObjectRequest.class
+                );
+
+        ArgumentCaptor<DeleteObjectRequest> deleteCaptor =
+                ArgumentCaptor.forClass(
+                        DeleteObjectRequest.class
+                );
+
+        InOrder inOrder = inOrder(s3Client);
+
+        inOrder.verify(s3Client)
+                .copyObject(copyCaptor.capture());
+
+        inOrder.verify(s3Client)
+                .deleteObject(deleteCaptor.capture());
+
+        CopyObjectRequest copyRequest =
+                copyCaptor.getValue();
+
+        assertThat(copyRequest.sourceBucket())
+                .isEqualTo("test-bucket");
+
+        assertThat(copyRequest.sourceKey())
+                .isEqualTo(tempKey);
+
+        assertThat(copyRequest.destinationBucket())
+                .isEqualTo("test-bucket");
+
+        assertThat(copyRequest.destinationKey())
+                .isEqualTo(objectKey);
+
+        DeleteObjectRequest deleteRequest =
+                deleteCaptor.getValue();
+
+        assertThat(deleteRequest.bucket())
+                .isEqualTo("test-bucket");
+
+        assertThat(deleteRequest.key())
+                .isEqualTo(tempKey);
+    }
+
+    @Test
+    void moveToDirectoryUsesExtensionFromTempKey() {
+        String objectKey = s3Service.moveToDirectory(
+                "temp/archive.photo.png",
+                ImageDirectory.TRAVEL_RECORD
+        );
+
+        assertThat(objectKey)
+                .matches(
+                        "travel-records/[0-9a-f-]{36}\\.png"
+                );
+    }
+
+    @Test
+    void moveToDirectoryReturnsOriginalKeyForNonTempKey() {
+        String objectKey = "courses/image.jpg";
+
+        String result = s3Service.moveToDirectory(
+                objectKey,
+                ImageDirectory.COURSE
+        );
+
+        assertThat(result)
+                .isEqualTo(objectKey);
+
+        verify(
+                s3Client,
+                never()
+        ).copyObject(any(CopyObjectRequest.class));
+
+        verify(
+                s3Client,
+                never()
+        ).deleteObject(any(DeleteObjectRequest.class));
+    }
+
+    @Test
+    void moveToDirectoryRejectsTempKeyWithoutExtension() {
+        assertThatThrownBy(
+                () -> s3Service.moveToDirectory(
+                        "temp/image",
+                        ImageDirectory.COURSE
+                )
+        )
+                .isInstanceOf(GeneralException.class)
+                .extracting("errorCode")
+                .isEqualTo(
+                        GeneralErrorCode.INVALID_REQUEST
+                );
+
+        verify(
+                s3Client,
+                never()
+        ).copyObject(any(CopyObjectRequest.class));
+
+        verify(
+                s3Client,
+                never()
+        ).deleteObject(any(DeleteObjectRequest.class));
+    }
+
+    @Test
+    void moveToDirectoryWrapsCopyFailure() {
+        when(
+                s3Client.copyObject(
+                        any(CopyObjectRequest.class)
+                )
+        ).thenThrow(
+                S3Exception.builder()
+                        .message("copy failed")
+                        .build()
+        );
+
+        assertThatThrownBy(
+                () -> s3Service.moveToDirectory(
+                        "temp/image.jpg",
+                        ImageDirectory.COURSE
+                )
+        )
+                .isInstanceOf(GeneralException.class)
+                .extracting("errorCode")
+                .isEqualTo(
+                        GeneralErrorCode.INTERNAL_SERVER_ERROR
+                );
+
+        verify(
+                s3Client,
+                never()
+        ).deleteObject(any(DeleteObjectRequest.class));
+    }
+
+    @Test
+    void moveToDirectoryRejectsMissingImageKeyFromNoSuchKeyException() {
+        when(
+                s3Client.copyObject(
+                        any(CopyObjectRequest.class)
+                )
+        ).thenThrow(
+                NoSuchKeyException.builder()
+                        .message("missing key")
+                        .build()
+        );
+
+        assertThatThrownBy(
+                () -> s3Service.moveToDirectory(
+                        "temp/missing-image.jpg",
+                        ImageDirectory.COURSE
+                )
+        )
+                .isInstanceOf(GeneralException.class)
+                .extracting("errorCode")
+                .isEqualTo(FileErrorCode.INVALID_IMAGE_KEY);
+
+        verify(
+                s3Client,
+                never()
+        ).deleteObject(any(DeleteObjectRequest.class));
+    }
+
+    @Test
+    void moveToDirectoryRejectsMissingImageKeyFromS3NotFoundStatus() {
+        when(
+                s3Client.copyObject(
+                        any(CopyObjectRequest.class)
+                )
+        ).thenThrow(
+                S3Exception.builder()
+                        .message("not found")
+                        .statusCode(404)
+                        .build()
+        );
+
+        assertThatThrownBy(
+                () -> s3Service.moveToDirectory(
+                        "temp/missing-image.jpg",
+                        ImageDirectory.COURSE
+                )
+        )
+                .isInstanceOf(GeneralException.class)
+                .extracting("errorCode")
+                .isEqualTo(FileErrorCode.INVALID_IMAGE_KEY);
+
+        verify(
+                s3Client,
+                never()
+        ).deleteObject(any(DeleteObjectRequest.class));
+    }
+
+    @Test
+    void moveToDirectoryKeepsForbiddenS3FailureAsInternalServerError() {
+        when(
+                s3Client.copyObject(
+                        any(CopyObjectRequest.class)
+                )
+        ).thenThrow(
+                S3Exception.builder()
+                        .message("forbidden")
+                        .statusCode(403)
+                        .build()
+        );
+
+        assertThatThrownBy(
+                () -> s3Service.moveToDirectory(
+                        "temp/image.jpg",
+                        ImageDirectory.COURSE
+                )
+        )
+                .isInstanceOf(GeneralException.class)
+                .extracting("errorCode")
+                .isEqualTo(
+                        GeneralErrorCode.INTERNAL_SERVER_ERROR
+                );
+
+        verify(
+                s3Client,
+                never()
+        ).deleteObject(any(DeleteObjectRequest.class));
+    }
+
+    @Test
+    void moveToDirectoryWrapsDeleteFailure() {
+        when(
+                s3Client.deleteObject(
+                        any(DeleteObjectRequest.class)
+                )
+        ).thenThrow(
+                S3Exception.builder()
+                        .message("delete failed")
+                        .build()
+        );
+
+        assertThatThrownBy(
+                () -> s3Service.moveToDirectory(
+                        "temp/image.jpg",
+                        ImageDirectory.COURSE
+                )
+        )
+                .isInstanceOf(GeneralException.class)
+                .extracting("errorCode")
+                .isEqualTo(
+                        GeneralErrorCode.INTERNAL_SERVER_ERROR
+                );
+    }
+}

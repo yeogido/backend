@@ -1,0 +1,109 @@
+package com.yeogido.backend.domain.review.dto.response;
+
+import com.yeogido.backend.domain.course.enums.CompanionType;
+import com.yeogido.backend.domain.course.enums.CourseType;
+import com.yeogido.backend.domain.course.enums.DurationType;
+import com.yeogido.backend.domain.course.enums.TransportType;
+import com.yeogido.backend.domain.user.enums.AgeGroup;
+import com.yeogido.backend.domain.user.enums.Gender;
+import io.swagger.v3.oas.annotations.media.Schema;
+import java.time.LocalDateTime;
+import java.util.List;
+
+public class ReviewResDTO {
+
+    @Schema(name = "ReviewUpdateResponse", description = "추천 코스 리뷰 수정 응답")
+    public record UpdateResponse(
+            @Schema(description = "수정된 리뷰 ID", example = "1")
+            Long reviewId
+    ) {
+    }
+
+    @Schema(name = "ReviewImage", description = "리뷰 이미지 정보")
+    public record ReviewImage(
+            @Schema(description = "리뷰 이미지 key. 리뷰 수정 시 기존 이미지를 유지하기 위해 사용합니다.", example = "reviews/abc.jpg")
+            String imageKey,
+
+            @Schema(description = "리뷰 이미지 URL", example = "https://example-bucket.s3.ap-northeast-2.amazonaws.com/reviews/abc.jpg")
+            String imageUrl,
+
+            @Schema(description = "리뷰 이미지 순서", example = "1")
+            Integer imageOrder
+    ) {
+    }
+
+    @Schema(name = "ReviewDetail", description = "최근 후기 목록 아이템")
+    public record ReviewDetail(
+            @Schema(description = "리뷰 ID", example = "101")
+            Long reviewId,
+
+            @Schema(description = "리뷰 내용", example = "지도 동선이 너무 편했어요.")
+            String content,
+
+            @Schema(description = "별점", example = "5")
+            Integer rating,
+
+            @Schema(description = "생성 일시", example = "2026-07-05T15:30:00")
+            LocalDateTime createdAt,
+
+            @Schema(description = "로그인 사용자가 작성한 리뷰 여부. 비로그인 요청 시 false", example = "false")
+            Boolean isMine,
+
+            @Schema(description = "리뷰 이미지 목록")
+            List<ReviewImage> images,
+
+            @Schema(description = "작성자 정보")
+            Author author,
+
+            @Schema(description = "추천 코스 정보")
+            Course course
+    ) {
+    }
+
+    @Schema(name = "ReviewAuthor", description = "리뷰 작성자 정보")
+    public record Author(
+            @Schema(description = "닉네임", example = "민지")
+            String nickname,
+
+            @Schema(description = "연령대", example = "TWENTIES")
+            AgeGroup ageGroup,
+
+            @Schema(description = "성별", example = "FEMALE")
+            Gender gender,
+
+            @Schema(description = "프로필 이미지 URL", example = "https://example.com/profile.png")
+            String profileImageUrl
+    ) {
+    }
+
+    @Schema(name = "ReviewCourse", description = "리뷰 추천 코스 정보")
+    public record Course(
+            @Schema(description = "추천 코스 ID", example = "15")
+            Long courseId,
+
+            @Schema(description = "추천 코스 타입", example = "OFFICIAL")
+            CourseType courseType,
+
+            @Schema(description = "추천 코스 제목", example = "강릉 혼자 여행 코스")
+            String title,
+
+            @Schema(description = "썸네일 URL", example = "https://example.com/course.png")
+            String thumbnailUrl,
+
+            @Schema(description = "여행 기간 타입", example = "TWO_NIGHT")
+            DurationType durationType,
+
+            @Schema(description = "이동 수단 타입", example = "CAR")
+            TransportType transportType,
+
+            @Schema(description = "동행 유형", example = "FRIEND")
+            CompanionType companionType,
+
+            @Schema(description = "태그", example = "[\"바다\", \"사진\", \"힐링\"]")
+            List<String> tags,
+
+            @Schema(description = "좋아요 여부", example = "false")
+            Boolean isLiked
+    ) {
+    }
+}
