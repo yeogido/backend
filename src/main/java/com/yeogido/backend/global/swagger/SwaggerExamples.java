@@ -11,6 +11,7 @@ public final class SwaggerExamples {
               "regionId": 2,
               "description": "부산의 야경과 축제를 함께 즐길 수 있는 코스입니다.",
               "durationType": "DAY_TRIP",
+              "totalDays": 1,
               "transportType": "CAR",
               "companionType": "FRIEND",
               "monthStart": 4,
@@ -20,6 +21,7 @@ public final class SwaggerExamples {
               "hashtagIds": [1, 3],
               "courseItems": [
                 {
+                  "day": 1,
                   "order": 1,
                   "type": "PLACE",
                   "externalPlaceId": "123456",
@@ -44,6 +46,7 @@ public final class SwaggerExamples {
                   ]
                 },
                 {
+                  "day": 1,
                   "order": 2,
                   "type": "CONTENT",
                   "contentId": 1,
@@ -70,6 +73,8 @@ public final class SwaggerExamples {
         {
           "title": "부산 감성 여행 코스",
           "description": "광안리와 해운대를 중심으로 감성 카페와 야경을 즐기는 코스입니다.",
+          "durationType": "DAY_TRIP",
+          "totalDays": 1,
           "monthStart": 5,
           "monthEnd": 9,
           "thumbnailKey": "courses/thumbnail/busan-emotion.jpg",
@@ -77,6 +82,7 @@ public final class SwaggerExamples {
           "hashtagIds": [2, 4, 6],
           "courseItems": [
             {
+              "day": 1,
               "order": 1,
               "type": "PLACE",
               "externalPlaceId": "654321",
@@ -101,6 +107,7 @@ public final class SwaggerExamples {
               ]
             },
             {
+              "day": 1,
               "order": 2,
               "type": "CONTENT",
               "contentId": 8,
@@ -116,6 +123,7 @@ public final class SwaggerExamples {
               ]
             },
             {
+              "day": 1,
               "order": 3,
               "type": "PLACE",
               "externalPlaceId": "987654",
