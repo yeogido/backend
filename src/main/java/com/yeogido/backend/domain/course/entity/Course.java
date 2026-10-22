@@ -85,6 +85,7 @@ public class Course extends BaseEntity {
 
     @PrePersist
     protected void initializeTotalDays() {
+        // 기존 Java 생성 경로의 호환성을 위해 일수 누락 시 여행 기간별 기본값 적용
         if (totalDays == null) {
             totalDays = durationType == null ? 1 : switch (durationType) {
                 case DAY_TRIP -> 1;

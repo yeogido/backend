@@ -161,6 +161,7 @@ class CourseServiceImplTest {
         stubSuccessfulCreateCourse(createUser());
         var base = createRequest();
         var place = createPlaceItem("AT4");
+        // 십의 자리는 일차, 일의 자리는 방문 순서이며 정렬 검증을 위해 입력 순서 혼합
         var items = java.util.stream.IntStream.of(22, 11, 21, 12).mapToObj(value ->
                 new CourseReqDTO.CourseItemCreateReq(value % 10, place.type(), null, place.externalPlaceId(),
                         place.categoryGroupCode(), place.name(), place.roadAddress(), place.lotAddress(),

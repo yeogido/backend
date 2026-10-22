@@ -28,11 +28,12 @@ public final class CourseScheduleValidator {
                 && request.durationType() != course.getDurationType();
         boolean daysChanged = request.totalDays() != null
                 && !Objects.equals(request.totalDays(), course.getTotalDays());
+        // 기간 유형 변경 시 전체 일수 필수, 기간 유형 또는 일수 변경 시 전체 일정 필수
         if ((durationChanged && request.totalDays() == null)
                 || ((durationChanged || daysChanged) && request.courseItems() == null)) {
             throw new GeneralException(GeneralErrorCode.INVALID_REQUEST);
         }
-        // 기존 코스의 일반 정보만 수정할 때에는 일정을 다시 검증하지 않는다.
+        // 모든 장소가 1일차에 배치된 기존 코스의 일반 정보 수정 허용
         if (request.courseItems() == null && !durationChanged && !daysChanged) {
             return;
         }
@@ -74,6 +75,7 @@ public final class CourseScheduleValidator {
             if (!orders.add(item.order())) {
                 throw new GeneralException(CourseErrorCode.DUPLICATE_COURSE_ITEM_ORDER);
             }
+            // 각 일차 첫 항목의 이전 이동시간 입력 금지
             if (item.order() == 1 && item.timesFromPrevious() != null && !item.timesFromPrevious().isEmpty()) {
                 throw new GeneralException(CourseErrorCode.INVALID_COURSE_ITEM);
             }
@@ -81,9 +83,11 @@ public final class CourseScheduleValidator {
                 daysWithPlace.add(item.day());
             }
         }
+        // 행사 포함 여부와 무관하게 모든 일차에 장소가 최소 하나 이상 있는지 검증
         if (daysWithPlace.size() != totalDays) {
             throw new GeneralException(CourseErrorCode.PLACE_ITEM_REQUIRED);
         }
+        // 양수·중복 검증 이후 각 순서가 항목 수 이하이면 1부터 연속된 순서 보장
         for (Set<Integer> orders : ordersByDay.values()) {
             if (orders.stream().anyMatch(order -> order > orders.size())) {
                 throw new GeneralException(CourseErrorCode.INVALID_COURSE_ITEM);

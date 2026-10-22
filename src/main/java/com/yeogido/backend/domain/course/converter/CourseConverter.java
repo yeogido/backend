@@ -144,6 +144,7 @@ public class CourseConverter {
             List<CourseResDTO.CourseItem> courseItems,
             String profileImageUrl
     ) {
+        // 일부 일차에 항목이 없는 기존 코스도 저장된 전체 여행 일수 유지
         return new CourseResDTO.CourseDetail(
                 course.getId(),
                 course.getCourseType(),

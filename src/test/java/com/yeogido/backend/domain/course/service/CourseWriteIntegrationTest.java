@@ -70,7 +70,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 @TestPropertySource(properties = {
         "spring.datasource.url=jdbc:h2:mem:course-write-test;MODE=MySQL;NON_KEYWORDS=USER;DB_CLOSE_DELAY=-1"
 })
-// 서비스 자체의 트랜잭션 커밋/롤백을 확인하기 위해 테스트 트랜잭션은 사용하지 않음
+// 서비스의 실제 커밋/롤백 검증을 위해 테스트 공통 트랜잭션 비활성화
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class CourseWriteIntegrationTest {
 
@@ -179,6 +179,7 @@ class CourseWriteIntegrationTest {
     @Test
     void preservesLegacyIncompleteScheduleOnMetadataOnlyEdit() {
         long id = create(DurationType.DAY_TRIP, 1);
+        // 전체 3일 중 1일차에만 항목이 배치된 기존 데이터 재현
         new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
             Course course = courseRepository.findById(id).orElseThrow();
             course.update(null, null, DurationType.TWO_NIGHT, null, null, null, null, null, null);
@@ -202,6 +203,7 @@ class CourseWriteIntegrationTest {
         List<Long> previousTimeIds = timeRepository.findAllByCourseId(id).stream().map(time -> time.getId()).toList();
         var invalidItems = new ArrayList<>(items(3));
         var invalid = invalidItems.getLast();
+        // 기존 일정 삭제 및 새 항목 저장 이후 이동수단 중복 오류를 유발하여 전체 롤백 검증
         invalidItems.set(invalidItems.size() - 1, new CourseReqDTO.CourseItemCreateReq(invalid.order(),
                 invalid.type(), invalid.contentId(), null, null, null, null, null, null, null, null, null,
                 List.of(new CourseReqDTO.CourseItemTimeReq(TransportMode.CAR, 10),
@@ -245,6 +247,7 @@ class CourseWriteIntegrationTest {
 
     private List<CourseReqDTO.CourseItemCreateReq> items(int days) {
         var items = new ArrayList<CourseReqDTO.CourseItemCreateReq>();
+        // 요청 배열 순서에 의존하지 않는 저장 검증을 위해 일차 역순 구성
         for (int day = days; day >= 1; day--) {
             items.add(new CourseReqDTO.CourseItemCreateReq(1, CourseItemType.PLACE, null, place.getExternalPlaceId(),
                     null, place.getName(), "도로명 주소", null, place.getLatitude(), place.getLongitude(),

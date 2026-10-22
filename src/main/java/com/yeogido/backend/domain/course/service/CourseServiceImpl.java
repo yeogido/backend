@@ -152,6 +152,7 @@ public class CourseServiceImpl implements CourseService {
             replaceCourseHashtags(course, movedRequest.hashtagIds());
         }
 
+        // 일정 미전달 시 기존 일정 유지, 전달 시 모든 일차의 일정 전체 교체
         if (movedRequest.courseItems() != null) {
             replaceCourseItems(course, movedRequest.courseItems());
         }
@@ -403,6 +404,7 @@ public class CourseServiceImpl implements CourseService {
             return Map.of();
         }
 
+        // 각 일차 첫 항목의 이동시간 제외를 위해 같은 일차의 직전 항목만 연결
         Map<Long, Long> previousItemIdByItemId = new HashMap<>();
         for (int index = 1; index < courseItems.size(); index++) {
             CourseItem current = courseItems.get(index);
@@ -412,6 +414,7 @@ public class CourseServiceImpl implements CourseService {
             }
         }
 
+        // 기존 데이터에 남아 있는 일차 간 이동시간과 비인접 항목 간 이동시간 제외
         return courseItemTimeRepository.findAllByCourseId(courseId).stream()
                 .filter(itemTime -> Objects.equals(
                         previousItemIdByItemId.get(itemTime.getToCourseItem().getId()),
@@ -1021,6 +1024,7 @@ public class CourseServiceImpl implements CourseService {
     }
 
     private void saveCourseItemTimes(List<CourseItemWithRequest> items) {
+        // 요청 배열 순서와 무관하게 일차·방문 순서를 기준으로 이동 구간 구성
         List<CourseItemWithRequest> orderedItems = items.stream()
                 .sorted(Comparator.comparing((CourseItemWithRequest item) -> item.request().day())
                         .thenComparing(item -> item.request().order()))
@@ -1080,6 +1084,7 @@ public class CourseServiceImpl implements CourseService {
     ) { }
 
     private void replaceCourseItems(Course course, List<CourseReqDTO.CourseItemCreateReq> courseItems) {
+        // 외래 키 참조 순서에 따라 이동시간 선삭제 후 전체 일정 교체
         courseItemTimeRepository.deleteAllByCourseId(course.getId());
         courseItemRepository.deleteAllByCourseId(course.getId());
         saveCourseItems(course, courseItems, true);

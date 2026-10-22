@@ -16,8 +16,8 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 /**
- * MYSQL_MIGRATION_TEST_URL must point to a disposable MySQL server, without a database name.
- * Run with ./gradlew migrationTest. Each test creates and removes its own schema.
+ * MYSQL_MIGRATION_TEST_URL에 DB 이름을 제외한 테스트용 MySQL 서버 주소 설정 필수
+ * ./gradlew migrationTest로 실행하며 테스트마다 별도 스키마 생성 및 정리
  */
 @Tag("mysql-migration")
 class CourseDailyScheduleMigrationTest {
@@ -43,6 +43,7 @@ class CourseDailyScheduleMigrationTest {
         }
         databaseUrl = "jdbc:mysql://" + server.getMetaData().getURL()
                 .substring("jdbc:mysql://".length()).split("/", 2)[0] + "/" + schema;
+        // 일차 도입 직전인 V35까지 적용하여 기존 DB 구조 재현
         Flyway.configure().dataSource(databaseUrl, username, password).target("35").load().migrate();
         database = DriverManager.getConnection(databaseUrl, username, password);
     }
@@ -92,6 +93,7 @@ class CourseDailyScheduleMigrationTest {
                     duration_minutes, created_at, updated_at) VALUES
                     (1, 2, 'WALK', 30, NOW(6), NOW(6)), (1, 2, 'CAR', 10, NOW(6), NOW(6))
                 """);
+        // 새 컬럼 추가 전의 원본 데이터 보존 여부 비교를 위한 스냅샷 확보
         var originalCourses = rows("SELECT * FROM course ORDER BY id");
         var originalItems = rows("SELECT * FROM course_item ORDER BY id");
         var originalTimes = rows("SELECT * FROM course_item_time ORDER BY id");
@@ -100,6 +102,7 @@ class CourseDailyScheduleMigrationTest {
 
         assertThat(rows("SELECT total_days FROM course ORDER BY id"))
                 .containsExactly(List.of(1), List.of(2), List.of(3), List.of(4), List.of(1));
+        // 마지막에 추가된 일수·일차 컬럼을 제외하고 기존 컬럼 전체 비교
         assertThat(rows("SELECT * FROM course ORDER BY id").stream()
                 .map(row -> row.subList(0, row.size() - 1)).toList()).isEqualTo(originalCourses);
         assertThat(rows("SELECT * FROM course_item ORDER BY id").stream()

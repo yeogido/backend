@@ -200,7 +200,7 @@ public class CourseReqDTO {
             @Schema(description = "실제 여행 일수. 기간 변경 시 필수이며 일수 변경 시 전체 일정도 전달해야 합니다.", example = "2")
             Integer totalDays
     ) {
-        // 기존 Java 호출부용 생성자. JSON 요청은 전체 필드 생성자로 역직렬화합니다.
+        // 기존 Java 호출부 호환용 생성자이며, JSON 요청에는 전체 필드 생성자 사용
         public CourseUpdateReq(
                 String title,
                 String description,
@@ -310,7 +310,7 @@ public class CourseReqDTO {
             @Schema(description = "방문 일차. 1 이상 totalDays 이하", example = "1")
             Integer day
     ) {
-        // 기존 Java 호출부용 생성자. JSON 요청은 전체 필드 생성자로 역직렬화합니다.
+        // 기존 Java 호출부 호환용 생성자이며, JSON 요청에는 전체 필드 생성자 사용
         public CourseItemCreateReq(
                 Integer order,
                 CourseItemType type,

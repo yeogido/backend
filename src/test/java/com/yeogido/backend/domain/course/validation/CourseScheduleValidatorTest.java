@@ -59,6 +59,7 @@ class CourseScheduleValidatorTest {
 
     @Test
     void rejectsMissingDayEvenWhenTotalNumberOfPlacesMatchesDays() {
+        // 장소 수는 3개지만 2일차에 장소가 없는 입력 구성
         expect(CourseErrorCode.PLACE_ITEM_REQUIRED, () -> CourseScheduleValidator.validateCreate(
                 create(DurationType.TWO_NIGHT, 3, List.of(
                         item(1, 1, CourseItemType.PLACE, null), item(1, 2, CourseItemType.PLACE, null),
@@ -137,6 +138,7 @@ class CourseScheduleValidatorTest {
 
     @Test
     void jsonOmissionsAreNotDefaultedByJavaConvenienceConstructors() throws Exception {
+        // Java 호환 생성자의 기본값으로 JSON 필수값 누락이 보완되지 않는지 검증
         ObjectMapper mapper = new ObjectMapper();
         var request = mapper.readValue("""
                 {"durationType":"DAY_TRIP", "courseItems":[{"order":1, "type":"PLACE"}]}

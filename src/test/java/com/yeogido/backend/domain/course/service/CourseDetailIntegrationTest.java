@@ -90,6 +90,7 @@ class CourseDetailIntegrationTest {
     @CsvSource({"DAY_TRIP,1", "ONE_NIGHT,2", "TWO_NIGHT,3", "THREE_PLUS,6"})
     void returnsStoredDaysAndItemsSortedByDayThenOrder(DurationType duration, int days) throws Exception {
         Course course = persistCourse(duration, days);
+        // DB 조회 정렬 검증을 위해 일차와 방문 순서 모두 역순으로 저장
         for (int day = days; day >= 1; day--) {
             CourseItem second = persistItem(course, day, 2, CourseItemType.CONTENT);
             CourseItem first = persistItem(course, day, 1, CourseItemType.PLACE);
@@ -139,7 +140,7 @@ class CourseDetailIntegrationTest {
         persistTime(day1First, day1Second, TransportMode.PUBLIC, 8);
         persistTime(day1Second, day1Third, TransportMode.CAR, 7);
         persistTime(day2First, day2Second, TransportMode.WALK, 20);
-        // DB에 남아 있는 날짜 간 이동시간 및 인접하지 않은 항목 간 이동시간은 노출하지 않는다.
+        // 조회 시 제외되어야 하는 일차 간 이동시간과 비인접 항목 간 이동시간 구성
         persistTime(day1Third, day2First, TransportMode.CAR, 99);
         persistTime(day2Second, day3First, TransportMode.CAR, 99);
         persistTime(day1First, day1Third, TransportMode.WALK, 99);
@@ -238,6 +239,7 @@ class CourseDetailIntegrationTest {
     }
 
     private CourseResDTO.CourseDetail detail(Course course) {
+        // 영속성 컨텍스트의 기존 객체가 아닌 실제 DB 조회 결과 검증
         entityManager.flush();
         entityManager.clear();
         return courseService.getCourseDetail(course.getId(), null);
