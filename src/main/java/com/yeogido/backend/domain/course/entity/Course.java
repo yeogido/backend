@@ -135,6 +135,12 @@ public class Course extends BaseEntity {
         }
     }
 
+    public void updateTotalDays(Integer totalDays) {
+        if (totalDays != null) {
+            this.totalDays = totalDays;
+        }
+    }
+
     public void delete() {
         this.deletedAt = LocalDateTime.now();
     }

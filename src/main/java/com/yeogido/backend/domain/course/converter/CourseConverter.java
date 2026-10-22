@@ -39,6 +39,7 @@ public class CourseConverter {
                 .courseType(courseType)
                 .recommendOrder(defaultRecommendOrder(courseType))
                 .durationType(request.durationType())
+                .totalDays(request.totalDays())
                 .transportType(request.transportType())
                 .companionType(request.companionType())
                 .monthStart(request.monthStart())
@@ -82,6 +83,7 @@ public class CourseConverter {
                 .course(course)
                 .place(place)
                 .itemType(CourseItemType.PLACE)
+                .day(request.day())
                 .orderNo(request.order())
                 .imageKey(request.imageKey())
                 .build();
@@ -96,6 +98,7 @@ public class CourseConverter {
                 .course(course)
                 .content(content)
                 .itemType(CourseItemType.CONTENT)
+                .day(request.day())
                 .orderNo(request.order())
                 .build();
     }
