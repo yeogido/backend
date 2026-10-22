@@ -165,15 +165,18 @@ public final class SwaggerExamples {
               "야경",
               "드라이브"
             ],
-            "durationType": "DAY_TRIP",
+            "durationType": "ONE_NIGHT",
+            "totalDays": 2,
             "transportType": "CAR",
             "startMonth": 4,
             "endMonth": 10,
             "companionType": "FRIEND",
             "isLiked": false,
+            "canManage": false,
             "courseItems": [
               {
                 "courseItemId": 101,
+                "day": 1,
                 "order": 1,
                 "type": "PLACE",
                 "placeId": 12,
@@ -203,6 +206,7 @@ public final class SwaggerExamples {
               },
               {
                 "courseItemId": 102,
+                "day": 1,
                 "order": 2,
                 "type": "CONTENT",
                 "contentId": 3,
@@ -230,6 +234,26 @@ public final class SwaggerExamples {
                     "durationMinutes": 5
                   }
                 ]
+              },
+              {
+                "courseItemId": 103,
+                "day": 2,
+                "order": 1,
+                "type": "PLACE",
+                "placeId": 13,
+                "isLiked": false,
+                "source": "KAKAO",
+                "externalPlaceId": "654321",
+                "categoryGroupCode": "AT4",
+                "name": "해운대 해수욕장",
+                "roadAddress": "부산광역시 해운대구 해운대해변로 264",
+                "lotAddress": "부산광역시 해운대구 우동",
+                "latitude": 35.1587,
+                "longitude": 129.1604,
+                "imageKey": "courses/place/haeundae.jpg",
+                "imageUrl": "https://example.com/courses/place/haeundae.jpg",
+                "operatingDays": [],
+                "timesFromPrevious": []
               }
             ]
           }

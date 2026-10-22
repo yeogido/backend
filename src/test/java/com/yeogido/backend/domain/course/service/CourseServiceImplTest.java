@@ -569,7 +569,7 @@ class CourseServiceImplTest {
         when(courseLikeRepository.existsByUserIdAndCourseId(1L, 10L)).thenReturn(false);
         when(userRepository.findById(1L)).thenReturn(Optional.of(createUser()));
         when(courseHashtagRepository.findByCourseId(10L)).thenReturn(List.of());
-        when(courseItemRepository.findByCourseIdOrderByOrderNoAsc(10L)).thenReturn(List.of());
+        when(courseItemRepository.findByCourseIdOrderByDayAscOrderNoAsc(10L)).thenReturn(List.of());
 
         CourseResDTO.CourseDetail response = courseService.getCourseDetail(10L, 1L);
 
@@ -582,7 +582,7 @@ class CourseServiceImplTest {
 
         when(courseRepository.findCourseDetailByIdAndDeletedAtIsNull(10L)).thenReturn(Optional.of(course));
         when(courseHashtagRepository.findByCourseId(10L)).thenReturn(List.of());
-        when(courseItemRepository.findByCourseIdOrderByOrderNoAsc(10L)).thenReturn(List.of());
+        when(courseItemRepository.findByCourseIdOrderByDayAscOrderNoAsc(10L)).thenReturn(List.of());
 
         CourseResDTO.CourseDetail response = courseService.getCourseDetail(10L, null);
 
@@ -597,7 +597,7 @@ class CourseServiceImplTest {
         when(courseLikeRepository.existsByUserIdAndCourseId(1L, 10L)).thenReturn(false);
         when(userRepository.findById(1L)).thenReturn(Optional.of(createAdmin()));
         when(courseHashtagRepository.findByCourseId(10L)).thenReturn(List.of());
-        when(courseItemRepository.findByCourseIdOrderByOrderNoAsc(10L)).thenReturn(List.of());
+        when(courseItemRepository.findByCourseIdOrderByDayAscOrderNoAsc(10L)).thenReturn(List.of());
 
         CourseResDTO.CourseDetail response = courseService.getCourseDetail(10L, 1L);
 

@@ -152,6 +152,7 @@ public class CourseConverter {
                 course.getDescription(),
                 tags,
                 course.getDurationType(),
+                course.getTotalDays(),
                 course.getTransportType(),
                 course.getMonthStart(),
                 course.getMonthEnd(),
@@ -178,6 +179,7 @@ public class CourseConverter {
 
             return new CourseResDTO.PlaceCourseItem(
                     courseItem.getId(),
+                    courseItem.getDay(),
                     courseItem.getOrderNo(),
                     courseItem.getItemType(),
                     place.getId(),
@@ -201,6 +203,7 @@ public class CourseConverter {
 
         return new CourseResDTO.ContentCourseItem(
                 courseItem.getId(),
+                courseItem.getDay(),
                 courseItem.getOrderNo(),
                 courseItem.getItemType(),
                 content.getId(),

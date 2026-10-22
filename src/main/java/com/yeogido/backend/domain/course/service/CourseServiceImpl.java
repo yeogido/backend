@@ -331,7 +331,7 @@ public class CourseServiceImpl implements CourseService {
                 .map(courseHashtag -> courseHashtag.getHashtag().getHashtagName())
                 .toList();
 
-        List<CourseItem> courseItemEntities = courseItemRepository.findByCourseIdOrderByOrderNoAsc(courseId);
+        List<CourseItem> courseItemEntities = courseItemRepository.findByCourseIdOrderByDayAscOrderNoAsc(courseId);
         Set<Long> likedPlaceIds = getLikedPlaceIds(userId, courseItemEntities);
         Set<Long> likedContentIds = getLikedContentIds(userId, courseItemEntities);
         Map<Long, List<CourseResDTO.OperatingDay>> operatingDayMap = getOperatingDayMap(courseItemEntities);
@@ -405,10 +405,11 @@ public class CourseServiceImpl implements CourseService {
 
         Map<Long, Long> previousItemIdByItemId = new HashMap<>();
         for (int index = 1; index < courseItems.size(); index++) {
-            previousItemIdByItemId.put(
-                    courseItems.get(index).getId(),
-                    courseItems.get(index - 1).getId()
-            );
+            CourseItem current = courseItems.get(index);
+            CourseItem previous = courseItems.get(index - 1);
+            if (Objects.equals(current.getDay(), previous.getDay())) {
+                previousItemIdByItemId.put(current.getId(), previous.getId());
+            }
         }
 
         return courseItemTimeRepository.findAllByCourseId(courseId).stream()
