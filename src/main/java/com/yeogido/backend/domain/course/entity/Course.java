@@ -50,6 +50,9 @@ public class Course extends BaseEntity {
     @Column(name = "duration_type", length = 20)
     private DurationType durationType;
 
+    @Column(name = "total_days", nullable = false)
+    private Integer totalDays;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "transport_type", length = 20)
     private TransportType transportType;
@@ -79,6 +82,19 @@ public class Course extends BaseEntity {
 
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
+
+    @PrePersist
+    protected void initializeTotalDays() {
+        // 기존 Java 생성 경로의 호환성을 위해 일수 누락 시 여행 기간별 기본값 적용
+        if (totalDays == null) {
+            totalDays = durationType == null ? 1 : switch (durationType) {
+                case DAY_TRIP -> 1;
+                case ONE_NIGHT -> 2;
+                case TWO_NIGHT -> 3;
+                case THREE_PLUS -> 4;
+            };
+        }
+    }
 
     public void update(
             String title,
@@ -117,6 +133,12 @@ public class Course extends BaseEntity {
         }
         if (routeImageKey != null) {
             this.routeImageKey = routeImageKey;
+        }
+    }
+
+    public void updateTotalDays(Integer totalDays) {
+        if (totalDays != null) {
+            this.totalDays = totalDays;
         }
     }
 

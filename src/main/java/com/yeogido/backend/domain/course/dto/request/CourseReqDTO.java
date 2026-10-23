@@ -82,8 +82,45 @@ public class CourseReqDTO {
             @Valid
             @NotEmpty(message = "코스 구성 항목은 최소 1개 이상 필요합니다.")
             @Schema(description = "코스 구성 항목")
-            List<@NotNull(message = "코스 구성 항목이 올바르지 않습니다.") CourseItemCreateReq> courseItems
+            List<@NotNull(message = "코스 구성 항목이 올바르지 않습니다.") CourseItemCreateReq> courseItems,
+
+            @NotNull(message = "실제 여행 일수는 필수입니다")
+            @Min(value = 1, message = "실제 여행 일수는 1 이상이어야 합니다")
+            @Schema(description = "실제 여행 일수. DAY_TRIP=1, ONE_NIGHT=2, TWO_NIGHT=3, THREE_PLUS는 4 이상", example = "1")
+            Integer totalDays
     ) {
+        // 기존 Java 호출부용 생성자
+        public CourseCreateReq(
+                String title,
+                Long regionId,
+                String description,
+                DurationType durationType,
+                TransportType transportType,
+                CompanionType companionType,
+                Integer monthStart,
+                Integer monthEnd,
+                String thumbnailKey,
+                String routeImageKey,
+                List<Long> hashtagIds,
+                List<CourseItemCreateReq> courseItems
+        ) {
+            this(
+                    title,
+                    regionId,
+                    description,
+                    durationType,
+                    transportType,
+                    companionType,
+                    monthStart,
+                    monthEnd,
+                    thumbnailKey,
+                    routeImageKey,
+                    hashtagIds,
+                    courseItems,
+                    1
+            );
+        }
+
         public CourseCreateReq(
                 String title,
                 Long regionId,
@@ -157,8 +194,42 @@ public class CourseReqDTO {
 
             @Valid
             @Schema(description = "코스 구성 항목")
-            List<@NotNull(message = "코스 구성 항목이 올바르지 않습니다.") CourseItemCreateReq> courseItems
+            List<@NotNull(message = "코스 구성 항목이 올바르지 않습니다.") CourseItemCreateReq> courseItems,
+
+            @Min(value = 1, message = "실제 여행 일수는 1 이상이어야 합니다")
+            @Schema(description = "실제 여행 일수. 기간 변경 시 필수이며 일수 변경 시 전체 일정도 전달해야 합니다.", example = "2")
+            Integer totalDays
     ) {
+        // 기존 Java 호출부 호환용 생성자이며, JSON 요청에는 전체 필드 생성자 사용
+        public CourseUpdateReq(
+                String title,
+                String description,
+                DurationType durationType,
+                TransportType transportType,
+                CompanionType companionType,
+                Integer monthStart,
+                Integer monthEnd,
+                String thumbnailKey,
+                String routeImageKey,
+                List<Long> hashtagIds,
+                List<CourseItemCreateReq> courseItems
+        ) {
+            this(
+                    title,
+                    description,
+                    durationType,
+                    transportType,
+                    companionType,
+                    monthStart,
+                    monthEnd,
+                    thumbnailKey,
+                    routeImageKey,
+                    hashtagIds,
+                    courseItems,
+                    null
+            );
+        }
+
         public CourseUpdateReq(
                 String title,
                 String description,
@@ -191,7 +262,8 @@ public class CourseReqDTO {
     public record CourseItemCreateReq(
 
             @NotNull(message = "코스 항목 순서는 필수입니다")
-            @Schema(description = "코스 내 순서", example = "1")
+            @Min(value = 1, message = "방문 순서는 1 이상이어야 합니다")
+            @Schema(description = "해당 일차 내 방문 순서. 1부터 연속된 값", example = "1")
             Integer order,
 
             @NotNull(message = "코스 항목 타입은 필수입니다")
@@ -230,9 +302,48 @@ public class CourseReqDTO {
             List<@NotNull(message = "영업시간 정보가 올바르지 않습니다.") PlaceOperatingDayReq> operatingDays,
 
             @Valid
-            @Schema(description = "이전 코스 항목에서 현재 항목까지의 이동 소요시간 목록. 전달된 경우에만 저장합니다.", nullable = true)
-            List<@NotNull(message = "이동 소요시간 정보가 올바르지 않습니다.") CourseItemTimeReq> timesFromPrevious
+            @Schema(description = "같은 일차의 직전 항목에서 현재 항목까지의 이동 시간. 각 일차 첫 항목은 생략하거나 빈 배열로 전달합니다.", nullable = true)
+            List<@NotNull(message = "이동 소요시간 정보가 올바르지 않습니다.") CourseItemTimeReq> timesFromPrevious,
+
+            @NotNull(message = "방문 일차는 필수입니다")
+            @Min(value = 1, message = "방문 일차는 1 이상이어야 합니다")
+            @Schema(description = "방문 일차. 1 이상 totalDays 이하", example = "1")
+            Integer day
     ) {
+        // 기존 Java 호출부 호환용 생성자이며, JSON 요청에는 전체 필드 생성자 사용
+        public CourseItemCreateReq(
+                Integer order,
+                CourseItemType type,
+                Long contentId,
+                String externalPlaceId,
+                String categoryGroupCode,
+                String name,
+                String roadAddress,
+                String lotAddress,
+                BigDecimal latitude,
+                BigDecimal longitude,
+                String imageKey,
+                List<PlaceOperatingDayReq> operatingDays,
+                List<CourseItemTimeReq> timesFromPrevious
+        ) {
+            this(
+                    order,
+                    type,
+                    contentId,
+                    externalPlaceId,
+                    categoryGroupCode,
+                    name,
+                    roadAddress,
+                    lotAddress,
+                    latitude,
+                    longitude,
+                    imageKey,
+                    operatingDays,
+                    timesFromPrevious,
+                    1
+            );
+        }
+
         public CourseItemCreateReq(
                 Integer order,
                 CourseItemType type,

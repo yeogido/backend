@@ -7,6 +7,7 @@ import com.yeogido.backend.domain.content.repository.ContentRepository;
 import com.yeogido.backend.domain.content.enums.ContentPublicationStatus;
 import com.yeogido.backend.domain.business.enums.DayOfWeek;
 import com.yeogido.backend.domain.course.converter.CourseConverter;
+import com.yeogido.backend.domain.course.validation.CourseScheduleValidator;
 import com.yeogido.backend.domain.course.dto.request.CourseReqDTO;
 import com.yeogido.backend.domain.course.dto.response.CourseResDTO;
 import com.yeogido.backend.domain.course.entity.*;
@@ -129,7 +130,7 @@ public class CourseServiceImpl implements CourseService {
         User user = getCurrentUser(userId);
 
         validateCourseAuthority(course, user);
-        validateCourseUpdateRequest(request);
+        validateCourseUpdateRequest(course, request);
         validateRequiredCourseItemImages(request, course.getCourseType());
         CourseReqDTO.CourseUpdateReq movedRequest = moveCourseImages(request);
 
@@ -145,10 +146,13 @@ public class CourseServiceImpl implements CourseService {
                 movedRequest.routeImageKey()
         );
 
+        course.updateTotalDays(movedRequest.totalDays());
+
         if (movedRequest.hashtagIds() != null) {
             replaceCourseHashtags(course, movedRequest.hashtagIds());
         }
 
+        // 일정 미전달 시 기존 일정 유지, 전달 시 모든 일차의 일정 전체 교체
         if (movedRequest.courseItems() != null) {
             replaceCourseItems(course, movedRequest.courseItems());
         }
@@ -328,7 +332,7 @@ public class CourseServiceImpl implements CourseService {
                 .map(courseHashtag -> courseHashtag.getHashtag().getHashtagName())
                 .toList();
 
-        List<CourseItem> courseItemEntities = courseItemRepository.findByCourseIdOrderByOrderNoAsc(courseId);
+        List<CourseItem> courseItemEntities = courseItemRepository.findByCourseIdOrderByDayAscOrderNoAsc(courseId);
         Set<Long> likedPlaceIds = getLikedPlaceIds(userId, courseItemEntities);
         Set<Long> likedContentIds = getLikedContentIds(userId, courseItemEntities);
         Map<Long, List<CourseResDTO.OperatingDay>> operatingDayMap = getOperatingDayMap(courseItemEntities);
@@ -400,14 +404,17 @@ public class CourseServiceImpl implements CourseService {
             return Map.of();
         }
 
+        // 각 일차 첫 항목의 이동시간 제외를 위해 같은 일차의 직전 항목만 연결
         Map<Long, Long> previousItemIdByItemId = new HashMap<>();
         for (int index = 1; index < courseItems.size(); index++) {
-            previousItemIdByItemId.put(
-                    courseItems.get(index).getId(),
-                    courseItems.get(index - 1).getId()
-            );
+            CourseItem current = courseItems.get(index);
+            CourseItem previous = courseItems.get(index - 1);
+            if (Objects.equals(current.getDay(), previous.getDay())) {
+                previousItemIdByItemId.put(current.getId(), previous.getId());
+            }
         }
 
+        // 기존 데이터에 남아 있는 일차 간 이동시간과 비인접 항목 간 이동시간 제외
         return courseItemTimeRepository.findAllByCourseId(courseId).stream()
                 .filter(itemTime -> Objects.equals(
                         previousItemIdByItemId.get(itemTime.getToCourseItem().getId()),
@@ -669,7 +676,8 @@ public class CourseServiceImpl implements CourseService {
                 moveImage(request.thumbnailKey(), ImageDirectory.COURSE),
                 moveImage(request.routeImageKey(), ImageDirectory.COURSE),
                 request.hashtagIds(),
-                moveCourseItemImages(request.courseItems())
+                moveCourseItemImages(request.courseItems()),
+                request.totalDays()
         );
     }
 
@@ -685,7 +693,8 @@ public class CourseServiceImpl implements CourseService {
                 moveImage(request.thumbnailKey(), ImageDirectory.COURSE),
                 moveImage(request.routeImageKey(), ImageDirectory.COURSE),
                 request.hashtagIds(),
-                request.courseItems() == null ? null : moveCourseItemImages(request.courseItems())
+                request.courseItems() == null ? null : moveCourseItemImages(request.courseItems()),
+                request.totalDays()
         );
     }
 
@@ -711,7 +720,8 @@ public class CourseServiceImpl implements CourseService {
                 item.longitude(),
                 moveImage(item.imageKey(), ImageDirectory.COURSE),
                 item.operatingDays(),
-                item.timesFromPrevious()
+                item.timesFromPrevious(),
+                item.day()
         );
     }
 
@@ -829,6 +839,7 @@ public class CourseServiceImpl implements CourseService {
     }
 
     private void validateCourseCreateRequest(CourseReqDTO.CourseCreateReq request) {
+        CourseScheduleValidator.validateCreate(request);
         validateHashtags(request.hashtagIds());
         validateCourseItems(request.courseItems());
     }
@@ -866,7 +877,8 @@ public class CourseServiceImpl implements CourseService {
         }
     }
 
-    private void validateCourseUpdateRequest(CourseReqDTO.CourseUpdateReq request) {
+    private void validateCourseUpdateRequest(Course course, CourseReqDTO.CourseUpdateReq request) {
+        CourseScheduleValidator.validateUpdate(course, request);
         if (request.hashtagIds() != null) {
             validateHashtags(request.hashtagIds());
         }
@@ -883,17 +895,8 @@ public class CourseServiceImpl implements CourseService {
     }
 
     private void validateCourseItems(List<CourseReqDTO.CourseItemCreateReq> courseItems) {
-        Set<Integer> orders = new HashSet<>();
-        boolean hasPlace = false;
-
         for (CourseReqDTO.CourseItemCreateReq item : courseItems) {
-
-            if (!orders.add(item.order())) {
-                throw new GeneralException(CourseErrorCode.DUPLICATE_COURSE_ITEM_ORDER);
-            }
-
             if (item.type() == CourseItemType.PLACE) {
-                hasPlace = true;
                 validatePlaceItem(item);
                 continue;
             }
@@ -904,10 +907,6 @@ public class CourseServiceImpl implements CourseService {
             }
 
             throw new GeneralException(CourseErrorCode.INVALID_COURSE_ITEM);
-        }
-
-        if (!hasPlace) {
-            throw new GeneralException(CourseErrorCode.PLACE_ITEM_REQUIRED);
         }
     }
 
@@ -1025,8 +1024,10 @@ public class CourseServiceImpl implements CourseService {
     }
 
     private void saveCourseItemTimes(List<CourseItemWithRequest> items) {
+        // 요청 배열 순서와 무관하게 일차·방문 순서를 기준으로 이동 구간 구성
         List<CourseItemWithRequest> orderedItems = items.stream()
-                .sorted(Comparator.comparing(item -> item.courseItem().getOrderNo()))
+                .sorted(Comparator.comparing((CourseItemWithRequest item) -> item.request().day())
+                        .thenComparing(item -> item.request().order()))
                 .toList();
         List<CourseItemTime> itemTimes = new ArrayList<>();
 
@@ -1035,7 +1036,8 @@ public class CourseServiceImpl implements CourseService {
             CourseItemWithRequest toItem = orderedItems.get(index);
             List<CourseReqDTO.CourseItemTimeReq> requests = toItem.request().timesFromPrevious();
 
-            if (requests == null || requests.isEmpty()) {
+            if (!fromItem.request().day().equals(toItem.request().day())
+                    || requests == null || requests.isEmpty()) {
                 continue;
             }
 
@@ -1082,6 +1084,7 @@ public class CourseServiceImpl implements CourseService {
     ) { }
 
     private void replaceCourseItems(Course course, List<CourseReqDTO.CourseItemCreateReq> courseItems) {
+        // 외래 키 참조 순서에 따라 이동시간 선삭제 후 전체 일정 교체
         courseItemTimeRepository.deleteAllByCourseId(course.getId());
         courseItemRepository.deleteAllByCourseId(course.getId());
         saveCourseItems(course, courseItems, true);

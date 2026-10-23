@@ -39,6 +39,7 @@ public class CourseConverter {
                 .courseType(courseType)
                 .recommendOrder(defaultRecommendOrder(courseType))
                 .durationType(request.durationType())
+                .totalDays(request.totalDays())
                 .transportType(request.transportType())
                 .companionType(request.companionType())
                 .monthStart(request.monthStart())
@@ -82,6 +83,7 @@ public class CourseConverter {
                 .course(course)
                 .place(place)
                 .itemType(CourseItemType.PLACE)
+                .day(request.day())
                 .orderNo(request.order())
                 .imageKey(request.imageKey())
                 .build();
@@ -96,6 +98,7 @@ public class CourseConverter {
                 .course(course)
                 .content(content)
                 .itemType(CourseItemType.CONTENT)
+                .day(request.day())
                 .orderNo(request.order())
                 .build();
     }
@@ -141,6 +144,7 @@ public class CourseConverter {
             List<CourseResDTO.CourseItem> courseItems,
             String profileImageUrl
     ) {
+        // 일부 일차에 항목이 없는 기존 코스도 저장된 전체 여행 일수 유지
         return new CourseResDTO.CourseDetail(
                 course.getId(),
                 course.getCourseType(),
@@ -149,6 +153,7 @@ public class CourseConverter {
                 course.getDescription(),
                 tags,
                 course.getDurationType(),
+                course.getTotalDays(),
                 course.getTransportType(),
                 course.getMonthStart(),
                 course.getMonthEnd(),
@@ -175,6 +180,7 @@ public class CourseConverter {
 
             return new CourseResDTO.PlaceCourseItem(
                     courseItem.getId(),
+                    courseItem.getDay(),
                     courseItem.getOrderNo(),
                     courseItem.getItemType(),
                     place.getId(),
@@ -198,6 +204,7 @@ public class CourseConverter {
 
         return new CourseResDTO.ContentCourseItem(
                 courseItem.getId(),
+                courseItem.getDay(),
                 courseItem.getOrderNo(),
                 courseItem.getItemType(),
                 content.getId(),
