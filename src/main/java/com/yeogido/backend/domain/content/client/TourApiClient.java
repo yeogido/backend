@@ -55,6 +55,22 @@ public class TourApiClient {
         );
     }
 
+    public JsonNode legalDistrictCodes(String provinceCode, int page, int size) {
+        return execute(
+                "/ldongCode2",
+                uriBuilder -> {
+                    commonQuery(uriBuilder)
+                            .queryParam("lDongListYn", "N")
+                            .queryParam("pageNo", page)
+                            .queryParam("numOfRows", size);
+                    if (StringUtils.hasText(provinceCode)) {
+                        uriBuilder.queryParam("lDongRegnCd", provinceCode);
+                    }
+                    return uriBuilder.build();
+                }
+        );
+    }
+
     public JsonNode detailCommon(String contentId) {
         return execute(
                 "/detailCommon2",
