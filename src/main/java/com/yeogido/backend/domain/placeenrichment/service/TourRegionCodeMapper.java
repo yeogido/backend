@@ -1,13 +1,14 @@
-package com.yeogido.backend.domain.place.enrichment;
+package com.yeogido.backend.domain.placeenrichment.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.yeogido.backend.domain.content.client.TourApiClient;
 import com.yeogido.backend.domain.content.exception.ContentErrorCode;
-import com.yeogido.backend.global.exception.GeneralException;
 import com.yeogido.backend.domain.place.entity.Place;
+import com.yeogido.backend.domain.placeenrichment.dto.TourRegionCode;
 import com.yeogido.backend.domain.region.entity.Region;
-import com.yeogido.backend.domain.region.repository.RegionRepository;
 import com.yeogido.backend.domain.region.exception.RegionErrorCode;
+import com.yeogido.backend.domain.region.repository.RegionRepository;
+import com.yeogido.backend.global.exception.GeneralException;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
