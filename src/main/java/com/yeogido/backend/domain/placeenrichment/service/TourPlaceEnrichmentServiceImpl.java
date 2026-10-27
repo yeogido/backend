@@ -5,7 +5,7 @@ import com.yeogido.backend.domain.content.client.TourApiClient;
 import com.yeogido.backend.domain.content.exception.ContentErrorCode;
 import com.yeogido.backend.domain.place.entity.Place;
 import com.yeogido.backend.domain.placeenrichment.dto.TourRegionCode;
-import com.yeogido.backend.domain.placeenrichment.dto.response.TourPlaceResDTO;
+import com.yeogido.backend.domain.placeenrichment.dto.response.TourPlaceResponse;
 import com.yeogido.backend.domain.placeenrichment.enums.TourPlaceMatchReason;
 import com.yeogido.backend.domain.placeenrichment.enums.TourPlaceMatchStatus;
 import com.yeogido.backend.domain.placeenrichment.exception.PlaceEnrichmentErrorCode;
@@ -43,7 +43,7 @@ public class TourPlaceEnrichmentServiceImpl implements TourPlaceEnrichmentServic
     private double matchDistanceMeters;
 
     @Override
-    public TourPlaceResDTO.MatchResult enrich(Place place) {
+    public TourPlaceResponse.MatchResult enrich(Place place) {
         // 장소명 및 검색 설정 검증
         if (!StringUtils.hasText(place.getName())) {
             throw new GeneralException(PlaceEnrichmentErrorCode.PLACE_NAME_REQUIRED);
@@ -60,7 +60,7 @@ public class TourPlaceEnrichmentServiceImpl implements TourPlaceEnrichmentServic
         if (region.lDongSignguCd() != null) {
             scopes.add(new TourRegionCode(region.lDongRegnCd(), null));
         }
-        Map<String, TourPlaceResDTO.Candidate> candidates = new LinkedHashMap<>();
+        Map<String, TourPlaceResponse.Candidate> candidates = new LinkedHashMap<>();
         int requests = 0;
         for (TourRegionCode scope : scopes) {
             for (String keyword : keywords) {
@@ -93,8 +93,8 @@ public class TourPlaceEnrichmentServiceImpl implements TourPlaceEnrichmentServic
                     }
                 }
                 // 누적 후보 중 이름과 위치가 모두 일치하는 확정 후보 선별
-                List<TourPlaceResDTO.Candidate> strong = candidates.values().stream()
-                        .filter(TourPlaceResDTO.Candidate::strongMatch).toList();
+                List<TourPlaceResponse.Candidate> strong = candidates.values().stream()
+                        .filter(TourPlaceResponse.Candidate::strongMatch).toList();
                 // 복수 확정 후보에 대한 자동 매칭 보류
                 if (strong.size() > 1) {
                     return result(place, AMBIGUOUS, MULTIPLE_MATCHES, null,
@@ -122,7 +122,7 @@ public class TourPlaceEnrichmentServiceImpl implements TourPlaceEnrichmentServic
                 null, null, requests, false, candidates);
     }
 
-    private TourPlaceResDTO.Candidate evaluate(Place place, JsonNode item) {
+    private TourPlaceResponse.Candidate evaluate(Place place, JsonNode item) {
         String name = item.path("title").asText("");
         String address = item.path("addr1").asText("");
         String original = normalizeName(place.getName());
@@ -137,7 +137,7 @@ public class TourPlaceEnrichmentServiceImpl implements TourPlaceEnrichmentServic
         boolean locationMatched = addressMatched || distance != null && distance <= matchDistanceMeters;
         // 원거리 좌표와 주소 일치가 충돌하는 후보의 확정 제외
         boolean conflict = distance != null && distance > Math.max(500, matchDistanceMeters * 3);
-        return new TourPlaceResDTO.Candidate(item.path("contentid").asText(), name, address,
+        return new TourPlaceResponse.Candidate(item.path("contentid").asText(), name, address,
                 distance, nameMatched, addressMatched, nameMatched && locationMatched && !conflict);
     }
 
@@ -215,10 +215,10 @@ public class TourPlaceEnrichmentServiceImpl implements TourPlaceEnrichmentServic
         return StringUtils.hasText(text) ? text : null;
     }
 
-    private static TourPlaceResDTO.MatchResult result(Place place, TourPlaceMatchStatus status, TourPlaceMatchReason reason,
-            String contentId, String overview, int requests, boolean limitReached,
-            Map<String, TourPlaceResDTO.Candidate> candidates) {
-        return new TourPlaceResDTO.MatchResult(place.getExternalPlaceId(), status, reason, contentId, overview,
+    private static TourPlaceResponse.MatchResult result(Place place, TourPlaceMatchStatus status, TourPlaceMatchReason reason,
+                                                        String contentId, String overview, int requests, boolean limitReached,
+                                                        Map<String, TourPlaceResponse.Candidate> candidates) {
+        return new TourPlaceResponse.MatchResult(place.getExternalPlaceId(), status, reason, contentId, overview,
                 requests, limitReached, List.copyOf(candidates.values()));
     }
 }

@@ -2,7 +2,7 @@ package com.yeogido.backend.domain.placeenrichment.dto.request;
 
 import java.math.BigDecimal;
 
-public class TourPlaceReqDTO {
+public class TourPlaceRequest {
 
     public record Input(
             String externalPlaceId,

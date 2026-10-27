@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yeogido.backend.domain.content.client.TourApiClient;
 import com.yeogido.backend.domain.place.entity.Place;
 import com.yeogido.backend.domain.placeenrichment.dto.TourRegionCode;
-import com.yeogido.backend.domain.placeenrichment.dto.response.TourPlaceResDTO;
+import com.yeogido.backend.domain.placeenrichment.dto.response.TourPlaceResponse;
 import com.yeogido.backend.global.exception.GeneralException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -45,7 +45,7 @@ class TourPlaceEnrichmentServiceImplTest {
     void matchesByNameAndCoordinatesAndReturnsPlainOverview() throws Exception {
         search(page(1, candidate("1", "샘플식당 기준점", "다른 표기의 주소", "127.000000", "37.500000")));
         detail("1", "<p>샘플 메뉴 &amp; 음료</p>");
-        TourPlaceResDTO.MatchResult result = service.enrich(place("샘플식당 기준점"));
+        TourPlaceResponse.MatchResult result = service.enrich(place("샘플식당 기준점"));
         assertThat(result.matchStatus()).isEqualTo(MATCHED);
         assertThat(result.contentId()).isEqualTo("1");
         assertThat(result.matchReason()).isEqualTo(NAME_AND_LOCATION_MATCHED);
@@ -86,7 +86,7 @@ class TourPlaceEnrichmentServiceImplTest {
         when(client.searchPlaces(anyString(), any(), any(), anyInt(), anyInt()))
                 .thenReturn(page(2, candidate("1", "샘플식당 기준점", "서울 마포구 가상로 45", "", "")),
                         page(2, candidate("2", "샘플식당 기준점", "서울 마포구 가상로 45", "", "")));
-        TourPlaceResDTO.MatchResult result = service.enrich(place("샘플식당 기준점"));
+        TourPlaceResponse.MatchResult result = service.enrich(place("샘플식당 기준점"));
         assertThat(result.matchStatus()).isEqualTo(AMBIGUOUS);
         assertThat(result.matchReason()).isEqualTo(MULTIPLE_MATCHES);
         verify(client, never()).detailCommon(any());
@@ -108,7 +108,7 @@ class TourPlaceEnrichmentServiceImplTest {
     void limitDoesNotConfirmCandidateBeforeFinishingPages() throws Exception {
         ReflectionTestUtils.setField(service, "maxSearchRequests", 1);
         search(page(2, candidate("1", "샘플식당 기준점", "서울 마포구 가상로 45", "", "")));
-        TourPlaceResDTO.MatchResult result = service.enrich(place("샘플식당 기준점"));
+        TourPlaceResponse.MatchResult result = service.enrich(place("샘플식당 기준점"));
         assertThat(result.matchStatus()).isEqualTo(AMBIGUOUS);
         assertThat(result.searchLimitReached()).isTrue();
         assertThat(result.matchReason()).isEqualTo(SEARCH_LIMIT_REACHED);
@@ -118,7 +118,7 @@ class TourPlaceEnrichmentServiceImplTest {
     @Test
     void emptySearchIsUnmatchedAndDoesNotRequestDetails() throws Exception {
         search(page(0, ""));
-        TourPlaceResDTO.MatchResult result = service.enrich(place("샘플식당 기준점"));
+        TourPlaceResponse.MatchResult result = service.enrich(place("샘플식당 기준점"));
         assertThat(result.matchStatus()).isEqualTo(UNMATCHED);
         assertThat(result.matchReason()).isEqualTo(NO_MATCH);
         verify(client, never()).detailCommon(any());
@@ -128,7 +128,7 @@ class TourPlaceEnrichmentServiceImplTest {
     void missingOverviewRemainsMatched() throws Exception {
         search(page(1, candidate("1", "샘플식당 기준점", "서울 마포구 가상로 45", "", "")));
         detail("1", "");
-        TourPlaceResDTO.MatchResult result = service.enrich(place("샘플식당 기준점"));
+        TourPlaceResponse.MatchResult result = service.enrich(place("샘플식당 기준점"));
         assertThat(result.matchStatus()).isEqualTo(MATCHED);
         assertThat(result.overview()).isNull();
         assertThat(result.matchReason()).isEqualTo(MATCHED_WITHOUT_OVERVIEW);
@@ -163,7 +163,7 @@ class TourPlaceEnrichmentServiceImplTest {
                 .thenReturn(page(2, candidate("other", "다른 식당", "다른 주소", "", "")),
                         page(2, candidate("1", "샘플식당 기준점", "서울 마포구 가상로 45", "", "")));
         detail("1", "소개");
-        TourPlaceResDTO.MatchResult result = service.enrich(place("샘플식당 기준점"));
+        TourPlaceResponse.MatchResult result = service.enrich(place("샘플식당 기준점"));
         assertThat(result.matchStatus()).isEqualTo(MATCHED);
         assertThat(result.searchRequestCount()).isEqualTo(2);
     }
@@ -171,7 +171,7 @@ class TourPlaceEnrichmentServiceImplTest {
     @Test
     void nameAloneDoesNotConfirmLocation() throws Exception {
         search(page(1, candidate("1", "샘플식당 기준점", "", "", "")));
-        TourPlaceResDTO.MatchResult result = service.enrich(place("샘플식당 기준점"));
+        TourPlaceResponse.MatchResult result = service.enrich(place("샘플식당 기준점"));
         assertThat(result.matchStatus()).isEqualTo(AMBIGUOUS);
         assertThat(result.matchReason()).isEqualTo(INSUFFICIENT_EVIDENCE);
         verify(client, never()).detailCommon(any());

@@ -5,7 +5,7 @@ import com.yeogido.backend.domain.placeenrichment.enums.TourPlaceMatchStatus;
 
 import java.util.List;
 
-public class TourPlaceResDTO {
+public class TourPlaceResponse {
 
     public record MatchResult(
             String externalPlaceId,

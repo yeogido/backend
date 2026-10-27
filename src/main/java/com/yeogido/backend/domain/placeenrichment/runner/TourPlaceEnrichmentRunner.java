@@ -3,8 +3,8 @@ package com.yeogido.backend.domain.placeenrichment.runner;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yeogido.backend.domain.placeenrichment.converter.TourPlaceConverter;
-import com.yeogido.backend.domain.placeenrichment.dto.request.TourPlaceReqDTO;
-import com.yeogido.backend.domain.placeenrichment.dto.response.TourPlaceResDTO;
+import com.yeogido.backend.domain.placeenrichment.dto.request.TourPlaceRequest;
+import com.yeogido.backend.domain.placeenrichment.dto.response.TourPlaceResponse;
 import com.yeogido.backend.domain.placeenrichment.exception.PlaceEnrichmentErrorCode;
 import com.yeogido.backend.domain.placeenrichment.service.TourPlaceEnrichmentService;
 import com.yeogido.backend.global.exception.GeneralException;
@@ -39,14 +39,14 @@ public class TourPlaceEnrichmentRunner implements CommandLineRunner {
 
     @Override
     public void run(String... args) throws Exception {
-        List<TourPlaceReqDTO.Input> places = objectMapper.readValue(Path.of(input).toFile(), new TypeReference<>() { });
-        List<TourPlaceResDTO.MatchResult> results = new ArrayList<>();
+        List<TourPlaceRequest.Input> places = objectMapper.readValue(Path.of(input).toFile(), new TypeReference<>() { });
+        List<TourPlaceResponse.MatchResult> results = new ArrayList<>();
         Path outputPath = Path.of(output).toAbsolutePath().normalize();
         if (outputPath.equals(Path.of(input).toAbsolutePath().normalize())) {
             throw new GeneralException(PlaceEnrichmentErrorCode.ENRICHMENT_INPUT_OUTPUT_PATH_CONFLICT);
         }
         Files.createDirectories(outputPath.getParent());
-        for (TourPlaceReqDTO.Input place : places) {
+        for (TourPlaceRequest.Input place : places) {
             results.add(enrichmentService.enrich(TourPlaceConverter.toPlace(place)));
             // 장소별 처리 완료 결과 저장
             objectMapper.writerWithDefaultPrettyPrinter().writeValue(outputPath.toFile(), results);
