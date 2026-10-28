@@ -924,12 +924,16 @@ public class ContentServiceImpl implements ContentService{
 
             courseItemRepository.delete(courseItem);
 
+            // 다른 일차의 방문 순서 유지를 위한 동일 일차 항목 조회
             List<CourseItem> remainItems =
-                    courseItemRepository.findByCourseIdOrderByOrderNoAsc(courseId);
+                    courseItemRepository.findByCourseIdAndDayOrderByOrderNoAsc(courseId, courseItem.getDay());
 
+            // 삭제 항목과 같은 일차의 후속 방문 순서만 재정렬
             for (CourseItem item : remainItems) {
                 if (item.getOrderNo() > deletedOrder) {
                     item.updateOrderNo(item.getOrderNo() - 1);
+                    // 다음 순서 변경 전 DB 반영으로 반복 행사 삭제 시 방문 순서 중복 방지
+                    courseItemRepository.flush();
                 }
             }
         }
