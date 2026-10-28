@@ -19,6 +19,9 @@ public interface CourseItemRepository extends JpaRepository<CourseItem, Long> {
     List<CourseItem> findByCourseIdOrderByOrderNoAsc(Long courseId);
 
     @EntityGraph(attributePaths = {"place", "content", "content.place"})
+    List<CourseItem> findByCourseIdAndDayOrderByOrderNoAsc(Long courseId, Integer day);
+
+    @EntityGraph(attributePaths = {"place", "content", "content.place"})
     List<CourseItem> findByCourseIdOrderByDayAscOrderNoAsc(Long courseId);
 
     @Modifying
