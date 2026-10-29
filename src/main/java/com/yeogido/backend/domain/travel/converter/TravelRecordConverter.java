@@ -5,9 +5,11 @@ import com.yeogido.backend.domain.travel.dto.request.TravelRecordReqDTO;
 import com.yeogido.backend.domain.travel.dto.response.TravelRecordResDTO;
 import com.yeogido.backend.domain.travel.entity.Sticker;
 import com.yeogido.backend.domain.travel.entity.TravelRecord;
+import com.yeogido.backend.domain.travel.entity.TravelRecordMember;
 import com.yeogido.backend.domain.travel.entity.TravelRecordPhoto;
 import com.yeogido.backend.domain.travel.entity.TravelRecordSticker;
 import com.yeogido.backend.domain.travel.enums.FolderTheme;
+import com.yeogido.backend.domain.travel.enums.TravelRecordVisibility;
 import com.yeogido.backend.domain.user.entity.User;
 import java.util.List;
 import java.util.Map;
@@ -23,7 +25,8 @@ public class TravelRecordConverter {
             User user,
             Region region,
             String coverImageKey,
-            FolderTheme folderTheme
+            FolderTheme folderTheme,
+            TravelRecordVisibility visibility
     ) {
         return TravelRecord.builder()
                 .user(user)
@@ -33,6 +36,7 @@ public class TravelRecordConverter {
                 .endDate(request.endDate())
                 .coverImageKey(coverImageKey)
                 .folderTheme(folderTheme)
+                .visibility(visibility)
                 .build();
     }
 
@@ -69,6 +73,9 @@ public class TravelRecordConverter {
 
     public static TravelRecordResDTO.TravelRecordSummary toTravelRecordSummary(
             TravelRecord travelRecord,
+            List<TravelRecordMember> members,
+            List<TravelRecordPhoto> photos,
+            List<TravelRecordSticker> stickers,
             Function<String, String> imageUrlResolver
     ) {
         return new TravelRecordResDTO.TravelRecordSummary(
@@ -79,6 +86,12 @@ public class TravelRecordConverter {
                 travelRecord.getEndDate(),
                 imageUrlResolver.apply(travelRecord.getCoverImageKey()),
                 travelRecord.getFolderTheme() == null ? null : travelRecord.getFolderTheme().name(),
+                travelRecord.getVisibility(),
+                toUserProfile(travelRecord.getUser(), imageUrlResolver),
+                toParticipants(travelRecord, members, imageUrlResolver),
+                photos.stream().limit(2).map(photo -> new TravelRecordResDTO.PreviewImage(
+                        imageUrlResolver.apply(photo.getImageKey()), photo.getImageOrder())).toList(),
+                stickers.stream().map(sticker -> toStickerResponse(sticker, imageUrlResolver)).toList(),
                 travelRecord.getCreatedAt()
         );
     }
@@ -87,6 +100,8 @@ public class TravelRecordConverter {
             TravelRecord travelRecord,
             List<TravelRecordPhoto> photos,
             List<TravelRecordSticker> stickers,
+            List<TravelRecordMember> members,
+            Long viewerId,
             Function<String, String> imageUrlResolver
     ) {
         List<TravelRecordResDTO.ImageResponse> images = photos.stream()
@@ -105,6 +120,11 @@ public class TravelRecordConverter {
                 travelRecord.getEndDate(),
                 imageUrlResolver.apply(travelRecord.getCoverImageKey()),
                 travelRecord.getFolderTheme() == null ? null : travelRecord.getFolderTheme().name(),
+                travelRecord.getVisibility(),
+                travelRecord.getVersion(),
+                toUserProfile(travelRecord.getUser(), imageUrlResolver),
+                toParticipants(travelRecord, members, imageUrlResolver),
+                toPermissions(travelRecord, members, viewerId),
                 images,
                 stickerResponses,
                 travelRecord.getCreatedAt(),
@@ -149,8 +169,35 @@ public class TravelRecordConverter {
                 travelRecord.getId(),
                 travelRecord.getTitle(),
                 travelRecord.getCoverImageKey(),
+                travelRecord.getVisibility(),
+                travelRecord.getVersion(),
                 travelRecord.getCreatedAt()
         );
+    }
+
+    private static TravelRecordResDTO.UserProfile toUserProfile(
+            User user, Function<String, String> imageUrlResolver
+    ) {
+        return new TravelRecordResDTO.UserProfile(user.getId(), user.getNickname(),
+                user.getProfileImage() == null ? null : imageUrlResolver.apply(user.getProfileImage()));
+    }
+
+    private static List<TravelRecordResDTO.UserProfile> toParticipants(
+            TravelRecord record, List<TravelRecordMember> members, Function<String, String> imageUrlResolver
+    ) {
+        return members.stream().map(TravelRecordMember::getUser)
+                .filter(user -> !user.getId().equals(record.getUser().getId()))
+                .map(user -> toUserProfile(user, imageUrlResolver)).toList();
+    }
+
+    private static TravelRecordResDTO.Permissions toPermissions(
+            TravelRecord record, List<TravelRecordMember> members, Long viewerId
+    ) {
+        boolean owner = record.getUser().getId().equals(viewerId);
+        boolean shared = record.getVisibility() == TravelRecordVisibility.FRIENDS;
+        boolean participant = shared && members.stream().anyMatch(member -> member.getUser().getId().equals(viewerId));
+        return new TravelRecordResDTO.Permissions(owner || participant, owner, participant && !owner,
+                shared && (owner || participant), record.getVisibility() == TravelRecordVisibility.PUBLIC);
     }
 
     public static TravelRecordResDTO.UpdateResponse toUpdateResponse(

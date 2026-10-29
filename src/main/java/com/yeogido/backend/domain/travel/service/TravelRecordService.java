@@ -11,7 +11,9 @@ public interface TravelRecordService {
             TravelRecordReqDTO.ListRequest request
     );
 
-    TravelRecordResDTO.YearListResponse getMyTravelRecordYears(Long userId);
+    TravelRecordResDTO.YearListResponse getMyTravelRecordYears(
+            Long userId, TravelRecordReqDTO.YearListRequest request
+    );
 
     TravelRecordResDTO.DetailResponse getTravelRecord(Long userId, Long travelRecordId);
 

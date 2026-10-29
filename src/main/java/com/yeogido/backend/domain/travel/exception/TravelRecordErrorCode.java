@@ -51,6 +51,12 @@ public enum TravelRecordErrorCode implements ErrorCode {
             "사진 순서 정보가 올바르지 않습니다."
     ),
 
+    INVALID_VISIBILITY(
+            HttpStatus.BAD_REQUEST,
+            "TRAVEL_RECORD4008",
+            "공개범위 값이 올바르지 않습니다."
+    ),
+
     TRAVEL_RECORD_NOT_FOUND(
             HttpStatus.NOT_FOUND,
             "TRAVEL_RECORD4041",
