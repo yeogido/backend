@@ -185,6 +185,12 @@ class TravelRecordSharingPersistenceTest {
       .role(UserRole.USER).status(UserStatus.ACTIVE).build());
   }
 
+  /**
+   * 기본 등록 경로에서는 공개범위를 생략하여 PRIVATE 기본값을 검증하고, 공유 테스트에서는 FRIENDS로 저장합니다.
+   *
+   * @param shared 공유 앨범 데이터로 저장할지 여부
+   * @return 초기 버전과 생성 식별자가 DB에 반영된 여행 기록
+   */
   private TravelRecord persistRecord(boolean shared) {
     var builder = TravelRecord.builder().user(owner).region(region).title("부산 여행")
       .startDate(LocalDate.of(2026, 10, 1)).endDate(LocalDate.of(2026, 10, 3))

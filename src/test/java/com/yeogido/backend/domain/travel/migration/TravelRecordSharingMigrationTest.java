@@ -44,6 +44,7 @@ class TravelRecordSharingMigrationTest {
     database = DriverManager.getConnection(databaseUrl, username, password);
   }
 
+  /** 테스트가 생성한 UUID 스키마와 연결만 정리하며, 준비 도중 실패해도 기존 DB는 건드리지 않습니다. */
   @AfterEach
   void removeOnlyTestSchema() throws SQLException {
     if (database != null) {
@@ -177,6 +178,7 @@ class TravelRecordSharingMigrationTest {
       .target("37").load().migrate().migrationsExecuted).isZero();
   }
 
+  /** V37 적용 전 상태에서 서로 다른 생성자의 기록과 사진을 준비하여 데이터 보존을 비교합니다. */
   private void seedUsersAndRecords() throws SQLException {
     execute("""
       INSERT INTO region (id, name, type, created_at, updated_at)
@@ -226,6 +228,7 @@ class TravelRecordSharingMigrationTest {
     }
   }
 
+  /** NULL을 포함한 조회 결과 전체를 값의 순서대로 보관하여 마이그레이션 전후 데이터를 비교합니다. */
   private List<List<Object>> rows(String sql) throws SQLException {
     try (var statement = database.createStatement(); var result = statement.executeQuery(sql)) {
       List<List<Object>> rows = new ArrayList<>();
