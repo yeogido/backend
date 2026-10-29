@@ -24,13 +24,13 @@ public enum CourseErrorCode implements ErrorCode {
     PLACE_ITEM_REQUIRED(
             HttpStatus.BAD_REQUEST,
             "COURSE4002",
-            "코스에는 장소가 최소 1개 이상 포함되어야 합니다."
+            "모든 일차에 장소가 최소 1개 이상 포함되어야 합니다."
     ),
 
     DUPLICATE_COURSE_ITEM_ORDER(
             HttpStatus.BAD_REQUEST,
             "COURSE4003",
-            "코스 구성 항목 순서는 중복될 수 없습니다."
+            "같은 일차 내 코스 구성 항목 순서는 중복될 수 없습니다."
     ),
 
     INVALID_COURSE_ITEM(
