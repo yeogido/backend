@@ -32,6 +32,8 @@ import static com.yeogido.backend.domain.placeenrichment.enums.TourPlaceMatchSta
 public class TourPlaceEnrichmentServiceImpl implements TourPlaceEnrichmentService {
 
     private static final int PAGE_SIZE = 20;
+    // 이름 일치 판단에서 생략을 허용하는 접미사는 공백으로 구분된 '본점'뿐
+    private static final Pattern OPTIONAL_MAIN_BRANCH_SUFFIX = Pattern.compile("\\s+본점$");
     private static final Pattern BUILDING_ADDRESS = Pattern.compile("^(.+?(?:로|길|동|읍|면|리))\\s+(\\d+(?:-\\d+)?)(?=\\s|$|[,(])");
     private final TourApiClient tourApiClient;
     private final TourRegionCodeMapper regionCodeMapper;
@@ -127,9 +129,10 @@ public class TourPlaceEnrichmentServiceImpl implements TourPlaceEnrichmentServic
         String address = item.path("addr1").asText("");
         String original = normalizeName(place.getName());
         String candidateName = normalizeName(name);
-        // 원본명 또는 입력 지점명 제거 결과와 후보명 비교
+        // 전체 이름을 비교하되, 입력 이름 끝에 공백으로 구분된 '본점'은 생략을 허용
         boolean nameMatched = !candidateName.isEmpty() && (original.equals(candidateName)
-                || normalizeName(withoutBranch(place.getName())).equals(candidateName));
+                || normalizeName(OPTIONAL_MAIN_BRANCH_SUFFIX.matcher(place.getName().strip()).replaceFirst(""))
+                        .equals(candidateName));
         // 주소 일치 또는 기준 거리 이내 좌표를 위치 근거로 사용
         boolean addressMatched = sameAddress(place.getRoadAddress(), address)
                 || sameAddress(place.getLotAddress(), address);
@@ -151,7 +154,7 @@ public class TourPlaceEnrichmentServiceImpl implements TourPlaceEnrichmentServic
         return result.stream().filter(StringUtils::hasText).toList();
     }
 
-    // 공백으로 분리된 마지막 본점, 지점명 제거
+    // 검색어 확장용으로 본점, 지점명을 제거하며, 일반 지점명 생략은 이름 일치로 인정하지 않음
     private static String withoutBranch(String name) {
         return name.strip().replaceFirst("\\s+(?:본점|[^\\s]+점)$", "");
     }

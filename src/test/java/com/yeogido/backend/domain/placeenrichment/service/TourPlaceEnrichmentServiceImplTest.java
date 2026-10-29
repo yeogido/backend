@@ -93,15 +93,85 @@ class TourPlaceEnrichmentServiceImplTest {
     }
 
     @Test
-    void removesBranchSuffixAndThenRelaxesDistrict() throws Exception {
+    void searchesWithoutBranchSuffixButDoesNotConfirmShortenedName() throws Exception {
         JsonNode empty = page(0, "");
         JsonNode found = page(1, candidate("1", "샘플식당", "서울 마포구 가상로 45", "", ""));
         when(client.searchPlaces(anyString(), any(), any(), anyInt(), anyInt())).thenReturn(empty);
         when(client.searchPlaces("샘플식당", "11", null, 1, 20)).thenReturn(found);
-        detail("1", "소개");
-        assertThat(service.enrich(place("샘플식당 기준점")).matchStatus()).isEqualTo(MATCHED);
+        TourPlaceResponse.MatchResult result = service.enrich(place("샘플식당 기준점"));
+        assertThat(result.matchStatus()).isEqualTo(AMBIGUOUS);
+        assertThat(result.matchReason()).isEqualTo(INSUFFICIENT_EVIDENCE);
+        assertThat(result.candidates()).singleElement().satisfies(candidate -> {
+            assertThat(candidate.nameMatched()).isFalse();
+            assertThat(candidate.strongMatch()).isFalse();
+        });
         verify(client).searchPlaces("샘플식당", "11", "440", 1, 20);
         verify(client).searchPlaces("샘플식당", "11", null, 1, 20);
+        verify(client, never()).detailCommon(any());
+    }
+
+    @Test
+    void matchesWithoutMainBranchSuffixWhenAddressMatches() throws Exception {
+        search(page(1, candidate("1", "샘플식당", "서울 마포구 가상로 45", "", "")));
+        detail("1", "소개");
+
+        TourPlaceResponse.MatchResult result = service.enrich(place("샘플식당 본점"));
+
+        assertThat(result.matchStatus()).isEqualTo(MATCHED);
+        assertThat(result.contentId()).isEqualTo("1");
+    }
+
+    @Test
+    void mainBranchSuffixStillRequiresLocationEvidence() throws Exception {
+        search(page(1, candidate("1", "샘플식당", "다른 주소", "", "")));
+
+        TourPlaceResponse.MatchResult result = service.enrich(place("샘플식당 본점"));
+
+        assertThat(result.matchStatus()).isEqualTo(AMBIGUOUS);
+        assertThat(result.matchReason()).isEqualTo(INSUFFICIENT_EVIDENCE);
+        assertThat(result.candidates()).singleElement().satisfies(candidate ->
+                assertThat(candidate.nameMatched()).isTrue());
+        verify(client, never()).detailCommon(any());
+    }
+
+    @Test
+    void mainBranchDoesNotMatchAnotherBranchAtSameAddress() throws Exception {
+        search(page(1, candidate("1", "샘플식당 강남점", "서울 마포구 가상로 45", "", "")));
+
+        TourPlaceResponse.MatchResult result = service.enrich(place("샘플식당 본점"));
+
+        assertThat(result.matchStatus()).isEqualTo(AMBIGUOUS);
+        assertThat(result.candidates()).singleElement().satisfies(candidate ->
+                assertThat(candidate.nameMatched()).isFalse());
+        verify(client, never()).detailCommon(any());
+    }
+
+    @Test
+    void ordinaryStoreSuffixDoesNotMatchNearbyParentFacility() throws Exception {
+        search(page(1, candidate("1", "국립중앙박물관", "서울 마포구 가상로 45", "127.000000", "37.500000")));
+
+        TourPlaceResponse.MatchResult result = service.enrich(place("국립중앙박물관 기념품점"));
+
+        assertThat(result.matchStatus()).isEqualTo(AMBIGUOUS);
+        assertThat(result.matchReason()).isEqualTo(INSUFFICIENT_EVIDENCE);
+        assertThat(result.candidates()).singleElement().satisfies(candidate -> {
+            assertThat(candidate.addressMatched()).isTrue();
+            assertThat(candidate.distanceMeters()).isZero();
+            assertThat(candidate.nameMatched()).isFalse();
+            assertThat(candidate.strongMatch()).isFalse();
+        });
+        verify(client, never()).detailCommon(any());
+    }
+
+    @Test
+    void matchesOriginalNameAfterNormalizingSpacesAndSymbols() throws Exception {
+        search(page(1, candidate("1", "샘플 식당(기준점)", "서울 마포구 가상로 45", "", "")));
+        detail("1", "소개");
+
+        TourPlaceResponse.MatchResult result = service.enrich(place("샘플식당 기준점"));
+
+        assertThat(result.matchStatus()).isEqualTo(MATCHED);
+        assertThat(result.contentId()).isEqualTo("1");
     }
 
     @Test
