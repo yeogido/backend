@@ -14,6 +14,7 @@ import com.yeogido.backend.domain.auth.repository.SocialAccountRepository;
 import com.yeogido.backend.domain.auth.security.AuthUser;
 import com.yeogido.backend.domain.file.enums.ImageDirectory;
 import com.yeogido.backend.domain.file.service.S3Service;
+import com.yeogido.backend.domain.friend.service.FriendCodeGenerator;
 import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.region.exception.RegionErrorCode;
 import com.yeogido.backend.domain.region.repository.RegionRepository;
@@ -48,6 +49,7 @@ public class AuthServiceImpl implements AuthService {
   private final PasswordResetCodeService passwordResetCodeService;
   private final EmailVerificationService emailVerificationService;
   private final MailService mailService;
+  private final FriendCodeGenerator friendCodeGenerator;
 
   @Override
   @Transactional
@@ -71,6 +73,7 @@ public class AuthServiceImpl implements AuthService {
         .role(UserRole.USER)
         .status(UserStatus.ACTIVE)
         .profileImage(null)
+        .friendCode(friendCodeGenerator.generateUnique())
         .build());
     } catch (DataIntegrityViolationException e) {
       throw new GeneralException(UserErrorCode.EMAIL_DUPLICATED);
@@ -174,6 +177,7 @@ public class AuthServiceImpl implements AuthService {
       .role(UserRole.USER)
       .status(UserStatus.ACTIVE)
       .profileImage(profileImageKey)
+      .friendCode(friendCodeGenerator.generateUnique())
       .build());
 
     socialAccountRepository.save(SocialAccount.builder()
