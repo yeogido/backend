@@ -95,6 +95,27 @@ class TravelRecordSharingPersistenceTest {
   }
 
   @Test
+  void rejectsOwnerAsAdditionalMember() {
+    TravelRecord record = persistRecord(true);
+
+    assertThatThrownBy(() -> memberRepository.saveAndFlush(TravelRecordMember.builder()
+      .travelRecord(record).user(owner).build()))
+      .isInstanceOf(RuntimeException.class)
+      .hasMessageContaining("앨범 생성자는 추가 참여자로 등록할 수 없습니다.");
+  }
+
+  @Test
+  void rejectsOwnerWithSameIdFromDifferentEntityInstance() {
+    TravelRecord record = persistRecord(true);
+    User sameOwner = User.builder().id(owner.getId()).build();
+
+    assertThatThrownBy(() -> memberRepository.saveAndFlush(TravelRecordMember.builder()
+      .travelRecord(record).user(sameOwner).build()))
+      .isInstanceOf(RuntimeException.class)
+      .hasMessageContaining("앨범 생성자는 추가 참여자로 등록할 수 없습니다.");
+  }
+
+  @Test
   void rejectsDuplicateMemberForSameRecordAndUser() {
     TravelRecord record = persistRecord(true);
     memberRepository.saveAndFlush(TravelRecordMember.builder()
