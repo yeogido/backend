@@ -153,7 +153,10 @@ public class GeminiPlaceEnrichmentServiceImpl implements GeminiPlaceEnrichmentSe
         List<String> references = new java.util.ArrayList<>(selection.matchEvidenceIds());
         selection.facts().forEach(fact -> references.add(fact.evidenceId()));
         selection.sentenceSources().forEach(sentence -> references.addAll(sentence.evidenceIds()));
-        selection.conflicts().forEach(conflict -> references.addAll(conflict.evidenceIds()));
+        selection.conflicts().forEach(conflict -> {
+            validateReferences(conflict.evidenceIds(), catalog.keySet(), 2);
+            references.addAll(conflict.evidenceIds());
+        });
         Map<String, GeminiPlaceResponse.Source> resolved = new java.util.LinkedHashMap<>();
         for (String reference : references) {
             Evidence evidence = catalog.get(reference);
@@ -249,7 +252,7 @@ public class GeminiPlaceEnrichmentServiceImpl implements GeminiPlaceEnrichmentSe
         for (GeminiPlaceResponse.Conflict conflict : payload.conflicts()) {
             require(conflict != null && StringUtils.hasText(conflict.field())
                     && StringUtils.hasText(conflict.description()));
-            validateReferences(conflict.sourceIds(), sourceIds, 2);
+            validateReferences(conflict.sourceIds(), sourceIds, 1);
         }
         require(payload.matchStatus() == VERIFIED || payload.facts().isEmpty());
         for (GeminiPlaceResponse.Fact fact : payload.facts()) {

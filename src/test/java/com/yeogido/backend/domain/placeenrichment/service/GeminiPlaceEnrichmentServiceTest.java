@@ -256,10 +256,28 @@ class GeminiPlaceEnrichmentServiceTest {
     }
 
     @Test
-    void rejectsConflictsWithUnknownOrRepeatedSources() throws Exception {
+    void acceptsConflictsWithDifferentEvidenceFromSameSource() throws Exception {
         ObjectNode payload = payload();
         payload.putArray("conflicts").addObject().put("field", "휴무")
                 .put("description", "공지 불일치").putArray("evidenceIds").add("E1").add("E2");
+        when(client.search(anyString(), anyString())).thenReturn(response(payload));
+        assertThat(service.enrich(input).conflicts().getFirst().sourceIds()).containsExactly("S1");
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"E2", "unknown"})
+    void rejectsRepeatedOrUnknownConflictEvidence(String secondEvidence) throws Exception {
+        ObjectNode payload = payload();
+        payload.putArray("conflicts").addObject().put("field", "휴무")
+                .put("description", "공지 불일치").putArray("evidenceIds").add("E2").add(secondEvidence);
+        assertInvalid(payload);
+    }
+
+    @Test
+    void rejectsConflictWithOnlyOneEvidence() throws Exception {
+        ObjectNode payload = payload();
+        payload.putArray("conflicts").addObject().put("field", "휴무")
+                .put("description", "공지 불일치").putArray("evidenceIds").add("E2");
         assertInvalid(payload);
     }
 
