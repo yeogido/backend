@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 import com.yeogido.backend.domain.file.service.FileService;
 import com.yeogido.backend.domain.file.service.S3Service;
@@ -79,19 +81,23 @@ class TravelRecordCoeditingTransactionTest {
     when(s3Service.getImageUrl(anyString())).thenAnswer(call -> "https://example.com/" + call.getArgument(0));
   }
 
+  /** 동일 버전의 동시 요청 중 성공한 요청만 파일을 이동하고 사진을 교체하는지 검증합니다. */
   @Test
   void concurrentSameVersionHasOneWinnerAndPreservesWinnersPhotos() throws Exception {
-    CyclicBarrier bothReadVersion = new CyclicBarrier(2);
-    when(fileService.moveToDirectory(anyString(), any())).thenAnswer(call -> {
-      bothReadVersion.await(10, TimeUnit.SECONDS);
-      return call.getArgument(0);
-    });
+    CyclicBarrier startTogether = new CyclicBarrier(2);
     try (var pool = Executors.newFixedThreadPool(2)) {
-      var first = pool.submit(() -> save(ownerId, "생성자 변경"));
-      var second = pool.submit(() -> save(participantId, "참여자 변경"));
+      var first = pool.submit(() -> {
+        startTogether.await(10, TimeUnit.SECONDS);
+        return save(ownerId, "생성자 변경");
+      });
+      var second = pool.submit(() -> {
+        startTogether.await(10, TimeUnit.SECONDS);
+        return save(participantId, "참여자 변경");
+      });
       assertThat(List.of(first.get(20, TimeUnit.SECONDS), second.get(20, TimeUnit.SECONDS)))
           .containsExactlyInAnyOrder("OK", "TRAVEL_RECORD4091");
     }
+    verify(fileService, times(1)).moveToDirectory(anyString(), any());
     var detail = service.getTravelRecord(ownerId, albumId);
     assertThat(detail.version()).isEqualTo(1L);
     assertThat(detail.title()).isIn("생성자 변경", "참여자 변경");
@@ -112,6 +118,7 @@ class TravelRecordCoeditingTransactionTest {
     assertThat(detail.images().getFirst().imageKey()).isEqualTo("travel-records/original.jpg");
   }
 
+  /** 서로 다른 스레드의 서비스 호출 결과에서 충돌 코드와 성공을 비교합니다. */
   private String save(Long userId, String title) {
     try {
       service.updateTravelRecord(albumId, userId, request(title, null));
@@ -119,6 +126,16 @@ class TravelRecordCoeditingTransactionTest {
     } catch (GeneralException e) {
       return e.getErrorCode().getCode();
     }
+  }
+
+  @Test
+  void fileMoveFailureRollsBackReservationAndAllowsOriginalVersionRetry() {
+    when(fileService.moveToDirectory(anyString(), any())).thenThrow(new IllegalStateException("파일 이동 실패"));
+    assertThatThrownBy(() -> service.updateTravelRecord(albumId, ownerId, request("실패", null)))
+        .isInstanceOf(IllegalStateException.class);
+    assertThat(service.getTravelRecord(ownerId, albumId).version()).isZero();
+    org.mockito.Mockito.doAnswer(call -> call.getArgument(0)).when(fileService).moveToDirectory(anyString(), any());
+    assertThat(service.updateTravelRecord(albumId, ownerId, request("재시도", null)).version()).isEqualTo(1L);
   }
 
   private TravelRecordReqDTO.UpdateRequest request(String title, List<TravelRecordReqDTO.StickerRequest> stickers) {

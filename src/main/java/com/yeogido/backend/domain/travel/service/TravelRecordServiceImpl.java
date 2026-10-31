@@ -210,6 +210,7 @@ public class TravelRecordServiceImpl implements TravelRecordService {
         return TravelRecordConverter.toCreateResponse(savedTravelRecord);
     }
 
+    /** 생성자·현재 참여자의 최종 상태를 저장하며 파일 이동 전에 버전을 확보합니다. */
     @Override
     @Transactional
     public TravelRecordResDTO.UpdateResponse updateTravelRecord(
@@ -228,12 +229,17 @@ public class TravelRecordServiceImpl implements TravelRecordService {
         validateDateRange(request.startDate(), request.endDate());
         validateImageOrders(request.images());
 
+        // 같은 버전의 다른 요청은 파일을 이동하거나 자식 데이터를 변경하기 전에 종료합니다.
+        if (travelRecordRepository.reserveVersion(travelRecordId, request.version()) == 0) {
+            throw new GeneralException(TravelRecordErrorCode.VERSION_CONFLICT);
+        }
+
         List<TravelRecordReqDTO.ImageRequest> movedImages = moveImages(request.images());
         String coverImageKey = findCoverImageKey(movedImages);
 
-        // 버전 비교와 증가는 한 SQL로 처리하고, 실패한 요청은 자식 콘텐츠를 변경하지 않습니다.
+        // 버전 선점으로 잡은 행 잠금은 콘텐츠 저장이 끝날 때까지 같은 트랜잭션에서 유지됩니다.
         int updated = travelRecordRepository.updateIfVersionMatches(
-                travelRecordId, request.version(), region, request.title(), request.startDate(),
+                travelRecordId, request.version() + 1, region, request.title(), request.startDate(),
                 request.endDate(), coverImageKey, DEFAULT_FOLDER_THEME, LocalDateTime.now()
         );
         if (updated == 0) {
@@ -341,6 +347,7 @@ public class TravelRecordServiceImpl implements TravelRecordService {
                 .orElseThrow(() -> new GeneralException(RegionErrorCode.REGION_NOT_FOUND));
     }
 
+    /** 로그인한 활성 생성자 또는 FRIENDS의 현재 참여자만 공동 편집을 허용합니다. */
     private void validateEditor(TravelRecord record, Long userId) {
         User editor = getUserOrThrow(userId);
         if (editor.getStatus() != UserStatus.ACTIVE) {
@@ -543,6 +550,7 @@ public class TravelRecordServiceImpl implements TravelRecordService {
         };
     }
 
+    /** 본인 스티커의 신규 사용과 기존 배치된 타인·삭제 스티커의 수량 내 유지를 구분합니다. */
     private boolean isAvailableStickerForUpdate(
             Sticker sticker,
             Long userId,
