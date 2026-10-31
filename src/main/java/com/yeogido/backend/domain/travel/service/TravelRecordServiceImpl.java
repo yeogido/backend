@@ -31,6 +31,7 @@ import com.yeogido.backend.global.common.response.CursorResponse;
 import com.yeogido.backend.global.exception.GeneralErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.Year;
@@ -263,16 +264,46 @@ public class TravelRecordServiceImpl implements TravelRecordService {
         return TravelRecordConverter.toUpdateResponse(travelRecord);
     }
 
+    /** 생성자만 앨범을 삭제하며 참여 관계·초대는 기존 FK CASCADE로 함께 정리합니다. */
     @Override
     @Transactional
     public void deleteTravelRecord(Long travelRecordId, Long userId) {
-        TravelRecord travelRecord = getTravelRecordOrThrow(travelRecordId);
+        validateActiveUser(userId);
+        TravelRecord travelRecord = getLockedTravelRecordOrThrow(travelRecordId);
         validateOwner(travelRecord, userId);
 
         // FK 제약이 있으므로 자식 테이블 데이터를 먼저 삭제한 뒤 여행 기록을 삭제합니다.
         travelRecordStickerRepository.deleteAllByTravelRecord_Id(travelRecordId);
         travelRecordPhotoRepository.deleteAllByTravelRecord_Id(travelRecordId);
         travelRecordRepository.delete(travelRecord);
+        travelRecordRepository.flush();
+    }
+
+    /** 현재 FRIENDS 참여 관계만 제거하고 이전 화면·진행 중인 수정의 버전을 무효화합니다. */
+    @Override
+    @Transactional
+    public void leaveTravelRecord(Long travelRecordId, Long userId) {
+        validateActiveUser(userId);
+        TravelRecord travelRecord = getLockedTravelRecordOrThrow(travelRecordId);
+        if (travelRecord.getUser().getId().equals(userId)) {
+            throw new GeneralException(TravelRecordErrorCode.OWNER_CANNOT_LEAVE);
+        }
+        if (travelRecord.getVisibility() != TravelRecordVisibility.FRIENDS
+                || travelRecordMemberRepository.deleteCurrentMembership(travelRecordId, userId) == 0) {
+            throw new GeneralException(GeneralErrorCode.FORBIDDEN);
+        }
+        // 앨범 행 잠금을 유지한 채 버전을 변경하므로 먼저 권한을 확인한 수정도 덮어쓰지 못합니다.
+        if (travelRecordRepository.reserveVersion(travelRecordId, travelRecord.getVersion()) == 0) {
+            throw new GeneralException(TravelRecordErrorCode.VERSION_CONFLICT);
+        }
+        entityManager.refresh(travelRecord, LockModeType.PESSIMISTIC_WRITE);
+    }
+
+    /** 탈퇴한 사용자는 남아 있는 참여 행이 있더라도 변경 API를 사용할 수 없습니다. */
+    private void validateActiveUser(Long userId) {
+        if (getUserOrThrow(userId).getStatus() != UserStatus.ACTIVE) {
+            throw new GeneralException(GeneralErrorCode.FORBIDDEN);
+        }
     }
 
     private User getUserOrThrow(Long userId) {
@@ -337,9 +368,12 @@ public class TravelRecordServiceImpl implements TravelRecordService {
         }
     }
 
-    private TravelRecord getTravelRecordOrThrow(Long travelRecordId) {
-        return travelRecordRepository.findById(travelRecordId)
+    /** 잠금 대기 중 반영된 버전도 읽도록 기존 영속 상태를 갱신합니다. */
+    private TravelRecord getLockedTravelRecordOrThrow(Long travelRecordId) {
+        TravelRecord record = travelRecordRepository.findActiveDetailForUpdate(travelRecordId)
                 .orElseThrow(() -> new GeneralException(TravelRecordErrorCode.TRAVEL_RECORD_NOT_FOUND));
+        entityManager.refresh(record, LockModeType.PESSIMISTIC_WRITE);
+        return record;
     }
 
     private Region getRegionOrThrow(Long regionId) {

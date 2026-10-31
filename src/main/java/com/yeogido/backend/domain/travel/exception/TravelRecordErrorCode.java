@@ -69,6 +69,12 @@ public enum TravelRecordErrorCode implements ErrorCode {
             "다른 변경사항이 반영되었습니다. 최신 정보를 조회한 뒤 다시 시도해 주세요."
     ),
 
+    OWNER_CANNOT_LEAVE(
+            HttpStatus.CONFLICT,
+            "TRAVEL_RECORD4096",
+            "앨범 생성자는 나갈 수 없습니다. 앨범 삭제 기능을 이용해 주세요."
+    ),
+
     STICKER_NOT_FOUND(
             HttpStatus.NOT_FOUND,
             "STICKER4042",
