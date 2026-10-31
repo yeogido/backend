@@ -391,6 +391,40 @@ class GeminiPlaceEnrichmentServiceTest {
         assertThat(service.enrich(input).matchStatus().name()).isEqualTo("VERIFIED");
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({
+            "서울특별시,서울", "부산광역시,부산", "대구광역시,대구", "인천광역시,인천",
+            "광주광역시,광주", "대전광역시,대전", "울산광역시,울산", "세종특별자치시,세종",
+            "경기도,경기", "강원특별자치도,강원", "강원도,강원", "충청북도,충북", "충청남도,충남",
+            "전북특별자치도,전북", "전라북도,전북", "전라남도,전남", "경상북도,경북", "경상남도,경남",
+            "제주특별자치도,제주", "제주도,제주", "강원특별자치도,강원도", "전북특별자치도,전라북도"
+    })
+    void acceptsEquivalentProvinceNamesInEitherDirection(String fullName, String shortName) throws Exception {
+        for (boolean fullNameInInput : List.of(true, false)) {
+            var place = new TourPlaceRequest.Input("place-1", "테스트 카페", null, null,
+                    (fullNameInInput ? fullName : shortName) + " 테스트로 1", null, null, null);
+            when(searchClient.search(place)).thenReturn(List.of(new DaumSearchResponse.SearchSource("S1",
+                    "https://example.com/place", PlaceEvidenceSourceType.REVIEW, "테스트 카페",
+                    (fullNameInInput ? shortName : fullName) + " 테스트로 1 커피 판매")));
+            when(client.search(anyString(), anyString())).thenReturn(response(payload()));
+
+            assertThat(service.enrich(place).matchStatus().name()).isEqualTo("VERIFIED");
+        }
+    }
+
+    @Test
+    void rejectsDifferentProvincesWithSameStreetAndBuildingNumber() throws Exception {
+        var place = new TourPlaceRequest.Input("place-1", "테스트 카페", null, null,
+                "경기도 테스트로 1", null, null, null);
+        when(searchClient.search(place)).thenReturn(List.of(new DaumSearchResponse.SearchSource("S1",
+                "https://example.com/place", PlaceEvidenceSourceType.REVIEW, "테스트 카페",
+                "경상남도 테스트로 1 커피 판매")));
+        when(client.search(anyString(), anyString())).thenReturn(response(payload()));
+
+        assertThatThrownBy(() -> service.enrich(place)).isInstanceOfSatisfying(GeneralException.class,
+                exception -> assertThat(exception.getErrorCode()).isEqualTo(PlaceEnrichmentErrorCode.INVALID_ENRICHMENT_RESPONSE));
+    }
+
     private void assertInvalid(ObjectNode payload) throws Exception {
         when(client.search(anyString(), anyString())).thenReturn(response(payload));
         assertThatThrownBy(() -> service.enrich(input)).isInstanceOfSatisfying(GeneralException.class,
