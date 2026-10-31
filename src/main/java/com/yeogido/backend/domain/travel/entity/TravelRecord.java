@@ -2,6 +2,7 @@ package com.yeogido.backend.domain.travel.entity;
 
 import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.travel.enums.FolderTheme;
+import com.yeogido.backend.domain.travel.enums.TravelRecordVisibility;
 import com.yeogido.backend.domain.user.entity.User;
 import com.yeogido.backend.global.entity.BaseEntity;
 import jakarta.persistence.*;
@@ -48,6 +49,15 @@ public class TravelRecord extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "folder_theme", length = 50)
     private FolderTheme folderTheme;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "visibility", nullable = false, length = 20)
+    @Builder.Default
+    private TravelRecordVisibility visibility = TravelRecordVisibility.PRIVATE;
+
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version;
 
     public void update(
             Region region,
