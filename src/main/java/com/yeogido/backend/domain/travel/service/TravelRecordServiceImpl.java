@@ -31,6 +31,7 @@ import com.yeogido.backend.global.common.response.CursorResponse;
 import com.yeogido.backend.global.exception.GeneralErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.Year;
@@ -292,8 +293,10 @@ public class TravelRecordServiceImpl implements TravelRecordService {
             throw new GeneralException(GeneralErrorCode.FORBIDDEN);
         }
         // 앨범 행 잠금을 유지한 채 버전을 변경하므로 먼저 권한을 확인한 수정도 덮어쓰지 못합니다.
-        travelRecordRepository.reserveVersion(travelRecordId, travelRecord.getVersion());
-        entityManager.refresh(travelRecord);
+        if (travelRecordRepository.reserveVersion(travelRecordId, travelRecord.getVersion()) == 0) {
+            throw new GeneralException(TravelRecordErrorCode.VERSION_CONFLICT);
+        }
+        entityManager.refresh(travelRecord, LockModeType.PESSIMISTIC_WRITE);
     }
 
     /** 탈퇴한 사용자는 남아 있는 참여 행이 있더라도 변경 API를 사용할 수 없습니다. */
@@ -369,7 +372,7 @@ public class TravelRecordServiceImpl implements TravelRecordService {
     private TravelRecord getLockedTravelRecordOrThrow(Long travelRecordId) {
         TravelRecord record = travelRecordRepository.findActiveDetailForUpdate(travelRecordId)
                 .orElseThrow(() -> new GeneralException(TravelRecordErrorCode.TRAVEL_RECORD_NOT_FOUND));
-        entityManager.refresh(record);
+        entityManager.refresh(record, LockModeType.PESSIMISTIC_WRITE);
         return record;
     }
 

@@ -25,6 +25,9 @@ import com.yeogido.backend.domain.user.enums.UserRole;
 import com.yeogido.backend.domain.user.enums.UserStatus;
 import com.yeogido.backend.global.exception.GeneralException;
 import jakarta.persistence.EntityManager;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
@@ -32,6 +35,8 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -50,6 +55,7 @@ class TravelRecordCoeditingTransactionTest {
 
   @Autowired private TravelRecordService service;
   @Autowired private EntityManager entityManager;
+  @Autowired private DataSource dataSource;
   @Autowired private PlatformTransactionManager transactionManager;
   @MockitoBean private FileService fileService;
   @MockitoBean private S3Service s3Service;
@@ -124,8 +130,10 @@ class TravelRecordCoeditingTransactionTest {
   void leaveDuringReservedEditKeepsSavedContentAndAdvancesVersion() throws Exception {
     CountDownLatch editing = new CountDownLatch(1);
     CountDownLatch finishEdit = new CountDownLatch(1);
-    CountDownLatch leaving = new CountDownLatch(1);
+    AtomicInteger editSession = new AtomicInteger();
+    AtomicInteger leaveSession = new AtomicInteger();
     when(fileService.moveToDirectory(anyString(), any())).thenAnswer(call -> {
+      editSession.set(currentSessionId());
       editing.countDown();
       if (!finishEdit.await(10, TimeUnit.SECONDS)) throw new IllegalStateException("편집 대기 시간 초과");
       return call.getArgument(0);
@@ -133,13 +141,16 @@ class TravelRecordCoeditingTransactionTest {
     try (var pool = Executors.newFixedThreadPool(2)) {
       var edit = pool.submit(() -> save(participantId, "저장된 사진"));
       assertThat(editing.await(10, TimeUnit.SECONDS)).isTrue();
-      var leave = pool.submit(() -> {
-        leaving.countDown();
+      var leave = pool.submit(() -> new TransactionTemplate(transactionManager).execute(status -> {
+        leaveSession.set(currentSessionId());
         service.leaveTravelRecord(albumId, participantId);
         return "OK";
-      });
-      assertThat(leaving.await(10, TimeUnit.SECONDS)).isTrue();
-      finishEdit.countDown();
+      }));
+      try {
+        awaitBlockedBy(leaveSession, editSession);
+      } finally {
+        finishEdit.countDown();
+      }
       assertThat(edit.get(20, TimeUnit.SECONDS)).isEqualTo("OK");
       assertThat(leave.get(20, TimeUnit.SECONDS)).isEqualTo("OK");
     } finally {
@@ -158,7 +169,10 @@ class TravelRecordCoeditingTransactionTest {
   void deleteDuringReservedEditCleansNewPhotosAndMembership() throws Exception {
     CountDownLatch editing = new CountDownLatch(1);
     CountDownLatch finishEdit = new CountDownLatch(1);
+    AtomicInteger editSession = new AtomicInteger();
+    AtomicInteger deleteSession = new AtomicInteger();
     when(fileService.moveToDirectory(anyString(), any())).thenAnswer(call -> {
+      editSession.set(currentSessionId());
       editing.countDown();
       if (!finishEdit.await(10, TimeUnit.SECONDS)) throw new IllegalStateException("편집 대기 시간 초과");
       return call.getArgument(0);
@@ -166,11 +180,16 @@ class TravelRecordCoeditingTransactionTest {
     try (var pool = Executors.newFixedThreadPool(2)) {
       var edit = pool.submit(() -> save(participantId, "삭제 전 저장"));
       assertThat(editing.await(10, TimeUnit.SECONDS)).isTrue();
-      var delete = pool.submit(() -> {
+      var delete = pool.submit(() -> new TransactionTemplate(transactionManager).execute(status -> {
+        deleteSession.set(currentSessionId());
         service.deleteTravelRecord(albumId, ownerId);
         return "OK";
-      });
-      finishEdit.countDown();
+      }));
+      try {
+        awaitBlockedBy(deleteSession, editSession);
+      } finally {
+        finishEdit.countDown();
+      }
       assertThat(edit.get(20, TimeUnit.SECONDS)).isEqualTo("OK");
       assertThat(delete.get(20, TimeUnit.SECONDS)).isEqualTo("OK");
     } finally {
@@ -210,6 +229,30 @@ class TravelRecordCoeditingTransactionTest {
       assertThat(leave.get(20, TimeUnit.SECONDS)).isIn("OK", "TRAVEL_RECORD4041");
     }
     assertAlbumRemoved();
+  }
+
+  private int currentSessionId() {
+    return ((Number) entityManager.createNativeQuery("select session_id()").getSingleResult()).intValue();
+  }
+
+  /** 요청 시작이 아니라 실제 앨범 잠금 대기를 확인한 뒤 선행 편집을 완료시킵니다. */
+  private void awaitBlockedBy(AtomicInteger waitingSession, AtomicInteger editingSession) throws Exception {
+    long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+    try (Connection connection = dataSource.getConnection();
+        PreparedStatement query = connection.prepareStatement(
+            "select blocker_id from information_schema.sessions where session_id = ?")) {
+      while (System.nanoTime() < deadline) {
+        query.setInt(1, waitingSession.get());
+        try (ResultSet sessions = query.executeQuery()) {
+          if (sessions.next()) {
+            Number blocker = (Number) sessions.getObject(1);
+            if (blocker != null && blocker.intValue() == editingSession.get()) return;
+          }
+        }
+        TimeUnit.MILLISECONDS.sleep(10);
+      }
+    }
+    throw new AssertionError("후속 요청이 편집 트랜잭션의 잠금을 기다리지 않았습니다.");
   }
 
   /** 나가기의 정상 응답과 명세상 실패 코드만 비교하고 예상 밖 예외는 테스트를 실패시킵니다. */
