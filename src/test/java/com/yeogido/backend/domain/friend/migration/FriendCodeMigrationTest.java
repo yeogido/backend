@@ -43,10 +43,9 @@ class FriendCodeMigrationTest {
         try (var statement = server.createStatement()) {
             statement.execute("CREATE DATABASE " + schema);
         }
-        databaseUrl = "jdbc:mysql://" + server.getMetaData().getURL()
-                .substring("jdbc:mysql://".length()).split("/", 2)[0] + "/" + schema;
-        // 친구코드 도입 직전인 V36까지 적용하여 기존 DB 구조 재현
-        Flyway.configure().dataSource(databaseUrl, username, password).target("36").load().migrate();
+        databaseUrl = withSchema(serverUrl, schema);
+        // 친구코드 도입 직전인 V38까지 적용하여 기존 DB 구조 재현
+        Flyway.configure().dataSource(databaseUrl, username, password).target("38").load().migrate();
         database = DriverManager.getConnection(databaseUrl, username, password);
     }
 
@@ -74,7 +73,7 @@ class FriendCodeMigrationTest {
                     + "'MALE', '2000', 1, 'USER', 'ACTIVE', NOW(6), NOW(6))");
         }
 
-        migrateTo37();
+        migrateTo39();
 
         List<List<Object>> codes = rows("SELECT friend_code FROM `user`");
         assertThat(codes).hasSize(LEGACY_USER_COUNT)
@@ -90,16 +89,16 @@ class FriendCodeMigrationTest {
     }
 
     @Test
-    void migratesEmptyDatabaseAndDoesNotReapply37() {
-        migrateTo37();
+    void migratesEmptyDatabaseAndDoesNotReapply39() {
+        migrateTo39();
 
         assertThat(Flyway.configure().dataSource(databaseUrl, username, password)
-                .target("37").load().migrate().migrationsExecuted).isZero();
+                .target("39").load().migrate().migrationsExecuted).isZero();
     }
 
-    private void migrateTo37() {
+    private void migrateTo39() {
         assertThat(Flyway.configure().dataSource(databaseUrl, username, password)
-                .target("37").load().migrate().migrationsExecuted).isEqualTo(1);
+                .target("39").load().migrate().migrationsExecuted).isEqualTo(1);
     }
 
     private void execute(String sql) throws SQLException {
@@ -120,5 +119,14 @@ class FriendCodeMigrationTest {
             }
             return rows;
         }
+    }
+
+    // 서버 주소의 JDBC 옵션(쿼리 문자열)을 유지한 채 DB 이름만 임시 스키마로 지정
+    private static String withSchema(String serverUrl, String schema) {
+        int queryStart = serverUrl.indexOf('?');
+        String base = queryStart < 0 ? serverUrl : serverUrl.substring(0, queryStart);
+        String query = queryStart < 0 ? "" : serverUrl.substring(queryStart);
+        String hostPart = base.substring("jdbc:mysql://".length()).split("/", 2)[0];
+        return "jdbc:mysql://" + hostPart + "/" + schema + query;
     }
 }
