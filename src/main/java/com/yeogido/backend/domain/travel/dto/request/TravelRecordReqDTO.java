@@ -92,6 +92,11 @@ public class TravelRecordReqDTO {
 
     @Schema(name = "TravelRecordUpdateRequest", description = "여행 기록 수정 요청")
     public record UpdateRequest(
+            @Schema(description = "상세 조회에서 받은 현재 수정 버전", example = "0")
+            @NotNull(message = "수정 버전은 필수입니다.")
+            @PositiveOrZero(message = "수정 버전은 0 이상이어야 합니다.")
+            Long version,
+
             @Schema(description = "여행 기록 제목", example = "부산 바다 여행 기록 수정")
             @NotBlank(message = "여행 기록 제목은 필수입니다.")
             String title,

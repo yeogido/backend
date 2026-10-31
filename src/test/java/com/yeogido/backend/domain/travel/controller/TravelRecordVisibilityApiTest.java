@@ -128,7 +128,7 @@ class TravelRecordVisibilityApiTest {
   @Test
   void publicReadDoesNotGrantWritePermission() throws Exception {
     mockMvc.perform(patch("/api/v1/travel-records/" + publicRecord.getId()).with(login())
-        .contentType(MediaType.APPLICATION_JSON).content(createBody("")))
+        .contentType(MediaType.APPLICATION_JSON).content(updateBody("0", "")))
         .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("COMMON4031"));
     assertThat(entityManager.find(TravelRecord.class, publicRecord.getId()).getTitle()).isEqualTo("공개 여행");
   }
@@ -166,6 +166,60 @@ class TravelRecordVisibilityApiTest {
         .param("userId", owner.getId().toString()).param("year", "2026"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.result.items[0].travelRecordId").value(publicRecord.getId()));
+  }
+
+  @Test
+  void updateRequiresLogin() throws Exception {
+    mockMvc.perform(patch("/api/v1/travel-records/" + publicRecord.getId())
+        .contentType(MediaType.APPLICATION_JSON).content(updateBody("0", "")))
+        .andExpect(status().isUnauthorized());
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"null", "-1"})
+  void updateRejectsMissingOrNegativeVersion(String version) throws Exception {
+    mockMvc.perform(patch("/api/v1/travel-records/" + publicRecord.getId()).with(login())
+        .contentType(MediaType.APPLICATION_JSON).content(updateBody(version, "")))
+        .andExpect(status().isBadRequest());
+  }
+
+  @Test
+  void participantUpdateReturnsNextVersionAndStaleRetryReturns409() throws Exception {
+    // 다른 테스트의 PUBLIC 조회 fixture와 분리해 공동 편집 대상을 생성합니다.
+    TravelRecord shared = entityManager.merge(TravelRecord.builder().user(owner).region(region).title("공유")
+        .startDate(LocalDate.of(2026, 5, 1)).endDate(LocalDate.of(2026, 5, 3))
+        .visibility(TravelRecordVisibility.FRIENDS).coverImageKey("travel-records/shared.jpg").build());
+    entityManager.persist(com.yeogido.backend.domain.travel.entity.TravelRecordMember.builder()
+        .travelRecord(shared).user(viewer).build());
+    entityManager.flush();
+    mockMvc.perform(patch("/api/v1/travel-records/" + shared.getId()).with(login())
+        .contentType(MediaType.APPLICATION_JSON).content(updateBody("0", "")))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.result.version").value(1));
+    mockMvc.perform(patch("/api/v1/travel-records/" + shared.getId()).with(login())
+        .contentType(MediaType.APPLICATION_JSON).content(updateBody("0", "")))
+        .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("TRAVEL_RECORD4091"));
+  }
+
+  @Test
+  void publicViewerCannotEditEvenWithCurrentVersion() throws Exception {
+    mockMvc.perform(patch("/api/v1/travel-records/" + publicRecord.getId()).with(login())
+        .contentType(MediaType.APPLICATION_JSON).content(updateBody("0", "")))
+        .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("COMMON4031"));
+  }
+
+  @Test
+  void updateRejectsSixPhotosForEntireAlbum() throws Exception {
+    String images = java.util.stream.IntStream.rangeClosed(1, 6)
+        .mapToObj(i -> "{\"imageKey\":\"travel-records/" + i + ".jpg\",\"imageOrder\":" + i + "}")
+        .collect(java.util.stream.Collectors.joining(","));
+    String body = updateBody("0", "").replace("[{\"imageKey\":\"travel-records/test.jpg\",\"imageOrder\":1}]",
+        "[" + images + "]");
+    mockMvc.perform(patch("/api/v1/travel-records/" + publicRecord.getId()).with(login())
+        .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isBadRequest());
+  }
+
+  private String updateBody(String version, String extra) {
+    return createBody(",\"version\":" + version + extra);
   }
 
   private RequestPostProcessor login() {
