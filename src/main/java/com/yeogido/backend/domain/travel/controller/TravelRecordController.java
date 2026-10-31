@@ -94,7 +94,7 @@ public class TravelRecordController {
 
     @Operation(
             summary = "여행 기록 수정",
-            description = "로그인한 사용자가 본인이 작성한 여행 기록의 최종 상태를 저장합니다. 폴더 테마는 현재 BASIC으로 고정됩니다."
+            description = "생성자 또는 현재 FRIENDS 참여자가 최종 상태를 저장합니다. 상세의 version은 필수이며 오래되거나 동시 수정된 버전은 409로 반환합니다. 사진은 앨범 전체 최대 5장이고 폴더 테마는 BASIC으로 고정됩니다."
     )
     @PatchMapping("/{travelRecordId}")
     public ApiResponse<TravelRecordResDTO.UpdateResponse> updateTravelRecord(
