@@ -6,9 +6,11 @@ import com.yeogido.backend.domain.travel.enums.FolderTheme;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Optional;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -46,6 +48,17 @@ public interface TravelRecordRepository extends JpaRepository<TravelRecord, Long
             where tr.user.id = :userId
             """)
     int deleteAllByUserId(@Param("userId") Long userId);
+
+    /** 전체 삭제·나가기를 공동 편집의 버전 선점과 같은 앨범 행에서 직렬화합니다. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select tr from TravelRecord tr
+            where tr.id = :id and exists (
+                select 1 from User owner where owner.id = tr.user.id
+                    and owner.status = com.yeogido.backend.domain.user.enums.UserStatus.ACTIVE
+            )
+            """)
+    Optional<TravelRecord> findActiveDetailForUpdate(@Param("id") Long id);
 
     @EntityGraph(attributePaths = {"user", "region"})
     @Query("""
