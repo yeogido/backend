@@ -39,10 +39,9 @@ class FriendshipMigrationTest {
         try (var statement = server.createStatement()) {
             statement.execute("CREATE DATABASE " + schema);
         }
-        databaseUrl = "jdbc:mysql://" + server.getMetaData().getURL()
-                .substring("jdbc:mysql://".length()).split("/", 2)[0] + "/" + schema;
-        // friendship 도입 직전인 V37까지 적용하여 기존 DB 구조 재현
-        Flyway.configure().dataSource(databaseUrl, username, password).target("37").load().migrate();
+        databaseUrl = withSchema(serverUrl, schema);
+        // friendship 도입 직전인 V39까지 적용하여 기존 DB 구조 재현
+        Flyway.configure().dataSource(databaseUrl, username, password).target("39").load().migrate();
         database = DriverManager.getConnection(databaseUrl, username, password);
     }
 
@@ -60,7 +59,7 @@ class FriendshipMigrationTest {
 
     @Test
     void createsFriendshipWithPairAndStatusConstraints() throws SQLException {
-        migrateTo38();
+        migrateTo40();
         execute("""
                 INSERT INTO region (id, name, type, created_at, updated_at)
                 VALUES (1, '서울', 'REGION', NOW(6), NOW(6))
@@ -86,16 +85,16 @@ class FriendshipMigrationTest {
     }
 
     @Test
-    void doesNotReapply38() {
-        migrateTo38();
+    void doesNotReapply40() {
+        migrateTo40();
 
         assertThat(Flyway.configure().dataSource(databaseUrl, username, password)
-                .target("38").load().migrate().migrationsExecuted).isZero();
+                .target("40").load().migrate().migrationsExecuted).isZero();
     }
 
-    private void migrateTo38() {
+    private void migrateTo40() {
         assertThat(Flyway.configure().dataSource(databaseUrl, username, password)
-                .target("38").load().migrate().migrationsExecuted).isEqualTo(1);
+                .target("40").load().migrate().migrationsExecuted).isEqualTo(1);
     }
 
     private String friendshipInsert(long requesterId, long receiverId, long lowId, long highId, String status) {
@@ -108,5 +107,14 @@ class FriendshipMigrationTest {
         try (var statement = database.createStatement()) {
             statement.execute(sql);
         }
+    }
+
+    // 서버 주소의 JDBC 옵션(쿼리 문자열)을 유지한 채 DB 이름만 임시 스키마로 지정
+    private static String withSchema(String serverUrl, String schema) {
+        int queryStart = serverUrl.indexOf('?');
+        String base = queryStart < 0 ? serverUrl : serverUrl.substring(0, queryStart);
+        String query = queryStart < 0 ? "" : serverUrl.substring(queryStart);
+        String hostPart = base.substring("jdbc:mysql://".length()).split("/", 2)[0];
+        return "jdbc:mysql://" + hostPart + "/" + schema + query;
     }
 }
