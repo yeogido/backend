@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yeogido.backend.domain.placeenrichment.client.DaumSearchClient;
 import com.yeogido.backend.domain.placeenrichment.exception.PlaceEnrichmentErrorCode;
+import com.yeogido.backend.domain.placeenrichment.util.AddressNormalizer;
 import com.yeogido.backend.global.exception.GeneralException;
 import com.yeogido.backend.domain.placeenrichment.client.GeminiSearchClient;
 import com.yeogido.backend.domain.placeenrichment.dto.request.TourPlaceRequest;
@@ -294,22 +295,9 @@ public class GeminiPlaceEnrichmentServiceImpl implements GeminiPlaceEnrichmentSe
         if (!StringUtils.hasText(address)) {
             return false;
         }
-        String addressPattern = Pattern.quote(normalizeAddress(address)).replace(" ", "\\E\\s*\\Q");
+        String addressPattern = Pattern.quote(AddressNormalizer.normalize(address)).replace(" ", "\\E\\s*\\Q");
         // 건물 번호의 접두 일치를 막되 공백으로 구분된 층 정보는 허용
-        return Pattern.compile(addressPattern + "(?![0-9-])").matcher(normalizeAddress(text)).find();
-    }
-
-    private static String normalizeAddress(String value) {
-        return value.strip().replaceAll("\\s+", " ")
-                .replace("서울특별시", "서울").replace("부산광역시", "부산")
-                .replace("대구광역시", "대구").replace("인천광역시", "인천")
-                .replace("광주광역시", "광주").replace("대전광역시", "대전")
-                .replace("울산광역시", "울산").replace("세종특별자치시", "세종")
-                .replace("경기도", "경기").replace("강원특별자치도", "강원").replace("강원도", "강원")
-                .replace("충청북도", "충북").replace("충청남도", "충남")
-                .replace("전북특별자치도", "전북").replace("전라북도", "전북").replace("전라남도", "전남")
-                .replace("경상북도", "경북").replace("경상남도", "경남")
-                .replace("제주특별자치도", "제주").replace("제주도", "제주");
+        return Pattern.compile(addressPattern + "(?![0-9-])").matcher(AddressNormalizer.normalize(text)).find();
     }
 
     private static void validateReferences(List<String> references, Set<String> sourceIds, int minimum) {
