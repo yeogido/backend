@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -216,6 +217,92 @@ class TravelRecordVisibilityApiTest {
         "[" + images + "]");
     mockMvc.perform(patch("/api/v1/travel-records/" + publicRecord.getId()).with(login())
         .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isBadRequest());
+  }
+
+  /** 두 DELETE 경로 모두 인증 없이 접근할 수 없는지 확인합니다. */
+  @Test
+  void removalEndpointsRequireLogin() throws Exception {
+    for (String suffix : List.of("", "/members/me")) {
+      mockMvc.perform(delete("/api/v1/travel-records/" + publicRecord.getId() + suffix))
+          .andExpect(status().isUnauthorized());
+    }
+  }
+
+  @Test
+  void sharedParticipantCannotDeleteButCanLeaveAndLosesReadAndEditAccess() throws Exception {
+    TravelRecord shared = sharedAlbum();
+    mockMvc.perform(delete("/api/v1/travel-records/" + shared.getId()).with(login()))
+        .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("COMMON4031"));
+    mockMvc.perform(delete("/api/v1/travel-records/" + shared.getId() + "/members/me").with(login()))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.code").value("COMMON200"))
+        .andExpect(jsonPath("$.result").doesNotExist());
+    mockMvc.perform(get("/api/v1/travel-records/" + shared.getId()).with(login()))
+        .andExpect(status().isForbidden());
+    mockMvc.perform(patch("/api/v1/travel-records/" + shared.getId()).with(login())
+        .contentType(MediaType.APPLICATION_JSON).content(updateBody("0", "")))
+        .andExpect(status().isForbidden());
+    assertThat(entityManager.find(TravelRecord.class, shared.getId())).isNotNull();
+  }
+
+  @Test
+  void ownerLeaveReturnsDedicatedConflict() throws Exception {
+    TravelRecord shared = sharedAlbum();
+    mockMvc.perform(delete("/api/v1/travel-records/" + shared.getId() + "/members/me").with(loginAs(owner)))
+        .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("TRAVEL_RECORD4096"));
+  }
+
+  @Test
+  void ownerDeleteCleansMembershipAndInvitationAndReturnsNullResult() throws Exception {
+    TravelRecord shared = sharedAlbum();
+    entityManager.persist(com.yeogido.backend.domain.travel.entity.TravelRecordInvitation.builder()
+        .travelRecord(shared).inviter(owner).invitee(viewer).build());
+    entityManager.flush();
+    mockMvc.perform(delete("/api/v1/travel-records/" + shared.getId()).with(loginAs(owner)))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.result").doesNotExist());
+    entityManager.clear();
+    assertThat(entityManager.find(TravelRecord.class, shared.getId())).isNull();
+    assertThat(entityManager.createQuery("select count(m) from TravelRecordMember m where m.travelRecord.id = :id", Long.class)
+        .setParameter("id", shared.getId()).getSingleResult()).isZero();
+    assertThat(entityManager.createQuery("select count(i) from TravelRecordInvitation i where i.travelRecord.id = :id", Long.class)
+        .setParameter("id", shared.getId()).getSingleResult()).isZero();
+    mockMvc.perform(get("/api/v1/travel-records/" + shared.getId()).with(login()))
+        .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("TRAVEL_RECORD4041"));
+  }
+
+  @Test
+  void repeatedLeaveAndPublicViewerLeaveAreForbidden() throws Exception {
+    TravelRecord shared = sharedAlbum();
+    mockMvc.perform(delete("/api/v1/travel-records/" + shared.getId() + "/members/me").with(login()))
+        .andExpect(status().isOk());
+    mockMvc.perform(delete("/api/v1/travel-records/" + shared.getId() + "/members/me").with(login()))
+        .andExpect(status().isForbidden());
+    mockMvc.perform(delete("/api/v1/travel-records/" + publicRecord.getId() + "/members/me").with(login()))
+        .andExpect(status().isForbidden());
+  }
+
+  /** 전체 삭제와 나가기 모두 존재하지 않는 앨범은 동일한 404 규약을 사용합니다. */
+  @Test
+  void removalOfNonExistingAlbumReturns404() throws Exception {
+    for (String suffix : List.of("", "/members/me")) {
+      mockMvc.perform(delete("/api/v1/travel-records/" + Long.MAX_VALUE + suffix).with(login()))
+          .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("TRAVEL_RECORD4041"));
+    }
+  }
+
+  private TravelRecord sharedAlbum() {
+    TravelRecord shared = TravelRecord.builder().user(owner).region(region).title("공유")
+        .startDate(LocalDate.of(2026, 5, 1)).endDate(LocalDate.of(2026, 5, 3))
+        .visibility(TravelRecordVisibility.FRIENDS).coverImageKey("travel-records/shared.jpg").build();
+    entityManager.persist(shared);
+    entityManager.persist(com.yeogido.backend.domain.travel.entity.TravelRecordMember.builder()
+        .travelRecord(shared).user(viewer).build());
+    entityManager.flush();
+    return shared;
+  }
+
+  private RequestPostProcessor loginAs(User user) {
+    return authentication(new UsernamePasswordAuthenticationToken(new AuthUser(user.getId(), UserRole.USER, "test-session"),
+        null, List.of(new SimpleGrantedAuthority("ROLE_USER"))));
   }
 
   private String updateBody(String version, String extra) {

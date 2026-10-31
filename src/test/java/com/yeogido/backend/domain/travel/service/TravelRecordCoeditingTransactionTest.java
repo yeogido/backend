@@ -29,6 +29,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
@@ -116,6 +117,120 @@ class TravelRecordCoeditingTransactionTest {
     assertThat(detail.version()).isZero();
     assertThat(detail.title()).isEqualTo("최초 제목");
     assertThat(detail.images().getFirst().imageKey()).isEqualTo("travel-records/original.jpg");
+  }
+
+  /** 편집이 버전을 확보한 뒤 들어온 나가기는 편집 완료를 기다리고 참여 관계만 제거합니다. */
+  @Test
+  void leaveDuringReservedEditKeepsSavedContentAndAdvancesVersion() throws Exception {
+    CountDownLatch editing = new CountDownLatch(1);
+    CountDownLatch finishEdit = new CountDownLatch(1);
+    CountDownLatch leaving = new CountDownLatch(1);
+    when(fileService.moveToDirectory(anyString(), any())).thenAnswer(call -> {
+      editing.countDown();
+      if (!finishEdit.await(10, TimeUnit.SECONDS)) throw new IllegalStateException("편집 대기 시간 초과");
+      return call.getArgument(0);
+    });
+    try (var pool = Executors.newFixedThreadPool(2)) {
+      var edit = pool.submit(() -> save(participantId, "저장된 사진"));
+      assertThat(editing.await(10, TimeUnit.SECONDS)).isTrue();
+      var leave = pool.submit(() -> {
+        leaving.countDown();
+        service.leaveTravelRecord(albumId, participantId);
+        return "OK";
+      });
+      assertThat(leaving.await(10, TimeUnit.SECONDS)).isTrue();
+      finishEdit.countDown();
+      assertThat(edit.get(20, TimeUnit.SECONDS)).isEqualTo("OK");
+      assertThat(leave.get(20, TimeUnit.SECONDS)).isEqualTo("OK");
+    } finally {
+      finishEdit.countDown();
+    }
+    var detail = service.getTravelRecord(ownerId, albumId);
+    assertThat(detail.version()).isEqualTo(2L);
+    assertThat(detail.title()).isEqualTo("저장된 사진");
+    assertThat(detail.participants()).isEmpty();
+    assertThat(detail.images().getFirst().imageKey()).isEqualTo("travel-records/저장된 사진.jpg");
+    assertThatThrownBy(() -> service.getTravelRecord(participantId, albumId)).isInstanceOf(GeneralException.class);
+  }
+
+  /** 편집 중 전체 삭제가 요청되어도 새 사진을 포함해 해당 앨범 데이터가 전부 정리됩니다. */
+  @Test
+  void deleteDuringReservedEditCleansNewPhotosAndMembership() throws Exception {
+    CountDownLatch editing = new CountDownLatch(1);
+    CountDownLatch finishEdit = new CountDownLatch(1);
+    when(fileService.moveToDirectory(anyString(), any())).thenAnswer(call -> {
+      editing.countDown();
+      if (!finishEdit.await(10, TimeUnit.SECONDS)) throw new IllegalStateException("편집 대기 시간 초과");
+      return call.getArgument(0);
+    });
+    try (var pool = Executors.newFixedThreadPool(2)) {
+      var edit = pool.submit(() -> save(participantId, "삭제 전 저장"));
+      assertThat(editing.await(10, TimeUnit.SECONDS)).isTrue();
+      var delete = pool.submit(() -> {
+        service.deleteTravelRecord(albumId, ownerId);
+        return "OK";
+      });
+      finishEdit.countDown();
+      assertThat(edit.get(20, TimeUnit.SECONDS)).isEqualTo("OK");
+      assertThat(delete.get(20, TimeUnit.SECONDS)).isEqualTo("OK");
+    } finally {
+      finishEdit.countDown();
+    }
+    assertAlbumRemoved();
+  }
+
+  /** 중복 나가기는 한 요청만 성공하고 나머지는 현재 참여자가 아니므로 403이 됩니다. */
+  @Test
+  void simultaneousDuplicateLeavesRemoveOnlyOneMembership() throws Exception {
+    CyclicBarrier start = new CyclicBarrier(2);
+    try (var pool = Executors.newFixedThreadPool(2)) {
+      var first = pool.submit(() -> { start.await(10, TimeUnit.SECONDS); return leave(); });
+      var second = pool.submit(() -> { start.await(10, TimeUnit.SECONDS); return leave(); });
+      assertThat(List.of(first.get(20, TimeUnit.SECONDS), second.get(20, TimeUnit.SECONDS)))
+          .containsExactlyInAnyOrder("OK", "COMMON4031");
+    }
+    var detail = service.getTravelRecord(ownerId, albumId);
+    assertThat(detail.version()).isEqualTo(1L);
+    assertThat(detail.images()).hasSize(1);
+    assertThat(detail.participants()).isEmpty();
+  }
+
+  /** 생성자 삭제와 참여자 나가기가 동시에 요청되어도 고아 사진·참여 행이 남지 않습니다. */
+  @Test
+  void simultaneousDeleteAndLeaveLeaveNoOrphans() throws Exception {
+    CyclicBarrier start = new CyclicBarrier(2);
+    try (var pool = Executors.newFixedThreadPool(2)) {
+      var delete = pool.submit(() -> {
+        start.await(10, TimeUnit.SECONDS);
+        service.deleteTravelRecord(albumId, ownerId);
+        return "OK";
+      });
+      var leave = pool.submit(() -> { start.await(10, TimeUnit.SECONDS); return leave(); });
+      assertThat(delete.get(20, TimeUnit.SECONDS)).isEqualTo("OK");
+      assertThat(leave.get(20, TimeUnit.SECONDS)).isIn("OK", "TRAVEL_RECORD4041");
+    }
+    assertAlbumRemoved();
+  }
+
+  /** 나가기의 정상 응답과 명세상 실패 코드만 비교하고 예상 밖 예외는 테스트를 실패시킵니다. */
+  private String leave() {
+    try {
+      service.leaveTravelRecord(albumId, participantId);
+      return "OK";
+    } catch (GeneralException e) {
+      return e.getErrorCode().getCode();
+    }
+  }
+
+  /** 별도 트랜잭션으로 실제 커밋된 삭제 결과를 검증합니다. */
+  private void assertAlbumRemoved() {
+    new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+      assertThat(entityManager.find(TravelRecord.class, albumId)).isNull();
+      assertThat(entityManager.createQuery("select count(p) from TravelRecordPhoto p where p.travelRecord.id = :id", Long.class)
+          .setParameter("id", albumId).getSingleResult()).isZero();
+      assertThat(entityManager.createQuery("select count(m) from TravelRecordMember m where m.travelRecord.id = :id", Long.class)
+          .setParameter("id", albumId).getSingleResult()).isZero();
+    });
   }
 
   /** 서로 다른 스레드의 서비스 호출 결과에서 충돌 코드와 성공을 비교합니다. */
