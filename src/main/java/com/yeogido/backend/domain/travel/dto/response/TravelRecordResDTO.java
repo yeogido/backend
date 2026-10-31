@@ -193,7 +193,10 @@ public class TravelRecordResDTO {
     @Schema(name = "TravelRecordUpdateResponse", description = "여행 기록 수정 응답")
     public record UpdateResponse(
             @Schema(description = "수정된 여행 기록 ID", example = "1")
-            Long travelRecordId
+            Long travelRecordId,
+
+            @Schema(description = "저장 후 수정 버전", example = "1")
+            Long version
     ) {
     }
 }
