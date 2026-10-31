@@ -1,5 +1,6 @@
 package com.yeogido.backend.domain.travel.dto.response;
 
+import com.yeogido.backend.domain.travel.enums.TravelRecordVisibility;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -37,8 +38,37 @@ public class TravelRecordResDTO {
             @Schema(description = "폴더 색상/테마", example = "BASIC")
             String folderTheme,
 
+            @Schema(description = "공개범위")
+            TravelRecordVisibility visibility,
+
+            @Schema(description = "최초 생성자")
+            UserProfile owner,
+
+            @Schema(description = "수락한 현재 추가 참여자. 생성자 제외")
+            List<UserProfile> participants,
+
+            @Schema(description = "사진 순서대로 최대 2장의 폴더 미리보기")
+            List<PreviewImage> previewImages,
+
+            @Schema(description = "폴더 스티커 배치")
+            List<StickerResponse> stickers,
+
             @Schema(description = "생성 일시", example = "2026-05-22T14:30:00")
             LocalDateTime createdAt
+    ) {
+    }
+
+    @Schema(name = "TravelRecordUserProfile", description = "앨범 생성자 및 현재 참여자")
+    public record UserProfile(Long userId, String nickname, String profileImageUrl) {
+    }
+
+    @Schema(name = "TravelRecordPreviewImage", description = "폴더 미리보기 사진")
+    public record PreviewImage(String imageUrl, Integer imageOrder) {
+    }
+
+    @Schema(name = "TravelRecordPermissions", description = "현재 사용자의 앨범 작업 권한")
+    public record Permissions(
+            boolean canEdit, boolean canDelete, boolean canLeave, boolean canInvite, boolean canLinkShare
     ) {
     }
 
@@ -64,6 +94,21 @@ public class TravelRecordResDTO {
 
             @Schema(description = "폴더 색상/테마", example = "BASIC")
             String folderTheme,
+
+            @Schema(description = "공개범위")
+            TravelRecordVisibility visibility,
+
+            @Schema(description = "수정 요청 시 전달할 현재 버전", example = "0")
+            Long version,
+
+            @Schema(description = "최초 생성자")
+            UserProfile owner,
+
+            @Schema(description = "수락한 현재 추가 참여자. 생성자 제외")
+            List<UserProfile> participants,
+
+            @Schema(description = "현재 사용자의 작업 권한")
+            Permissions permissions,
 
             @Schema(description = "여행 기록 사진 목록")
             List<ImageResponse> images,
@@ -133,6 +178,12 @@ public class TravelRecordResDTO {
 
             @Schema(description = "대표 이미지 key", example = "travel-records/1/image-1.jpg")
             String coverImageKey,
+
+            @Schema(description = "저장된 공개범위")
+            TravelRecordVisibility visibility,
+
+            @Schema(description = "최초 수정 버전", example = "0")
+            Long version,
 
             @Schema(description = "생성 일시", example = "2026-05-22T14:30:00")
             LocalDateTime createdAt
