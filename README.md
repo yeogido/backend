@@ -57,6 +57,7 @@
 
 - 한국관광공사 TourAPI
 - 국세청 사업자등록정보 진위확인 API
+현- Daum 검색 + Gemini 요약: [장소 설명 보완 로컬 테스트](docs/gemini-place-enrichment.md)
 
 ---
 
