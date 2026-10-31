@@ -40,7 +40,7 @@ class TravelRecordSharingMigrationTest {
     }
     databaseUrl = "jdbc:mysql://" + server.getMetaData().getURL()
       .substring("jdbc:mysql://".length()).split("/", 2)[0] + "/" + schema;
-    Flyway.configure().dataSource(databaseUrl, username, password).target("36").load().migrate();
+    Flyway.configure().dataSource(databaseUrl, username, password).target("37").load().migrate();
     database = DriverManager.getConnection(databaseUrl, username, password);
   }
 
@@ -73,7 +73,7 @@ class TravelRecordSharingMigrationTest {
     var originalPhotos = rows("SELECT * FROM travel_record_photo ORDER BY id");
     var originalStickers = rows("SELECT * FROM travel_record_sticker ORDER BY id");
 
-    migrateTo37();
+    migrateTo38();
 
     assertThat(rows("SELECT * FROM travel_record ORDER BY id").stream()
       .map(row -> row.subList(0, row.size() - 2)).toList()).isEqualTo(originalRecords);
@@ -95,7 +95,7 @@ class TravelRecordSharingMigrationTest {
   @Test
   void enforcesUniqueStateAndForeignKeyConstraints() throws SQLException {
     seedUsersAndRecords();
-    migrateTo37();
+    migrateTo38();
     execute("UPDATE travel_record SET visibility = 'FRIENDS' WHERE id = 1");
     execute("UPDATE travel_record SET visibility = 'PUBLIC' WHERE id = 2");
     insertMember(1, 2);
@@ -140,7 +140,7 @@ class TravelRecordSharingMigrationTest {
   @Test
   void deletingMemberPreservesContentAndDeletingAlbumCascadesOnlyItsRelations() throws SQLException {
     seedUsersAndRecords();
-    migrateTo37();
+    migrateTo38();
     insertMember(1, 2);
     insertMember(1, 3);
     insertMember(2, 3);
@@ -171,14 +171,14 @@ class TravelRecordSharingMigrationTest {
   }
 
   @Test
-  void migratesEmptyDatabaseAndDoesNotReapply37() {
-    migrateTo37();
+  void migratesEmptyDatabaseAndDoesNotReapply38() {
+    migrateTo38();
 
     assertThat(Flyway.configure().dataSource(databaseUrl, username, password)
-      .target("37").load().migrate().migrationsExecuted).isZero();
+      .target("38").load().migrate().migrationsExecuted).isZero();
   }
 
-  /** V37 적용 전 상태에서 서로 다른 생성자의 기록과 사진을 준비하여 데이터 보존을 비교합니다. */
+  /** V38 적용 전 상태에서 서로 다른 생성자의 기록과 사진을 준비하여 데이터 보존을 비교합니다. */
   private void seedUsersAndRecords() throws SQLException {
     execute("""
       INSERT INTO region (id, name, type, created_at, updated_at)
@@ -209,9 +209,9 @@ class TravelRecordSharingMigrationTest {
       + ", NOW(6), NOW(6))");
   }
 
-  private void migrateTo37() {
+  private void migrateTo38() {
     assertThat(Flyway.configure().dataSource(databaseUrl, username, password)
-      .target("37").load().migrate().migrationsExecuted).isEqualTo(1);
+      .target("38").load().migrate().migrationsExecuted).isEqualTo(1);
   }
 
   private long count(String table) throws SQLException {
