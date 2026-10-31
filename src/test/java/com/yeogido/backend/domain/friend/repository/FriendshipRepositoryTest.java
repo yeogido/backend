@@ -12,6 +12,7 @@ import com.yeogido.backend.domain.user.enums.Gender;
 import com.yeogido.backend.domain.user.enums.UserRole;
 import com.yeogido.backend.domain.user.enums.UserStatus;
 import com.yeogido.backend.global.config.JpaConfig;
+import jakarta.persistence.LockModeType;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -78,6 +79,20 @@ class FriendshipRepositoryTest {
 
         assertThat(friendshipRepository.existsByUserLowIdAndUserHighIdAndStatus(low, high, FriendshipStatus.ACCEPTED))
                 .isTrue();
+    }
+
+    @Test
+    void findsFriendshipByIdWithWriteLock() {
+        User a = persistUser("a", UserStatus.ACTIVE);
+        User b = persistUser("b", UserStatus.ACTIVE);
+        Friendship friendship = friendshipRepository.saveAndFlush(Friendship.request(a, b));
+        entityManager.clear();
+
+        Friendship locked = friendshipRepository.findByIdForUpdate(friendship.getId()).orElseThrow();
+
+        assertThat(locked.getId()).isEqualTo(friendship.getId());
+        assertThat(entityManager.getEntityManager().getLockMode(locked)).isEqualTo(LockModeType.PESSIMISTIC_WRITE);
+        assertThat(friendshipRepository.findByIdForUpdate(-1L)).isEmpty();
     }
 
     @Test

@@ -29,6 +29,8 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class FriendServiceImpl implements FriendService {
 
+    private static final int MAX_PAGE_SIZE = 100;
+
     private final UserRepository userRepository;
     private final FriendshipRepository friendshipRepository;
     private final S3Service s3Service;
@@ -216,7 +218,7 @@ public class FriendServiceImpl implements FriendService {
     }
 
     private Friendship getFriendship(Long requestId) {
-        return friendshipRepository.findById(requestId)
+        return friendshipRepository.findByIdForUpdate(requestId)
                 .orElseThrow(() -> new GeneralException(FriendErrorCode.FRIEND_REQUEST_NOT_FOUND));
     }
 
@@ -252,7 +254,7 @@ public class FriendServiceImpl implements FriendService {
     }
 
     private void validateSize(Integer size) {
-        if (size == null || size < 1) {
+        if (size == null || size < 1 || size > MAX_PAGE_SIZE) {
             throw new GeneralException(GeneralErrorCode.INVALID_PARAMETER);
         }
     }

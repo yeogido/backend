@@ -216,12 +216,22 @@ class FriendServiceImplTest {
     void requestListsRejectInvalidSize() {
         assertErrorCode(() -> friendService.getReceivedRequests(ME_ID, null, 0), GeneralErrorCode.INVALID_PARAMETER);
         assertErrorCode(() -> friendService.getSentRequests(ME_ID, null, -1), GeneralErrorCode.INVALID_PARAMETER);
+        assertErrorCode(() -> friendService.getReceivedRequests(ME_ID, null, 101), GeneralErrorCode.INVALID_PARAMETER);
+        assertErrorCode(() -> friendService.getSentRequests(ME_ID, null, 101), GeneralErrorCode.INVALID_PARAMETER);
+    }
+
+    @Test
+    void requestListsAllowMaxSize() {
+        when(friendshipRepository.findPendingReceived(eq(ME_ID), eq(null), eq(PageRequest.of(0, 101))))
+                .thenReturn(List.of());
+
+        assertThat(friendService.getReceivedRequests(ME_ID, null, 100).getItems()).isEmpty();
     }
 
     @Test
     void acceptRequestMakesFriends() {
         Friendship friendship = friendship(other, me, FriendshipStatus.PENDING);
-        when(friendshipRepository.findById(REQUEST_ID)).thenReturn(Optional.of(friendship));
+        when(friendshipRepository.findByIdForUpdate(REQUEST_ID)).thenReturn(Optional.of(friendship));
 
         FriendResDTO.AcceptResult result = friendService.acceptRequest(ME_ID, REQUEST_ID);
 
@@ -232,21 +242,21 @@ class FriendServiceImplTest {
 
     @Test
     void acceptAndRejectAllowOnlyPendingRequestForReceiver() {
-        when(friendshipRepository.findById(REQUEST_ID))
+        when(friendshipRepository.findByIdForUpdate(REQUEST_ID))
                 .thenReturn(Optional.of(friendship(me, other, FriendshipStatus.PENDING)));
         assertErrorCode(() -> friendService.acceptRequest(ME_ID, REQUEST_ID),
                 FriendErrorCode.FRIEND_REQUEST_RESPOND_FORBIDDEN);
         assertErrorCode(() -> friendService.rejectRequest(ME_ID, REQUEST_ID),
                 FriendErrorCode.FRIEND_REQUEST_RESPOND_FORBIDDEN);
 
-        when(friendshipRepository.findById(REQUEST_ID))
+        when(friendshipRepository.findByIdForUpdate(REQUEST_ID))
                 .thenReturn(Optional.of(friendship(other, me, FriendshipStatus.ACCEPTED)));
         assertErrorCode(() -> friendService.acceptRequest(ME_ID, REQUEST_ID),
                 FriendErrorCode.FRIEND_REQUEST_ALREADY_PROCESSED);
         assertErrorCode(() -> friendService.rejectRequest(ME_ID, REQUEST_ID),
                 FriendErrorCode.FRIEND_REQUEST_ALREADY_PROCESSED);
 
-        when(friendshipRepository.findById(REQUEST_ID)).thenReturn(Optional.empty());
+        when(friendshipRepository.findByIdForUpdate(REQUEST_ID)).thenReturn(Optional.empty());
         assertErrorCode(() -> friendService.acceptRequest(ME_ID, REQUEST_ID),
                 FriendErrorCode.FRIEND_REQUEST_NOT_FOUND);
 
@@ -256,7 +266,7 @@ class FriendServiceImplTest {
     @Test
     void rejectRequestDeletesFriendship() {
         Friendship friendship = friendship(other, me, FriendshipStatus.PENDING);
-        when(friendshipRepository.findById(REQUEST_ID)).thenReturn(Optional.of(friendship));
+        when(friendshipRepository.findByIdForUpdate(REQUEST_ID)).thenReturn(Optional.of(friendship));
 
         friendService.rejectRequest(ME_ID, REQUEST_ID);
 
@@ -266,16 +276,16 @@ class FriendServiceImplTest {
     @Test
     void cancelRequestDeletesOnlyOwnPendingRequest() {
         Friendship mine = friendship(me, other, FriendshipStatus.PENDING);
-        when(friendshipRepository.findById(REQUEST_ID)).thenReturn(Optional.of(mine));
+        when(friendshipRepository.findByIdForUpdate(REQUEST_ID)).thenReturn(Optional.of(mine));
         friendService.cancelRequest(ME_ID, REQUEST_ID);
         verify(friendshipRepository).delete(mine);
 
-        when(friendshipRepository.findById(REQUEST_ID))
+        when(friendshipRepository.findByIdForUpdate(REQUEST_ID))
                 .thenReturn(Optional.of(friendship(other, me, FriendshipStatus.PENDING)));
         assertErrorCode(() -> friendService.cancelRequest(ME_ID, REQUEST_ID),
                 FriendErrorCode.FRIEND_REQUEST_CANCEL_FORBIDDEN);
 
-        when(friendshipRepository.findById(REQUEST_ID))
+        when(friendshipRepository.findByIdForUpdate(REQUEST_ID))
                 .thenReturn(Optional.of(friendship(me, other, FriendshipStatus.ACCEPTED)));
         assertErrorCode(() -> friendService.cancelRequest(ME_ID, REQUEST_ID),
                 FriendErrorCode.FRIEND_REQUEST_ALREADY_PROCESSED);
