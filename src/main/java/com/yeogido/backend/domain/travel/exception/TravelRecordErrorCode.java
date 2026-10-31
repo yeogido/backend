@@ -63,6 +63,12 @@ public enum TravelRecordErrorCode implements ErrorCode {
             "여행 기록을 찾을 수 없습니다."
     ),
 
+    VERSION_CONFLICT(
+            HttpStatus.CONFLICT,
+            "TRAVEL_RECORD4091",
+            "다른 변경사항이 반영되었습니다. 최신 정보를 조회한 뒤 다시 시도해 주세요."
+    ),
+
     STICKER_NOT_FOUND(
             HttpStatus.NOT_FOUND,
             "STICKER4042",

@@ -397,6 +397,172 @@ class TravelRecordVisibilityIntegrationTest {
     assertThat(statistics.getPrepareStatementCount()).isEqualTo(4);
   }
 
+  @ParameterizedTest
+  @EnumSource(TravelRecordVisibility.class)
+  void ownerCanSaveEveryVisibilityAndReceivesNextVersion(TravelRecordVisibility visibility) {
+    TravelRecord album = record(owner, visibility, 2026);
+    photo(album, 1);
+    flushAndClear();
+
+    var response = service.updateTravelRecord(album.getId(), owner.getId(), editRequest(0L, "수정", null));
+    assertThat(response.version()).isEqualTo(1L);
+    flushAndClear();
+    var detail = service.getTravelRecord(owner.getId(), album.getId());
+    assertThat(detail.version()).isEqualTo(1L);
+    assertThat(detail.title()).isEqualTo("수정");
+    assertThat(detail.visibility()).isEqualTo(visibility);
+    assertThat(detail.owner().userId()).isEqualTo(owner.getId());
+    assertThat(detail.images()).extracting(TravelRecordResDTO.ImageResponse::imageKey)
+        .containsExactly("travel-records/edited.jpg");
+  }
+
+  @Test
+  void acceptedParticipantCanEditPhotosAndKeepsExistingStickersWhenOmitted() {
+    TravelRecord album = record(owner, TravelRecordVisibility.FRIENDS, 2026);
+    member(album, viewer);
+    photo(album, 1);
+    Sticker custom = customSticker(owner);
+    placedSticker(album, custom);
+    flushAndClear();
+
+    service.updateTravelRecord(album.getId(), viewer.getId(), editRequest(0L, "참여자 수정", null));
+    flushAndClear();
+    var detail = service.getTravelRecord(viewer.getId(), album.getId());
+    assertThat(detail.title()).isEqualTo("참여자 수정");
+    assertThat(detail.version()).isEqualTo(1L);
+    assertThat(detail.stickers()).extracting(TravelRecordResDTO.StickerResponse::stickerId)
+        .containsExactly(custom.getId());
+    assertThat(detail.participants()).hasSize(1);
+  }
+
+  @Test
+  void childOnlyAndIdenticalSavesEachAdvanceVersionExactlyOnce() {
+    TravelRecord album = record(owner, TravelRecordVisibility.FRIENDS, 2026);
+    member(album, viewer);
+    photo(album, 1);
+    Sticker custom = customSticker(owner);
+    placedSticker(album, custom);
+    flushAndClear();
+    var initial = editRequest(0L, "여행", List.of(stickerRequest(custom.getId(), 20.0, 0)));
+    service.updateTravelRecord(album.getId(), viewer.getId(), initial);
+    flushAndClear();
+    var moved = editRequest(1L, "여행", List.of(stickerRequest(custom.getId(), 40.0, 0)));
+    assertThat(service.updateTravelRecord(album.getId(), viewer.getId(), moved).version()).isEqualTo(2L);
+    flushAndClear();
+    assertThat(service.getTravelRecord(owner.getId(), album.getId()).stickers().getFirst().positionX()).isEqualTo(40.0);
+    assertThat(service.updateTravelRecord(album.getId(), viewer.getId(),
+        editRequest(2L, "여행", moved.stickers())).version()).isEqualTo(3L);
+    flushAndClear();
+    assertThat(service.getTravelRecord(owner.getId(), album.getId()).version()).isEqualTo(3L);
+  }
+
+  @Test
+  void emptyStickersClearsAlbumWithoutDeletingStickerSource() {
+    TravelRecord album = record(owner, TravelRecordVisibility.FRIENDS, 2026);
+    member(album, viewer);
+    placedSticker(album, customSticker(owner));
+    flushAndClear();
+    service.updateTravelRecord(album.getId(), viewer.getId(), editRequest(0L, "여행", List.of()));
+    flushAndClear();
+    assertThat(service.getTravelRecord(owner.getId(), album.getId()).stickers()).isEmpty();
+    assertThat(entityManager.getEntityManager().createQuery("select count(s) from Sticker s", Long.class)
+        .getSingleResult()).isEqualTo(1L);
+  }
+
+  @ParameterizedTest
+  @EnumSource(value = TravelRecordVisibility.class, names = {"PRIVATE", "PUBLIC"})
+  void membershipDoesNotAllowEditingPrivateOrPublicAlbum(TravelRecordVisibility visibility) {
+    TravelRecord album = record(owner, visibility, 2026);
+    member(album, viewer);
+    flushAndClear();
+    assertError(() -> service.updateTravelRecord(album.getId(), viewer.getId(), editRequest(0L, "불가", null)),
+        GeneralErrorCode.FORBIDDEN);
+    verify(fileService, never()).moveToDirectory(anyString(), any());
+  }
+
+  @ParameterizedTest
+  @EnumSource(value = TravelRecordInvitationStatus.class, names = {"PENDING", "DECLINED"})
+  void invitationAloneDoesNotGrantEditing(TravelRecordInvitationStatus state) {
+    TravelRecord album = record(owner, TravelRecordVisibility.FRIENDS, 2026);
+    invite(album, state);
+    flushAndClear();
+    assertError(() -> service.updateTravelRecord(album.getId(), viewer.getId(), editRequest(0L, "불가", null)),
+        GeneralErrorCode.FORBIDDEN);
+  }
+
+  @Test
+  void removedAndWithdrawnParticipantsCannotEdit() {
+    TravelRecord album = record(owner, TravelRecordVisibility.FRIENDS, 2026);
+    member(album, viewer);
+    flushAndClear();
+    entityManager.getEntityManager().createQuery("delete from TravelRecordMember m where m.user.id = :id")
+        .setParameter("id", viewer.getId()).executeUpdate();
+    entityManager.find(User.class, third.getId()).withdraw();
+    member(album, third);
+    flushAndClear();
+    assertError(() -> service.updateTravelRecord(album.getId(), viewer.getId(), editRequest(0L, "불가", null)),
+        GeneralErrorCode.FORBIDDEN);
+    assertError(() -> service.updateTravelRecord(album.getId(), third.getId(), editRequest(0L, "불가", null)),
+        GeneralErrorCode.FORBIDDEN);
+  }
+
+  @Test
+  void staleVersionFailsBeforeMovingImages() {
+    TravelRecord album = record(owner, TravelRecordVisibility.PRIVATE, 2026);
+    flushAndClear();
+    assertError(() -> service.updateTravelRecord(album.getId(), owner.getId(), editRequest(1L, "불가", null)),
+        TravelRecordErrorCode.VERSION_CONFLICT);
+    verify(fileService, never()).moveToDirectory(anyString(), any());
+  }
+
+  @Test
+  void participantCanRetainDeletedForeignStickerButCannotIncreaseItsCount() {
+    TravelRecord album = record(owner, TravelRecordVisibility.FRIENDS, 2026);
+    member(album, viewer);
+    Sticker custom = customSticker(owner);
+    custom.delete();
+    placedSticker(album, custom);
+    flushAndClear();
+    service.updateTravelRecord(album.getId(), viewer.getId(),
+        editRequest(0L, "여행", List.of(stickerRequest(custom.getId(), 50.0, 0))));
+    flushAndClear();
+    assertThat(service.getTravelRecord(viewer.getId(), album.getId()).stickers()).hasSize(1);
+    assertError(() -> service.updateTravelRecord(album.getId(), viewer.getId(), editRequest(1L, "불가", List.of(
+        stickerRequest(custom.getId(), 50.0, 0), stickerRequest(custom.getId(), 60.0, 1)))),
+        TravelRecordErrorCode.STICKER_NOT_FOUND);
+  }
+
+  @Test
+  void cannotIntroduceAnotherUsersCustomSticker() {
+    TravelRecord album = record(owner, TravelRecordVisibility.FRIENDS, 2026);
+    member(album, viewer);
+    Sticker custom = customSticker(third);
+    flushAndClear();
+    assertError(() -> service.updateTravelRecord(album.getId(), viewer.getId(),
+        editRequest(0L, "불가", List.of(stickerRequest(custom.getId(), 1.0, 0)))), TravelRecordErrorCode.STICKER_NOT_FOUND);
+  }
+
+  private TravelRecordReqDTO.UpdateRequest editRequest(Long version, String title,
+      List<TravelRecordReqDTO.StickerRequest> stickers) {
+    return new TravelRecordReqDTO.UpdateRequest(version, title, region.getId(), LocalDate.of(2026, 5, 1),
+        LocalDate.of(2026, 5, 3), "BASIC",
+        List.of(new TravelRecordReqDTO.ImageRequest("travel-records/edited.jpg", 1)), stickers);
+  }
+
+  private Sticker customSticker(User creator) {
+    return entityManager.persist(Sticker.builder().name("커스텀").imageKey("stickers/custom.png")
+        .user(creator).stickerType(StickerType.CUSTOM).category(StickerCategory.values()[0]).build());
+  }
+
+  private void placedSticker(TravelRecord album, Sticker sticker) {
+    entityManager.persist(TravelRecordSticker.builder().travelRecord(album).sticker(sticker)
+        .positionX(1.0).positionY(2.0).rotation(0.0).scale(1.0).zIndex(0).build());
+  }
+
+  private TravelRecordReqDTO.StickerRequest stickerRequest(Long id, double x, int z) {
+    return new TravelRecordReqDTO.StickerRequest(id, x, 1.0, 0.0, 1.0, z);
+  }
+
   /** JSON을 통해 생략과 명시적 null을 구분하고 기존 필수 입력을 함께 제공합니다. */
   private TravelRecordReqDTO.CreateRequest createRequest(String visibilityJson) throws Exception {
     return mapper.readValue("""

@@ -30,7 +30,9 @@ import com.yeogido.backend.domain.user.repository.UserRepository;
 import com.yeogido.backend.global.common.response.CursorResponse;
 import com.yeogido.backend.global.exception.GeneralErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
+import jakarta.persistence.EntityManager;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.Year;
 import java.util.HashSet;
 import java.util.List;
@@ -61,6 +63,7 @@ public class TravelRecordServiceImpl implements TravelRecordService {
     private final RegionRepository regionRepository;
     private final FileService fileService;
     private final S3Service s3Service;
+    private final EntityManager entityManager;
 
     @Override
     public CursorResponse<TravelRecordResDTO.TravelRecordSummary> getMyTravelRecords(
@@ -214,8 +217,12 @@ public class TravelRecordServiceImpl implements TravelRecordService {
             Long userId,
             TravelRecordReqDTO.UpdateRequest request
     ) {
-        TravelRecord travelRecord = getTravelRecordOrThrow(travelRecordId);
-        validateOwner(travelRecord, userId);
+        TravelRecord travelRecord = travelRecordRepository.findActiveDetailById(travelRecordId)
+                .orElseThrow(() -> new GeneralException(TravelRecordErrorCode.TRAVEL_RECORD_NOT_FOUND));
+        validateEditor(travelRecord, userId);
+        if (!travelRecord.getVersion().equals(request.version())) {
+            throw new GeneralException(TravelRecordErrorCode.VERSION_CONFLICT);
+        }
 
         Region region = getRegionOrThrow(request.regionId());
         validateDateRange(request.startDate(), request.endDate());
@@ -224,15 +231,16 @@ public class TravelRecordServiceImpl implements TravelRecordService {
         List<TravelRecordReqDTO.ImageRequest> movedImages = moveImages(request.images());
         String coverImageKey = findCoverImageKey(movedImages);
 
-        // 폴더 테마는 현재 기획상 변경 기능이 없어 BASIC으로 고정합니다.
-        travelRecord.update(
-                region,
-                request.title(),
-                request.startDate(),
-                request.endDate(),
-                coverImageKey,
-                DEFAULT_FOLDER_THEME
+        // 버전 비교와 증가는 한 SQL로 처리하고, 실패한 요청은 자식 콘텐츠를 변경하지 않습니다.
+        int updated = travelRecordRepository.updateIfVersionMatches(
+                travelRecordId, request.version(), region, request.title(), request.startDate(),
+                request.endDate(), coverImageKey, DEFAULT_FOLDER_THEME, LocalDateTime.now()
         );
+        if (updated == 0) {
+            throw new GeneralException(TravelRecordErrorCode.VERSION_CONFLICT);
+        }
+        // JPQL 일괄 수정 이후 영속성 컨텍스트도 최신 버전으로 맞춥니다.
+        entityManager.refresh(travelRecord);
 
         // 수정 요청의 images는 "수정 후 최종 목록"이므로 기존 사진을 전체 교체합니다.
         travelRecordPhotoRepository.deleteAllByTravelRecord_Id(travelRecordId);
@@ -331,6 +339,20 @@ public class TravelRecordServiceImpl implements TravelRecordService {
     private Region getRegionOrThrow(Long regionId) {
         return regionRepository.findById(regionId)
                 .orElseThrow(() -> new GeneralException(RegionErrorCode.REGION_NOT_FOUND));
+    }
+
+    private void validateEditor(TravelRecord record, Long userId) {
+        User editor = getUserOrThrow(userId);
+        if (editor.getStatus() != UserStatus.ACTIVE) {
+            throw new GeneralException(GeneralErrorCode.FORBIDDEN);
+        }
+        boolean owner = record.getUser().getId().equals(userId);
+        boolean participant = record.getVisibility() == TravelRecordVisibility.FRIENDS
+                && travelRecordMemberRepository.findCurrentMembers(List.of(record.getId())).stream()
+                    .anyMatch(member -> member.getUser().getId().equals(userId));
+        if (!owner && !participant) {
+            throw new GeneralException(GeneralErrorCode.FORBIDDEN);
+        }
     }
 
     private void validateOwner(TravelRecord travelRecord, Long userId) {
@@ -534,8 +556,10 @@ public class TravelRecordServiceImpl implements TravelRecordService {
         boolean isOwner = sticker.getUser() != null
                 && sticker.getUser().getId().equals(userId);
 
+        // 다른 참여자의 기존 스티커는 유지·이동할 수 있지만 새로 추가할 수는 없습니다.
         if (!isOwner) {
-            return false;
+            return requestedStickerCounts.getOrDefault(sticker.getId(), 0L)
+                    <= existingStickerCounts.getOrDefault(sticker.getId(), 0L);
         }
 
         if (sticker.getDeletedAt() == null) {

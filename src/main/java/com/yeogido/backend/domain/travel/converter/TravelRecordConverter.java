@@ -203,6 +203,6 @@ public class TravelRecordConverter {
     public static TravelRecordResDTO.UpdateResponse toUpdateResponse(
             TravelRecord travelRecord
     ) {
-        return new TravelRecordResDTO.UpdateResponse(travelRecord.getId());
+        return new TravelRecordResDTO.UpdateResponse(travelRecord.getId(), travelRecord.getVersion());
     }
 }
