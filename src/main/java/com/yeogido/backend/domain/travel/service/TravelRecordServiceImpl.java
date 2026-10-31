@@ -49,6 +49,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class TravelRecordServiceImpl implements TravelRecordService {
 
     private static final int DEFAULT_PAGE_SIZE = 10;
+    private static final int MAX_PAGE_SIZE = 100;
     private static final FolderTheme DEFAULT_FOLDER_THEME = FolderTheme.BASIC;
 
     private final TravelRecordRepository travelRecordRepository;
@@ -270,7 +271,7 @@ public class TravelRecordServiceImpl implements TravelRecordService {
             return DEFAULT_PAGE_SIZE;
         }
 
-        if (size <= 0 || size == Integer.MAX_VALUE) {
+        if (size <= 0 || size > MAX_PAGE_SIZE) {
             throw new GeneralException(TravelRecordErrorCode.INVALID_PAGE_REQUEST);
         }
 

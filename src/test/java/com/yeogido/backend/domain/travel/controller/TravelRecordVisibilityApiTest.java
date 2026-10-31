@@ -146,8 +146,26 @@ class TravelRecordVisibilityApiTest {
   void invalidYearAndSizeDoNotBecomeServerErrors() throws Exception {
     mockMvc.perform(get("/api/v1/travel-records").with(login()).param("year", "10000"))
         .andExpect(status().isBadRequest());
-    mockMvc.perform(get("/api/v1/travel-records").with(login()).param("size", "2147483647"))
-        .andExpect(status().isBadRequest());
+    for (String size : List.of("-1", "0", "2147483647")) {
+      mockMvc.perform(get("/api/v1/travel-records").with(login()).param("size", size))
+          .andExpect(status().isBadRequest());
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {101, 1000000, Integer.MAX_VALUE})
+  void listRejectsOversizedPagesWithDomainError(int size) throws Exception {
+    mockMvc.perform(get("/api/v1/travel-records").with(login()).param("size", Integer.toString(size)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("TRAVEL_RECORD4006"));
+  }
+
+  @Test
+  void listAcceptsMaximumPageSize() throws Exception {
+    mockMvc.perform(get("/api/v1/travel-records").with(login()).param("size", "100")
+        .param("userId", owner.getId().toString()).param("year", "2026"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.result.items[0].travelRecordId").value(publicRecord.getId()));
   }
 
   private RequestPostProcessor login() {

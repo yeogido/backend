@@ -21,7 +21,8 @@ public class TravelRecordReqDTO {
             @Positive(message = "cursor는 양수여야 합니다.")
             Long cursor,
 
-            @Schema(description = "조회할 여행 기록 개수", example = "10", defaultValue = "10")
+            @Schema(description = "조회할 여행 기록 개수 (1~100)", example = "10", defaultValue = "10",
+                    minimum = "1", maximum = "100")
             @Positive(message = "size는 양수여야 합니다.")
             Integer size,
 
