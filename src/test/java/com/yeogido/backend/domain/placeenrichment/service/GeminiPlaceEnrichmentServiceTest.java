@@ -367,6 +367,30 @@ class GeminiPlaceEnrichmentServiceTest {
         assertInvalid(payload);
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"10", "11", "1-2"})
+    void rejectsDifferentBuildingWithSameNumberPrefix(String buildingNumber) throws Exception {
+        when(searchClient.search(input)).thenReturn(List.of(new DaumSearchResponse.SearchSource("S1",
+                "https://example.com/place", PlaceEvidenceSourceType.REVIEW, "테스트 카페",
+                "서울특별시 중구 테스트로 " + buildingNumber + " 커피 판매")));
+
+        assertInvalid(payload());
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {
+            "서울 중구 테스트로 1", "서울중구테스트로1", "서울\t중구  테스트로\n1",
+            "서울 중구 테스트로 1 2층", "서울 중구 테스트로 1(테스트동)", "서울 중구 테스트로 1, 카페"
+    })
+    void acceptsSameBuildingWithWhitespaceAndAdditionalDetails(String address) throws Exception {
+        when(searchClient.search(input)).thenReturn(List.of(new DaumSearchResponse.SearchSource("S1",
+                "https://example.com/place", PlaceEvidenceSourceType.REVIEW, "테스트 카페",
+                address + " 커피 판매")));
+        when(client.search(anyString(), anyString())).thenReturn(response(payload()));
+
+        assertThat(service.enrich(input).matchStatus().name()).isEqualTo("VERIFIED");
+    }
+
     private void assertInvalid(ObjectNode payload) throws Exception {
         when(client.search(anyString(), anyString())).thenReturn(response(payload));
         assertThatThrownBy(() -> service.enrich(input)).isInstanceOfSatisfying(GeneralException.class,

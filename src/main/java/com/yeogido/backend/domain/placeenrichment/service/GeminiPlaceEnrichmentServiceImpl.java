@@ -288,11 +288,16 @@ public class GeminiPlaceEnrichmentServiceImpl implements GeminiPlaceEnrichmentSe
     }
 
     private static boolean containsAddress(String text, String address) {
-        return StringUtils.hasText(address) && normalizeAddress(text).contains(normalizeAddress(address));
+        if (!StringUtils.hasText(address)) {
+            return false;
+        }
+        String addressPattern = Pattern.quote(normalizeAddress(address)).replace(" ", "\\E\\s*\\Q");
+        // 건물 번호의 접두 일치를 막되 공백으로 구분된 층 정보는 허용
+        return Pattern.compile(addressPattern + "(?![0-9-])").matcher(normalizeAddress(text)).find();
     }
 
     private static String normalizeAddress(String value) {
-        return value.replace("서울특별시", "서울").replaceAll("\\s+", "");
+        return value.replace("서울특별시", "서울").strip().replaceAll("\\s+", " ");
     }
 
     private static void validateReferences(List<String> references, Set<String> sourceIds, int minimum) {
