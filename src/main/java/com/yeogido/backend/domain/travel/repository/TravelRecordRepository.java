@@ -1,6 +1,10 @@
 package com.yeogido.backend.domain.travel.repository;
 
+import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.travel.entity.TravelRecord;
+import com.yeogido.backend.domain.travel.enums.FolderTheme;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -9,6 +13,32 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface TravelRecordRepository extends JpaRepository<TravelRecord, Long>, TravelRecordQueryRepository {
+
+    /** 파일 이동 전에 버전을 선점하여 충돌한 요청의 임시 사진이 소모되지 않게 합니다. */
+    @Modifying(flushAutomatically = true)
+    @Query("""
+            update TravelRecord tr set tr.version = tr.version + 1
+            where tr.id = :id and tr.version = :version
+            """)
+    int reserveVersion(@Param("id") Long id, @Param("version") Long version);
+
+    /** 같은 트랜잭션에서 확보한 버전으로 앨범 정보를 저장하고 버전은 추가 증가시키지 않습니다. */
+    @Modifying(flushAutomatically = true)
+    @Query("""
+            update TravelRecord tr
+            set tr.region = :region, tr.title = :title,
+                tr.startDate = :startDate, tr.endDate = :endDate,
+                tr.coverImageKey = :coverImageKey, tr.folderTheme = :folderTheme,
+                tr.updatedAt = :updatedAt
+            where tr.id = :id and tr.version = :version
+            """)
+    int updateIfVersionMatches(
+            @Param("id") Long id, @Param("version") Long version,
+            @Param("region") Region region, @Param("title") String title,
+            @Param("startDate") LocalDate startDate, @Param("endDate") LocalDate endDate,
+            @Param("coverImageKey") String coverImageKey, @Param("folderTheme") FolderTheme folderTheme,
+            @Param("updatedAt") LocalDateTime updatedAt
+    );
 
     @Modifying(flushAutomatically = true)
     @Query("""
