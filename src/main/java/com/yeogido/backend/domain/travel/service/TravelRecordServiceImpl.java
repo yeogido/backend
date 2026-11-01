@@ -155,6 +155,7 @@ public class TravelRecordServiceImpl implements TravelRecordService {
         );
     }
 
+    /** 사진을 이동하기 전에 스티커를 검증하고 검증된 스티커로 새 여행 기록을 저장합니다. */
     @Override
     @Transactional
     public TravelRecordResDTO.CreateResponse createTravelRecord(

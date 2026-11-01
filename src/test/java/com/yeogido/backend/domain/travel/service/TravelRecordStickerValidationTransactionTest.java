@@ -68,6 +68,7 @@ class TravelRecordStickerValidationTransactionTest {
   private String temporaryKey;
   private final Set<String> temporaryPhotos = ConcurrentHashMap.newKeySet();
 
+  /** 검증 유형별 스티커와 앨범을 준비하고 한 번만 이동 가능한 임시 사진을 모사합니다. */
   @BeforeEach
   void setUp() {
     new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
@@ -144,6 +145,7 @@ class TravelRecordStickerValidationTransactionTest {
     verify(fileService, times(1)).moveToDirectory(anyString(), any());
   }
 
+  /** 사진 수정 시에도 스티커 생략은 유지, 빈 목록은 삭제하는 정책을 검증합니다. */
   @ParameterizedTest
   @NullAndEmptySource
   void omittedStickersStayAndEmptyStickersAreRemoved(List<TravelRecordReqDTO.StickerRequest> stickers) {
@@ -152,6 +154,7 @@ class TravelRecordStickerValidationTransactionTest {
     verify(fileService, times(1)).moveToDirectory(anyString(), any());
   }
 
+  /** 없는 스티커, 타인 소유, 삭제 상태, 배치 순서 중복 요청을 각각 구성합니다. */
   private List<TravelRecordReqDTO.StickerRequest> invalidStickers(InvalidSticker invalid) {
     return switch (invalid) {
       case MISSING -> List.of(placement(Long.MAX_VALUE, 0));
@@ -161,6 +164,7 @@ class TravelRecordStickerValidationTransactionTest {
     };
   }
 
+  /** 실패 유형에 해당하는 도메인 오류를 비교하고 예상 밖 예외는 실패시킵니다. */
   private void assertError(Runnable action, InvalidSticker invalid) {
     TravelRecordErrorCode expected = invalid == InvalidSticker.DUPLICATE_Z_INDEX
         ? TravelRecordErrorCode.INVALID_STICKER_POSITION : TravelRecordErrorCode.STICKER_NOT_FOUND;
