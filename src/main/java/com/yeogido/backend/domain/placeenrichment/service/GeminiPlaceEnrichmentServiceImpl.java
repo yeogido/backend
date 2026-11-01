@@ -165,7 +165,7 @@ public class GeminiPlaceEnrichmentServiceImpl implements GeminiPlaceEnrichmentSe
             DaumSearchResponse.SearchSource original = supplied.get(evidence.sourceId());
             require(original != null);
             resolved.putIfAbsent(original.sourceId(), new GeminiPlaceResponse.Source(original.sourceId(),
-                    original.url(), original.sourceType(), evidence.text(), null));
+                    original.url(), original.sourceType(), evidence.text()));
         }
         // 장소 식별에 사용된 출처의 입력 주소 포함 여부 검증
         require(selection.matchStatus() != VERIFIED || selection.matchEvidenceIds().stream()
@@ -242,8 +242,7 @@ public class GeminiPlaceEnrichmentServiceImpl implements GeminiPlaceEnrichmentSe
                     && supplied.containsKey(source.sourceId()));
             DaumSearchResponse.SearchSource original = supplied.get(source.sourceId());
             require(original.url().equals(source.url()) && original.sourceType() == source.sourceType()
-                    && literalEvidence(original, source.evidence())
-                    && source.publishedAt() == null);
+                    && literalEvidence(original, source.evidence()));
         }
         require(payload.matchStatus() != VERIFIED || !sourceIds.isEmpty()
                 && payload.sources().stream().map(source -> supplied.get(source.sourceId()))

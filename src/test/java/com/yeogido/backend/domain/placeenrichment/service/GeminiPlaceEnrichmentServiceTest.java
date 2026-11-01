@@ -358,7 +358,6 @@ class GeminiPlaceEnrichmentServiceTest {
         assertThat(result.sources().get(0).evidence()).isEqualTo("서울특별시 중구 테스트로 1 커피 판매");
         assertThat(result.sources().get(1).url()).isEqualTo("https://official.example/place");
         assertThat(result.sources().get(1).sourceType()).isEqualTo(PlaceEvidenceSourceType.OFFICIAL);
-        assertThat(result.sources().get(1).publishedAt()).isNull();
         assertThat(result.conflicts().getFirst().sourceIds()).containsExactly("S1", "S2");
     }
 

@@ -38,8 +38,7 @@ public final class GeminiPlaceResponse {
             String sourceId,
             String url,
             PlaceEvidenceSourceType sourceType,
-            String evidence,
-            String publishedAt
+            String evidence
     ) {
     }
 
