@@ -241,6 +241,18 @@ class FriendServiceImplTest {
     }
 
     @Test
+    void acceptRequestFromWithdrawnRequesterIsNotFound() {
+        Friendship friendship = friendship(other, me, FriendshipStatus.PENDING);
+        other.withdraw();
+        when(friendshipRepository.findByIdForUpdate(REQUEST_ID)).thenReturn(Optional.of(friendship));
+
+        assertErrorCode(() -> friendService.acceptRequest(ME_ID, REQUEST_ID),
+                FriendErrorCode.FRIEND_REQUEST_NOT_FOUND);
+
+        assertThat(friendship.getStatus()).isEqualTo(FriendshipStatus.PENDING);
+    }
+
+    @Test
     void acceptAndRejectAllowOnlyPendingRequestForReceiver() {
         when(friendshipRepository.findByIdForUpdate(REQUEST_ID))
                 .thenReturn(Optional.of(friendship(me, other, FriendshipStatus.PENDING)));

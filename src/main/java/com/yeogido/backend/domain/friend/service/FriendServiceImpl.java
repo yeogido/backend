@@ -148,6 +148,11 @@ public class FriendServiceImpl implements FriendService {
     public FriendResDTO.AcceptResult acceptRequest(Long userId, Long requestId) {
         Friendship friendship = getPendingRequestForReceiver(userId, requestId);
 
+        // 탈퇴·비활성 사용자가 보낸 요청은 목록에서처럼 없는 요청으로 처리
+        if (friendship.getRequester().getStatus() != UserStatus.ACTIVE) {
+            throw new GeneralException(FriendErrorCode.FRIEND_REQUEST_NOT_FOUND);
+        }
+
         friendship.accept();
 
         return FriendConverter.toAcceptResult(friendship, toUserSummary(friendship.getRequester()));
