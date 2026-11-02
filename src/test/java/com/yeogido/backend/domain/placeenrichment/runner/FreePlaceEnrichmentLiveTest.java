@@ -27,7 +27,7 @@ class FreePlaceEnrichmentLiveTest {
             "live-layered-yeonnam,서울 마포구 성미산로 161-4"
     })
     void separatesSameNamedBranchesThroughRealApis(String fixtureId, String roadAddress) throws Exception {
-        // 테스트용 ID이며 실제 지도 서비스의 장소 ID를 뜻하지 않는다.
+        // 실제 지도 서비스의 장소 ID와 구분되는 테스트용 ID 사용
         enrichesMissingOverviewThroughRealJavaClientsAndRunner(
                 fixtureId, "카페 레이어드", "CE7", roadAddress, null);
         var result = new ObjectMapper().readTree(Path.of(

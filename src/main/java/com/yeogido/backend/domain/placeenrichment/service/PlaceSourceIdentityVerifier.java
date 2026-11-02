@@ -23,7 +23,7 @@ final class PlaceSourceIdentityVerifier {
         if (containsAddress(text, input.roadAddress()) || containsAddress(text, input.lotAddress())) {
             var expectedRoad = ROAD.matcher(StringUtils.hasText(input.roadAddress()) ? input.roadAddress() : "");
             if (!expectedRoad.find()) {
-                // 지번 주소만으로 식별된 자료에 별도 도로명 주소가 있으면 보수적으로 제외한다.
+                // 지번 주소만으로 식별된 자료에 별도 도로명 주소가 있는 경우 보수적 제외
                 return !ROAD.matcher(text).find();
             }
             String expected = expectedRoad.group().replaceAll("\\s+", "");
@@ -33,7 +33,7 @@ final class PlaceSourceIdentityVerifier {
                 return road.equals(expected) || road.equals(compactAddress);
             });
         }
-        // 다른 주소가 명시된 자료를 전화번호나 공용 홈페이지로 우회 승인하지 않는다.
+        // 다른 주소가 명시된 자료의 전화번호나 공용 홈페이지를 통한 우회 승인 차단
         if (ROAD.matcher(text).find()) {
             return false;
         }
@@ -68,7 +68,7 @@ final class PlaceSourceIdentityVerifier {
                     || uri.getHost() == null || uri.getUserInfo() != null) {
                 return null;
             }
-            // 경로와 쿼리는 장소 식별자의 일부이므로 호스트만으로 비교하지 않는다.
+            // 장소 식별을 위해 호스트뿐 아니라 경로와 쿼리까지 비교
             return new URI(uri.getScheme(), null, uri.getHost().toLowerCase(java.util.Locale.ROOT),
                     uri.getPort(), uri.getPath().isEmpty() ? "/" : uri.getPath(), uri.getQuery(), null).toString();
         } catch (IllegalArgumentException | java.net.URISyntaxException exception) {

@@ -175,7 +175,7 @@ public class TourPlaceEnrichmentServiceImpl implements TourPlaceEnrichmentServic
     // 시도 표기 통일 및 건물 번호 기준 주소 비교 키 생성
     private static String addressKey(String address) {
         String normalized = AddressNormalizer.normalize(address);
-        // 건물 번호 보존 및 층·괄호 등 부가 주소 제외
+        // 건물 번호 보존 및 층, 괄호 등 부가 주소 제외
         Matcher matcher = BUILDING_ADDRESS.matcher(normalized);
         return (matcher.find() ? matcher.group(1) + matcher.group(2) : normalized).replaceAll("\\s+", "");
     }

@@ -157,7 +157,7 @@ public class GeminiPlaceEnrichmentServiceImpl implements GeminiPlaceEnrichmentSe
         Set<String> descriptiveSourceIds = searchSources.stream()
                 .filter(source -> PlaceSourceIdentityVerifier.matches(input, source))
                 .map(DaumSearchResponse.SearchSource::sourceId).collect(Collectors.toSet());
-        // 사실과 설명에 연결된 모든 출처를 서버에서 독립적으로 검증한다.
+        // 사실과 설명에 연결된 모든 출처의 서버 측 독립 검증
         selection.facts().forEach(fact -> require(descriptiveSourceIds.contains(
                 catalog.containsKey(fact.evidenceId()) ? catalog.get(fact.evidenceId()).sourceId() : null)));
         selection.sentenceSources().forEach(sentence -> {
