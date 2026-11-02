@@ -14,7 +14,6 @@ import com.yeogido.backend.domain.placeenrichment.dto.response.GeminiPlaceRespon
 import com.yeogido.backend.domain.placeenrichment.dto.response.GeminiPlaceResponse.Selection;
 import com.yeogido.backend.domain.placeenrichment.dto.response.GeminiPlaceResponse;
 import com.yeogido.backend.domain.placeenrichment.enums.GeminiPlaceMatchStatus;
-import com.yeogido.backend.domain.placeenrichment.enums.PlaceEvidenceSourceType;
 import com.yeogido.backend.domain.placeenrichment.enums.PlaceFactCategory;
 
 import java.io.IOException;
@@ -37,11 +36,8 @@ import static com.yeogido.backend.domain.placeenrichment.service.PlaceSourceIden
 @Service
 public class GeminiPlaceEnrichmentServiceImpl implements GeminiPlaceEnrichmentService {
 
-    private static final String REVIEW_ATTRIBUTION = "방문 후기에 따르면";
     private static final Pattern ATMOSPHERE_EVIDENCE_PATTERN =
             Pattern.compile("(?s).*(분위기|아늑|조용|차분|고즈넉|활기).*");
-    private static final Pattern OVERVIEW_PREFIX_PATTERN =
-            Pattern.compile("^(?:(?:" + REVIEW_ATTRIBUTION + "|검색 자료에 따르면|또한)\\s*)+");
 
     private final GeminiSearchClient client;
     private final DaumSearchClient searchClient;
@@ -200,22 +196,15 @@ public class GeminiPlaceEnrichmentServiceImpl implements GeminiPlaceEnrichmentSe
             }
             return new GeminiPlaceResponse.Fact(fact.category(), fact.value(), fact.scope(), evidence.text(), evidence.sourceId());
         }).toList();
-        // 후기 출처 표시 추가 전 생성 설명과 근거 문장 간 일치 검증
+        // 생성 설명과 근거 문장 간 일치 검증
         if (selection.overview() != null) {
             require(normalizeWhitespace(selection.overview()).equals(normalizeWhitespace(selection.sentenceSources().stream()
                     .map(SelectedSentence::sentence).collect(Collectors.joining(" ")))));
         }
-        Set<String> reviews = sources.stream().filter(source -> source.sourceType() == PlaceEvidenceSourceType.REVIEW)
-                .map(GeminiPlaceResponse.Source::sourceId).collect(Collectors.toSet());
         List<GeminiPlaceResponse.SentenceSource> sentences = selection.sentenceSources().stream().map(sentence -> {
             require(sentence.evidenceIds() != null && StringUtils.hasText(sentence.sentence()));
             List<String> sourceIds = resolveReferences(sentence.evidenceIds(), catalog);
-            String text = sentence.sentence();
-            text = OVERVIEW_PREFIX_PATTERN.matcher(text).replaceFirst("");
-            if (sourceIds.stream().anyMatch(reviews::contains) && !text.startsWith(REVIEW_ATTRIBUTION)) {
-                text = REVIEW_ATTRIBUTION + " " + text;
-            }
-            return new GeminiPlaceResponse.SentenceSource(text, sourceIds);
+            return new GeminiPlaceResponse.SentenceSource(sentence.sentence(), sourceIds);
         }).toList();
         String overview = selection.overview() == null ? null : sentences.stream()
                 .map(GeminiPlaceResponse.SentenceSource::sentence).collect(Collectors.joining(" "));
@@ -293,10 +282,6 @@ public class GeminiPlaceEnrichmentServiceImpl implements GeminiPlaceEnrichmentSe
         for (GeminiPlaceResponse.SentenceSource sentence : payload.sentenceSources()) {
             require(sentence != null && StringUtils.hasText(sentence.sentence()));
             validateReferences(sentence.sourceIds(), sourceIds, 1);
-            if (sentence.sourceIds().stream().anyMatch(id -> supplied.get(id).sourceType()
-                    == PlaceEvidenceSourceType.REVIEW)) {
-                require(sentence.sentence().startsWith(REVIEW_ATTRIBUTION));
-            }
         }
         String reconstructed = payload.sentenceSources().stream().map(GeminiPlaceResponse.SentenceSource::sentence)
                 .collect(Collectors.joining(" "));

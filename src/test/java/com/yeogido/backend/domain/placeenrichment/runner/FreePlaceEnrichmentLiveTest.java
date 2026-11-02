@@ -34,6 +34,7 @@ class FreePlaceEnrichmentLiveTest {
                 "build/place-enrichment/java-free-overview-" + fixtureId + ".json").toFile())
                 .get(1).path("geminiResult");
         var allowed = result.path("groundingMetadata").path("descriptiveSourceIds");
+        assertThat(result.path("overview").asText()).doesNotContain("방문 후기에 따르면", "검색 자료에 따르면");
         for (var fact : result.path("facts")) {
             assertThat(allowed.valueStream().anyMatch(id -> id.asText().equals(fact.path("sourceId").asText())))
                     .as("fact source must be independently associated").isTrue();
