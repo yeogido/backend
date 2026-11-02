@@ -76,7 +76,7 @@ app:
     base-url: https://api.odcloud.kr/api/nts-businessman/v1
     service-key: ${NTS_SERVICE_KEY:}
 
-  # PENDING 최초 처리 및 FAILED 대상 시도 시작 5분 후 재시도(최대 2회)
+  # 최초 시도 포함 최대 2회: FAILED는 5분 후 재시도, PROCESSING은 60분 후 복구
   place-overview:
     pending:
       enabled: ${PLACE_OVERVIEW_PENDING_ENABLED:true}

@@ -52,7 +52,16 @@ public class PlaceOverviewEnrichmentServiceImpl implements PlaceOverviewEnrichme
           .orElseThrow(() -> new GeneralException(PlaceErrorCode.PLACE_NOT_FOUND));
       // DB DATETIME(6) 정밀도와 시도 식별 시각 일치
       LocalDateTime now = LocalDateTime.now().truncatedTo(ChronoUnit.MICROS);
-      if (StringUtils.hasText(found.getOverview()) || !found.canStartOverviewEnrichment(now)) {
+      if (StringUtils.hasText(found.getOverview())) {
+        return null;
+      }
+      // 최대 시도 횟수를 사용한 중단 건의 실패 상태 정리 및 추가 외부 조회 차단
+      if (found.isOverviewProcessingStale(now)
+          && found.getOverviewAttemptCount() >= Place.MAX_OVERVIEW_ATTEMPTS) {
+        found.failOverviewEnrichment();
+        return null;
+      }
+      if (!found.canStartOverviewEnrichment(now)) {
         return null;
       }
       found.startOverviewEnrichment(now);

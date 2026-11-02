@@ -23,7 +23,7 @@ class PlaceOverviewRetrySchedulerTest {
 
   @Test
   void continuesWithNextPlaceWhenRetryFails() {
-    when(placeRepository.findOverviewRetryCandidates(any(), eq(2), any()))
+    when(placeRepository.findOverviewRetryCandidates(any(), any(), eq(2), any()))
         .thenReturn(List.of(10L, 20L));
     doThrow(new IllegalStateException("external API failure")).when(enrichmentService).enrich(10L);
 

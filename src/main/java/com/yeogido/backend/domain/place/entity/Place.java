@@ -30,6 +30,8 @@ public class Place extends BaseEntity {
 
   public static final int MAX_OVERVIEW_ATTEMPTS = 2;
   public static final int OVERVIEW_RETRY_DELAY_MINUTES = 5;
+  // 지역 코드 페이지 조회와 장소 검색, Daum/Gemini 순차 호출을 고려한 복구 대기 시간
+  public static final int OVERVIEW_PROCESSING_TIMEOUT_MINUTES = 60;
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -87,10 +89,17 @@ public class Place extends BaseEntity {
     if (overviewAttemptCount >= MAX_OVERVIEW_ATTEMPTS) {
       return false;
     }
-    return overviewStatus == PlaceOverviewStatus.PENDING
+    return isOverviewProcessingStale(now)
+        || overviewStatus == PlaceOverviewStatus.PENDING
         || overviewStatus == PlaceOverviewStatus.FAILED
         && overviewAttemptedAt != null
         && !overviewAttemptedAt.isAfter(now.minusMinutes(OVERVIEW_RETRY_DELAY_MINUTES));
+  }
+
+  public boolean isOverviewProcessingStale(LocalDateTime now) {
+    return overviewStatus == PlaceOverviewStatus.PROCESSING
+        && overviewAttemptedAt != null
+        && !overviewAttemptedAt.isAfter(now.minusMinutes(OVERVIEW_PROCESSING_TIMEOUT_MINUTES));
   }
 
   public void startOverviewEnrichment(LocalDateTime attemptedAt) {

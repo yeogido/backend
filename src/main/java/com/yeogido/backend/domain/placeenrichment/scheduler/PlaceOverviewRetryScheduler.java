@@ -26,8 +26,10 @@ public class PlaceOverviewRetryScheduler {
   @Scheduled(fixedDelayString = "${app.place-overview.retry.fixed-delay-ms:60000}",
       initialDelayString = "${app.place-overview.retry.fixed-delay-ms:60000}")
   public void retryFailedOverviews() {
+    var now = LocalDateTime.now();
     var placeIds = placeRepository.findOverviewRetryCandidates(
-        LocalDateTime.now().minusMinutes(Place.OVERVIEW_RETRY_DELAY_MINUTES),
+        now.minusMinutes(Place.OVERVIEW_RETRY_DELAY_MINUTES),
+        now.minusMinutes(Place.OVERVIEW_PROCESSING_TIMEOUT_MINUTES),
         Place.MAX_OVERVIEW_ATTEMPTS, PageRequest.of(0, 20));
     for (Long placeId : placeIds) {
       try {

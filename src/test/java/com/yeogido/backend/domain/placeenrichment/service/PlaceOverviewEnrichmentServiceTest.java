@@ -197,7 +197,8 @@ class PlaceOverviewEnrichmentServiceTest {
     assertThat(saved.getOverviewAttemptCount()).isEqualTo(2);
     service.enrich(placeId);
     verify(tour, times(2)).enrich(any());
-    assertThat(places.findOverviewRetryCandidates(LocalDateTime.now().minusMinutes(5), 2,
+    assertThat(places.findOverviewRetryCandidates(LocalDateTime.now().minusMinutes(5),
+        LocalDateTime.now().minusMinutes(Place.OVERVIEW_PROCESSING_TIMEOUT_MINUTES), 2,
         org.springframework.data.domain.PageRequest.of(0, 20))).doesNotContain(placeId);
   }
 
@@ -286,9 +287,92 @@ class PlaceOverviewEnrichmentServiceTest {
   }
 
   @Test
-  void processingPlaceAndMissingPlaceDoNotTriggerExternalCalls() {
+  void processingRecoveryBoundaryAndAttemptLimitAreInclusive() {
+    var now = LocalDateTime.of(2026, 11, 2, 12, 0);
+    var boundary = now.minusMinutes(Place.OVERVIEW_PROCESSING_TIMEOUT_MINUTES);
+    var atBoundary = Place.builder().overviewStatus(PlaceOverviewStatus.PROCESSING)
+        .overviewAttemptCount(1).overviewAttemptedAt(boundary).build();
+    assertThat(atBoundary.canStartOverviewEnrichment(now)).isTrue();
+    assertThat(atBoundary.canStartOverviewEnrichment(now.minusNanos(1))).isFalse();
+    assertThat(Place.builder().overviewStatus(PlaceOverviewStatus.PROCESSING)
+        .overviewAttemptCount(Place.MAX_OVERVIEW_ATTEMPTS).overviewAttemptedAt(boundary)
+        .build().canStartOverviewEnrichment(now)).isFalse();
+  }
+
+  @Test
+  void staleProcessingRetriesWithinAttemptLimit() {
+    setProcessingAttempt(1, LocalDateTime.now().minusMinutes(
+        Place.OVERVIEW_PROCESSING_TIMEOUT_MINUTES + 1));
+    when(tour.enrich(any())).thenReturn(tourResult(TourPlaceMatchStatus.MATCHED, "복구된 설명"));
+
+    service.enrich(placeId);
+
+    var found = places.findById(placeId).orElseThrow();
+    assertThat(found.getOverviewStatus()).isEqualTo(PlaceOverviewStatus.COMPLETED);
+    assertThat(found.getOverview()).isEqualTo("복구된 설명");
+    assertThat(found.getOverviewAttemptCount()).isEqualTo(Place.MAX_OVERVIEW_ATTEMPTS);
+    verify(tour).enrich(any());
+  }
+
+  @Test
+  void staleFinalAttemptBecomesFailedWithoutAnotherExternalCall() {
+    var attemptedAt = LocalDateTime.now().minusMinutes(
+        Place.OVERVIEW_PROCESSING_TIMEOUT_MINUTES + 1).withNano(0);
+    setProcessingAttempt(Place.MAX_OVERVIEW_ATTEMPTS, attemptedAt);
+
+    service.enrich(placeId);
+    service.enrich(placeId);
+
+    var found = places.findById(placeId).orElseThrow();
+    assertThat(found.getOverviewStatus()).isEqualTo(PlaceOverviewStatus.FAILED);
+    assertThat(found.getOverviewAttemptCount()).isEqualTo(Place.MAX_OVERVIEW_ATTEMPTS);
+    assertThat(found.getOverviewAttemptedAt()).isEqualTo(attemptedAt);
+    verifyNoInteractions(tour, gemini);
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  void lateResultOrFailureCannotOverwriteRecoveredAttempt(boolean fails) {
+    var calls = new java.util.concurrent.atomic.AtomicInteger();
+    when(tour.enrich(any())).thenAnswer(invocation -> {
+      if (calls.incrementAndGet() == 1) {
+        setProcessingAttempt(1, LocalDateTime.now().minusMinutes(
+            Place.OVERVIEW_PROCESSING_TIMEOUT_MINUTES + 1));
+        service.enrich(placeId);
+        if (fails) throw new IllegalStateException("중단된 시도에서 늦게 도착한 실패");
+        return tourResult(TourPlaceMatchStatus.MATCHED, "중단된 시도의 설명");
+      }
+      return tourResult(TourPlaceMatchStatus.MATCHED, "복구된 시도의 설명");
+    });
+
+    if (fails) {
+      assertThatThrownBy(() -> service.enrich(placeId)).isInstanceOf(IllegalStateException.class);
+    } else {
+      service.enrich(placeId);
+    }
+
+    var found = places.findById(placeId).orElseThrow();
+    assertThat(found.getOverviewStatus()).isEqualTo(PlaceOverviewStatus.COMPLETED);
+    assertThat(found.getOverview()).isEqualTo("복구된 시도의 설명");
+    assertThat(found.getOverviewAttemptCount()).isEqualTo(Place.MAX_OVERVIEW_ATTEMPTS);
+    verify(tour, times(2)).enrich(any());
+  }
+
+  private void setProcessingAttempt(int count, LocalDateTime attemptedAt) {
     new TransactionTemplate(transactionManager).executeWithoutResult(status ->
-        places.findById(placeId).orElseThrow().startOverviewEnrichment(java.time.LocalDateTime.now()));
+        entityManager.createQuery("""
+            update Place p set p.overviewStatus = :status,
+              p.overviewAttemptCount = :count, p.overviewAttemptedAt = :attemptedAt
+            where p.id = :id
+            """).setParameter("status", PlaceOverviewStatus.PROCESSING)
+            .setParameter("count", count).setParameter("attemptedAt", attemptedAt)
+            .setParameter("id", placeId).executeUpdate());
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {1, 2})
+  void processingPlaceAndMissingPlaceDoNotTriggerExternalCalls(int attemptCount) {
+    setProcessingAttempt(attemptCount, LocalDateTime.now());
     service.enrich(placeId);
     assertThatThrownBy(() -> service.enrich(Long.MAX_VALUE)).isInstanceOf(GeneralException.class);
     verifyNoInteractions(tour, gemini);

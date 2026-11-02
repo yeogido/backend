@@ -60,8 +60,26 @@ class PlaceOverviewRetryRepositoryTest {
         save(region, status.name(), status, 1, retryBefore.minusMinutes(2), null);
       }
     }
-    assertThat(places.findOverviewRetryCandidates(retryBefore, Place.MAX_OVERVIEW_ATTEMPTS, PageRequest.of(0, 20)))
+    assertThat(places.findOverviewRetryCandidates(retryBefore, retryBefore.minusMinutes(60), Place.MAX_OVERVIEW_ATTEMPTS, PageRequest.of(0, 20)))
         .containsExactly(first.getId(), second.getId());
+  }
+
+  @Test
+  void selectsStaleProcessingIncludingExhaustedAttemptsButExcludesActiveOrDescribedPlaces() {
+    var now = LocalDateTime.of(2026, 11, 2, 12, 0);
+    var staleBefore = now.minusMinutes(Place.OVERVIEW_PROCESSING_TIMEOUT_MINUTES);
+    var region = regions.save(Region.builder().name("서울").type(RegionType.REGION).build());
+    var exhausted = save(region, "exhausted-processing", PlaceOverviewStatus.PROCESSING,
+        Place.MAX_OVERVIEW_ATTEMPTS, staleBefore.minusSeconds(1), null);
+    var due = save(region, "due-processing", PlaceOverviewStatus.PROCESSING, 1, staleBefore, null);
+    save(region, "active-processing", PlaceOverviewStatus.PROCESSING, 1, staleBefore.plusSeconds(1), null);
+    save(region, "missing-time", PlaceOverviewStatus.PROCESSING, 1, null, null);
+    save(region, "has-overview", PlaceOverviewStatus.PROCESSING, 1, staleBefore, "기존 설명");
+    save(region, "completed", PlaceOverviewStatus.COMPLETED, 1, staleBefore, null);
+
+    assertThat(places.findOverviewRetryCandidates(now.minusMinutes(5), staleBefore,
+        Place.MAX_OVERVIEW_ATTEMPTS, PageRequest.of(0, 20)))
+        .containsExactly(exhausted.getId(), due.getId());
   }
 
   private Place save(Region region, String id, PlaceOverviewStatus status, int count,
