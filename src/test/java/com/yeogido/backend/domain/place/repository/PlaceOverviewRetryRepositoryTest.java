@@ -28,6 +28,23 @@ class PlaceOverviewRetryRepositoryTest {
   @Autowired RegionRepository regions;
 
   @Test
+  void selectsOnlyPendingPlacesWithoutExistingOverviewOrExhaustedAttempts() {
+    var region = regions.save(Region.builder().name("서울").type(RegionType.REGION).build());
+    var pending = save(region, "pending", PlaceOverviewStatus.PENDING, 0, null, null);
+    var blank = save(region, "blank", PlaceOverviewStatus.PENDING, 0, null, " ");
+    save(region, "existing", PlaceOverviewStatus.PENDING, 0, null, "기존 설명");
+    save(region, "exhausted", PlaceOverviewStatus.PENDING, 2, null, null);
+    for (var status : PlaceOverviewStatus.values()) {
+      if (status != PlaceOverviewStatus.PENDING) {
+        save(region, status.name(), status, 1, LocalDateTime.now().minusMinutes(6), null);
+      }
+    }
+
+    assertThat(places.findOverviewPendingCandidates(Place.MAX_OVERVIEW_ATTEMPTS, PageRequest.of(0, 20)))
+        .containsExactly(pending.getId(), blank.getId());
+  }
+
+  @Test
   void selectsOnlyDueFailedPlacesBelowAttemptLimit() {
     var retryBefore = LocalDateTime.of(2026, 11, 2, 12, 0)
         .minusMinutes(Place.OVERVIEW_RETRY_DELAY_MINUTES);

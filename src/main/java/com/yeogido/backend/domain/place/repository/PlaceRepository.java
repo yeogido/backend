@@ -21,6 +21,15 @@ public interface PlaceRepository extends JpaRepository<Place, Long> {
 
   @Query("""
       select p.id from Place p
+      where p.overviewStatus = com.yeogido.backend.domain.place.enums.PlaceOverviewStatus.PENDING
+        and p.overviewAttemptCount < :maxAttempts
+        and (p.overview is null or trim(p.overview) = '')
+      order by p.id
+      """)
+  List<Long> findOverviewPendingCandidates(@Param("maxAttempts") int maxAttempts, Pageable pageable);
+
+  @Query("""
+      select p.id from Place p
       where p.overviewStatus = com.yeogido.backend.domain.place.enums.PlaceOverviewStatus.FAILED
         and p.overviewAttemptCount < :maxAttempts
         and p.overviewAttemptedAt <= :retryBefore
