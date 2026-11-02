@@ -1,12 +1,15 @@
 package com.yeogido.backend.domain.place.entity;
 
 import com.yeogido.backend.domain.place.enums.PlaceSource;
+import com.yeogido.backend.domain.place.enums.PlaceOverviewStatus;
+import com.yeogido.backend.domain.placeenrichment.enums.PlaceOverviewSource;
 import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.global.entity.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 @Entity
 @Getter
@@ -56,6 +59,21 @@ public class Place extends BaseEntity {
 
     @Column(nullable = false, precision = 10, scale = 7)
     private BigDecimal longitude;
+
+    @Column(columnDefinition = "TEXT")
+    private String overview;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "overview_source", length = 20)
+    private PlaceOverviewSource overviewSource;
+
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(name = "overview_status", nullable = false, length = 20)
+    private PlaceOverviewStatus overviewStatus = PlaceOverviewStatus.PENDING;
+
+    @Column(name = "overview_attempted_at")
+    private LocalDateTime overviewAttemptedAt;
 
     public void updateTourData(
             Region region,
