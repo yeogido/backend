@@ -96,6 +96,22 @@ public class TravelRecordConverter {
         );
     }
 
+    public static TravelRecordResDTO.MapItem toMapItem(
+            TravelRecord travelRecord,
+            List<TravelRecordPhoto> photos,
+            Function<String, String> imageUrlResolver
+    ) {
+        Region region = travelRecord.getRegion();
+        boolean hasCoordinates = region.getLatitude() != null && region.getLongitude() != null;
+        return new TravelRecordResDTO.MapItem(
+                travelRecord.getId(), travelRecord.getTitle(), region.getId(), region.getName(),
+                hasCoordinates ? region.getLatitude() : null,
+                hasCoordinates ? region.getLongitude() : null,
+                travelRecord.getStartDate(), travelRecord.getEndDate(), travelRecord.getVisibility(),
+                photos.stream().map(photo -> toImageResponse(photo, imageUrlResolver)).toList()
+        );
+    }
+
     public static TravelRecordResDTO.DetailResponse toDetailResponse(
             TravelRecord travelRecord,
             List<TravelRecordPhoto> photos,
