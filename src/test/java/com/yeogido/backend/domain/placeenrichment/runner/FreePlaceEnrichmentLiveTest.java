@@ -53,7 +53,7 @@ class FreePlaceEnrichmentLiveTest {
     })
     void enrichesMissingOverviewThroughRealJavaClientsAndRunner(String id, String name, String category,
                                                                String roadAddress, String lotAddress) throws Exception {
-        ObjectMapper mapper = new ObjectMapper();
+        ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
         var gemini = new GeminiSearchClient(RestClient.builder(), key("GEMINI_API_KEY"),
                 "https://generativelanguage.googleapis.com/v1beta", "gemini-3.5-flash-lite", 60) {
             @Override

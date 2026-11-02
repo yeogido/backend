@@ -80,12 +80,20 @@ class DaumSearchClientTest {
                     "{\"documents\":[{\"url\":\"https://blog.example/post\",\"title\":\"카페\",\"contents\":\""
                             + snippets[i] + "\"}" + extraDocument + "]}", MediaType.APPLICATION_JSON));
         }
-        var sources = new DaumSearchClient(builder.build(), "secret-key", 5).search(input);
+        java.time.Instant first = java.time.Instant.parse("2026-11-02T01:00:00Z");
+        java.time.Instant later = first.plusSeconds(60);
+        java.util.List<com.yeogido.backend.domain.placeenrichment.dto.response.DaumSearchResponse.SearchSource> sources;
+        try (var time = org.mockito.Mockito.mockStatic(java.time.Instant.class, org.mockito.Mockito.CALLS_REAL_METHODS)) {
+            time.when(java.time.Instant::now).thenReturn(first, later);
+            sources = new DaumSearchClient(builder.build(), "secret-key", 5).search(input);
+        }
         assertThat(sources).hasSize(2);
         assertThat(sources.getFirst().sourceId()).isEqualTo("S1");
         assertThat(sources.getFirst().sourceType().name()).isEqualTo("REVIEW");
         assertThat(sources.getFirst().snippet()).isEqualTo(String.join("\n[별도 검색 발췌]\n", snippets));
         assertThat(sources.get(1).sourceId()).isEqualTo("S2");
+        assertThat(sources.getFirst().collectedAt()).isEqualTo(first);
+        assertThat(sources.get(1).collectedAt()).isEqualTo(later);
         server.verify();
     }
 

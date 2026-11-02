@@ -184,7 +184,7 @@ public class GeminiPlaceEnrichmentServiceImpl implements GeminiPlaceEnrichmentSe
             DaumSearchResponse.SearchSource original = supplied.get(evidence.sourceId());
             require(original != null);
             resolved.putIfAbsent(original.sourceId(), new GeminiPlaceResponse.Source(original.sourceId(),
-                    original.url(), original.sourceType(), evidence.text()));
+                    original.url(), original.sourceType(), evidence.text(), original.collectedAt()));
         }
         // 장소 식별에 사용된 출처의 입력 주소 포함 여부 검증
         require(selection.matchStatus() != VERIFIED || selection.matchEvidenceIds().stream()

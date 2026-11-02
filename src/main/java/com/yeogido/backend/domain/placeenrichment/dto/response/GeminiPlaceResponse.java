@@ -1,6 +1,8 @@
 package com.yeogido.backend.domain.placeenrichment.dto.response;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.annotation.JsonFormat;
+import java.time.Instant;
 import com.yeogido.backend.domain.placeenrichment.enums.GeminiPlaceMatchStatus;
 import com.yeogido.backend.domain.placeenrichment.enums.PlaceEvidenceSourceType;
 import com.yeogido.backend.domain.placeenrichment.enums.PlaceFactCategory;
@@ -38,7 +40,8 @@ public final class GeminiPlaceResponse {
             String sourceId,
             String url,
             PlaceEvidenceSourceType sourceType,
-            String evidence
+            String evidence,
+            @JsonFormat(shape = JsonFormat.Shape.STRING) Instant collectedAt
     ) {
     }
 

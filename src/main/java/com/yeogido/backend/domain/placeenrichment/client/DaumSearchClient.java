@@ -8,6 +8,7 @@ import com.yeogido.backend.domain.placeenrichment.dto.response.DaumSearchRespons
 import com.yeogido.backend.domain.placeenrichment.enums.PlaceEvidenceSourceType;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -78,6 +79,7 @@ public class DaumSearchClient {
             } catch (RestClientException exception) {
                 throw new GeneralException(PlaceEnrichmentErrorCode.DAUM_SEARCH_API_ERROR);
             }
+            Instant collectedAt = Instant.now();
             if (response == null || !response.path("documents").isArray()) {
                 throw new GeneralException(PlaceEnrichmentErrorCode.DAUM_SEARCH_API_ERROR);
             }
@@ -95,8 +97,8 @@ public class DaumSearchClient {
                     String combined = String.join("\n[별도 검색 발췌]\n", snippets);
                     sources.put(url, existing == null
                             ? new DaumSearchResponse.SearchSource("S" + (sources.size() + 1), url,
-                                    BLOG_SEARCH_TYPE.equals(searchQuery.type()) ? PlaceEvidenceSourceType.REVIEW : PlaceEvidenceSourceType.OTHER, title, combined)
-                            : new DaumSearchResponse.SearchSource(existing.sourceId(), existing.url(), existing.sourceType(), existing.title(), combined));
+                                    BLOG_SEARCH_TYPE.equals(searchQuery.type()) ? PlaceEvidenceSourceType.REVIEW : PlaceEvidenceSourceType.OTHER, title, combined, collectedAt)
+                            : new DaumSearchResponse.SearchSource(existing.sourceId(), existing.url(), existing.sourceType(), existing.title(), combined, existing.collectedAt()));
                 }
             }
         }

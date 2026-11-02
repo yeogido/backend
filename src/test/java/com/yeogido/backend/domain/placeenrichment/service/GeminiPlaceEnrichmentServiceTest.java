@@ -22,7 +22,7 @@ import static org.mockito.Mockito.*;
 
 class GeminiPlaceEnrichmentServiceTest {
 
-    private final ObjectMapper mapper = new ObjectMapper();
+    private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
     private final GeminiSearchClient client = mock(GeminiSearchClient.class);
     private final DaumSearchClient searchClient = mock(DaumSearchClient.class);
     private final TourPlaceRequest.Input input = new TourPlaceRequest.Input(
@@ -508,6 +508,26 @@ class GeminiPlaceEnrichmentServiceTest {
             try { return mapper.readTree(json).path("evidenceCatalog").path("E4").path("descriptiveAllowed").asBoolean(); }
             catch (Exception exception) { return false; }
         }));
+    }
+
+    @Test
+    void carriesSourceCollectionTimeIntoSerializedBatchOutput() throws Exception {
+        var collectedAt = java.time.Instant.parse("2026-11-02T01:02:03Z");
+        when(searchClient.search(input)).thenReturn(List.of(new DaumSearchResponse.SearchSource("S1",
+                "https://example.com/place", PlaceEvidenceSourceType.REVIEW, "테스트 카페",
+                "서울 중구 테스트로 1 커피 판매", collectedAt)));
+        when(client.search(anyString(), anyString())).thenReturn(response(payload()));
+
+        var result = service.enrich(input);
+        assertThat(result.sources().getFirst().collectedAt()).isEqualTo(collectedAt);
+        var batch = new com.yeogido.backend.domain.placeenrichment.dto.response.PlaceEnrichmentResponse.Result(
+                input.externalPlaceId(), input.name(), result.overview(),
+                com.yeogido.backend.domain.placeenrichment.enums.PlaceOverviewSource.DAUM_GEMINI,
+                com.yeogido.backend.domain.placeenrichment.enums.PlaceEnrichmentStatus.COMPLETED, null, result);
+        var json = mapper.readTree(mapper.writeValueAsString(List.of(batch))).get(0).path("geminiResult");
+        assertThat(json.path("sources").get(0).path("collectedAt").asText()).isEqualTo(collectedAt.toString());
+        assertThat(json.path("groundingMetadata").path("searchSources").get(0).path("collectedAt").asText())
+                .isEqualTo(collectedAt.toString());
     }
 
     private void assertInvalid(ObjectNode payload) throws Exception {
