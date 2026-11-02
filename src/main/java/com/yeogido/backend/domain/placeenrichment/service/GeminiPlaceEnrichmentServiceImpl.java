@@ -295,8 +295,9 @@ public class GeminiPlaceEnrichmentServiceImpl implements GeminiPlaceEnrichmentSe
             return false;
         }
         String addressPattern = Pattern.quote(AddressNormalizer.normalize(address)).replace(" ", "\\E\\s*\\Q");
-        // 건물 번호의 접두 일치를 막되 공백으로 구분된 층 정보는 허용
-        return Pattern.compile(addressPattern + "(?![0-9-])").matcher(AddressNormalizer.normalize(text)).find();
+        // 다른 건물 번호와 숫자가 포함된 다른 도로명(1길, 11번길)의 접두 일치를 차단
+        return Pattern.compile(addressPattern + "(?![0-9-]|번?길)")
+                .matcher(AddressNormalizer.normalize(text)).find();
     }
 
     private static void validateReferences(List<String> references, Set<String> sourceIds, int minimum) {

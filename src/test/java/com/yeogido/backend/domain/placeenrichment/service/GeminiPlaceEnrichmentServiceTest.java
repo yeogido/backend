@@ -133,6 +133,25 @@ class GeminiPlaceEnrichmentServiceTest {
     }
 
     @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({
+            "서울 마포구 연희로 1,서울 마포구 연희로1길 45",
+            "서울 성북구 삼선교로 11,서울 성북구 삼선교로11번길 45"
+    })
+    void rejectsDifferentRoadWithBuildingNumberInRoadName(String inputAddress, String sourceAddress) throws Exception {
+        var place = new TourPlaceRequest.Input("place-1", "테스트 카페", null, null,
+                inputAddress, null, null, null);
+        when(searchClient.search(place)).thenReturn(List.of(new DaumSearchResponse.SearchSource("S1",
+                "https://example.com/place", PlaceEvidenceSourceType.REVIEW, "테스트 카페",
+                sourceAddress + " 커피 판매")));
+        when(client.search(anyString(), anyString())).thenReturn(response(payload()));
+
+        assertThatThrownBy(() -> service.enrich(place))
+                .isInstanceOfSatisfying(GeneralException.class,
+                        exception -> assertThat(exception.getErrorCode())
+                                .isEqualTo(PlaceEnrichmentErrorCode.INVALID_ENRICHMENT_RESPONSE));
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.ValueSource(strings = {
             "컵케이크와 라테를 먹고 마실 수 있다.", "비빔국수와 만두를 먹을 수 있다.", "사진 전시를 관람하고 판화 체험에 참여할 수 있다."})
     void preservesSpecificOfferingsAsPrimaryActivities(String activity) throws Exception {
