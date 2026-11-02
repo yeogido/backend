@@ -112,8 +112,21 @@ public class TravelRecordController {
     }
 
     @Operation(
+            summary = "공유 앨범 나가기",
+            description = "현재 FRIENDS 참여자가 본인의 참여 관계만 삭제합니다. 앨범·사진·스티커·다른 참여자는 유지하며 이후 조회·수정 권한은 제거됩니다. 생성자는 409로 거부됩니다."
+    )
+    @DeleteMapping("/{travelRecordId}/members/me")
+    public ApiResponse<Void> leaveTravelRecord(
+            @PathVariable Long travelRecordId,
+            @AuthenticationPrincipal AuthUser authUser
+    ) {
+        travelRecordService.leaveTravelRecord(travelRecordId, authUser.userId());
+        return ApiResponse.onSuccess(SuccessCode.OK);
+    }
+
+    @Operation(
             summary = "여행 기록 삭제",
-            description = "로그인한 사용자가 본인이 작성한 여행 기록을 삭제합니다."
+            description = "최초 생성자만 앨범 전체를 삭제합니다. 공유 앨범의 사진·스티커 배치·참여 관계·초대도 함께 정리됩니다. 참여자는 별도 나가기 API를 사용합니다."
     )
     @DeleteMapping("/{travelRecordId}")
     public ApiResponse<Void> deleteTravelRecord(

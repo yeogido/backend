@@ -29,4 +29,6 @@ public interface TravelRecordService {
     );
 
     void deleteTravelRecord(Long travelRecordId, Long userId);
+
+    void leaveTravelRecord(Long travelRecordId, Long userId);
 }
