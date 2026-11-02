@@ -61,53 +61,34 @@ class PlaceOverviewWriteIntegrationTest {
   }
 
   @ParameterizedTest
-  @CsvSource({"true,COMPLETED", "false,COMPLETED", "true,FAILED", "false,FAILED"})
-  void changedNameResetsOverviewAndExhaustedAttempts(boolean course, PlaceOverviewStatus status) {
+  @CsvSource({"true,COMPLETED", "false,COMPLETED", "true,FAILED", "false,FAILED",
+      "true,PROCESSING", "false,PROCESSING", "true,PENDING", "false,PENDING",
+      "true,NO_OVERVIEW", "false,NO_OVERVIEW"})
+  void existingPlacePreservesMetadataAndOverviewDespiteChangedRequest(
+      boolean course, PlaceOverviewStatus status) {
     var place = existing(status);
+    var attemptedAt = place.getOverviewAttemptedAt();
     Long id = place.getId();
-    var updated = write(course, "변경된 장소", null, null, null);
+    // 기존 장소는 요청 주소를 다시 해석하지 않고 그대로 재사용해야 한다.
+    var reused = write(course, "변경된 장소", "존재하지 않는 주소", "변경된 지번 주소",
+        new BigDecimal("37.6"));
+    assertThat(reused).isSameAs(place);
     entityManager.flush();
     entityManager.clear();
     var found = places.findById(id).orElseThrow();
-    assertThat(updated.getId()).isEqualTo(id);
     assertThat(places.count()).isEqualTo(1);
-    assertThat(found.getName()).isEqualTo("변경된 장소");
-    assertThat(found.getOverview()).isNull();
-    assertThat(found.getOverviewSource()).isNull();
-    assertThat(found.getOverviewStatus()).isEqualTo(PlaceOverviewStatus.PENDING);
-    assertThat(found.getOverviewAttemptCount()).isZero();
-    assertThat(found.getOverviewAttemptedAt()).isNull();
+    assertThat(found.getName()).isEqualTo("장소");
+    assertThat(found.getRegion().getId()).isEqualTo(district.getId());
     assertThat(found.getRoadAddress()).isEqualTo("서울 마포구 테스트로 1");
-  }
-
-  @ParameterizedTest
-  @CsvSource({"true,COMPLETED", "false,COMPLETED", "true,FAILED", "false,FAILED"})
-  void unchangedMetadataAndCoordinateScalePreserveOverview(boolean course, PlaceOverviewStatus status) {
-    var place = existing(status);
-    var attemptedAt = place.getOverviewAttemptedAt();
-    write(course, "장소", "서울 마포구 테스트로 1", "서울 마포구 테스트동 1", new BigDecimal("37.5000000"));
-    entityManager.flush();
-    entityManager.clear();
-    var found = places.findById(place.getId()).orElseThrow();
+    assertThat(found.getLotAddress()).isEqualTo("서울 마포구 테스트동 1");
+    assertThat(found.getLatitude()).isEqualByComparingTo("37.5");
+    assertThat(found.getLongitude()).isEqualByComparingTo("127.0");
     assertThat(found.getOverview()).isEqualTo(status == PlaceOverviewStatus.COMPLETED ? "기존 설명" : null);
+    assertThat(found.getOverviewSource()).isEqualTo(
+        status == PlaceOverviewStatus.COMPLETED ? PlaceOverviewSource.TOUR_API : null);
     assertThat(found.getOverviewStatus()).isEqualTo(status);
     assertThat(found.getOverviewAttemptCount()).isEqualTo(2);
     assertThat(found.getOverviewAttemptedAt()).isEqualTo(attemptedAt);
-  }
-
-  @ParameterizedTest
-  @ValueSource(booleans = {true, false})
-  void changedAddressAndCoordinatesRequeueWithUpdatedRegion(boolean course) {
-    var place = existing(PlaceOverviewStatus.COMPLETED);
-    var newDistrict = regions.save(Region.builder().name("종로구").parent(district.getParent())
-        .type(RegionType.SUB_REGION).build());
-    write(course, null, "서울 종로구 새길 2", "서울 종로구 새동 2", new BigDecimal("37.6"));
-    entityManager.flush();
-    entityManager.clear();
-    var found = places.findById(place.getId()).orElseThrow();
-    assertThat(found.getRegion().getId()).isEqualTo(newDistrict.getId());
-    assertThat(found.getLatitude()).isEqualByComparingTo("37.6");
-    assertThat(found.getOverviewStatus()).isEqualTo(PlaceOverviewStatus.PENDING);
   }
 
   private Place existing(PlaceOverviewStatus status) {
