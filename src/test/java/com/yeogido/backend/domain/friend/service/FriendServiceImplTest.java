@@ -60,13 +60,12 @@ class FriendServiceImplTest {
     private final User other = user(OTHER_ID, OTHER_CODE);
 
     @Test
-    void getMyFriendCodeReturnsCodeAndQrDeepLink() {
+    void getMyFriendCodeReturnsCode() {
         when(userRepository.findById(ME_ID)).thenReturn(Optional.of(user(ME_ID, "K7M2QX9A")));
 
         FriendResDTO.MyFriendCode result = friendService.getMyFriendCode(ME_ID);
 
         assertThat(result.friendCode()).isEqualTo("K7M2QX9A");
-        assertThat(result.qrValue()).isEqualTo("yeogido://friend?code=K7M2QX9A");
     }
 
     @Test
