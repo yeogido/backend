@@ -30,7 +30,7 @@ public class FriendController {
 
     private final FriendService friendService;
 
-    @Operation(summary = "내 친구코드 조회 API", description = "프로필 QR 모달에 표시할 내 친구코드와 QR 딥링크를 조회합니다.")
+    @Operation(summary = "내 친구코드 조회 API", description = "프로필 QR 모달에 표시할 내 친구코드를 조회합니다.")
     @GetMapping("/me/code")
     public ApiResponse<FriendResDTO.MyFriendCode> getMyFriendCode(
             @AuthenticationPrincipal AuthUser authUser
