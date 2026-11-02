@@ -17,78 +17,99 @@ import java.time.LocalDateTime;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
 @Table(
-        name = "place",
-        uniqueConstraints = {
-                @UniqueConstraint(
-                        name = "uk_place_source_external_id",
-                        columnNames = {"source", "external_place_id"}
-                )
-        }
+    name = "place",
+    uniqueConstraints = {
+        @UniqueConstraint(
+            name = "uk_place_source_external_id",
+            columnNames = {"source", "external_place_id"}
+        )
+    }
 )
 public class Place extends BaseEntity {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+  @Id
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "region_id", nullable = false)
-    private Region region;
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "region_id", nullable = false)
+  private Region region;
 
-    @Column(nullable = false, name = "external_place_id", length = 100)
-    private String externalPlaceId;
+  @Column(nullable = false, name = "external_place_id", length = 100)
+  private String externalPlaceId;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
-    private PlaceSource source;
+  @Enumerated(EnumType.STRING)
+  @Column(nullable = false, length = 20)
+  private PlaceSource source;
 
-    @Column(nullable = false, length = 100)
-    private String name;
+  @Column(nullable = false, length = 100)
+  private String name;
 
-    @Column(name = "category_group_code", length = 20)
-    private String categoryGroupCode;
+  @Column(name = "category_group_code", length = 20)
+  private String categoryGroupCode;
 
-    @Column(name = "road_address", length = 255)
-    private String roadAddress;
+  @Column(name = "road_address", length = 255)
+  private String roadAddress;
 
-    @Column(name = "lot_address", length = 255)
-    private String lotAddress;
+  @Column(name = "lot_address", length = 255)
+  private String lotAddress;
 
-    @Column(nullable = false, precision = 10, scale = 7)
-    private BigDecimal latitude;
+  @Column(nullable = false, precision = 10, scale = 7)
+  private BigDecimal latitude;
 
-    @Column(nullable = false, precision = 10, scale = 7)
-    private BigDecimal longitude;
+  @Column(nullable = false, precision = 10, scale = 7)
+  private BigDecimal longitude;
 
-    @Column(columnDefinition = "TEXT")
-    private String overview;
+  @Column(columnDefinition = "TEXT")
+  private String overview;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "overview_source", length = 20)
-    private PlaceOverviewSource overviewSource;
+  @Enumerated(EnumType.STRING)
+  @Column(name = "overview_source", length = 20)
+  private PlaceOverviewSource overviewSource;
 
-    @Builder.Default
-    @Enumerated(EnumType.STRING)
-    @Column(name = "overview_status", nullable = false, length = 20)
-    private PlaceOverviewStatus overviewStatus = PlaceOverviewStatus.PENDING;
+  @Builder.Default
+  @Enumerated(EnumType.STRING)
+  @Column(name = "overview_status", nullable = false, length = 20)
+  private PlaceOverviewStatus overviewStatus = PlaceOverviewStatus.PENDING;
 
-    @Column(name = "overview_attempted_at")
-    private LocalDateTime overviewAttemptedAt;
+  @Column(name = "overview_attempted_at")
+  private LocalDateTime overviewAttemptedAt;
 
-    public void updateTourData(
-            Region region,
-            String name,
-            String roadAddress,
-            String lotAddress,
-            BigDecimal latitude,
-            BigDecimal longitude
-    ) {
-        this.region = region;
-        this.name = name;
-        this.roadAddress = roadAddress;
-        this.lotAddress = lotAddress;
-        this.latitude = latitude;
-        this.longitude = longitude;
-    }
+  public void startOverviewEnrichment(LocalDateTime attemptedAt) {
+    this.overviewStatus = PlaceOverviewStatus.PROCESSING;
+    this.overviewAttemptedAt = attemptedAt;
+  }
+
+  public void completeOverviewEnrichment(String overview, PlaceOverviewSource source) {
+    this.overview = overview;
+    this.overviewSource = source;
+    this.overviewStatus = PlaceOverviewStatus.COMPLETED;
+  }
+
+  public void markNoOverview() {
+    this.overview = null;
+    this.overviewSource = null;
+    this.overviewStatus = PlaceOverviewStatus.NO_OVERVIEW;
+  }
+
+  public void failOverviewEnrichment() {
+    this.overviewStatus = PlaceOverviewStatus.FAILED;
+  }
+
+  public void updateTourData(
+      Region region,
+      String name,
+      String roadAddress,
+      String lotAddress,
+      BigDecimal latitude,
+      BigDecimal longitude
+  ) {
+    this.region = region;
+    this.name = name;
+    this.roadAddress = roadAddress;
+    this.lotAddress = lotAddress;
+    this.latitude = latitude;
+    this.longitude = longitude;
+  }
 
 }
