@@ -155,6 +155,7 @@ public class TravelRecordServiceImpl implements TravelRecordService {
         );
     }
 
+    /** 사진을 이동하기 전에 스티커를 검증하고 검증된 스티커로 새 여행 기록을 저장합니다. */
     @Override
     @Transactional
     public TravelRecordResDTO.CreateResponse createTravelRecord(
@@ -167,6 +168,12 @@ public class TravelRecordServiceImpl implements TravelRecordService {
 
         validateDateRange(request);
         validateImageOrders(request.images());
+
+        // DB 롤백으로 복구할 수 없는 사진 이동 전에 스티커 검증을 완료합니다.
+        List<TravelRecordReqDTO.StickerRequest> stickerRequests = resolveStickers(request.stickers());
+        validateStickerZIndex(stickerRequests);
+        Map<Long, Sticker> stickerMap = stickerRequests.isEmpty()
+                ? Map.of() : getAvailableStickerMap(stickerRequests, user.getId());
 
         List<TravelRecordReqDTO.ImageRequest> movedImages = moveImages(request.images());
         String coverImageKey = findCoverImageKey(movedImages);
@@ -190,15 +197,7 @@ public class TravelRecordServiceImpl implements TravelRecordService {
 
         travelRecordPhotoRepository.saveAll(photos);
 
-        List<TravelRecordReqDTO.StickerRequest> stickerRequests = resolveStickers(request.stickers());
         if (!stickerRequests.isEmpty()) {
-            validateStickerZIndex(stickerRequests);
-
-            Map<Long, Sticker> stickerMap = getAvailableStickerMap(
-                    stickerRequests,
-                    user.getId()
-            );
-
             List<TravelRecordSticker> stickers = TravelRecordConverter.toTravelRecordStickers(
                     savedTravelRecord,
                     stickerRequests,
@@ -235,6 +234,10 @@ public class TravelRecordServiceImpl implements TravelRecordService {
             throw new GeneralException(TravelRecordErrorCode.VERSION_CONFLICT);
         }
 
+        Map<Long, Sticker> stickerMap = validateAndGetStickerMapForUpdate(
+                travelRecord, request.stickers(), userId
+        );
+
         List<TravelRecordReqDTO.ImageRequest> movedImages = moveImages(request.images());
         String coverImageKey = findCoverImageKey(movedImages);
 
@@ -259,7 +262,7 @@ public class TravelRecordServiceImpl implements TravelRecordService {
         );
         travelRecordPhotoRepository.saveAll(photos);
 
-        updateStickersIfRequested(travelRecord, request.stickers(), userId);
+        updateStickersIfRequested(travelRecord, request.stickers(), stickerMap);
 
         return TravelRecordConverter.toUpdateResponse(travelRecord);
     }
@@ -431,32 +434,38 @@ public class TravelRecordServiceImpl implements TravelRecordService {
         }
     }
 
-    private void updateStickersIfRequested(
+    /** 버전 선점 후 기존 배치를 기준으로 검증하고 사진 이동 전에 사용할 스티커를 확정합니다. */
+    private Map<Long, Sticker> validateAndGetStickerMapForUpdate(
             TravelRecord travelRecord,
             List<TravelRecordReqDTO.StickerRequest> stickerRequests,
             Long userId
+    ) {
+        if (stickerRequests == null || stickerRequests.isEmpty()) {
+            return Map.of();
+        }
+        validateStickerZIndex(stickerRequests);
+        return getAvailableStickerMapForUpdate(
+                stickerRequests,
+                userId,
+                getExistingStickerCounts(travelRecord.getId()),
+                countRequestedStickerIds(stickerRequests)
+        );
+    }
+
+    /** 사전 검증 결과로 배치만 교체하며 null은 유지, 빈 목록은 전체 삭제를 의미합니다. */
+    private void updateStickersIfRequested(
+            TravelRecord travelRecord,
+            List<TravelRecordReqDTO.StickerRequest> stickerRequests,
+            Map<Long, Sticker> stickerMap
     ) {
         if (stickerRequests == null) {
             return;
         }
 
+        travelRecordStickerRepository.deleteAllByTravelRecord_Id(travelRecord.getId());
         if (stickerRequests.isEmpty()) {
-            travelRecordStickerRepository.deleteAllByTravelRecord_Id(travelRecord.getId());
             return;
         }
-
-        validateStickerZIndex(stickerRequests);
-
-        Map<Long, Long> existingStickerCounts = getExistingStickerCounts(travelRecord.getId());
-        Map<Long, Long> requestedStickerCounts = countRequestedStickerIds(stickerRequests);
-        Map<Long, Sticker> stickerMap = getAvailableStickerMapForUpdate(
-                stickerRequests,
-                userId,
-                existingStickerCounts,
-                requestedStickerCounts
-        );
-
-        travelRecordStickerRepository.deleteAllByTravelRecord_Id(travelRecord.getId());
         travelRecordStickerRepository.flush();
 
         List<TravelRecordSticker> stickers = TravelRecordConverter.toTravelRecordStickers(
