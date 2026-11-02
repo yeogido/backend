@@ -118,6 +118,10 @@ public class TravelRecordServiceImpl implements TravelRecordService {
         return CursorResponse.of(items,null, nextCursor, hasNext);
     }
 
+    /**
+     * 본인 생성 기록과 현재 참여 중인 공유 기록을 종료 연도, 공개범위로 필터링하여 조회합니다.
+     * 종료일과 ID 내림차순으로 앨범 단위 페이징하고, 현재 페이지의 사진은 일괄 조회합니다.
+     */
     @Override
     public CursorResponse<TravelRecordResDTO.MapItem> getMyTravelMap(
             Long userId, TravelRecordReqDTO.MapRequest request

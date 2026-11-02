@@ -600,6 +600,7 @@ class TravelRecordVisibilityIntegrationTest {
         .containsExactly(accepted.getId(), ownShared.getId(), ownPublic.getId(), ownPrivate.getId());
   }
 
+  /** 여러 앨범의 전체 사진 순서를 보장하면서 조회 쿼리가 두 번으로 유지되는지 검증합니다. */
   @Test
   void mapReturnsAllPhotosInOrderAndUsesOnlyTwoQueriesForMultipleAlbums() {
     var located = entityManager.persist(Region.builder().name("지도 지역").type(RegionType.REGION)
@@ -665,6 +666,7 @@ class TravelRecordVisibilityIntegrationTest {
     assertThat(page3.isHasNext()).isFalse();
   }
 
+  /** 현재 보관함이나 필터 조건에 맞지 않는 커서를 페이지 오류로 거부하는지 검증합니다. */
   @Test
   void mapRejectsCursorOutsideCurrentCollectionYearAndVisibility() {
     var foreign = record(owner, TravelRecordVisibility.PUBLIC, 2026);
@@ -684,6 +686,7 @@ class TravelRecordVisibilityIntegrationTest {
         TravelRecordErrorCode.INVALID_VISIBILITY);
   }
 
+  /** 페이지 크기와 연도의 경계값, 빈 응답, 현재 연도 기본값을 검증합니다. */
   @Test
   void mapValidatesBoundsAndReturnsEmptyCursorResponse() {
     for (int size : List.of(0, -1, 101)) {

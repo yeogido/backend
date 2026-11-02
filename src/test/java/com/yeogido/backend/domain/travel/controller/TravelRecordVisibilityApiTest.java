@@ -96,6 +96,7 @@ class TravelRecordVisibilityApiTest {
         .andExpect(jsonPath("$.result.hasNext").value(false));
   }
 
+  /** 지도 조회의 범위 초과, 잘못된 필터, 숫자가 아닌 입력이 400으로 처리되는지 검증합니다. */
   @Test
   void mapRejectsInvalidQueryParameters() throws Exception {
     for (String[] query : List.of(new String[]{"size", "101"}, new String[]{"year", "10000"},
