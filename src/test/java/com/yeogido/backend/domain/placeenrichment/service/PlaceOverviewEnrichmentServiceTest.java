@@ -11,12 +11,14 @@ import com.yeogido.backend.domain.placeenrichment.dto.response.TourPlaceResponse
 import com.yeogido.backend.domain.placeenrichment.enums.GeminiPlaceMatchStatus;
 import com.yeogido.backend.domain.placeenrichment.enums.PlaceOverviewSource;
 import com.yeogido.backend.domain.placeenrichment.enums.TourPlaceMatchStatus;
+import com.yeogido.backend.domain.placeenrichment.scheduler.PlaceOverviewRetryScheduler;
 import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.region.enums.RegionType;
 import com.yeogido.backend.domain.region.repository.RegionRepository;
 import com.yeogido.backend.global.config.JpaConfig;
 import com.yeogido.backend.global.exception.GeneralException;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -54,6 +56,7 @@ class PlaceOverviewEnrichmentServiceTest {
   @Autowired PlaceOverviewEnrichmentService service;
   @Autowired PlaceRepository places;
   @Autowired RegionRepository regions;
+  @Autowired jakarta.persistence.EntityManager entityManager;
   @MockitoSpyBean PlatformTransactionManager transactionManager;
   @Autowired TourRegionCodeMapper regionCodeMapper;
   @MockitoBean TourPlaceEnrichmentService tour;
@@ -138,10 +141,15 @@ class PlaceOverviewEnrichmentServiceTest {
     assertThat(failed.getOverviewAttemptedAt()).isNotNull();
     verifyNoInteractions(gemini);
 
-    doReturn(tourResult(TourPlaceMatchStatus.MATCHED, "재시도 설명")).when(tour).enrich(any());
+    assertThat(failed.getOverviewAttemptCount()).isEqualTo(1);
     service.enrich(placeId);
+    verify(tour, times(1)).enrich(any());
+    makeRetryDue();
+    doReturn(tourResult(TourPlaceMatchStatus.MATCHED, "재시도 설명")).when(tour).enrich(any());
+    new PlaceOverviewRetryScheduler(places, service).retryFailedOverviews();
     assertThat(places.findById(placeId).orElseThrow().getOverviewStatus())
         .isEqualTo(PlaceOverviewStatus.COMPLETED);
+    assertThat(places.findById(placeId).orElseThrow().getOverviewAttemptCount()).isEqualTo(2);
   }
 
   @Test
@@ -149,7 +157,7 @@ class PlaceOverviewEnrichmentServiceTest {
     var failure = new org.springframework.dao.DataAccessResourceFailureException("최종 저장 실패");
     when(tour.enrich(any())).thenReturn(tourResult(TourPlaceMatchStatus.MATCHED, "저장할 설명"));
     var commits = new java.util.concurrent.atomic.AtomicInteger();
-    // 최종 저장 트랜잭션에서만 커밋 직전 장애를 주입해 실제 롤백을 검증한다.
+    // 최종 저장 트랜잭션의 커밋 직전 장애 주입 및 실제 롤백 검증
     doAnswer(invocation -> {
       if (commits.incrementAndGet() == 2) {
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
@@ -168,11 +176,59 @@ class PlaceOverviewEnrichmentServiceTest {
     assertThat(failed.getOverview()).isNull();
     assertThat(failed.getOverviewSource()).isNull();
 
+    makeRetryDue();
     service.enrich(placeId);
     var saved = places.findById(placeId).orElseThrow();
     assertThat(saved.getOverviewStatus()).isEqualTo(PlaceOverviewStatus.COMPLETED);
     assertThat(saved.getOverview()).isEqualTo("저장할 설명");
     verify(tour, times(2)).enrich(any());
+  }
+
+  @Test
+  void stopsAfterOneRetryEvenWhenCalledAgain() {
+    when(tour.enrich(any())).thenThrow(new IllegalStateException("외부 조회 실패"));
+    assertThatThrownBy(() -> service.enrich(placeId)).isInstanceOf(IllegalStateException.class);
+    makeRetryDue();
+    assertThatThrownBy(() -> service.enrich(placeId)).isInstanceOf(IllegalStateException.class);
+
+    var saved = places.findById(placeId).orElseThrow();
+    assertThat(saved.getOverviewStatus()).isEqualTo(PlaceOverviewStatus.FAILED);
+    assertThat(saved.getOverviewAttemptCount()).isEqualTo(2);
+    service.enrich(placeId);
+    verify(tour, times(2)).enrich(any());
+    assertThat(places.findOverviewRetryCandidates(LocalDateTime.now().minusMinutes(5), 2,
+        org.springframework.data.domain.PageRequest.of(0, 20))).doesNotContain(placeId);
+  }
+
+  @Test
+  void concurrentRetryCallsOnlyRunOneExternalLookup() throws Exception {
+    new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+      var place = places.findById(placeId).orElseThrow();
+      place.startOverviewEnrichment(LocalDateTime.now().minusMinutes(6));
+      place.failOverviewEnrichment();
+    });
+    var entered = new java.util.concurrent.CountDownLatch(1);
+    var release = new java.util.concurrent.CountDownLatch(1);
+    when(tour.enrich(any())).thenAnswer(invocation -> {
+      entered.countDown();
+      assertThat(release.await(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+      return tourResult(TourPlaceMatchStatus.MATCHED, "재시도 설명");
+    });
+    try (var executor = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+      var first = executor.submit(() -> service.enrich(placeId));
+      try {
+        assertThat(entered.await(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+        var second = executor.submit(() -> service.enrich(placeId));
+        second.get(5, java.util.concurrent.TimeUnit.SECONDS);
+      } finally {
+        release.countDown();
+      }
+      first.get(5, java.util.concurrent.TimeUnit.SECONDS);
+    }
+    var saved = places.findById(placeId).orElseThrow();
+    assertThat(saved.getOverviewStatus()).isEqualTo(PlaceOverviewStatus.COMPLETED);
+    assertThat(saved.getOverviewAttemptCount()).isEqualTo(2);
+    verify(tour, times(1)).enrich(any());
   }
 
   @Test
@@ -229,6 +285,13 @@ class PlaceOverviewEnrichmentServiceTest {
     var processing = places.findById(placeId).orElseThrow();
     assertThat(processing.getOverviewStatus()).isEqualTo(PlaceOverviewStatus.PROCESSING);
     assertThat(processing.getOverviewAttemptedAt()).isNotNull();
+  }
+
+  private void makeRetryDue() {
+    new TransactionTemplate(transactionManager).executeWithoutResult(status ->
+        entityManager.createQuery("update Place p set p.overviewAttemptedAt = :time where p.id = :id")
+            .setParameter("time", LocalDateTime.now().minusMinutes(6))
+            .setParameter("id", placeId).executeUpdate());
   }
 
   private TourPlaceResponse.MatchResult tourResult(TourPlaceMatchStatus status, String overview) {

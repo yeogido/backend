@@ -27,6 +27,9 @@ import java.time.LocalDateTime;
 )
 public class Place extends BaseEntity {
 
+  public static final int MAX_OVERVIEW_ATTEMPTS = 2;
+  public static final int OVERVIEW_RETRY_DELAY_MINUTES = 5;
+
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Long id;
@@ -75,9 +78,24 @@ public class Place extends BaseEntity {
   @Column(name = "overview_attempted_at")
   private LocalDateTime overviewAttemptedAt;
 
+  @Builder.Default
+  @Column(name = "overview_attempt_count", nullable = false)
+  private int overviewAttemptCount = 0;
+
+  public boolean canStartOverviewEnrichment(LocalDateTime now) {
+    if (overviewAttemptCount >= MAX_OVERVIEW_ATTEMPTS) {
+      return false;
+    }
+    return overviewStatus == PlaceOverviewStatus.PENDING
+        || overviewStatus == PlaceOverviewStatus.FAILED
+        && overviewAttemptedAt != null
+        && !overviewAttemptedAt.isAfter(now.minusMinutes(OVERVIEW_RETRY_DELAY_MINUTES));
+  }
+
   public void startOverviewEnrichment(LocalDateTime attemptedAt) {
     this.overviewStatus = PlaceOverviewStatus.PROCESSING;
     this.overviewAttemptedAt = attemptedAt;
+    this.overviewAttemptCount++;
   }
 
   public void completeOverviewEnrichment(String overview, PlaceOverviewSource source) {

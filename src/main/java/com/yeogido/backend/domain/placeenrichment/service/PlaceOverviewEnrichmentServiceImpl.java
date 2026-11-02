@@ -1,7 +1,6 @@
 package com.yeogido.backend.domain.placeenrichment.service;
 
 import com.yeogido.backend.domain.place.entity.Place;
-import com.yeogido.backend.domain.place.enums.PlaceOverviewStatus;
 import com.yeogido.backend.domain.place.exception.PlaceErrorCode;
 import com.yeogido.backend.domain.place.repository.PlaceRepository;
 import com.yeogido.backend.domain.placeenrichment.dto.request.TourPlaceRequest;
@@ -48,12 +47,11 @@ public class PlaceOverviewEnrichmentServiceImpl implements PlaceOverviewEnrichme
     Place place = transactionTemplate.execute(status -> {
       Place found = placeRepository.findByIdForOverviewEnrichment(placeId)
           .orElseThrow(() -> new GeneralException(PlaceErrorCode.PLACE_NOT_FOUND));
-      if (StringUtils.hasText(found.getOverview())
-          || found.getOverviewStatus() != PlaceOverviewStatus.PENDING
-          && found.getOverviewStatus() != PlaceOverviewStatus.FAILED) {
+      LocalDateTime now = LocalDateTime.now();
+      if (StringUtils.hasText(found.getOverview()) || !found.canStartOverviewEnrichment(now)) {
         return null;
       }
-      found.startOverviewEnrichment(LocalDateTime.now());
+      found.startOverviewEnrichment(now);
       return found;
     });
     if (place == null) {
@@ -74,7 +72,8 @@ public class PlaceOverviewEnrichmentServiceImpl implements PlaceOverviewEnrichme
     } catch (RuntimeException failure) {
       // 조회 또는 결과 커밋 실패 후 별도 트랜잭션으로 재시도 가능한 상태 기록
       try {
-        transactionTemplate.executeWithoutResult(status -> findPlace(placeId).failOverviewEnrichment());
+        transactionTemplate.executeWithoutResult(status ->
+            findPlace(placeId).failOverviewEnrichment());
       } catch (RuntimeException persistenceFailure) {
         failure.addSuppressed(persistenceFailure);
       }
