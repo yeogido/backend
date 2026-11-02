@@ -9,6 +9,7 @@ import com.yeogido.backend.domain.placeenrichment.dto.response.TourPlaceResponse
 import com.yeogido.backend.domain.placeenrichment.enums.TourPlaceMatchReason;
 import com.yeogido.backend.domain.placeenrichment.enums.TourPlaceMatchStatus;
 import com.yeogido.backend.domain.placeenrichment.exception.PlaceEnrichmentErrorCode;
+import com.yeogido.backend.domain.placeenrichment.util.AddressNormalizer;
 import com.yeogido.backend.global.exception.GeneralException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -173,17 +174,8 @@ public class TourPlaceEnrichmentServiceImpl implements TourPlaceEnrichmentServic
 
     // 시도 표기 통일 및 건물 번호 기준 주소 비교 키 생성
     private static String addressKey(String address) {
-        String normalized = address.strip().replaceAll("\\s+", " ")
-                .replace("서울특별시", "서울").replace("부산광역시", "부산")
-                .replace("대구광역시", "대구").replace("인천광역시", "인천")
-                .replace("광주광역시", "광주").replace("대전광역시", "대전")
-                .replace("울산광역시", "울산").replace("세종특별자치시", "세종")
-                .replace("경기도", "경기").replace("강원특별자치도", "강원").replace("강원도", "강원")
-                .replace("충청북도", "충북").replace("충청남도", "충남")
-                .replace("전북특별자치도", "전북").replace("전라북도", "전북").replace("전라남도", "전남")
-                .replace("경상북도", "경북").replace("경상남도", "경남")
-                .replace("제주특별자치도", "제주").replace("제주도", "제주");
-        // 건물 번호 보존 및 층·괄호 등 부가 주소 제외
+        String normalized = AddressNormalizer.normalize(address);
+        // 건물 번호 보존 및 층, 괄호 등 부가 주소 제외
         Matcher matcher = BUILDING_ADDRESS.matcher(normalized);
         return (matcher.find() ? matcher.group(1) + matcher.group(2) : normalized).replaceAll("\\s+", "");
     }
