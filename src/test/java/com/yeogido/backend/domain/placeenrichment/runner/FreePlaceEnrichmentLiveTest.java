@@ -21,6 +21,31 @@ import static org.assertj.core.api.Assertions.assertThat;
 class FreePlaceEnrichmentLiveTest {
     @TempDir Path directory;
 
+    @ParameterizedTest(name = "동명 장소 {0}")
+    @CsvSource({
+            "live-layered-anguk,서울 종로구 북촌로2길 2-3",
+            "live-layered-yeonnam,서울 마포구 성미산로 161-4"
+    })
+    void separatesSameNamedBranchesThroughRealApis(String fixtureId, String roadAddress) throws Exception {
+        // 테스트용 ID이며 실제 지도 서비스의 장소 ID를 뜻하지 않는다.
+        enrichesMissingOverviewThroughRealJavaClientsAndRunner(
+                fixtureId, "카페 레이어드", "CE7", roadAddress, null);
+        var result = new ObjectMapper().readTree(Path.of(
+                "build/place-enrichment/java-free-overview-" + fixtureId + ".json").toFile())
+                .get(1).path("geminiResult");
+        var allowed = result.path("groundingMetadata").path("descriptiveSourceIds");
+        for (var fact : result.path("facts")) {
+            assertThat(allowed.valueStream().anyMatch(id -> id.asText().equals(fact.path("sourceId").asText())))
+                    .as("fact source must be independently associated").isTrue();
+        }
+        for (var sentence : result.path("sentenceSources")) {
+            for (var source : sentence.path("sourceIds")) {
+                assertThat(allowed.valueStream().anyMatch(id -> id.asText().equals(source.asText())))
+                        .as("sentence source must be independently associated").isTrue();
+            }
+        }
+    }
+
     @ParameterizedTest(name = "{1}")
     @CsvSource({
             "2073184062,아일베이커리,CE7,서울 성북구 삼선교로11길 34,서울 성북구 삼선동4가 9-5",

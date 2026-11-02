@@ -6,7 +6,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yeogido.backend.domain.placeenrichment.client.DaumSearchClient;
 import com.yeogido.backend.domain.placeenrichment.exception.PlaceEnrichmentErrorCode;
-import com.yeogido.backend.domain.placeenrichment.util.AddressNormalizer;
 import com.yeogido.backend.global.exception.GeneralException;
 import com.yeogido.backend.domain.placeenrichment.client.GeminiSearchClient;
 import com.yeogido.backend.domain.placeenrichment.dto.request.TourPlaceRequest;
@@ -33,6 +32,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import static com.yeogido.backend.domain.placeenrichment.enums.GeminiPlaceMatchStatus.*;
+import static com.yeogido.backend.domain.placeenrichment.service.PlaceSourceIdentityVerifier.containsAddress;
 
 @Service
 public class GeminiPlaceEnrichmentServiceImpl implements GeminiPlaceEnrichmentService {
@@ -71,8 +71,15 @@ public class GeminiPlaceEnrichmentServiceImpl implements GeminiPlaceEnrichmentSe
                         "Daum 검색에서 자료를 찾지 못했습니다.", null, List.of(), List.of(), List.of(), metadata, List.of());
             }
             Map<String, Evidence> evidenceCatalog = evidenceCatalog(searchSources);
+            Set<String> descriptiveSourceIds = searchSources.stream()
+                    .filter(source -> PlaceSourceIdentityVerifier.matches(input, source))
+                    .map(DaumSearchResponse.SearchSource::sourceId).collect(Collectors.toSet());
+            ((com.fasterxml.jackson.databind.node.ObjectNode) metadata).set("descriptiveSourceIds",
+                    objectMapper.valueToTree(searchSources.stream().map(DaumSearchResponse.SearchSource::sourceId)
+                            .filter(descriptiveSourceIds::contains).toList()));
             JsonNode response = client.search(instructions,
-                    objectMapper.writeValueAsString(Map.of("place", input, "evidenceCatalog", evidenceCatalog.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, entry -> Map.of("text", entry.getValue().text(), "sourceType", searchSources.stream().filter(source -> source.sourceId().equals(entry.getValue().sourceId())).findFirst().orElseThrow().sourceType()))), "atmosphereCandidates", evidenceCatalog.entrySet().stream()
+                    objectMapper.writeValueAsString(Map.of("place", input, "evidenceCatalog", evidenceCatalog.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, entry -> Map.of("text", entry.getValue().text(), "descriptiveAllowed", descriptiveSourceIds.contains(entry.getValue().sourceId()), "sourceType", searchSources.stream().filter(source -> source.sourceId().equals(entry.getValue().sourceId())).findFirst().orElseThrow().sourceType()))), "atmosphereCandidates", evidenceCatalog.entrySet().stream()
+                            .filter(entry -> descriptiveSourceIds.contains(entry.getValue().sourceId()))
                             .filter(entry -> ATMOSPHERE_EVIDENCE_PATTERN.matcher(entry.getValue().text()).matches())
                             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)))));
             JsonNode candidates = response == null ? null : response.path("candidates");
@@ -151,6 +158,18 @@ public class GeminiPlaceEnrichmentServiceImpl implements GeminiPlaceEnrichmentSe
                 && selection.sentenceSources() != null && selection.conflicts() != null);
         Map<String, DaumSearchResponse.SearchSource> supplied = searchSources.stream()
                 .collect(Collectors.toMap(DaumSearchResponse.SearchSource::sourceId, source -> source));
+        Set<String> descriptiveSourceIds = searchSources.stream()
+                .filter(source -> PlaceSourceIdentityVerifier.matches(input, source))
+                .map(DaumSearchResponse.SearchSource::sourceId).collect(Collectors.toSet());
+        // 사실과 설명에 연결된 모든 출처를 서버에서 독립적으로 검증한다.
+        selection.facts().forEach(fact -> require(descriptiveSourceIds.contains(
+                catalog.containsKey(fact.evidenceId()) ? catalog.get(fact.evidenceId()).sourceId() : null)));
+        selection.sentenceSources().forEach(sentence -> {
+            require(sentence.evidenceIds() != null && !sentence.evidenceIds().isEmpty()
+                    && sentence.evidenceIds().stream().allMatch(catalog::containsKey));
+            sentence.evidenceIds().forEach(reference -> require(
+                    descriptiveSourceIds.contains(catalog.get(reference).sourceId())));
+        });
         List<String> references = new java.util.ArrayList<>(selection.matchEvidenceIds());
         selection.facts().forEach(fact -> references.add(fact.evidenceId()));
         selection.sentenceSources().forEach(sentence -> references.addAll(sentence.evidenceIds()));
@@ -288,16 +307,6 @@ public class GeminiPlaceEnrichmentServiceImpl implements GeminiPlaceEnrichmentSe
         if (evidence.contains("[별도 검색 발췌]")) return false;
         return source.title().contains(evidence) || java.util.Arrays.stream(
                 source.snippet().split("\\n\\[별도 검색 발췌\\]\\n", -1)).anyMatch(part -> part.contains(evidence));
-    }
-
-    private static boolean containsAddress(String text, String address) {
-        if (!StringUtils.hasText(address)) {
-            return false;
-        }
-        String addressPattern = Pattern.quote(AddressNormalizer.normalize(address)).replace(" ", "\\E\\s*\\Q");
-        // 다른 건물 번호와 숫자가 포함된 다른 도로명(1길, 11번길)의 접두 일치를 차단
-        return Pattern.compile(addressPattern + "(?![0-9-]|번?길)")
-                .matcher(AddressNormalizer.normalize(text)).find();
     }
 
     private static void validateReferences(List<String> references, Set<String> sourceIds, int minimum) {

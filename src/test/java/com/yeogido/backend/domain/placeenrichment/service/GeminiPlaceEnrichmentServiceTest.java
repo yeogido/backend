@@ -156,7 +156,7 @@ class GeminiPlaceEnrichmentServiceTest {
             "컵케이크와 라테를 먹고 마실 수 있다.", "비빔국수와 만두를 먹을 수 있다.", "사진 전시를 관람하고 판화 체험에 참여할 수 있다."})
     void preservesSpecificOfferingsAsPrimaryActivities(String activity) throws Exception {
         when(searchClient.search(input)).thenReturn(List.of(new DaumSearchResponse.SearchSource("S1",
-                "https://example.com/place", PlaceEvidenceSourceType.REVIEW, "테스트 장소",
+                "https://example.com/place", PlaceEvidenceSourceType.REVIEW, "테스트 카페",
                 "서울특별시 중구 테스트로 1 " + activity)));
         ObjectNode payload = payload();
         ((ObjectNode) payload.path("facts").get(0)).put("value", activity)
@@ -459,6 +459,55 @@ class GeminiPlaceEnrichmentServiceTest {
 
         assertThatThrownBy(() -> service.enrich(place)).isInstanceOfSatisfying(GeneralException.class,
                 exception -> assertThat(exception.getErrorCode()).isEqualTo(PlaceEnrichmentErrorCode.INVALID_ENRICHMENT_RESPONSE));
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"FACT", "SENTENCE", "MIXED_SENTENCE"})
+    void rejectsUnassociatedDescriptiveSourcesDespiteVerifiedAddressAnchor(String target) throws Exception {
+        when(searchClient.search(input)).thenReturn(List.of(
+                new DaumSearchResponse.SearchSource("S1", "https://example.com/place", PlaceEvidenceSourceType.REVIEW,
+                        "테스트 카페", "서울 중구 테스트로 1 커피 판매"),
+                new DaumSearchResponse.SearchSource("S2", "https://example.com/other", PlaceEvidenceSourceType.REVIEW,
+                        "테스트 카페", "조용한 공간에서 커피 판매")));
+        ObjectNode payload = payload();
+        if (target.equals("FACT")) {
+            ((ObjectNode) payload.path("facts").get(0)).put("evidenceId", "E4");
+        } else {
+            var refs = ((ObjectNode) payload.path("sentenceSources").get(0)).putArray("evidenceIds");
+            if (target.equals("MIXED_SENTENCE")) refs.add("E2");
+            refs.add("E4");
+        }
+        assertInvalid(payload);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({
+            "02-123-4567,,테스트 카페 02 123 4567 커피 판매",
+            ",https://official.example/place,테스트 카페 https://official.example/place 커피 판매",
+            ",,테스트 카페 서울 중구 테스트로 1 커피 판매"
+    })
+    void acceptsIndependentlyAssociatedDescriptiveSource(String phone, String officialUrl, String description) throws Exception {
+        var place = new TourPlaceRequest.Input("place-1", "테스트 카페", null, null,
+                input.roadAddress(), null, null, null, phone, officialUrl);
+        when(searchClient.search(place)).thenReturn(List.of(
+                new DaumSearchResponse.SearchSource("S1", "https://example.com/place", PlaceEvidenceSourceType.REVIEW,
+                        "테스트 카페", "서울 중구 테스트로 1 커피 판매"),
+                new DaumSearchResponse.SearchSource("S2", "https://example.com/review", PlaceEvidenceSourceType.REVIEW,
+                        "테스트 카페", description)));
+        ObjectNode payload = payload();
+        ((ObjectNode) payload.path("facts").get(0)).put("evidenceId", "E4");
+        ((ObjectNode) payload.path("sentenceSources").get(0)).putArray("evidenceIds").add("E4");
+        when(client.search(anyString(), anyString())).thenReturn(response(payload));
+
+        var result = service.enrich(place);
+        assertThat(result.facts().getFirst().sourceId()).isEqualTo("S2");
+        assertThat(result.sentenceSources().getFirst().sourceIds()).containsExactly("S2");
+        assertThat(result.groundingMetadata().path("descriptiveSourceIds").toString())
+                .isEqualTo("[\"S1\",\"S2\"]");
+        verify(client).search(anyString(), argThat(json -> {
+            try { return mapper.readTree(json).path("evidenceCatalog").path("E4").path("descriptiveAllowed").asBoolean(); }
+            catch (Exception exception) { return false; }
+        }));
     }
 
     private void assertInvalid(ObjectNode payload) throws Exception {
