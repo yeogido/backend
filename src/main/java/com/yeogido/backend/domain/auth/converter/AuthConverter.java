@@ -17,7 +17,8 @@ public class AuthConverter {
       token.refreshToken(),
       null,
       null,
-      null
+      null,
+      token.termsAgreementRequired()
     );
   }
 
@@ -33,7 +34,8 @@ public class AuthConverter {
       null,
       temporaryToken,
       socialUserInfo.email(),
-      socialUserInfo.name()
+      socialUserInfo.name(),
+      true
     );
   }
 }
