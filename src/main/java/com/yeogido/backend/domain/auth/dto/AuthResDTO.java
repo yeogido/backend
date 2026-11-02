@@ -23,7 +23,10 @@ public class AuthResDTO {
     String accessToken,
 
     @Schema(description = "리프레시 토큰", example = "eyJhbGciOiJIUzI1NiJ9.xyz...")
-    String refreshToken
+    String refreshToken,
+
+    @Schema(description = "현재 필수 약관 동의 필요 여부. true이면 약관 화면으로 이동합니다.")
+    boolean termsAgreementRequired
   ) {}
 
   @Schema(name = "AuthSocialLoginRes", description = "소셜 로그인 응답")
@@ -50,7 +53,10 @@ public class AuthResDTO {
     String email,
 
     @Schema(description = "소셜 Provider에서 조회한 이름. 신규 소셜 사용자일 때 반환", example = "홍길동")
-    String name
+    String name,
+
+    @Schema(description = "필수 약관 동의 필요 여부. 신규 회원은 추가 프로필 작성 시 동의합니다.")
+    boolean termsAgreementRequired
   ) {}
 
   @Schema(name = "AuthEmailCheckRes", description = "이메일 중복 확인 응답")

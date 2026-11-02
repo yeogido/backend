@@ -7,6 +7,7 @@ import com.yeogido.backend.domain.auth.dto.AuthResDTO;
 import com.yeogido.backend.domain.auth.exception.AuthErrorCode;
 import com.yeogido.backend.domain.auth.security.AuthUser;
 import com.yeogido.backend.domain.user.entity.User;
+import com.yeogido.backend.domain.terms.TermsService;
 import com.yeogido.backend.domain.user.enums.UserRole;
 import com.yeogido.backend.global.exception.GeneralErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
@@ -30,6 +31,7 @@ public class JwtTokenProvider {
   private static final String TOKEN_TYPE_REFRESH = "REFRESH";
 
   private final ObjectMapper objectMapper;
+  private final TermsService termsService;
 
   @Value("${app.jwt.secret}")
   private String jwtSecret;
@@ -49,7 +51,8 @@ public class JwtTokenProvider {
       user.getId(),
       user.getRole(),
       issueAccessToken(user, sessionId),
-      issueRefreshToken(user, sessionId)
+      issueRefreshToken(user, sessionId),
+      termsService.isAgreementRequired(user.getId())
     );
   }
 

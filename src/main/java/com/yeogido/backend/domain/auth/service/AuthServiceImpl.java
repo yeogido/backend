@@ -23,6 +23,7 @@ import com.yeogido.backend.domain.user.enums.UserRole;
 import com.yeogido.backend.domain.user.enums.UserStatus;
 import com.yeogido.backend.domain.user.exception.UserErrorCode;
 import com.yeogido.backend.domain.user.repository.UserRepository;
+import com.yeogido.backend.domain.terms.TermsService;
 import com.yeogido.backend.global.exception.GeneralErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
 import lombok.RequiredArgsConstructor;
@@ -50,11 +51,13 @@ public class AuthServiceImpl implements AuthService {
   private final PasswordResetCodeService passwordResetCodeService;
   private final EmailVerificationService emailVerificationService;
   private final MailService mailService;
+  private final TermsService termsService;
   private final FriendCodeGenerator friendCodeGenerator;
 
   @Override
   @Transactional
   public AuthResDTO.SignUp signUp(AuthReqDTO.SignUp request) {
+    var agreedDocuments = termsService.validate(request.agreements());
     validateEmailAvailable(request.email());
 
     emailVerificationService.verifyToken(request.email(), request.emailVerificationToken());
@@ -84,6 +87,7 @@ public class AuthServiceImpl implements AuthService {
       throw new GeneralException(GeneralErrorCode.INTERNAL_SERVER_ERROR);
     }
 
+    termsService.record(user, agreedDocuments);
     emailVerificationService.deleteToken(request.emailVerificationToken());
 
     return new AuthResDTO.SignUp(user.getId());
@@ -159,6 +163,7 @@ public class AuthServiceImpl implements AuthService {
   @Override
   @Transactional
   public AuthResDTO.Token completeSocialSignup(AuthReqDTO.SocialSignupComplete request) {
+    var agreedDocuments = termsService.validate(request.agreements());
     SocialSignupTokenPayload payload = socialSignupTokenService.getPayload(request.temporaryToken());
 
     if (socialAccountRepository.existsByProviderAndProviderId(payload.provider(), payload.providerId())) {
@@ -191,6 +196,7 @@ public class AuthServiceImpl implements AuthService {
       .providerId(payload.providerId())
       .build());
 
+    termsService.record(user, agreedDocuments);
     socialSignupTokenService.deleteToken(request.temporaryToken());
 
     return issueAndSaveToken(user);

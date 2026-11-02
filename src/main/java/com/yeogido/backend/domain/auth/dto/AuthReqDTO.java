@@ -1,6 +1,7 @@
 package com.yeogido.backend.domain.auth.dto;
 
 import com.yeogido.backend.domain.auth.enums.SocialProvider;
+import com.yeogido.backend.domain.terms.TermsDTO;
 import com.yeogido.backend.domain.user.enums.Gender;
 import com.yeogido.backend.global.validation.ValidBirthYear;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -9,6 +10,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
+import java.util.List;
 
 public class AuthReqDTO {
 
@@ -47,7 +49,10 @@ public class AuthReqDTO {
     @Schema(description = "지역 ID", example = "1")
     @NotNull(message = "지역 ID는 필수 입력값입니다.")
     @Positive(message = "지역 ID는 양수여야 합니다.")
-    Long regionId
+    Long regionId,
+
+    @Schema(description = "현재 SERVICE, PRIVACY 약관의 버전과 명시적 동의. 둘 다 필수입니다.", requiredMode = Schema.RequiredMode.REQUIRED)
+    List<TermsDTO.Agreement> agreements
   ) {}
 
   @Schema(name = "AuthLoginReq", description = "이메일 로그인 요청")
@@ -99,7 +104,10 @@ public class AuthReqDTO {
 
     @Schema(description = "지역 ID", example = "1")
     @NotNull(message = "지역 ID는 필수 입력값입니다.")
-    Long regionId
+    Long regionId,
+
+    @Schema(description = "현재 SERVICE, PRIVACY 약관의 버전과 명시적 동의. 둘 다 필수입니다.", requiredMode = Schema.RequiredMode.REQUIRED)
+    List<TermsDTO.Agreement> agreements
   ) {}
 
   @Schema(name = "AuthReissueReq", description = "토큰 재발급 요청")
