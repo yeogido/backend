@@ -1,12 +1,15 @@
 package com.yeogido.backend.domain.placeenrichment.service;
 
 import com.yeogido.backend.domain.place.entity.Place;
+import com.yeogido.backend.domain.place.enums.PlaceOverviewStatus;
 import com.yeogido.backend.domain.place.exception.PlaceErrorCode;
 import com.yeogido.backend.domain.place.repository.PlaceRepository;
 import com.yeogido.backend.domain.placeenrichment.dto.request.TourPlaceRequest;
 import com.yeogido.backend.domain.placeenrichment.enums.PlaceOverviewSource;
 import com.yeogido.backend.global.exception.GeneralException;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
+import java.util.Objects;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
@@ -47,7 +50,8 @@ public class PlaceOverviewEnrichmentServiceImpl implements PlaceOverviewEnrichme
     Place place = transactionTemplate.execute(status -> {
       Place found = placeRepository.findByIdForOverviewEnrichment(placeId)
           .orElseThrow(() -> new GeneralException(PlaceErrorCode.PLACE_NOT_FOUND));
-      LocalDateTime now = LocalDateTime.now();
+      // DB DATETIME(6) 정밀도와 시도 식별 시각 일치
+      LocalDateTime now = LocalDateTime.now().truncatedTo(ChronoUnit.MICROS);
       if (StringUtils.hasText(found.getOverview()) || !found.canStartOverviewEnrichment(now)) {
         return null;
       }
@@ -62,7 +66,10 @@ public class PlaceOverviewEnrichmentServiceImpl implements PlaceOverviewEnrichme
     try {
       Overview result = lookup(place);
       transactionTemplate.executeWithoutResult(status -> {
-        Place found = findPlace(placeId);
+        Place found = findCurrentAttempt(placeId, place.getOverviewAttemptedAt());
+        if (found == null) {
+          return;
+        }
         if (result == null) {
           found.markNoOverview();
         } else {
@@ -72,8 +79,12 @@ public class PlaceOverviewEnrichmentServiceImpl implements PlaceOverviewEnrichme
     } catch (RuntimeException failure) {
       // 조회 또는 결과 커밋 실패 후 별도 트랜잭션으로 재시도 가능한 상태 기록
       try {
-        transactionTemplate.executeWithoutResult(status ->
-            findPlace(placeId).failOverviewEnrichment());
+        transactionTemplate.executeWithoutResult(status -> {
+          Place found = findCurrentAttempt(placeId, place.getOverviewAttemptedAt());
+          if (found != null) {
+            found.failOverviewEnrichment();
+          }
+        });
       } catch (RuntimeException persistenceFailure) {
         failure.addSuppressed(persistenceFailure);
       }
@@ -97,9 +108,12 @@ public class PlaceOverviewEnrichmentServiceImpl implements PlaceOverviewEnrichme
     return null;
   }
 
-  private Place findPlace(Long id) {
-    return placeRepository.findById(id)
+  private Place findCurrentAttempt(Long id, LocalDateTime attemptedAt) {
+    Place found = placeRepository.findByIdForOverviewEnrichment(id)
         .orElseThrow(() -> new GeneralException(PlaceErrorCode.PLACE_NOT_FOUND));
+    // 장소 수정 또는 후속 시도로 대체된 이전 조회 결과의 반영 방지
+    return found.getOverviewStatus() == PlaceOverviewStatus.PROCESSING
+        && Objects.equals(found.getOverviewAttemptedAt(), attemptedAt) ? found : null;
   }
 
   private record Overview(String text, PlaceOverviewSource source) { }

@@ -10,6 +10,7 @@ import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Objects;
 
 @Entity
 @Getter
@@ -122,12 +123,27 @@ public class Place extends BaseEntity {
       BigDecimal latitude,
       BigDecimal longitude
   ) {
+    if (!Objects.equals(this.name, name)
+        || !Objects.equals(this.roadAddress, roadAddress)
+        || !Objects.equals(this.lotAddress, lotAddress)
+        || !sameCoordinate(this.latitude, latitude)
+        || !sameCoordinate(this.longitude, longitude)) {
+      this.overview = null;
+      this.overviewSource = null;
+      this.overviewStatus = PlaceOverviewStatus.PENDING;
+      this.overviewAttemptedAt = null;
+      this.overviewAttemptCount = 0;
+    }
     this.region = region;
     this.name = name;
     this.roadAddress = roadAddress;
     this.lotAddress = lotAddress;
     this.latitude = latitude;
     this.longitude = longitude;
+  }
+
+  private static boolean sameCoordinate(BigDecimal current, BigDecimal updated) {
+    return current == null ? updated == null : updated != null && current.compareTo(updated) == 0;
   }
 
 }

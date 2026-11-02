@@ -31,6 +31,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.*;
+import java.math.BigDecimal;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -109,6 +110,8 @@ public class PlaceServiceImpl implements PlaceService {
     public Place getOrCreatePlace(CourseReqDTO.CourseItemCreateReq item, Map<String, Place> placeMap) {
         Place place = placeMap.get(item.externalPlaceId());
         if (place != null) {
+            updatePlace(place, item.name(), item.roadAddress(), item.lotAddress(),
+                    item.latitude(), item.longitude());
             return place;
         }
 
@@ -133,7 +136,8 @@ public class PlaceServiceImpl implements PlaceService {
 
         if (optionalPlace.isPresent()) {
             Place place = optionalPlace.get();
-
+            updatePlace(place, request.name(), request.roadAddress(), request.lotAddress(),
+                    request.latitude(), request.longitude());
             return place;
         }
 
@@ -147,6 +151,20 @@ public class PlaceServiceImpl implements PlaceService {
         newPlace = placeRepository.save(newPlace);
 
         return newPlace;
+    }
+
+    private void updatePlace(Place place, String name, String roadAddress, String lotAddress,
+                             BigDecimal latitude, BigDecimal longitude) {
+        // 미전달 필드 유지 및 주소 변경 시 지역 재조회
+        String updatedRoadAddress = roadAddress == null ? place.getRoadAddress() : roadAddress;
+        String updatedLotAddress = lotAddress == null ? place.getLotAddress() : lotAddress;
+        Region region = Objects.equals(place.getRoadAddress(), updatedRoadAddress)
+                && Objects.equals(place.getLotAddress(), updatedLotAddress)
+                ? place.getRegion() : findRegionByAddress(updatedRoadAddress, updatedLotAddress);
+        place.updateTourData(region, name == null ? place.getName() : name,
+                updatedRoadAddress, updatedLotAddress,
+                latitude == null ? place.getLatitude() : latitude,
+                longitude == null ? place.getLongitude() : longitude);
     }
 
     private void validatePlaceLikeSource(

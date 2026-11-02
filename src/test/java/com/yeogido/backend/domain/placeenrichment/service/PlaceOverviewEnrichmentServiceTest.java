@@ -25,6 +25,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.context.annotation.Import;
@@ -238,6 +239,50 @@ class PlaceOverviewEnrichmentServiceTest {
     assertThatThrownBy(() -> service.enrich(placeId)).isInstanceOf(IllegalStateException.class);
     assertThat(places.findById(placeId).orElseThrow().getOverviewStatus())
         .isEqualTo(PlaceOverviewStatus.FAILED);
+  }
+
+  @Test
+  void staleOverviewCannotOverwriteNewAttemptAfterPlaceEdit() {
+    var calls = new java.util.concurrent.atomic.AtomicInteger();
+    when(tour.enrich(any())).thenAnswer(invocation -> {
+      if (calls.incrementAndGet() == 1) {
+        editPlace();
+        service.enrich(placeId);
+        return tourResult(TourPlaceMatchStatus.MATCHED, "이전 장소 설명");
+      }
+      return tourResult(TourPlaceMatchStatus.MATCHED, "수정된 장소 설명");
+    });
+    service.enrich(placeId);
+    var found = places.findById(placeId).orElseThrow();
+    assertThat(found.getOverview()).isEqualTo("수정된 장소 설명");
+    assertThat(found.getOverviewAttemptCount()).isEqualTo(1);
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  void staleSuccessOrFailureDoesNotOverrideEditedPendingPlace(boolean fails) {
+    when(tour.enrich(any())).thenAnswer(invocation -> {
+      editPlace();
+      if (fails) throw new IllegalStateException("이전 조회 실패");
+      return tourResult(TourPlaceMatchStatus.MATCHED, "이전 장소 설명");
+    });
+    if (fails) {
+      assertThatThrownBy(() -> service.enrich(placeId)).isInstanceOf(IllegalStateException.class);
+    } else {
+      service.enrich(placeId);
+    }
+    var found = places.findById(placeId).orElseThrow();
+    assertThat(found.getOverviewStatus()).isEqualTo(PlaceOverviewStatus.PENDING);
+    assertThat(found.getOverview()).isNull();
+    assertThat(found.getOverviewAttemptCount()).isZero();
+  }
+
+  private void editPlace() {
+    new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+      var place = places.findById(placeId).orElseThrow();
+      place.updateTourData(place.getRegion(), "수정된 장소", place.getRoadAddress(), place.getLotAddress(),
+          place.getLatitude(), place.getLongitude());
+    });
   }
 
   @Test
