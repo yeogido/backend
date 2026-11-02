@@ -124,10 +124,98 @@ class FriendshipRepositoryTest {
         assertThat(sent).containsExactly(toFirstOther);
     }
 
+    @Test
+    void findFriendsReturnsAcceptedActiveFriendsInBothDirectionsSortedByName() {
+        User me = persistUser("me", UserStatus.ACTIVE);
+        User sentByMe = persistUser("banana", UserStatus.ACTIVE);
+        User sentToMe = persistUser("apple", UserStatus.ACTIVE);
+        User pending = persistUser("pending", UserStatus.ACTIVE);
+        User withdrawn = persistUser("withdrawn", UserStatus.DELETED);
+        User stranger = persistUser("stranger", UserStatus.ACTIVE);
+        User strangersFriend = persistUser("strangers-friend", UserStatus.ACTIVE);
+
+        accept(me, sentByMe);
+        accept(sentToMe, me);
+        accept(withdrawn, me);
+        accept(stranger, strangersFriend);
+        friendshipRepository.save(Friendship.request(pending, me));
+        friendshipRepository.flush();
+
+        assertThat(findFriends(me, null, null, null, null)).containsExactly(sentToMe, sentByMe);
+    }
+
+    @Test
+    void findFriendsPagesByNameAndUserIdWhenNamesAreDuplicated() {
+        User me = persistUser("me", UserStatus.ACTIVE);
+        User firstSame = persistUser("same", "same1@example.com");
+        User secondSame = persistUser("same", "same2@example.com");
+        User after = persistUser("zebra", UserStatus.ACTIVE);
+        accept(me, firstSame);
+        accept(me, secondSame);
+        accept(me, after);
+        friendshipRepository.flush();
+
+        assertThat(findFriends(me, null, null, "same", firstSame.getId())).containsExactly(secondSame, after);
+        assertThat(findFriends(me, null, null, "same", secondSame.getId())).containsExactly(after);
+    }
+
+    @Test
+    void findFriendsMatchesNamePartiallyAndCodeByPrefixOnly() {
+        User me = persistUser("me", UserStatus.ACTIVE);
+        User named = persistUser("Travel-Mate", UserStatus.ACTIVE);
+        User coded = persistUser("other", UserStatus.ACTIVE);
+        accept(me, named);
+        accept(me, coded);
+        friendshipRepository.flush();
+        String code = coded.getFriendCode();
+
+        assertThat(findFriends(me, "%el-m%", "EL-M%", null, null)).containsExactly(named);
+        assertThat(findFriends(me, "%" + code.toLowerCase() + "%", code + "%", null, null)).contains(coded);
+        assertThat(findFriends(me, "%no-such-name%", code.substring(0, 4) + "%", null, null))
+                .containsExactly(coded);
+        assertThat(findFriends(me, "%no-such-name%", code.substring(1) + "%", null, null)).isEmpty();
+    }
+
+    @Test
+    void findFriendsTreatsEscapedWildcardsAsLiterals() {
+        User me = persistUser("me", UserStatus.ACTIVE);
+        User percent = persistUser("100%_real", UserStatus.ACTIVE);
+        User plain = persistUser("100xyreal", UserStatus.ACTIVE);
+        accept(me, percent);
+        accept(me, plain);
+        friendshipRepository.flush();
+
+        assertThat(findFriends(me, "%!%%", "!%%", null, null)).containsExactly(percent);
+        assertThat(findFriends(me, "%!_%", "!_%", null, null)).containsExactly(percent);
+    }
+
+    private List<User> findFriends(
+            User user,
+            String namePattern,
+            String codePattern,
+            String cursorNickname,
+            Long cursorId
+    ) {
+        return friendshipRepository.findFriends(
+                user.getId(), namePattern, codePattern, cursorNickname, cursorId, PageRequest.of(0, 10));
+    }
+
+    private void accept(User requester, User receiver) {
+        friendshipRepository.save(Friendship.request(requester, receiver)).accept();
+    }
+
+    private User persistUser(String name, String email) {
+        return persistUser(name, email, UserStatus.ACTIVE);
+    }
+
     private User persistUser(String name, UserStatus status) {
+        return persistUser(name, name + "@example.com", status);
+    }
+
+    private User persistUser(String name, String email, UserStatus status) {
         return entityManager.persistFlushFind(User.builder()
                 .nickname(name)
-                .email(name + "@example.com")
+                .email(email)
                 .gender(Gender.MALE)
                 .birthYear("1990")
                 .region(region)

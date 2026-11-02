@@ -2,6 +2,7 @@ package com.yeogido.backend.domain.friend.repository;
 
 import com.yeogido.backend.domain.friend.entity.Friendship;
 import com.yeogido.backend.domain.friend.enums.FriendshipStatus;
+import com.yeogido.backend.domain.user.entity.User;
 import jakarta.persistence.LockModeType;
 import java.util.List;
 import java.util.Optional;
@@ -56,6 +57,32 @@ public interface FriendshipRepository extends JpaRepository<Friendship, Long> {
         """)
     List<Friendship> findPendingSent(
             @Param("requesterId") Long requesterId,
+            @Param("cursorId") Long cursorId,
+            Pageable pageable
+    );
+
+    // 수락한 친구를 이름순으로 조회. 탈퇴·비활성 사용자는 제외하고, 같은 이름은 사용자 ID 순으로 구분
+    @Query("""
+        select friend
+        from Friendship friendship
+        join User friend
+          on (friendship.requester.id = :userId and friend.id = friendship.receiver.id)
+          or (friendship.receiver.id = :userId and friend.id = friendship.requester.id)
+        where friendship.status = com.yeogido.backend.domain.friend.enums.FriendshipStatus.ACCEPTED
+          and friend.status = com.yeogido.backend.domain.user.enums.UserStatus.ACTIVE
+          and (:namePattern is null
+               or lower(friend.nickname) like :namePattern escape '!'
+               or friend.friendCode like :codePattern escape '!')
+          and (:cursorNickname is null
+               or friend.nickname > :cursorNickname
+               or (friend.nickname = :cursorNickname and friend.id > :cursorId))
+        order by friend.nickname asc, friend.id asc
+        """)
+    List<User> findFriends(
+            @Param("userId") Long userId,
+            @Param("namePattern") String namePattern,
+            @Param("codePattern") String codePattern,
+            @Param("cursorNickname") String cursorNickname,
             @Param("cursorId") Long cursorId,
             Pageable pageable
     );

@@ -1,5 +1,9 @@
 package com.yeogido.backend.domain.friend.service;
 
+import com.yeogido.backend.domain.course.dto.response.CourseResDTO;
+import com.yeogido.backend.domain.course.entity.Course;
+import com.yeogido.backend.domain.course.repository.CourseHashtagRepository;
+import com.yeogido.backend.domain.course.repository.CourseLikeRepository;
 import com.yeogido.backend.domain.file.service.S3Service;
 import com.yeogido.backend.domain.friend.converter.FriendConverter;
 import com.yeogido.backend.domain.friend.dto.FriendReqDTO;
@@ -8,17 +12,23 @@ import com.yeogido.backend.domain.friend.entity.Friendship;
 import com.yeogido.backend.domain.friend.enums.FriendshipStatus;
 import com.yeogido.backend.domain.friend.enums.RelationStatus;
 import com.yeogido.backend.domain.friend.exception.FriendErrorCode;
+import com.yeogido.backend.domain.friend.repository.FriendCourseRepository;
 import com.yeogido.backend.domain.friend.repository.FriendshipRepository;
 import com.yeogido.backend.domain.user.entity.User;
+import com.yeogido.backend.domain.user.enums.UserRole;
 import com.yeogido.backend.domain.user.enums.UserStatus;
 import com.yeogido.backend.domain.user.exception.UserErrorCode;
 import com.yeogido.backend.domain.user.repository.UserRepository;
 import com.yeogido.backend.global.common.response.CursorResponse;
 import com.yeogido.backend.global.exception.GeneralErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
@@ -33,6 +43,9 @@ public class FriendServiceImpl implements FriendService {
 
     private final UserRepository userRepository;
     private final FriendshipRepository friendshipRepository;
+    private final FriendCourseRepository friendCourseRepository;
+    private final CourseHashtagRepository courseHashtagRepository;
+    private final CourseLikeRepository courseLikeRepository;
     private final S3Service s3Service;
 
     @Override
@@ -183,6 +196,102 @@ public class FriendServiceImpl implements FriendService {
 
     @Override
     @Transactional(readOnly = true)
+    public CursorResponse<FriendResDTO.UserSummary> getFriends(
+            Long userId,
+            String keyword,
+            String cursorNickname,
+            Long cursorId,
+            Integer size
+    ) {
+        validateSize(size);
+        if ((cursorNickname == null) != (cursorId == null)) {
+            throw new GeneralException(GeneralErrorCode.INVALID_PARAMETER);
+        }
+
+        String trimmedKeyword = keyword == null ? "" : keyword.trim();
+        String namePattern = null;
+        String codePattern = null;
+        if (!trimmedKeyword.isEmpty()) {
+            String escapedKeyword = escapeLike(trimmedKeyword);
+            namePattern = "%" + escapedKeyword.toLowerCase(Locale.ROOT) + "%";
+            codePattern = escapedKeyword.toUpperCase(Locale.ROOT) + "%";
+        }
+
+        List<User> friends = friendshipRepository.findFriends(
+                userId,
+                namePattern,
+                codePattern,
+                cursorNickname,
+                cursorId,
+                PageRequest.of(0, size + 1)
+        );
+
+        boolean hasNext = friends.size() > size;
+        List<User> pageItems = hasNext ? friends.subList(0, size) : friends;
+        User last = hasNext ? pageItems.get(pageItems.size() - 1) : null;
+
+        return CursorResponse.of(
+                pageItems.stream().map(this::toUserSummary).toList(),
+                last == null ? null : last.getNickname(),
+                last == null ? null : last.getId(),
+                hasNext
+        );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public FriendResDTO.FriendProfile getFriendProfile(Long userId, Long friendUserId) {
+        User friend = getFriend(userId, friendUserId);
+
+        return FriendConverter.toFriendProfile(friend, s3Service.getImageUrl(friend.getProfileImage()));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public CursorResponse<CourseResDTO.CoursePreview> getFriendLocalCourses(
+            Long userId,
+            Long friendUserId,
+            Long cursorId,
+            Integer size
+    ) {
+        validateSize(size);
+        getFriend(userId, friendUserId);
+        // 작성자는 친구라 본인일 수 없으므로 관리자만 코스를 관리할 수 있음
+        boolean canManage = getUser(userId).getRole() == UserRole.ADMIN;
+
+        List<Course> courses = friendCourseRepository.findLocalCourses(
+                friendUserId,
+                cursorId,
+                PageRequest.of(0, size + 1)
+        );
+
+        boolean hasNext = courses.size() > size;
+        List<Course> pageItems = hasNext ? courses.subList(0, size) : courses;
+        List<Long> courseIds = pageItems.stream().map(Course::getId).toList();
+        Map<Long, List<String>> tagsByCourseId = getCourseTags(courseIds);
+        Set<Long> likedCourseIds = getLikedCourseIds(userId, courseIds);
+
+        List<CourseResDTO.CoursePreview> items = pageItems.stream()
+                .map(course -> FriendConverter.toCoursePreview(
+                        course,
+                        s3Service.getImageUrl(course.getThumbnailKey()),
+                        s3Service.getImageUrl(course.getRouteImageKey()),
+                        tagsByCourseId.getOrDefault(course.getId(), List.of()),
+                        likedCourseIds.contains(course.getId()),
+                        canManage
+                ))
+                .toList();
+
+        return CursorResponse.of(
+                items,
+                null,
+                hasNext ? courseIds.get(courseIds.size() - 1) : null,
+                hasNext
+        );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public boolean areFriends(Long userIdA, Long userIdB) {
         if (userIdA == null || userIdB == null || userIdA.equals(userIdB)) {
             return false;
@@ -198,6 +307,46 @@ public class FriendServiceImpl implements FriendService {
     private User getUser(Long userId) {
         return userRepository.findById(userId)
                 .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
+    }
+
+    // 친구가 아니거나 탈퇴·비활성 사용자면 친구가 아닌 것으로 처리
+    private User getFriend(Long userId, Long friendUserId) {
+        if (!areFriends(userId, friendUserId)) {
+            throw new GeneralException(FriendErrorCode.NOT_FRIEND);
+        }
+
+        return userRepository.findById(friendUserId)
+                .filter(friend -> friend.getStatus() == UserStatus.ACTIVE)
+                .orElseThrow(() -> new GeneralException(FriendErrorCode.NOT_FRIEND));
+    }
+
+    private Map<Long, List<String>> getCourseTags(List<Long> courseIds) {
+        if (courseIds.isEmpty()) {
+            return Map.of();
+        }
+
+        return courseHashtagRepository.findHashtagNamesByCourseIdIn(courseIds)
+                .stream()
+                .collect(Collectors.groupingBy(
+                        CourseHashtagRepository.CourseHashtagNameProjection::getCourseId,
+                        Collectors.mapping(
+                                CourseHashtagRepository.CourseHashtagNameProjection::getHashtagName,
+                                Collectors.toList()
+                        )
+                ));
+    }
+
+    private Set<Long> getLikedCourseIds(Long userId, List<Long> courseIds) {
+        if (courseIds.isEmpty()) {
+            return Set.of();
+        }
+
+        return new HashSet<>(courseLikeRepository.findLikedCourseIdsByUserIdAndCourseIdIn(userId, courseIds));
+    }
+
+    // LIKE 특수문자를 일반 문자로 검색하도록 처리 (쿼리의 escape '!'와 짝)
+    private String escapeLike(String keyword) {
+        return keyword.replace("!", "!!").replace("%", "!%").replace("_", "!_");
     }
 
     // 탈퇴·비활성 사용자의 코드는 존재하지 않는 코드로 처리

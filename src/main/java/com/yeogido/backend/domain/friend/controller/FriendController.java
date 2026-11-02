@@ -1,6 +1,7 @@
 package com.yeogido.backend.domain.friend.controller;
 
 import com.yeogido.backend.domain.auth.security.AuthUser;
+import com.yeogido.backend.domain.course.dto.response.CourseResDTO;
 import com.yeogido.backend.domain.friend.dto.FriendReqDTO;
 import com.yeogido.backend.domain.friend.dto.FriendResDTO;
 import com.yeogido.backend.domain.friend.service.FriendService;
@@ -29,6 +30,43 @@ import org.springframework.web.bind.annotation.RestController;
 public class FriendController {
 
     private final FriendService friendService;
+
+    @Operation(summary = "친구 목록 조회 API", description = "수락된 친구를 이름순으로 조회합니다. keyword로 내 친구 안에서 이름(부분 일치) 또는 친구코드(앞부분 일치)를 검색합니다.")
+    @GetMapping
+    public ApiResponse<CursorResponse<FriendResDTO.UserSummary>> getFriends(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String cursorNickname,
+            @RequestParam(required = false) Long cursorId,
+            @RequestParam(defaultValue = "10") Integer size,
+            @AuthenticationPrincipal AuthUser authUser
+    ) {
+        CursorResponse<FriendResDTO.UserSummary> response =
+                friendService.getFriends(authUser.userId(), keyword, cursorNickname, cursorId, size);
+        return ApiResponse.onSuccess(SuccessCode.OK, response);
+    }
+
+    @Operation(summary = "친구 프로필 조회 API", description = "친구의 기본 정보를 조회합니다.")
+    @GetMapping("/{friendUserId}")
+    public ApiResponse<FriendResDTO.FriendProfile> getFriendProfile(
+            @PathVariable Long friendUserId,
+            @AuthenticationPrincipal AuthUser authUser
+    ) {
+        FriendResDTO.FriendProfile response = friendService.getFriendProfile(authUser.userId(), friendUserId);
+        return ApiResponse.onSuccess(SuccessCode.OK, response);
+    }
+
+    @Operation(summary = "친구의 우리동네 추천 코스 조회 API", description = "친구가 작성한 우리동네 추천 코스를 최신순으로 조회합니다.")
+    @GetMapping("/{friendUserId}/courses/local")
+    public ApiResponse<CursorResponse<CourseResDTO.CoursePreview>> getFriendLocalCourses(
+            @PathVariable Long friendUserId,
+            @RequestParam(required = false) Long cursorId,
+            @RequestParam(defaultValue = "10") Integer size,
+            @AuthenticationPrincipal AuthUser authUser
+    ) {
+        CursorResponse<CourseResDTO.CoursePreview> response =
+                friendService.getFriendLocalCourses(authUser.userId(), friendUserId, cursorId, size);
+        return ApiResponse.onSuccess(SuccessCode.OK, response);
+    }
 
     @Operation(summary = "내 친구코드 조회 API", description = "프로필 QR 모달에 표시할 내 친구코드와 QR 딥링크를 조회합니다.")
     @GetMapping("/me/code")
