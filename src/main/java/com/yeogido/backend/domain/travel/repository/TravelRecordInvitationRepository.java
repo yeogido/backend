@@ -4,7 +4,8 @@ import com.yeogido.backend.domain.travel.entity.TravelRecordInvitation;
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 
-public interface TravelRecordInvitationRepository extends JpaRepository<TravelRecordInvitation, Long> {
+public interface TravelRecordInvitationRepository extends JpaRepository<TravelRecordInvitation, Long>,
+        TravelRecordInvitationQueryRepository {
 
     List<TravelRecordInvitation> findByTravelRecordIdAndInviteeIdIn(Long travelRecordId, List<Long> inviteeIds);
 }
