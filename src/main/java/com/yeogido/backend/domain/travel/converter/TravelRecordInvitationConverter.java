@@ -12,6 +12,11 @@ public class TravelRecordInvitationConverter {
     private TravelRecordInvitationConverter() {
     }
 
+    public static TravelRecordInvitationResDTO.RespondResponse toRespondResponse(TravelRecordInvitation invitation) {
+        return new TravelRecordInvitationResDTO.RespondResponse(invitation.getId(),
+                invitation.getTravelRecord().getId(), invitation.getStatus());
+    }
+
     public static TravelRecordInvitationResDTO.ReceivedInvitation toReceivedInvitation(
             TravelRecordInvitation invitation, Function<String, String> imageUrlResolver
     ) {

@@ -63,6 +63,18 @@ public enum TravelRecordErrorCode implements ErrorCode {
             "초대 대상 정보가 올바르지 않습니다."
     ),
 
+    INVITATION_NOT_FOUND(
+            HttpStatus.NOT_FOUND,
+            "TRAVEL_RECORD4042",
+            "공유 앨범 초대를 찾을 수 없습니다."
+    ),
+
+    INVITATION_ALREADY_PROCESSED(
+            HttpStatus.CONFLICT,
+            "TRAVEL_RECORD4094",
+            "이미 처리된 초대입니다."
+    ),
+
     INVITATION_ALREADY_PENDING(
             HttpStatus.CONFLICT,
             "TRAVEL_RECORD4092",

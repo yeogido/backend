@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.yeogido.backend.domain.auth.security.AuthUser;
+import com.yeogido.backend.domain.friend.entity.Friendship;
 import com.yeogido.backend.domain.file.service.FileService;
 import com.yeogido.backend.domain.file.service.S3Service;
 import com.yeogido.backend.domain.region.entity.Region;
@@ -68,6 +69,8 @@ class TravelRecordInvitationListIntegrationTest {
     private User inviter;
     private User receiver;
     private User outsider;
+    private Friendship receiverFriendship;
+    private Friendship outsiderFriendship;
     private final LocalDateTime timestamp = LocalDateTime.of(2026, 10, 1, 10, 0);
 
     @BeforeEach
@@ -78,6 +81,12 @@ class TravelRecordInvitationListIntegrationTest {
         inviter = user("초대한 친구", "profile/inviter.jpg");
         receiver = user("받은 사람", null);
         outsider = user("외부인", null);
+        receiverFriendship = Friendship.request(inviter, receiver);
+        receiverFriendship.accept();
+        em.persist(receiverFriendship);
+        outsiderFriendship = Friendship.request(inviter, outsider);
+        outsiderFriendship.accept();
+        em.persist(outsiderFriendship);
         when(s3Service.getImageUrl(anyString())).thenAnswer(call -> "https://example.com/" + call.getArgument(0));
     }
 
@@ -251,7 +260,9 @@ class TravelRecordInvitationListIntegrationTest {
                 .visibility(TravelRecordVisibility.FRIENDS).build();
         em.persist(album);
         var invitation = TravelRecordInvitation.builder().travelRecord(album).inviter(inviter)
-                .invitee(recipient).status(status).build();
+                .invitee(recipient).status(status)
+                .friendship(status == TravelRecordInvitationStatus.PENDING
+                        ? (recipient == receiver ? receiverFriendship : outsiderFriendship) : null).build();
         em.persist(invitation);
         em.flush();
         em.createQuery("update TravelRecordInvitation i set i.createdAt = :time where i.id = :id")
