@@ -1,5 +1,6 @@
-package com.yeogido.backend.domain.terms;
+package com.yeogido.backend.domain.terms.entity;
 
+import com.yeogido.backend.domain.terms.enums.TermsType;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import lombok.*;

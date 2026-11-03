@@ -1,5 +1,14 @@
-package com.yeogido.backend.domain.terms;
+package com.yeogido.backend.domain.terms.service;
 
+import com.yeogido.backend.domain.terms.converter.TermsConverter;
+import com.yeogido.backend.domain.terms.dto.TermsReqDTO;
+import com.yeogido.backend.domain.terms.dto.TermsResDTO;
+import com.yeogido.backend.domain.terms.entity.TermsDocument;
+import com.yeogido.backend.domain.terms.entity.UserTermsAgreement;
+import com.yeogido.backend.domain.terms.enums.TermsType;
+import com.yeogido.backend.domain.terms.exception.TermsErrorCode;
+import com.yeogido.backend.domain.terms.repository.TermsDocumentRepository;
+import com.yeogido.backend.domain.terms.repository.UserTermsAgreementRepository;
 import com.yeogido.backend.domain.user.entity.User;
 import com.yeogido.backend.domain.user.enums.UserStatus;
 import com.yeogido.backend.domain.user.exception.UserErrorCode;
@@ -17,21 +26,23 @@ import org.springframework.util.StringUtils;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
-public class TermsService {
+public class TermsServiceImpl implements TermsService {
   private final TermsDocumentRepository documents;
   private final UserTermsAgreementRepository agreements;
   private final UserRepository users;
 
-  public List<TermsDTO.Document> currentDocuments() {
-    return current().stream().map(TermsDTO.Document::from).toList();
+  @Override
+  public List<TermsResDTO.Document> currentDocuments() {
+    return current().stream().map(TermsConverter::toDocument).toList();
   }
 
   // Return the validated snapshot so signup persists exactly the versions it validated.
-  public List<TermsDocument> validate(List<TermsDTO.Agreement> requested) {
+  @Override
+  public List<TermsDocument> validate(List<TermsReqDTO.Agreement> requested) {
     if (requested == null || requested.size() != TermsType.values().length) {
       throw new GeneralException(TermsErrorCode.REQUIRED_AGREEMENT);
     }
-    var byType = new EnumMap<TermsType, TermsDTO.Agreement>(TermsType.class);
+    var byType = new EnumMap<TermsType, TermsReqDTO.Agreement>(TermsType.class);
     for (var item : requested) {
       if (item == null || item.type() == null || !Boolean.TRUE.equals(item.agreed())
           || !StringUtils.hasText(item.version()) || byType.put(item.type(), item) != null) {
@@ -47,6 +58,7 @@ public class TermsService {
     return current;
   }
 
+  @Override
   @Transactional
   public void record(User user, List<TermsDocument> validated) {
     var now = LocalDateTime.now();
@@ -57,8 +69,9 @@ public class TermsService {
     }
   }
 
+  @Override
   @Transactional
-  public TermsDTO.Status agree(Long userId, List<TermsDTO.Agreement> requested) {
+  public TermsResDTO.Status agree(Long userId, List<TermsReqDTO.Agreement> requested) {
     // Serializes retries for the same account without changing the original agreement time.
     var user = users.findByIdForTermsAgreement(userId)
       .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
@@ -72,15 +85,17 @@ public class TermsService {
     return status(userId);
   }
 
-  public TermsDTO.Status status(Long userId) {
+  @Override
+  public TermsResDTO.Status status(Long userId) {
     var states = current().stream().map(document -> {
       var agreement = agreements.findByUserIdAndDocumentId(userId, document.getId());
-      return new TermsDTO.AgreementState(document.getType(), document.getVersion(), agreement.isPresent(),
+      return new TermsResDTO.AgreementState(document.getType(), document.getVersion(), agreement.isPresent(),
         agreement.map(UserTermsAgreement::getAgreedAt).orElse(null));
     }).toList();
-    return new TermsDTO.Status(states.stream().anyMatch(state -> !state.agreed()), states);
+    return new TermsResDTO.Status(states.stream().anyMatch(state -> !state.agreed()), states);
   }
 
+  @Override
   public boolean isAgreementRequired(Long userId) {
     // Existing members can still log in when operational documents have not yet been published.
     try {

@@ -1,4 +1,4 @@
-package com.yeogido.backend.domain.terms;
+package com.yeogido.backend.domain.terms.exception;
 
 import com.yeogido.backend.global.exception.ErrorCode;
 import lombok.Getter;

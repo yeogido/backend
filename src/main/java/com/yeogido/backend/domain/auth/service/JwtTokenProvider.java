@@ -3,11 +3,10 @@ package com.yeogido.backend.domain.auth.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.yeogido.backend.domain.auth.dto.AuthResDTO;
+import com.yeogido.backend.domain.auth.dto.IssuedTokens;
 import com.yeogido.backend.domain.auth.exception.AuthErrorCode;
 import com.yeogido.backend.domain.auth.security.AuthUser;
 import com.yeogido.backend.domain.user.entity.User;
-import com.yeogido.backend.domain.terms.TermsService;
 import com.yeogido.backend.domain.user.enums.UserRole;
 import com.yeogido.backend.global.exception.GeneralErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
@@ -31,7 +30,6 @@ public class JwtTokenProvider {
   private static final String TOKEN_TYPE_REFRESH = "REFRESH";
 
   private final ObjectMapper objectMapper;
-  private final TermsService termsService;
 
   @Value("${app.jwt.secret}")
   private String jwtSecret;
@@ -42,17 +40,14 @@ public class JwtTokenProvider {
   @Value("${app.jwt.refresh-token-expiration-days}")
   private long refreshTokenExpirationDays;
 
-  public AuthResDTO.Token issueToken(User user) {
+  public IssuedTokens issueToken(User user) {
     return issueToken(user, UUID.randomUUID().toString());
   }
 
-  public AuthResDTO.Token issueToken(User user, String sessionId) {
-    return new AuthResDTO.Token(
-      user.getId(),
-      user.getRole(),
+  public IssuedTokens issueToken(User user, String sessionId) {
+    return new IssuedTokens(
       issueAccessToken(user, sessionId),
-      issueRefreshToken(user, sessionId),
-      termsService.isAgreementRequired(user.getId())
+      issueRefreshToken(user, sessionId)
     );
   }
 

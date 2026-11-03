@@ -8,6 +8,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.yeogido.backend.domain.auth.security.AuthUser;
 import com.yeogido.backend.domain.auth.security.JwtAuthenticationFilter;
 import com.yeogido.backend.domain.auth.service.JwtTokenProvider;
+import com.yeogido.backend.domain.terms.controller.TermsController;
+import com.yeogido.backend.domain.terms.dto.TermsReqDTO;
+import com.yeogido.backend.domain.terms.dto.TermsResDTO;
+import com.yeogido.backend.domain.terms.enums.TermsType;
+import com.yeogido.backend.domain.terms.service.TermsService;
 import com.yeogido.backend.domain.user.enums.UserRole;
 import com.yeogido.backend.domain.user.repository.UserRepository;
 import com.yeogido.backend.global.config.SecurityConfig;
@@ -32,7 +37,7 @@ class TermsControllerTest {
 
   @Test
   void anonymousCanReadCurrentDocuments() throws Exception {
-    when(terms.currentDocuments()).thenReturn(List.of(new TermsDTO.Document(1L, TermsType.SERVICE,
+    when(terms.currentDocuments()).thenReturn(List.of(new TermsResDTO.Document(1L, TermsType.SERVICE,
       "1.0", "이용약관", "전문", true, LocalDateTime.of(2026, 11, 2, 0, 0))));
     mvc.perform(get("/api/v1/terms")).andExpect(status().isOk())
       .andExpect(jsonPath("$.result[0].content").value("전문"))
@@ -51,9 +56,9 @@ class TermsControllerTest {
   void consentUsesAuthenticatedUserAndRejectsMissingBodyFields() throws Exception {
     var principal = new UsernamePasswordAuthenticationToken(new AuthUser(7L, UserRole.USER, "session"),
       null, List.of());
-    var agreements = List.of(new TermsDTO.Agreement(TermsType.SERVICE, "1.0", true),
-      new TermsDTO.Agreement(TermsType.PRIVACY, "1.0", true));
-    when(terms.agree(7L, agreements)).thenReturn(new TermsDTO.Status(false, List.of()));
+    var agreements = List.of(new TermsReqDTO.Agreement(TermsType.SERVICE, "1.0", true),
+      new TermsReqDTO.Agreement(TermsType.PRIVACY, "1.0", true));
+    when(terms.agree(7L, agreements)).thenReturn(new TermsResDTO.Status(false, List.of()));
     mvc.perform(put("/api/v1/users/me/terms").with(authentication(principal))
       .contentType(MediaType.APPLICATION_JSON).content("""
         {"userId":99,"agreements":[

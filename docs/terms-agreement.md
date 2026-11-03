@@ -72,7 +72,9 @@
 
 ## 데이터와 운영
 
-`V40`은 `terms_document`와 `user_terms_agreement`만 생성한다. 승인되지 않은 약관 전문이나 기존 회원의 가짜 동의 기록은 삽입하지 않는다.
+`V43`은 `terms_document`와 `user_terms_agreement`만 생성한다. 승인되지 않은 약관 전문이나 기존 회원의 가짜 동의 기록은 삽입하지 않는다.
+
+리뷰 반영 과정에서 기존 `V40__create_terms_agreement.sql`을 `V43`으로 변경했다. develop의 `V40__create_friendship.sql` 및 장소 설명 PR의 `V41`·`V42`와 충돌을 피하기 위한 변경이다. `V41`·`V42`가 포함된 버전 이후에 배포해야 한다. 이미 이전 약관 V40을 적용한 개인 개발 DB는 별도로 이력을 확인해야 하며 운영 Flyway 이력을 임의로 변경하지 않는다.
 
 배포 전 운영팀이 확정한 두 약관을 DB에 등록해야 한다. 필드는 `type`, `version`, `title`, `content`, `effective_at`이다. 서버와 DB 운영 시간대에 맞춰 시행일을 입력한다. 각 종류에서 현재 시각 이전의 가장 최근 시행 버전을 선택한다.
 

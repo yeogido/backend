@@ -14,6 +14,15 @@ import com.yeogido.backend.domain.file.service.S3Service;
 import com.yeogido.backend.domain.friend.service.FriendCodeGenerator;
 import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.region.enums.RegionType;
+import com.yeogido.backend.domain.terms.dto.TermsReqDTO;
+import com.yeogido.backend.domain.terms.dto.TermsResDTO;
+import com.yeogido.backend.domain.terms.entity.TermsDocument;
+import com.yeogido.backend.domain.terms.enums.TermsType;
+import com.yeogido.backend.domain.terms.exception.TermsErrorCode;
+import com.yeogido.backend.domain.terms.repository.TermsDocumentRepository;
+import com.yeogido.backend.domain.terms.repository.UserTermsAgreementRepository;
+import com.yeogido.backend.domain.terms.service.TermsService;
+import com.yeogido.backend.domain.terms.service.TermsServiceImpl;
 import com.yeogido.backend.domain.user.entity.User;
 import com.yeogido.backend.domain.user.enums.*;
 import com.yeogido.backend.global.config.JpaConfig;
@@ -36,7 +45,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 @DataJpaTest
 @ActiveProfiles("test")
-@Import({JpaConfig.class, TermsService.class, AuthServiceImpl.class, JwtTokenProvider.class, ObjectMapper.class})
+@Import({JpaConfig.class, TermsServiceImpl.class, AuthServiceImpl.class, JwtTokenProvider.class, ObjectMapper.class})
 @TestPropertySource(properties = {
   "spring.jpa.properties.hibernate.globally_quoted_identifiers=true",
   "spring.jpa.properties.hibernate.globally_quoted_identifiers_skip_column_definitions=true",
@@ -72,7 +81,7 @@ class TermsIntegrationTest {
   @Test
   void publishedDocumentsOnlyAndMissingCatalogFailsClosed() {
     document(TermsType.SERVICE, "2.0", LocalDateTime.now().plusDays(1));
-    assertThat(terms.currentDocuments()).extracting(TermsDTO.Document::version).containsOnly("1.0");
+    assertThat(terms.currentDocuments()).extracting(TermsResDTO.Document::version).containsOnly("1.0");
     documents.deleteAll();
     assertThatThrownBy(terms::currentDocuments).isInstanceOfSatisfying(GeneralException.class,
       e -> assertThat(e.getErrorCode()).isEqualTo(TermsErrorCode.NOT_CONFIGURED));
@@ -82,16 +91,16 @@ class TermsIntegrationTest {
   @Test
   void rejectsMissingFalseDuplicateAndStaleAgreements() {
     var valid = request();
-    for (var invalid : Arrays.asList(null, List.<TermsDTO.Agreement>of(), List.of(valid.get(0)),
+    for (var invalid : Arrays.asList(null, List.<TermsReqDTO.Agreement>of(), List.of(valid.get(0)),
         List.of(valid.get(0), valid.get(0)),
-        List.of(valid.get(0), new TermsDTO.Agreement(TermsType.PRIVACY, "1.0", false)),
+        List.of(valid.get(0), new TermsReqDTO.Agreement(TermsType.PRIVACY, "1.0", false)),
         Arrays.asList(valid.get(0), null),
-        List.of(valid.get(0), new TermsDTO.Agreement(TermsType.PRIVACY, "1.0", null)))) {
+        List.of(valid.get(0), new TermsReqDTO.Agreement(TermsType.PRIVACY, "1.0", null)))) {
       assertThatThrownBy(() -> terms.validate(invalid)).isInstanceOfSatisfying(GeneralException.class,
         e -> assertThat(e.getErrorCode()).isEqualTo(TermsErrorCode.REQUIRED_AGREEMENT));
     }
     assertThatThrownBy(() -> terms.validate(List.of(valid.get(0),
-      new TermsDTO.Agreement(TermsType.PRIVACY, "old", true))))
+      new TermsReqDTO.Agreement(TermsType.PRIVACY, "old", true))))
       .isInstanceOfSatisfying(GeneralException.class,
         e -> assertThat(e.getErrorCode()).isEqualTo(TermsErrorCode.VERSION_MISMATCH));
   }
@@ -107,8 +116,8 @@ class TermsIntegrationTest {
 
     document(TermsType.SERVICE, "2.0", LocalDateTime.now().minusMinutes(1));
     assertThat(terms.status(user.getId()).termsAgreementRequired()).isTrue();
-    assertThat(terms.agree(user.getId(), List.of(new TermsDTO.Agreement(TermsType.SERVICE, "2.0", true),
-      new TermsDTO.Agreement(TermsType.PRIVACY, "1.0", true))).termsAgreementRequired()).isFalse();
+    assertThat(terms.agree(user.getId(), List.of(new TermsReqDTO.Agreement(TermsType.SERVICE, "2.0", true),
+      new TermsReqDTO.Agreement(TermsType.PRIVACY, "1.0", true))).termsAgreementRequired()).isFalse();
     assertThat(agreements.count()).isEqualTo(3);
   }
 
@@ -218,17 +227,17 @@ class TermsIntegrationTest {
       .status(UserStatus.ACTIVE).friendCode("EXIST123").build());
   }
 
-  private List<TermsDTO.Agreement> request() {
-    return List.of(new TermsDTO.Agreement(TermsType.SERVICE, "1.0", true),
-      new TermsDTO.Agreement(TermsType.PRIVACY, "1.0", true));
+  private List<TermsReqDTO.Agreement> request() {
+    return List.of(new TermsReqDTO.Agreement(TermsType.SERVICE, "1.0", true),
+      new TermsReqDTO.Agreement(TermsType.PRIVACY, "1.0", true));
   }
 
-  private AuthReqDTO.SignUp signup(List<TermsDTO.Agreement> agreements) {
+  private AuthReqDTO.SignUp signup(List<TermsReqDTO.Agreement> agreements) {
     return new AuthReqDTO.SignUp("new@example.com", "email-token", "Password123!", "닉네임",
       Gender.NONE, "2000", region.getId(), agreements);
   }
 
-  private AuthReqDTO.SocialSignupComplete socialSignup(List<TermsDTO.Agreement> agreements) {
+  private AuthReqDTO.SocialSignupComplete socialSignup(List<TermsReqDTO.Agreement> agreements) {
     return new AuthReqDTO.SocialSignupComplete("temp-token", "소셜회원", Gender.NONE, "2000", region.getId(), agreements);
   }
 }

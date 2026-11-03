@@ -1,4 +1,4 @@
-package com.yeogido.backend.domain.terms;
+package com.yeogido.backend.domain.terms.entity;
 
 import com.yeogido.backend.domain.user.entity.User;
 import jakarta.persistence.*;
