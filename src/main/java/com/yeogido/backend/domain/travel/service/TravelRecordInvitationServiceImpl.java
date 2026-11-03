@@ -75,7 +75,10 @@ public class TravelRecordInvitationServiceImpl implements TravelRecordInvitation
         if (!invitation.getInvitee().getId().equals(userId)) {
             throw new GeneralException(GeneralErrorCode.FORBIDDEN);
         }
-        if (userRepository.findById(userId).filter(user -> user.getStatus() == UserStatus.ACTIVE).isEmpty()) {
+        User invitee = invitation.getInvitee();
+        // 최초 조회의 REPEATABLE READ 스냅샷이나 이미 로딩된 사용자 상태로 수락을 허용하지 않습니다.
+        entityManager.refresh(invitee, LockModeType.PESSIMISTIC_READ);
+        if (invitee.getStatus() != UserStatus.ACTIVE) {
             throw new GeneralException(GeneralErrorCode.FORBIDDEN);
         }
         if (record.getVisibility() != TravelRecordVisibility.FRIENDS) {
@@ -88,8 +91,10 @@ public class TravelRecordInvitationServiceImpl implements TravelRecordInvitation
             }
             return TravelRecordInvitationConverter.toRespondResponse(invitation);
         }
+        User inviter = invitation.getInviter();
+        entityManager.refresh(inviter, LockModeType.PESSIMISTIC_READ);
         if (friendship == null || friendship.getStatus() != FriendshipStatus.ACCEPTED
-                || invitation.getInviter().getStatus() != UserStatus.ACTIVE) {
+                || inviter.getStatus() != UserStatus.ACTIVE) {
             throw new GeneralException(TravelRecordErrorCode.INVITATION_NOT_FOUND);
         }
         if (response == TravelRecordInvitationStatus.ACCEPTED && !member) {

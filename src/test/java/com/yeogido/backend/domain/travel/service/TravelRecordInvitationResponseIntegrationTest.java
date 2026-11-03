@@ -301,6 +301,33 @@ class TravelRecordInvitationResponseIntegrationTest {
         assertThat(memberCount()).isZero();
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"recipient", "inviter"})
+    void rejectsDeactivationCommittedAfterUserWasAlreadyLoaded(String target) {
+        Long targetId = target.equals("recipient") ? receiverId : inviterId;
+        ErrorCode expected = target.equals("recipient") ? GeneralErrorCode.FORBIDDEN
+                : TravelRecordErrorCode.INVITATION_NOT_FOUND;
+        assertThatThrownBy(() -> tx(() -> {
+            User cached = em.find(User.class, targetId);
+            assertThat(cached.getStatus()).isEqualTo(UserStatus.ACTIVE);
+            // 다른 트랜잭션의 변경이 영속성 컨텍스트에 남아 있는 ACTIVE 값보다 우선해야 합니다.
+            try (var executor = Executors.newSingleThreadExecutor()) {
+                executor.submit(() -> tx(() -> {
+                    em.createQuery("update User u set u.status = :status where u.id = :id")
+                            .setParameter("status", UserStatus.INACTIVE).setParameter("id", targetId).executeUpdate();
+                    return null;
+                })).get(5, TimeUnit.SECONDS);
+            } catch (Exception e) {
+                throw new AssertionError(e);
+            }
+            assertThat(cached.getStatus()).isEqualTo(UserStatus.ACTIVE);
+            return respond("ACCEPTED");
+        })).isInstanceOfSatisfying(GeneralException.class, e -> assertThat(e.getErrorCode()).isEqualTo(expected));
+        assertThat(memberCount()).isZero();
+        assertThat(invitations.findById(invitationId).orElseThrow().getStatus())
+                .isEqualTo(TravelRecordInvitationStatus.PENDING);
+    }
+
     private List<String> race(Supplier<String> first, Supplier<String> second) throws Exception {
         var barrier = new CyclicBarrier(2);
         try (var executor = Executors.newFixedThreadPool(2)) {
