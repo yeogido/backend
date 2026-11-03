@@ -572,6 +572,145 @@ class TravelRecordVisibilityIntegrationTest {
         TravelRecordReqDTO.CreateRequest.class);
   }
 
+  @Test
+  void mapIncludesOwnAlbumsAndCurrentSharedMembershipOnly() {
+    var ownPrivate = record(viewer, TravelRecordVisibility.PRIVATE, 2026);
+    var ownPublic = record(viewer, TravelRecordVisibility.PUBLIC, 2026);
+    var ownShared = record(viewer, TravelRecordVisibility.FRIENDS, 2026);
+    var accepted = record(owner, TravelRecordVisibility.FRIENDS, 2026);
+    member(accepted, viewer);
+    var pending = record(owner, TravelRecordVisibility.FRIENDS, 2026);
+    invite(pending, TravelRecordInvitationStatus.PENDING);
+    var left = record(owner, TravelRecordVisibility.FRIENDS, 2026);
+    invite(left, TravelRecordInvitationStatus.ACCEPTED);
+    var declined = record(owner, TravelRecordVisibility.FRIENDS, 2026);
+    invite(declined, TravelRecordInvitationStatus.DECLINED);
+    var stalePrivate = record(owner, TravelRecordVisibility.PRIVATE, 2026);
+    member(stalePrivate, viewer);
+    record(owner, TravelRecordVisibility.PUBLIC, 2026);
+    var withdrawn = user("탈퇴 생성자");
+    var withdrawnAlbum = record(withdrawn, TravelRecordVisibility.FRIENDS, 2026);
+    member(withdrawnAlbum, viewer);
+    entityManager.getEntityManager().createQuery("update User u set u.status = :status where u.id = :id")
+        .setParameter("status", UserStatus.DELETED).setParameter("id", withdrawn.getId()).executeUpdate();
+    flushAndClear();
+
+    var result = service.getMyTravelMap(viewer.getId(), mapRequest(null, 100, 2026, null));
+    assertThat(result.getItems()).extracting(TravelRecordResDTO.MapItem::travelRecordId)
+        .containsExactly(accepted.getId(), ownShared.getId(), ownPublic.getId(), ownPrivate.getId());
+  }
+
+  /** 여러 앨범의 전체 사진 순서를 보장하면서 조회 쿼리가 두 번으로 유지되는지 검증합니다. */
+  @Test
+  void mapReturnsAllPhotosInOrderAndUsesOnlyTwoQueriesForMultipleAlbums() {
+    var located = entityManager.persist(Region.builder().name("지도 지역").type(RegionType.REGION)
+        .latitude(new java.math.BigDecimal("35.18"))
+        .longitude(new java.math.BigDecimal("129.08")).build());
+    var album = entityManager.persist(TravelRecord.builder().user(viewer).region(located).title("지도 여행")
+        .startDate(LocalDate.of(2026, 5, 1)).endDate(LocalDate.of(2026, 5, 3))
+        .coverImageKey("travel-records/cover.jpg").visibility(TravelRecordVisibility.PRIVATE).build());
+    for (int i = 5; i >= 1; i--) { photo(album, i); }
+    for (int i = 0; i < 4; i++) { photo(record(viewer, TravelRecordVisibility.PUBLIC, 2026), 1); }
+    flushAndClear();
+    var statistics = entityManager.getEntityManager().getEntityManagerFactory()
+        .unwrap(SessionFactory.class).getStatistics();
+    statistics.clear();
+
+    var result = service.getMyTravelMap(viewer.getId(), mapRequest(null, 10, 2026, null));
+    assertThat(statistics.getPrepareStatementCount()).isEqualTo(2);
+    var item = result.getItems().stream().filter(it -> it.travelRecordId().equals(album.getId())).findFirst().orElseThrow();
+    assertThat(item.regionName()).isEqualTo("지도 지역");
+    assertThat(item.latitude()).isEqualByComparingTo("35.18");
+    assertThat(item.longitude()).isEqualByComparingTo("129.08");
+    assertThat(item.images()).extracting(TravelRecordResDTO.ImageResponse::imageOrder).containsExactly(1, 2, 3, 4, 5);
+    assertThat(item.images().getFirst().imageUrl()).isEqualTo("https://example.com/travel-records/1.jpg");
+  }
+
+  @Test
+  void mapPreservesAlbumsWithoutCompleteCoordinatesAndReturnsBothCoordinatesNull() {
+    var missing = record(viewer, TravelRecordVisibility.PRIVATE, 2026);
+    var incompleteRegion = entityManager.persist(Region.builder().name("불완전 좌표").type(RegionType.REGION)
+        .latitude(new java.math.BigDecimal("35.18")).build());
+    var incomplete = entityManager.persist(TravelRecord.builder().user(viewer).region(incompleteRegion).title("여행")
+        .startDate(LocalDate.of(2026, 5, 1)).endDate(LocalDate.of(2026, 5, 3))
+        .coverImageKey("travel-records/cover.jpg").visibility(TravelRecordVisibility.PRIVATE).build());
+    flushAndClear();
+    var result = service.getMyTravelMap(viewer.getId(), mapRequest(null, 10, 2026, null));
+    assertThat(result.getItems()).extracting(TravelRecordResDTO.MapItem::travelRecordId)
+        .containsExactly(incomplete.getId(), missing.getId());
+    assertThat(result.getItems()).allSatisfy(item -> {
+      assertThat(item.latitude()).isNull();
+      assertThat(item.longitude()).isNull();
+      assertThat(item.images()).isEmpty();
+    });
+  }
+
+  @Test
+  void mapPaginatesByEndDateAndIdAndFiltersByEndYearAndVisibility() {
+    var first = record(viewer, TravelRecordVisibility.PUBLIC, 2026);
+    var second = record(viewer, TravelRecordVisibility.PUBLIC, 2026);
+    record(viewer, TravelRecordVisibility.PRIVATE, 2026);
+    record(viewer, TravelRecordVisibility.PUBLIC, 2025);
+    var crossing = entityManager.persist(TravelRecord.builder().user(viewer).region(region).title("연말 여행")
+        .startDate(LocalDate.of(2025, 12, 31)).endDate(LocalDate.of(2026, 1, 1))
+        .coverImageKey("travel-records/cover.jpg").visibility(TravelRecordVisibility.PUBLIC).build());
+    flushAndClear();
+    var page1 = service.getMyTravelMap(viewer.getId(), mapRequest(null, 1, 2026, "PUBLIC"));
+    assertThat(page1.getItems()).extracting(TravelRecordResDTO.MapItem::travelRecordId).containsExactly(second.getId());
+    assertThat(page1.isHasNext()).isTrue();
+    assertThat(page1.getCursorValue()).isNull();
+    var page2 = service.getMyTravelMap(viewer.getId(), mapRequest(page1.getCursorId(), 1, 2026, "PUBLIC"));
+    assertThat(page2.getItems()).extracting(TravelRecordResDTO.MapItem::travelRecordId).containsExactly(first.getId());
+    var page3 = service.getMyTravelMap(viewer.getId(), mapRequest(page2.getCursorId(), 1, 2026, "PUBLIC"));
+    assertThat(page3.getItems()).extracting(TravelRecordResDTO.MapItem::travelRecordId).containsExactly(crossing.getId());
+    assertThat(page3.isHasNext()).isFalse();
+  }
+
+  /** 현재 보관함이나 필터 조건에 맞지 않는 커서를 페이지 오류로 거부하는지 검증합니다. */
+  @Test
+  void mapRejectsCursorOutsideCurrentCollectionYearAndVisibility() {
+    var foreign = record(owner, TravelRecordVisibility.PUBLIC, 2026);
+    var wrongYear = record(viewer, TravelRecordVisibility.PUBLIC, 2025);
+    var wrongVisibility = record(viewer, TravelRecordVisibility.PRIVATE, 2026);
+    flushAndClear();
+    for (Long cursor : List.of(foreign.getId(), wrongYear.getId(), wrongVisibility.getId(), Long.MAX_VALUE, -1L)) {
+      assertError(() -> service.getMyTravelMap(viewer.getId(), mapRequest(cursor, 10, 2026, "PUBLIC")),
+          TravelRecordErrorCode.INVALID_PAGE_REQUEST);
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"ALL", "public", "", " PUBLIC "})
+  void mapRejectsInvalidVisibility(String visibility) {
+    assertError(() -> service.getMyTravelMap(viewer.getId(), mapRequest(null, 10, 2026, visibility)),
+        TravelRecordErrorCode.INVALID_VISIBILITY);
+  }
+
+  /** 페이지 크기와 연도의 경계값, 빈 응답, 현재 연도 기본값을 검증합니다. */
+  @Test
+  void mapValidatesBoundsAndReturnsEmptyCursorResponse() {
+    for (int size : List.of(0, -1, 101)) {
+      assertError(() -> service.getMyTravelMap(viewer.getId(), mapRequest(null, size, 2026, null)),
+          TravelRecordErrorCode.INVALID_PAGE_REQUEST);
+    }
+    for (int year : List.of(0, 10000)) {
+      assertError(() -> service.getMyTravelMap(viewer.getId(), mapRequest(null, 10, year, null)),
+          TravelRecordErrorCode.INVALID_PAGE_REQUEST);
+    }
+    var empty = service.getMyTravelMap(viewer.getId(), mapRequest(null, null, null, null));
+    assertThat(empty.getItems()).isEmpty();
+    assertThat(empty.getCursorId()).isNull();
+    assertThat(empty.isHasNext()).isFalse();
+    var current = record(viewer, TravelRecordVisibility.PRIVATE, LocalDate.now().getYear());
+    flushAndClear();
+    assertThat(service.getMyTravelMap(viewer.getId(), mapRequest(null, null, null, null)).getItems())
+        .extracting(TravelRecordResDTO.MapItem::travelRecordId).containsExactly(current.getId());
+  }
+
+  private TravelRecordReqDTO.MapRequest mapRequest(Long cursor, Integer size, Integer year, String visibility) {
+    return new TravelRecordReqDTO.MapRequest(cursor, size, year, visibility);
+  }
+
   private com.yeogido.backend.global.common.response.CursorResponse<TravelRecordResDTO.TravelRecordSummary> list(
       Long targetId, String visibility, int year, Long cursor, int size) {
     return service.getMyTravelRecords(viewer.getId(), new TravelRecordReqDTO.ListRequest(cursor, size, year, visibility, targetId));

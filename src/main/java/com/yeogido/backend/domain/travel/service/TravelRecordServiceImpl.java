@@ -118,6 +118,44 @@ public class TravelRecordServiceImpl implements TravelRecordService {
         return CursorResponse.of(items,null, nextCursor, hasNext);
     }
 
+    /**
+     * 본인 생성 기록과 현재 참여 중인 공유 기록을 종료 연도, 공개범위로 필터링하여 조회합니다.
+     * 종료일과 ID 내림차순으로 앨범 단위 페이징하고, 현재 페이지의 사진은 일괄 조회합니다.
+     */
+    @Override
+    public CursorResponse<TravelRecordResDTO.MapItem> getMyTravelMap(
+            Long userId, TravelRecordReqDTO.MapRequest request
+    ) {
+        int size = resolveSize(request.size());
+        int year = resolveYear(request.year());
+        validateCursor(request.cursor());
+        TravelRecordVisibility visibility = resolveVisibilityFilter(request.visibility());
+        LocalDate yearStart = LocalDate.of(year, 1, 1);
+        LocalDate yearEnd = LocalDate.of(year, 12, 31);
+        TravelRecord cursor = request.cursor() == null ? null
+                : travelRecordRepository.findVisibleCursor(userId, userId, visibility,
+                        request.cursor(), yearStart, yearEnd)
+                    .orElseThrow(() -> new GeneralException(TravelRecordErrorCode.INVALID_PAGE_REQUEST));
+        List<TravelRecord> records = travelRecordRepository.findVisibleRecords(
+                userId, userId, visibility, yearStart, yearEnd, cursor, size + 1);
+        boolean hasNext = records.size() > size;
+        List<TravelRecord> content = hasNext ? records.subList(0, size) : records;
+        if (content.isEmpty()) {
+            return CursorResponse.of(List.of(), null, null, false);
+        }
+
+        // 폴더, 스티커, 참여자 정보는 조회하지 않고 현재 페이지의 전체 사진만 일괄 조회합니다.
+        List<Long> recordIds = content.stream().map(TravelRecord::getId).toList();
+        Map<Long, List<TravelRecordPhoto>> photos = travelRecordPhotoRepository
+                .findByTravelRecordIdInOrderByTravelRecordIdAscImageOrderAsc(recordIds)
+                .stream().collect(Collectors.groupingBy(photo -> photo.getTravelRecord().getId()));
+        List<TravelRecordResDTO.MapItem> items = content.stream()
+                .map(record -> TravelRecordConverter.toMapItem(record,
+                        photos.getOrDefault(record.getId(), List.of()), s3Service::getImageUrl))
+                .toList();
+        return CursorResponse.of(items, null, items.get(items.size() - 1).travelRecordId(), hasNext);
+    }
+
     @Override
     public TravelRecordResDTO.YearListResponse getMyTravelRecordYears(
             Long userId, TravelRecordReqDTO.YearListRequest request

@@ -40,6 +40,27 @@ public class TravelRecordReqDTO {
     ) {
     }
 
+    @Schema(name = "TravelRecordMapRequest", description = "내 여행 지도 조회 요청")
+    public record MapRequest(
+            @Schema(description = "이전 응답의 cursorId", example = "20")
+            @Positive(message = "cursor는 양수여야 합니다.")
+            Long cursor,
+
+            @Schema(description = "조회할 앨범 개수 (1~100)", example = "10", defaultValue = "10",
+                    minimum = "1", maximum = "100")
+            @Positive(message = "size는 양수여야 합니다.")
+            Integer size,
+
+            @Schema(description = "여행 종료 연도. 미전달 시 현재 연도", example = "2026")
+            @Positive(message = "year는 양수여야 합니다.")
+            @Max(value = 9999, message = "year는 9999 이하여야 합니다.")
+            Integer year,
+
+            @Schema(description = "공개범위 필터. 미전달 시 전체", allowableValues = {"PRIVATE", "FRIENDS", "PUBLIC"})
+            String visibility
+    ) {
+    }
+
     @Schema(name = "TravelRecordYearListRequest", description = "열람 가능한 여행 기록 연도 조회 요청")
     public record YearListRequest(
             @Schema(description = "조회할 생성자 ID. 미전달 시 본인", example = "2")

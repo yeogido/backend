@@ -76,6 +76,15 @@ app:
     base-url: https://api.odcloud.kr/api/nts-businessman/v1
     service-key: ${NTS_SERVICE_KEY:}
 
+  # 최초 시도 포함 최대 2회: FAILED는 5분 후 재시도, PROCESSING은 60분 후 복구
+  place-overview:
+    pending:
+      enabled: ${PLACE_OVERVIEW_PENDING_ENABLED:true}
+      fixed-delay-ms: ${PLACE_OVERVIEW_PENDING_FIXED_DELAY_MS:60000}
+    retry:
+      enabled: ${PLACE_OVERVIEW_RETRY_ENABLED:true}
+      fixed-delay-ms: ${PLACE_OVERVIEW_RETRY_FIXED_DELAY_MS:60000}
+
   # 장소 설명 근거 수집용 Daum 검색 설정
   daum:
     api-key: ${KAKAO_REST_API_KEY:}

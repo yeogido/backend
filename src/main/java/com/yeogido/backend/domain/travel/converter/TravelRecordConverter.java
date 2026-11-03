@@ -96,6 +96,26 @@ public class TravelRecordConverter {
         );
     }
 
+    /**
+     * 앨범의 전체 사진과 지역 중심 좌표를 지도 응답으로 변환합니다.
+     * 위도나 경도가 없으면 두 좌표를 모두 null로 반환하고 앨범은 응답에 유지합니다.
+     */
+    public static TravelRecordResDTO.MapItem toMapItem(
+            TravelRecord travelRecord,
+            List<TravelRecordPhoto> photos,
+            Function<String, String> imageUrlResolver
+    ) {
+        Region region = travelRecord.getRegion();
+        boolean hasCoordinates = region.getLatitude() != null && region.getLongitude() != null;
+        return new TravelRecordResDTO.MapItem(
+                travelRecord.getId(), travelRecord.getTitle(), region.getId(), region.getName(),
+                hasCoordinates ? region.getLatitude() : null,
+                hasCoordinates ? region.getLongitude() : null,
+                travelRecord.getStartDate(), travelRecord.getEndDate(), travelRecord.getVisibility(),
+                photos.stream().map(photo -> toImageResponse(photo, imageUrlResolver)).toList()
+        );
+    }
+
     public static TravelRecordResDTO.DetailResponse toDetailResponse(
             TravelRecord travelRecord,
             List<TravelRecordPhoto> photos,
