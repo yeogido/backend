@@ -56,12 +56,12 @@ public class ContentResDTO {
             @Schema(description = "현재 사용자의 좋아요 여부", example = "false")
             Boolean isLiked,
 
-            @JsonFormat(pattern = "yyyy-MM-dd")
-            @Schema(description = "시작일", example = "2026-07-04")
+            @JsonFormat(pattern = "yyyy.MM")
+            @Schema(description = "시작일", example = "2026.07")
             LocalDate startDate,
       
-            @JsonFormat(pattern = "yyyy-MM-dd")
-            @Schema(description = "종료일", example = "2026-07-05")
+            @JsonFormat(pattern = "yyyy.MM")
+            @Schema(description = "종료일", example = "2026.08")
             LocalDate endDate,
 
             @Schema(description = "게시 상태", example = "PUBLISHED")
