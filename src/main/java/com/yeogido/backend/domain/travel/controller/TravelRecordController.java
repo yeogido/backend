@@ -32,13 +32,13 @@ public class TravelRecordController {
     private final TravelRecordService travelRecordService;
 
     @Operation(
-            summary = "내 여행 기록 목록 조회",
-            description = "로그인한 사용자가 작성한 여행 기록 목록을 조회합니다."
+            summary = "여행 기록 목록 조회",
+            description = "내가 생성·참여한 기록 또는 타인 생성 기록 중 열람 가능한 앨범을 공개범위와 종료 연도로 조회합니다."
     )
     @GetMapping
     public ApiResponse<CursorResponse<TravelRecordResDTO.TravelRecordSummary>> getMyTravelRecords(
             @AuthenticationPrincipal AuthUser authUser,
-            @ParameterObject @ModelAttribute TravelRecordReqDTO.ListRequest request
+            @Valid @ParameterObject @ModelAttribute TravelRecordReqDTO.ListRequest request
     ) {
         CursorResponse<TravelRecordResDTO.TravelRecordSummary> result =
                 travelRecordService.getMyTravelRecords(authUser.userId(), request);
@@ -46,22 +46,23 @@ public class TravelRecordController {
     }
 
     @Operation(
-            summary = "내 여행 기록 연도 목록 조회",
-            description = "로그인한 사용자가 작성한 여행 기록 중 실제 기록이 존재하는 연도 목록을 조회합니다."
+            summary = "여행 기록 연도 목록 조회",
+            description = "목록과 같은 열람권한·생성자·공개범위 조건으로 여행 종료 연도를 조회합니다."
     )
     @GetMapping("/years")
     public ApiResponse<TravelRecordResDTO.YearListResponse> getMyTravelRecordYears(
-            @AuthenticationPrincipal AuthUser authUser
+            @AuthenticationPrincipal AuthUser authUser,
+            @Valid @ParameterObject @ModelAttribute TravelRecordReqDTO.YearListRequest request
     ) {
         TravelRecordResDTO.YearListResponse result = travelRecordService.getMyTravelRecordYears(
-                authUser.userId()
+                authUser.userId(), request
         );
         return ApiResponse.onSuccess(SuccessCode.OK, result);
     }
 
     @Operation(
             summary = "여행 기록 상세 조회",
-            description = "선택한 여행 기록의 상세 정보를 조회합니다."
+            description = "PRIVATE는 생성자, FRIENDS는 생성자·현재 참여자, PUBLIC은 로그인 사용자가 열람합니다. 현재 버전과 작업 권한을 반환합니다."
     )
     @GetMapping("/{travelRecordId}")
     public ApiResponse<TravelRecordResDTO.DetailResponse> getTravelRecord(
@@ -77,7 +78,7 @@ public class TravelRecordController {
 
     @Operation(
             summary = "여행 기록 등록",
-            description = "사용자가 여행 기간, 지역, 사진, 폴더 테마, 스티커 꾸미기 정보를 입력하여 새로운 여행 기록을 생성합니다."
+            description = "기간·지역·사진·스티커·공개범위로 여행 기록을 생성합니다. 공개범위 생략 시 PRIVATE이며 초대는 별도 요청입니다."
     )
     @PostMapping
     public ApiResponse<TravelRecordResDTO.CreateResponse> createTravelRecord(
@@ -93,7 +94,7 @@ public class TravelRecordController {
 
     @Operation(
             summary = "여행 기록 수정",
-            description = "로그인한 사용자가 본인이 작성한 여행 기록의 최종 상태를 저장합니다. 폴더 테마는 현재 BASIC으로 고정됩니다."
+            description = "생성자 또는 현재 FRIENDS 참여자가 최종 상태를 저장합니다. 상세의 version은 필수이며 오래되거나 동시 수정된 버전은 409로 반환합니다. 사진은 앨범 전체 최대 5장이고 폴더 테마는 BASIC으로 고정됩니다."
     )
     @PatchMapping("/{travelRecordId}")
     public ApiResponse<TravelRecordResDTO.UpdateResponse> updateTravelRecord(
@@ -111,8 +112,21 @@ public class TravelRecordController {
     }
 
     @Operation(
+            summary = "공유 앨범 나가기",
+            description = "현재 FRIENDS 참여자가 본인의 참여 관계만 삭제합니다. 앨범·사진·스티커·다른 참여자는 유지하며 이후 조회·수정 권한은 제거됩니다. 생성자는 409로 거부됩니다."
+    )
+    @DeleteMapping("/{travelRecordId}/members/me")
+    public ApiResponse<Void> leaveTravelRecord(
+            @PathVariable Long travelRecordId,
+            @AuthenticationPrincipal AuthUser authUser
+    ) {
+        travelRecordService.leaveTravelRecord(travelRecordId, authUser.userId());
+        return ApiResponse.onSuccess(SuccessCode.OK);
+    }
+
+    @Operation(
             summary = "여행 기록 삭제",
-            description = "로그인한 사용자가 본인이 작성한 여행 기록을 삭제합니다."
+            description = "최초 생성자만 앨범 전체를 삭제합니다. 공유 앨범의 사진·스티커 배치·참여 관계·초대도 함께 정리됩니다. 참여자는 별도 나가기 API를 사용합니다."
     )
     @DeleteMapping("/{travelRecordId}")
     public ApiResponse<Void> deleteTravelRecord(

@@ -1,5 +1,6 @@
 package com.yeogido.backend.domain.user.entity;
 
+import com.yeogido.backend.domain.friend.service.FriendCodeGenerator;
 import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.user.enums.AgeGroup;
 import com.yeogido.backend.domain.user.enums.Gender;
@@ -20,6 +21,10 @@ import lombok.*;
                 @UniqueConstraint(
                         name = "uk_user_email",
                         columnNames = "email"
+                ),
+                @UniqueConstraint(
+                        name = "uk_user_friend_code",
+                        columnNames = "friend_code"
                 )
         }
 )
@@ -59,6 +64,17 @@ public class User extends BaseEntity {
 
     @Column(name = "profile_image", length = 255)
     private String profileImage;
+
+    @Column(name = "friend_code", nullable = false, length = 8)
+    private String friendCode;
+
+    // 가입 경로에서 friendCode를 넣지 않은 경우를 위한 안전장치
+    @PrePersist
+    private void assignFriendCodeIfAbsent() {
+        if (this.friendCode == null) {
+            this.friendCode = FriendCodeGenerator.randomCode();
+        }
+    }
 
     public void promoteToBusiness() {
         if (this.role == UserRole.USER) {

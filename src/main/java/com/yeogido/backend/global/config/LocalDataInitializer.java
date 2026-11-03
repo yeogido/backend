@@ -1,5 +1,6 @@
 package com.yeogido.backend.global.config;
 
+import com.yeogido.backend.domain.friend.service.FriendCodeGenerator;
 import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.region.enums.RegionType;
 import com.yeogido.backend.domain.region.repository.RegionRepository;
@@ -26,6 +27,7 @@ public class LocalDataInitializer implements CommandLineRunner {
 
     private final RegionRepository regionRepository;
     private final UserRepository userRepository;
+    private final FriendCodeGenerator friendCodeGenerator;
 
     @Override
     @Transactional
@@ -48,6 +50,7 @@ public class LocalDataInitializer implements CommandLineRunner {
                         .role(UserRole.USER)
                         .status(UserStatus.ACTIVE)
                         .profileImage(null)
+                        .friendCode(friendCodeGenerator.generateUnique())
                         .build()));
     }
 }

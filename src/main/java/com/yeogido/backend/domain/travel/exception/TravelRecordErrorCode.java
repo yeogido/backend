@@ -51,10 +51,28 @@ public enum TravelRecordErrorCode implements ErrorCode {
             "사진 순서 정보가 올바르지 않습니다."
     ),
 
+    INVALID_VISIBILITY(
+            HttpStatus.BAD_REQUEST,
+            "TRAVEL_RECORD4008",
+            "공개범위 값이 올바르지 않습니다."
+    ),
+
     TRAVEL_RECORD_NOT_FOUND(
             HttpStatus.NOT_FOUND,
             "TRAVEL_RECORD4041",
             "여행 기록을 찾을 수 없습니다."
+    ),
+
+    VERSION_CONFLICT(
+            HttpStatus.CONFLICT,
+            "TRAVEL_RECORD4091",
+            "다른 변경사항이 반영되었습니다. 최신 정보를 조회한 뒤 다시 시도해 주세요."
+    ),
+
+    OWNER_CANNOT_LEAVE(
+            HttpStatus.CONFLICT,
+            "TRAVEL_RECORD4096",
+            "앨범 생성자는 나갈 수 없습니다. 앨범 삭제 기능을 이용해 주세요."
     ),
 
     STICKER_NOT_FOUND(

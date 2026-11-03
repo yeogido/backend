@@ -159,6 +159,9 @@ public class CourseResDTO {
             @Schema(description = "여행 기간", example = "TWO_NIGHT")
             DurationType durationType,
 
+            @Schema(description = "전체 여행 일수", example = "3")
+            Integer totalDays,
+
             @Schema(description = "이동 수단", example = "WALK")
             TransportType transportType,
 
@@ -177,7 +180,7 @@ public class CourseResDTO {
             @Schema(description = "현재 사용자의 코스 수정/삭제 가능 여부", example = "false")
             Boolean canManage,
 
-            @Schema(description = "코스 구성 항목")
+            @Schema(description = "일차 오름차순, 같은 일차 내 방문 순서 오름차순으로 정렬된 코스 구성 항목")
             List<CourseItem> courseItems,
 
             @Schema(description = "작성자 정보")
@@ -215,6 +218,8 @@ public class CourseResDTO {
     public sealed interface CourseItem permits PlaceCourseItem, ContentCourseItem {
 
         Long courseItemId();
+
+        Integer day();
 
         Integer order();
 
@@ -272,7 +277,10 @@ public class CourseResDTO {
             @Schema(description = "코스 항목 ID", example = "101")
             Long courseItemId,
 
-            @Schema(description = "코스 내 순서", example = "1")
+            @Schema(description = "방문 일차 (1부터 전체 여행 일수까지)", example = "1")
+            Integer day,
+
+            @Schema(description = "같은 일차 내 방문 순서 (1부터 시작)", example = "1")
             Integer order,
 
             @Schema(description = "코스 항목 타입", example = "PLACE")
@@ -317,7 +325,7 @@ public class CourseResDTO {
             @Schema(description = "장소 영업시간 목록. 없으면 빈 배열입니다.")
             List<OperatingDay> operatingDays,
 
-            @Schema(description = "이전 코스 항목에서 현재 항목까지의 이동 소요시간 목록. 없으면 빈 배열입니다.")
+            @Schema(description = "같은 일차의 바로 이전 항목에서 현재 항목까지의 이동 소요시간 목록. 각 일차의 첫 항목이거나 이동시간이 없으면 빈 배열입니다.")
             List<CourseItemTime> timesFromPrevious
     ) implements CourseItem { }
 
@@ -327,7 +335,10 @@ public class CourseResDTO {
             @Schema(description = "코스 항목 ID", example = "102")
             Long courseItemId,
 
-            @Schema(description = "코스 내 순서", example = "2")
+            @Schema(description = "방문 일차 (1부터 전체 여행 일수까지)", example = "1")
+            Integer day,
+
+            @Schema(description = "같은 일차 내 방문 순서 (1부터 시작)", example = "2")
             Integer order,
 
             @Schema(description = "코스 항목 타입", example = "CONTENT")
@@ -369,7 +380,7 @@ public class CourseResDTO {
             @Schema(description = "콘텐츠 이미지 URL. CONTENT 타입은 imageKey를 응답하지 않습니다.", nullable = true, example = "https://example.com/content/coffee-festival.jpg")
             String imageUrl,
 
-            @Schema(description = "이전 코스 항목에서 현재 항목까지의 이동 소요시간 목록. 없으면 빈 배열입니다.")
+            @Schema(description = "같은 일차의 바로 이전 항목에서 현재 항목까지의 이동 소요시간 목록. 각 일차의 첫 항목이거나 이동시간이 없으면 빈 배열입니다.")
             List<CourseItemTime> timesFromPrevious
     ) implements CourseItem { }
 

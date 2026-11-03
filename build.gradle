@@ -63,5 +63,13 @@ dependencies {
 }
 
 tasks.named('test') {
-	useJUnitPlatform()
+	useJUnitPlatform { excludeTags 'mysql-migration' }
+}
+
+tasks.register('migrationTest', Test) {
+	description = 'Runs Flyway migration tests against an isolated schema on a test MySQL server.'
+	group = 'verification'
+	testClassesDirs = sourceSets.test.output.classesDirs
+	classpath = sourceSets.test.runtimeClasspath
+	useJUnitPlatform { includeTags 'mysql-migration' }
 }

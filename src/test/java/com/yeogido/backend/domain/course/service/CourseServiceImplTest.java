@@ -156,6 +156,87 @@ class CourseServiceImplTest {
     }
 
     @Test
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    void createCoursePreservesDailyScheduleThroughImageProcessingAndSavesTimesWithinEachDay() {
+        stubSuccessfulCreateCourse(createUser());
+        var base = createRequest();
+        var place = createPlaceItem("AT4");
+        // 십의 자리는 일차, 일의 자리는 방문 순서이며 정렬 검증을 위해 입력 순서 혼합
+        var items = java.util.stream.IntStream.of(22, 11, 21, 12).mapToObj(value ->
+                new CourseReqDTO.CourseItemCreateReq(value % 10, place.type(), null, place.externalPlaceId(),
+                        place.categoryGroupCode(), place.name(), place.roadAddress(), place.lotAddress(),
+                        place.latitude(), place.longitude(), place.imageKey(), null,
+                        value % 10 == 1 ? null : List.of(new CourseReqDTO.CourseItemTimeReq(
+                                com.yeogido.backend.domain.course.enums.TransportMode.CAR, 10)), value / 10)).toList();
+        var request = new CourseReqDTO.CourseCreateReq(base.title(), base.regionId(), base.description(),
+                DurationType.ONE_NIGHT, base.transportType(), base.companionType(), base.monthStart(), base.monthEnd(),
+                base.thumbnailKey(), null, base.hashtagIds(), items, 2);
+
+        courseService.createCourse(1L, request);
+
+        ArgumentCaptor<Course> courseCaptor = ArgumentCaptor.forClass(Course.class);
+        verify(courseRepository).save(courseCaptor.capture());
+        assertThat(courseCaptor.getValue().getTotalDays()).isEqualTo(2);
+        ArgumentCaptor<List<com.yeogido.backend.domain.course.entity.CourseItemTime>> times =
+                ArgumentCaptor.forClass((Class) List.class);
+        verify(courseItemTimeRepository).saveAll(times.capture());
+        assertThat(times.getValue()).hasSize(2).allSatisfy(time -> {
+            assertThat(time.getFromCourseItem().getDay()).isEqualTo(time.getToCourseItem().getDay());
+            assertThat(time.getFromCourseItem().getOrderNo()).isEqualTo(1);
+            assertThat(time.getToCourseItem().getOrderNo()).isEqualTo(2);
+        });
+        assertThat(times.getValue()).extracting(time -> time.getFromCourseItem().getDay()).containsExactly(1, 2);
+    }
+
+    @Test
+    void updateCourseRejectsDurationChangeBeforeMovingImagesOrDeletingItems() {
+        Course course = createCourse(10L);
+        when(courseRepository.findByIdAndDeletedAtIsNull(10L)).thenReturn(Optional.of(course));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(createUser()));
+        var request = new CourseReqDTO.CourseUpdateReq(null, null, DurationType.ONE_NIGHT, null, null,
+                null, null, "temp/image.jpg", null, null, null, 2);
+
+        assertThatThrownBy(() -> courseService.updateCourse(1L, 10L, request))
+                .isInstanceOf(GeneralException.class);
+
+        verify(fileService, never()).moveToDirectory(anyString(), any());
+        verify(courseItemRepository, never()).deleteAllByCourseId(anyLong());
+        assertThat(course.getDurationType()).isEqualTo(DurationType.DAY_TRIP);
+        assertThat(course.getTotalDays()).isEqualTo(1);
+    }
+
+    @Test
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    void updateCoursePersistsChangedDurationAndFullDailySchedule() {
+        Course course = createCourse(10L);
+        when(courseRepository.findByIdAndDeletedAtIsNull(10L)).thenReturn(Optional.of(course));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(createUser()));
+        when(placeService.getPlaceMap(anyList())).thenReturn(Map.of());
+        when(placeService.getOrCreatePlace(any(), any())).thenReturn(createPlace());
+        when(fileService.moveToDirectory(anyString(), eq(ImageDirectory.COURSE)))
+                .thenAnswer(invocation -> "courses/moved/" + invocation.getArgument(0, String.class));
+        var place = createPlaceItem("AT4");
+        var items = java.util.stream.IntStream.rangeClosed(1, 2).mapToObj(day ->
+                new CourseReqDTO.CourseItemCreateReq(1, place.type(), null, place.externalPlaceId(),
+                        place.categoryGroupCode(), place.name(), place.roadAddress(), place.lotAddress(),
+                        place.latitude(), place.longitude(), place.imageKey(), null, null, day)).toList();
+        var request = new CourseReqDTO.CourseUpdateReq(null, null, DurationType.ONE_NIGHT, null, null,
+                null, null, null, null, null, items, 2);
+
+        courseService.updateCourse(1L, 10L, request);
+
+        assertThat(course.getDurationType()).isEqualTo(DurationType.ONE_NIGHT);
+        assertThat(course.getTotalDays()).isEqualTo(2);
+        verify(courseItemTimeRepository).deleteAllByCourseId(10L);
+        verify(courseItemRepository).deleteAllByCourseId(10L);
+        ArgumentCaptor<List<com.yeogido.backend.domain.course.entity.CourseItem>> saved =
+                ArgumentCaptor.forClass((Class) List.class);
+        verify(courseItemRepository).saveAll(saved.capture());
+        assertThat(saved.getValue()).extracting(com.yeogido.backend.domain.course.entity.CourseItem::getDay)
+                .containsExactly(1, 2);
+    }
+
+    @Test
     void createCourseStillReturnsWhenCreatedEventSaveFails() {
         CourseReqDTO.CourseCreateReq request = createRequest();
         Course course = createCourse(10L);
@@ -489,7 +570,7 @@ class CourseServiceImplTest {
         when(courseLikeRepository.existsByUserIdAndCourseId(1L, 10L)).thenReturn(false);
         when(userRepository.findById(1L)).thenReturn(Optional.of(createUser()));
         when(courseHashtagRepository.findByCourseId(10L)).thenReturn(List.of());
-        when(courseItemRepository.findByCourseIdOrderByOrderNoAsc(10L)).thenReturn(List.of());
+        when(courseItemRepository.findByCourseIdOrderByDayAscOrderNoAsc(10L)).thenReturn(List.of());
 
         CourseResDTO.CourseDetail response = courseService.getCourseDetail(10L, 1L);
 
@@ -502,7 +583,7 @@ class CourseServiceImplTest {
 
         when(courseRepository.findCourseDetailByIdAndDeletedAtIsNull(10L)).thenReturn(Optional.of(course));
         when(courseHashtagRepository.findByCourseId(10L)).thenReturn(List.of());
-        when(courseItemRepository.findByCourseIdOrderByOrderNoAsc(10L)).thenReturn(List.of());
+        when(courseItemRepository.findByCourseIdOrderByDayAscOrderNoAsc(10L)).thenReturn(List.of());
 
         CourseResDTO.CourseDetail response = courseService.getCourseDetail(10L, null);
 
@@ -517,7 +598,7 @@ class CourseServiceImplTest {
         when(courseLikeRepository.existsByUserIdAndCourseId(1L, 10L)).thenReturn(false);
         when(userRepository.findById(1L)).thenReturn(Optional.of(createAdmin()));
         when(courseHashtagRepository.findByCourseId(10L)).thenReturn(List.of());
-        when(courseItemRepository.findByCourseIdOrderByOrderNoAsc(10L)).thenReturn(List.of());
+        when(courseItemRepository.findByCourseIdOrderByDayAscOrderNoAsc(10L)).thenReturn(List.of());
 
         CourseResDTO.CourseDetail response = courseService.getCourseDetail(10L, 1L);
 
@@ -823,6 +904,7 @@ class CourseServiceImplTest {
                 .description("Enjoy Busan night views.")
                 .courseType(courseType)
                 .durationType(DurationType.DAY_TRIP)
+                .totalDays(1)
                 .transportType(TransportType.CAR)
                 .companionType(CompanionType.FRIEND)
                 .monthStart(4)
