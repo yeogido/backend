@@ -74,6 +74,39 @@ class TravelRecordVisibilityApiTest {
   }
 
   @Test
+  void mapRequiresLoginAndDoesNotAllowOtherUsersCollection() throws Exception {
+    mockMvc.perform(get("/api/v1/travel-records/map")).andExpect(status().isUnauthorized());
+    mockMvc.perform(get("/api/v1/travel-records/map").with(login())
+        .param("year", "2026").param("userId", owner.getId().toString()))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.result.items").isEmpty());
+  }
+
+  @Test
+  void mapBindsStaticRouteAndReturnsPhotoContractWithoutFolderData() throws Exception {
+    mockMvc.perform(get("/api/v1/travel-records/map").with(loginAs(owner))
+        .param("year", "2026").param("size", "1").param("visibility", "PUBLIC"))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.result.items.length()").value(1))
+        .andExpect(jsonPath("$.result.items[0].travelRecordId").value(publicRecord.getId()))
+        .andExpect(jsonPath("$.result.items[0].regionName").value("부산"))
+        .andExpect(jsonPath("$.result.items[0].latitude").isEmpty())
+        .andExpect(jsonPath("$.result.items[0].longitude").isEmpty())
+        .andExpect(jsonPath("$.result.items[0].images").isArray())
+        .andExpect(jsonPath("$.result.items[0].stickers").doesNotExist())
+        .andExpect(jsonPath("$.result.items[0].folderTheme").doesNotExist())
+        .andExpect(jsonPath("$.result.hasNext").value(false));
+  }
+
+  /** 지도 조회의 범위 초과, 잘못된 필터, 숫자가 아닌 입력이 400으로 처리되는지 검증합니다. */
+  @Test
+  void mapRejectsInvalidQueryParameters() throws Exception {
+    for (String[] query : List.of(new String[]{"size", "101"}, new String[]{"year", "10000"},
+        new String[]{"cursor", "-1"}, new String[]{"visibility", "ALL"}, new String[]{"size", "abc"})) {
+      mockMvc.perform(get("/api/v1/travel-records/map").with(login()).param(query[0], query[1]))
+          .andExpect(status().isBadRequest());
+    }
+  }
+
+  @Test
   void publicAlbumListDetailAndYearsStillRequireLogin() throws Exception {
     for (String path : List.of("/api/v1/travel-records", "/api/v1/travel-records/years",
         "/api/v1/travel-records/" + publicRecord.getId())) {
