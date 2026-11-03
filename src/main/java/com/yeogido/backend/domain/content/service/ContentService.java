@@ -9,6 +9,8 @@ import java.util.List;
 
 public interface ContentService {
 
+    ContentResDTO.ContentCalendarRes getCalendarContents(ContentReqDTO.ContentCalendarReq request, Long userId);
+
     //문화콘텐츠 목록 조회
     CursorResponse<ContentResDTO.ContentInfo> getContents(ContentReqDTO.ContentListReq request, Long userId);
 

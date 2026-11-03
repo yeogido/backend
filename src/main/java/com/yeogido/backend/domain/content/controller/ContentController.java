@@ -14,7 +14,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springdoc.core.annotations.ParameterObject;
-import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import com.yeogido.backend.domain.auth.security.AuthUser;
@@ -31,6 +30,25 @@ import java.util.List;
 public class ContentController {
 
     private final ContentService contentService;
+
+    // 기간별 문화콘텐츠 조회
+    @Operation(
+            summary = "월별, 일별, 기간별 문화콘텐츠 조회",
+            description = "선택 기간에 포함되는 게시된 행사를 반환합니다. "
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "캘린더 행사 조회 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "필수 날짜 누락, 날짜 역전, 범위 초과 또는 잘못된 날짜 형식")
+    })
+    @GetMapping("/calendar")
+    public ApiResponse<ContentResDTO.ContentCalendarRes> getCalendarContents(
+            @Valid @ParameterObject @ModelAttribute ContentReqDTO.ContentCalendarReq request,
+            @AuthenticationPrincipal AuthUser authUser
+    ) {
+        Long userId = authUser == null ? null : authUser.userId();
+        ContentResDTO.ContentCalendarRes result = contentService.getCalendarContents(request, userId);
+        return ApiResponse.onSuccess(SuccessCode.OK, result);
+    }
 
     //문화콘텐츠 목록 조회
     @Operation(

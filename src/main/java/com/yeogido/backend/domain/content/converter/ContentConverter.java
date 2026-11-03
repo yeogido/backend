@@ -16,6 +16,16 @@ import java.util.List;
 
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class  ContentConverter {
+    public static ContentResDTO.CalendarContentInfo toCalendarContentInfo(
+            ContentResDTO.ContentInfo content
+    ) {
+        return new ContentResDTO.CalendarContentInfo(
+                content.contentId(), content.title(), content.category(),
+                content.thumbnailImageUrl(), content.regionName(), content.hashtags(),
+                content.likeCount(), content.isLiked(), content.startDate(), content.endDate()
+        );
+    }
+
     public static ContentResDTO.ContentInfo toContentInfo(
             Content content,
             String thumbnailImageUrl,
