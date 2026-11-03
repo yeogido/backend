@@ -24,47 +24,6 @@ import org.springframework.format.annotation.DateTimeFormat;
 
 public class ContentReqDTO {
 
-    public record ContentCalendarReq(
-            @Schema(description = "조회 시작일. 월별 조회는 해당 월의 첫날, 하루 조회는 종료일과 같은 날짜를 전달합니다.", example = "2026-10-01")
-            @NotNull(message = "조회 시작일은 필수입니다.")
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
-            LocalDate startDate,
-
-            @Schema(description = "조회 종료일. 월별 조회는 해당 월의 말일을 전달하며 양 끝 날짜를 모두 포함합니다.", example = "2026-10-31")
-            @NotNull(message = "조회 종료일은 필수입니다.")
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
-            LocalDate endDate,
-
-            @Schema(description = "카테고리. 생략하면 전체 조회 (FESTIVAL: 행사, EXPERIENCE: 체험, EXHIBITION: 전시, PERFORMANCE: 공연)")
-            ContentCategory category,
-
-            @Schema(description = "정렬 기준 (RECOMMEND: 추천순, LIKE: 저장순, DISTANCE: 거리순, DEADLINE: 종료 임박순)", defaultValue = "RECOMMEND")
-            ContentSort sort,
-
-            @Schema(description = "선택한 지역 ID. 거리순에서 좌표가 없으면 이 지역 중심을 사용합니다.")
-            @Positive
-            Long regionId,
-
-            @Schema(description = "거리순 기준 위도. longitude와 함께 전달합니다.")
-            Double latitude,
-
-            @Schema(description = "거리순 기준 경도. latitude와 함께 전달합니다.")
-            Double longitude
-    ) {
-        public ContentCalendarReq(LocalDate startDate, LocalDate endDate) {
-            this(startDate, endDate, null, null, null, null, null);
-        }
-
-        @Schema(hidden = true)
-        @AssertTrue(message = "시작일은 종료일보다 늦을 수 없으며 날짜의 연도는 1~9999여야 합니다.")
-        public boolean isValidSelection() {
-            // 필수값 누락은 각 필드의 @NotNull에서 검증합니다.
-            return startDate == null || endDate == null
-                    || (!startDate.isAfter(endDate)
-                    && startDate.getYear() >= 1 && endDate.getYear() <= 9999);
-        }
-    }
-
     public record ContentListReq(
 
             @Schema(description = "지역 ID")
@@ -76,8 +35,7 @@ public class ContentReqDTO {
             ContentCategory category,
 
             @Schema(
-                    description = "행사 상태 목록 (UPCOMING: 진행 예정, ONGOING: 진행 중, ENDED: 종료). 여러 상태 선택 가능",
-                    defaultValue = "[UPCOMING, ONGOING]"
+                    description = "행사 상태 목록 (UPCOMING: 예정, ONGOING: 진행 중, ENDED: 종료). 생략 시 날짜 필터가 없으면 예정·진행 중, 날짜 필터가 있으면 전체 상태"
             )
             List<ContentListStatus> statuses,
 
@@ -107,8 +65,24 @@ public class ContentReqDTO {
 
             @Schema(description = "조회 개수")
             @Positive
-            Integer size
-    ){}
+            Integer size,
+
+            @Schema(description = "조회 시작일. endDate와 함께 전달", example = "2026-11-01")
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            LocalDate startDate,
+
+            @Schema(description = "조회 종료일. 양 끝 날짜 포함", example = "2026-11-30")
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            LocalDate endDate
+    ) {
+        @Schema(hidden = true)
+        @AssertTrue(message = "조회 시작일과 종료일을 함께 전달해야 하며, 시작일은 종료일보다 늦을 수 없습니다.")
+        public boolean isValidDateRange() {
+            return (startDate == null && endDate == null)
+                    || (startDate != null && endDate != null && !startDate.isAfter(endDate)
+                    && startDate.getYear() >= 1 && endDate.getYear() <= 9999);
+        }
+    }
 
     public record ContentCreateReq(
 

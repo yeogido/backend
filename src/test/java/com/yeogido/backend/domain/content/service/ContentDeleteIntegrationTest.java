@@ -6,7 +6,6 @@ import com.querydsl.jpa.impl.JPAQueryFactory;
 import com.yeogido.backend.domain.content.entity.Content;
 import com.yeogido.backend.domain.content.enums.ContentSource;
 import com.yeogido.backend.domain.content.repository.ContentRepository;
-import com.yeogido.backend.domain.content.repository.ContentCalendarQueryRepository;
 import com.yeogido.backend.domain.course.entity.Course;
 import com.yeogido.backend.domain.course.entity.CourseItem;
 import com.yeogido.backend.domain.course.enums.CourseItemType;
@@ -60,7 +59,6 @@ class ContentDeleteIntegrationTest {
 
     @MockitoBean private AdminAuthorizationService adminAuthorizationService;
     @MockitoBean private JPAQueryFactory queryFactory;
-    @MockitoBean private ContentCalendarQueryRepository calendarQueryRepository;
     @MockitoBean private ContentExternalLinkService contentExternalLinkService;
     @MockitoBean private PlaceService placeService;
     @MockitoBean private FileService fileService;

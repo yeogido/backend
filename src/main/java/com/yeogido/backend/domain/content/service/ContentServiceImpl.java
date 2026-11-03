@@ -27,7 +27,6 @@ import com.yeogido.backend.domain.content.exception.ContentErrorCode;
 import com.yeogido.backend.domain.content.repository.ContentHashtagRepository;
 import com.yeogido.backend.domain.content.repository.ContentExternalLinkRepository;
 import com.yeogido.backend.domain.content.repository.ContentRepository;
-import com.yeogido.backend.domain.content.repository.ContentCalendarQueryRepository;
 import com.yeogido.backend.domain.course.entity.CourseItem;
 import com.yeogido.backend.domain.file.enums.ImageDirectory;
 import com.yeogido.backend.domain.file.service.FileService;
@@ -76,7 +75,6 @@ public class ContentServiceImpl implements ContentService{
     private final QContentLike qContentLike = QContentLike.contentLike;
     private final NumberExpression<Long> likeCountExpression = qContentLike.id.count();
     private final ContentRepository contentRepository;
-    private final ContentCalendarQueryRepository calendarQueryRepository;
     private final PlaceService placeService;
     private final ContentHashtagRepository contentHashtagRepository;
     private final ContentExternalLinkRepository contentExternalLinkRepository;
@@ -94,59 +92,6 @@ public class ContentServiceImpl implements ContentService{
 
 
     @Override
-    @Transactional(readOnly = true)
-    public ContentResDTO.ContentCalendarRes getCalendarContents(
-            ContentReqDTO.ContentCalendarReq request, Long userId
-    ) {
-        if (request == null || request.startDate() == null || request.endDate() == null
-                || !request.isValidSelection()) {
-            throw new GeneralException(GeneralErrorCode.INVALID_PARAMETER);
-        }
-
-        LocalDate startDate = request.startDate();
-        LocalDate endDate = request.endDate();
-        ContentSort sort = request.sort() == null ? ContentSort.RECOMMEND : request.sort();
-        Double latitude = request.latitude();
-        Double longitude = request.longitude();
-        if ((latitude == null) != (longitude == null)
-                || (latitude != null && (!Double.isFinite(latitude) || latitude < -90 || latitude > 90))
-                || (longitude != null && (!Double.isFinite(longitude) || longitude < -180 || longitude > 180))
-                || (request.regionId() != null && request.regionId() <= 0)) {
-            throw new GeneralException(GeneralErrorCode.INVALID_PARAMETER);
-        }
-
-        List<Long> regionIds = List.of();
-        if (request.regionId() != null && (sort != ContentSort.DISTANCE || latitude == null)) {
-            Region region = regionRepository.findById(request.regionId())
-                    .orElseThrow(() -> new GeneralException(RegionErrorCode.REGION_NOT_FOUND));
-            regionIds = getRegionIds(region);
-            if (sort == ContentSort.DISTANCE) {
-                if (region.getLatitude() == null || region.getLongitude() == null) {
-                    throw new GeneralException(GeneralErrorCode.INVALID_PARAMETER);
-                }
-                latitude = region.getLatitude().doubleValue();
-                longitude = region.getLongitude().doubleValue();
-            }
-        }
-        if (sort == ContentSort.DISTANCE && (latitude == null || longitude == null)) {
-            throw new GeneralException(GeneralErrorCode.INVALID_PARAMETER);
-        }
-
-        List<Content> contents = calendarQueryRepository.findCalendarContents(
-                request, regionIds, latitude, longitude
-        );
-        List<ContentResDTO.CalendarContentInfo> result = contents.isEmpty()
-                ? List.of()
-                : createContentInfos(contents, userId).stream()
-                        .map(ContentConverter::toCalendarContentInfo)
-                        .toList();
-
-        return new ContentResDTO.ContentCalendarRes(
-                result.size(), result, startDate, endDate
-        );
-    }
-
-    @Override
     public CursorResponse<ContentResDTO.ContentInfo> getContents(ContentReqDTO.ContentListReq request, Long userId){
 
         BooleanBuilder builder = new BooleanBuilder();
@@ -162,7 +107,17 @@ public class ContentServiceImpl implements ContentService{
         }
 
         builder.and(qContent.publicationStatus.eq(publicationStatus));
-        applyStatusFilter(builder, request.statuses(), LocalDate.now());
+        if (!request.isValidDateRange()) {
+            throw new GeneralException(GeneralErrorCode.INVALID_PARAMETER);
+        }
+        if (request.startDate() != null) {
+            builder.and(qContent.startDate.loe(request.endDate())
+                    .and(qContent.endDate.goe(request.startDate())));
+        }
+        // 날짜 조회는 과거 행사도 포함하고, 명시한 상태 필터는 함께 적용합니다.
+        if (request.startDate() == null || (request.statuses() != null && !request.statuses().isEmpty())) {
+            applyStatusFilter(builder, request.statuses(), LocalDate.now());
+        }
 
         int size = request.size() == null ? DEFAULT_PAGE_SIZE : request.size();
 

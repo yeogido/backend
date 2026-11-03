@@ -20,46 +20,6 @@ import java.util.List;
 
 public class ContentResDTO {
 
-    @Schema(description = "월별·일별·기간별 행사 조회 결과")
-    public record ContentCalendarRes(
-            @Schema(description = "선택 기간과 겹치는 전체 행사 수", example = "1")
-            int totalCount,
-            @Schema(description = "행사 목록. 결과가 없으면 빈 배열을 반환합니다.")
-            List<CalendarContentInfo> contents,
-            @JsonFormat(pattern = "yyyy-MM-dd")
-            @Schema(description = "실제 조회 시작일", example = "2026-10-01")
-            LocalDate startDate,
-            @JsonFormat(pattern = "yyyy-MM-dd")
-            @Schema(description = "실제 조회 종료일", example = "2026-10-31")
-            LocalDate endDate
-    ) {}
-
-    @Schema(description = "캘린더 행사 정보")
-    public record CalendarContentInfo(
-            @Schema(description = "상세 조회에 사용하는 문화콘텐츠 ID")
-            Long contentId,
-            @Schema(description = "행사명")
-            String title,
-            @Schema(description = "카테고리", example = "FESTIVAL")
-            ContentCategory category,
-            @Schema(description = "대표 이미지 URL")
-            String thumbnailImageUrl,
-            @Schema(description = "지역명")
-            String regionName,
-            @Schema(description = "해시태그 이름 목록")
-            List<String> hashtags,
-            @Schema(description = "좋아요 수")
-            Long likeCount,
-            @Schema(description = "현재 사용자의 좋아요 여부. 비로그인 시 false")
-            Boolean isLiked,
-            @JsonFormat(pattern = "yyyy.MM.dd")
-            @Schema(description = "실제 행사 시작일", example = "2026.09.30")
-            LocalDate startDate,
-            @JsonFormat(pattern = "yyyy.MM.dd")
-            @Schema(description = "실제 행사 종료일", example = "2026.10.02")
-            LocalDate endDate
-    ) {}
-
     @Schema(description = "문화콘텐츠 목록 정보")
     public record ContentInfo(
 
@@ -96,12 +56,12 @@ public class ContentResDTO {
             @Schema(description = "현재 사용자의 좋아요 여부", example = "false")
             Boolean isLiked,
 
-            @JsonFormat(pattern = "yyyy.MM")
-            @Schema(description = "시작일", example = "2026.07")
+            @JsonFormat(pattern = "yyyy-MM-dd")
+            @Schema(description = "시작일", example = "2026-07-04")
             LocalDate startDate,
       
-            @JsonFormat(pattern = "yyyy.MM")
-            @Schema(description = "종료일", example = "2026.07")
+            @JsonFormat(pattern = "yyyy-MM-dd")
+            @Schema(description = "종료일", example = "2026-07-05")
             LocalDate endDate,
 
             @Schema(description = "게시 상태", example = "PUBLISHED")

@@ -24,6 +24,15 @@ import org.springframework.test.context.ContextConfiguration;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import com.yeogido.backend.domain.content.dto.ContentResDTO;
+import com.yeogido.backend.domain.content.service.ContentService;
+import com.yeogido.backend.domain.content.service.ContentServiceImpl;
+import com.yeogido.backend.domain.content.service.ContentExternalLinkService;
+import com.yeogido.backend.domain.user.service.AdminAuthorizationService;
+import com.yeogido.backend.domain.place.service.PlaceService;
+import com.yeogido.backend.domain.file.service.FileService;
+import com.yeogido.backend.domain.file.service.S3Service;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import com.yeogido.backend.domain.content.dto.ContentReqDTO;
 import com.yeogido.backend.domain.content.enums.ContentCategory;
 import com.yeogido.backend.domain.content.enums.ContentSort;
@@ -46,17 +55,22 @@ import static org.assertj.core.api.Assertions.assertThat;
     "spring.jpa.hibernate.ddl-auto=create-drop"
 })
 @AutoConfigureTestDatabase(replace=AutoConfigureTestDatabase.Replace.NONE)
-@ContextConfiguration(classes=ContentCalendarRepositoryTest.Config.class)
-class ContentCalendarRepositoryTest {
+@ContextConfiguration(classes=ContentListDateIntegrationTest.Config.class)
+class ContentListDateIntegrationTest {
   @Configuration
   @EnableAutoConfiguration
   @EntityScan("com.yeogido.backend.domain")
-  @EnableJpaRepositories(basePackageClasses=ContentRepository.class)
-  @Import({JpaConfig.class, QueryDslConfig.class, ContentCalendarQueryRepository.class})
+  @EnableJpaRepositories(basePackages="com.yeogido.backend.domain")
+  @Import({JpaConfig.class, QueryDslConfig.class, ContentServiceImpl.class})
   static class Config {}
 
   @Autowired TestEntityManager em;
-  @Autowired ContentCalendarQueryRepository repository;
+  @Autowired ContentService service;
+  @MockitoBean AdminAuthorizationService adminAuthorizationService;
+  @MockitoBean ContentExternalLinkService contentExternalLinkService;
+  @MockitoBean PlaceService placeService;
+  @MockitoBean FileService fileService;
+  @MockitoBean S3Service s3Service;
   Place place;
 
   @BeforeEach
@@ -84,7 +98,7 @@ class ContentCalendarRepositoryTest {
 
     assertThat(findCalendarContents(
         LocalDate.of(2026,10,1),LocalDate.of(2026,10,31)))
-        .extracting(Content::getTitle)
+        .extracting(ContentResDTO.ContentInfo::title)
         .containsExactly("전체 포함","월초 종료","하루 행사 1","하루 행사 2","월말 시작");
   }
 
@@ -95,10 +109,10 @@ class ContentCalendarRepositoryTest {
     em.flush(); em.clear();
     assertThat(findCalendarContents(
         LocalDate.of(2028,2,1),LocalDate.of(2028,2,29)))
-        .extracting(Content::getTitle).containsExactly("윤일");
+        .extracting(ContentResDTO.ContentInfo::title).containsExactly("윤일");
     assertThat(findCalendarContents(
         LocalDate.of(2028,1,1),LocalDate.of(2028,1,31)))
-        .extracting(Content::getTitle).containsExactly("연도 경계");
+        .extracting(ContentResDTO.ContentInfo::title).containsExactly("연도 경계");
   }
 
   @Test
@@ -124,7 +138,7 @@ class ContentCalendarRepositoryTest {
     em.flush(); em.clear();
     LocalDate date = LocalDate.of(2026,10,15);
     assertThat(findCalendarContents(date,date))
-        .extracting(Content::getTitle).containsExactly("당일 종료","당일 시작","당일만");
+        .extracting(ContentResDTO.ContentInfo::title).containsExactly("당일 종료","당일 시작","당일만");
   }
 
   @Test
@@ -137,17 +151,16 @@ class ContentCalendarRepositoryTest {
     em.flush(); em.clear();
     assertThat(findCalendarContents(
         LocalDate.of(2026,10,10),LocalDate.of(2026,10,20)))
-        .extracting(Content::getTitle).containsExactly("선택 기간 전체 포함","첫날 종료","마지막날 시작");
+        .extracting(ContentResDTO.ContentInfo::title).containsExactly("선택 기간 전체 포함","첫날 종료","마지막날 시작");
   }
 
-  private List<Content> findCalendarContents(LocalDate start, LocalDate end) {
-    return repository.findCalendarContents(new ContentReqDTO.ContentCalendarReq(start,end),List.of(),null,null);
+  private List<ContentResDTO.ContentInfo> findCalendarContents(LocalDate start, LocalDate end) {
+    return service.getContents(new ContentReqDTO.ContentListReq(null,null,null,null,null,null,null,null,null,null,100,start,end),null).getItems();
   }
 
-  private List<Content> query(ContentCategory category, ContentSort sort, Double latitude, Double longitude) {
-    return repository.findCalendarContents(new ContentReqDTO.ContentCalendarReq(
-        LocalDate.of(2026,10,1),LocalDate.of(2026,10,31),category,sort,null,latitude,longitude),
-        List.of(),latitude,longitude);
+  private List<ContentResDTO.ContentInfo> query(ContentCategory category, ContentSort sort, Double latitude, Double longitude) {
+    return service.getContents(new ContentReqDTO.ContentListReq(null,category,null,null,null,sort,
+        latitude,longitude,null,null,100,LocalDate.of(2026,10,1),LocalDate.of(2026,10,31)),null).getItems();
   }
 
   @Test
@@ -157,7 +170,7 @@ class ContentCalendarRepositoryTest {
     save("추천 1 첫번째", "2026-10-01","2026-10-31",ContentPublicationStatus.PUBLISHED).updateRecommendPriority(1);
     save("추천 1 두번째", "2026-10-01","2026-10-31",ContentPublicationStatus.PUBLISHED).updateRecommendPriority(1);
     em.flush(); em.clear();
-    assertThat(query(null,null,null,null)).extracting(Content::getTitle)
+    assertThat(query(null,null,null,null)).extracting(ContentResDTO.ContentInfo::title)
         .containsExactly("추천 1 첫번째","추천 1 두번째","추천 2","미추천");
   }
 
@@ -172,9 +185,9 @@ class ContentCalendarRepositoryTest {
         .category(ContentCategory.EXHIBITION).startDate(LocalDate.of(2026,10,1))
         .endDate(LocalDate.of(2026,10,2)).build());
     em.flush(); em.clear();
-    assertThat(query(ContentCategory.FESTIVAL,ContentSort.DEADLINE,null,null)).extracting(Content::getTitle)
+    assertThat(query(ContentCategory.FESTIVAL,ContentSort.DEADLINE,null,null)).extracting(ContentResDTO.ContentInfo::title)
         .containsExactly("먼저 종료","먼저 종료 두번째","늦게 종료");
-    assertThat(query(ContentCategory.EXHIBITION,ContentSort.RECOMMEND,null,null)).extracting(Content::getTitle)
+    assertThat(query(ContentCategory.EXHIBITION,ContentSort.RECOMMEND,null,null)).extracting(ContentResDTO.ContentInfo::title)
         .containsExactly("다른 카테고리");
     assertThat(query(ContentCategory.EXPERIENCE,ContentSort.RECOMMEND,null,null)).isEmpty();
   }
@@ -192,12 +205,12 @@ class ContentCalendarRepositoryTest {
       if (i==0) em.persist(ContentLike.builder().content(one).user(user).build());
     }
     em.flush(); em.clear();
-    assertThat(query(null,ContentSort.LIKE,null,null)).extracting(Content::getTitle)
+    assertThat(query(null,ContentSort.LIKE,null,null)).extracting(ContentResDTO.ContentInfo::title)
         .containsExactly("저장 2","저장 1","저장 0");
   }
 
   @Test
-  void sortsByDistanceAndSupportsRegionConstraint() {
+  void sortsByDistanceWithinDateRange() {
     Place far = em.persist(Place.builder().region(place.getRegion()).source(PlaceSource.KAKAO)
         .externalPlaceId("far").name("먼 장소").latitude(new BigDecimal("2"))
         .longitude(BigDecimal.ZERO).build());
@@ -205,10 +218,9 @@ class ContentCalendarRepositoryTest {
         .startDate(LocalDate.of(2026,10,1)).endDate(LocalDate.of(2026,10,31)).build());
     save("가까운 행사", "2026-10-01","2026-10-31",ContentPublicationStatus.PUBLISHED);
     em.flush(); em.clear();
-    assertThat(query(null,ContentSort.DISTANCE,0.0,0.0)).extracting(Content::getTitle)
+    assertThat(query(null,ContentSort.DISTANCE,0.0,0.0)).extracting(ContentResDTO.ContentInfo::title)
         .containsExactly("가까운 행사","먼 행사");
-    var req = new ContentReqDTO.ContentCalendarReq(LocalDate.of(2026,10,1),LocalDate.of(2026,10,31));
-    assertThat(repository.findCalendarContents(req,List.of(-1L),null,null)).isEmpty();
+
   }
 
 }

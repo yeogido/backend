@@ -8,7 +8,6 @@ import com.yeogido.backend.global.common.code.SuccessCode;
 import com.yeogido.backend.global.common.response.ApiResponse;
 import com.yeogido.backend.global.common.response.CursorResponse;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 import jakarta.validation.Valid;
@@ -31,33 +30,14 @@ public class ContentController {
 
     private final ContentService contentService;
 
-    // 기간별 문화콘텐츠 조회
-    @Operation(
-            summary = "월별, 일별, 기간별 문화콘텐츠 조회",
-            description = "선택 기간에 포함되는 게시된 행사를 반환합니다. "
-    )
-    @ApiResponses({
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "캘린더 행사 조회 성공"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "필수 날짜 누락, 날짜 역전, 범위 초과 또는 잘못된 날짜 형식")
-    })
-    @GetMapping("/calendar")
-    public ApiResponse<ContentResDTO.ContentCalendarRes> getCalendarContents(
-            @Valid @ParameterObject @ModelAttribute ContentReqDTO.ContentCalendarReq request,
-            @AuthenticationPrincipal AuthUser authUser
-    ) {
-        Long userId = authUser == null ? null : authUser.userId();
-        ContentResDTO.ContentCalendarRes result = contentService.getCalendarContents(request, userId);
-        return ApiResponse.onSuccess(SuccessCode.OK, result);
-    }
-
     //문화콘텐츠 목록 조회
     @Operation(
             summary = "문화콘텐츠 목록 조회",
-            description = "문화콘텐츠를 검색어, 카테고리, 지역 및 행사 상태로 필터링하고 추천순, 저장순, 거리순 또는 종료 임박순으로 정렬합니다. "
+            description = "startDate와 endDate를 함께 전달하면 선택 기간과 하루라도 겹치는 문화콘텐츠를 조회합니다. 날짜 필터와 기존 필터, 정렬, 커서 페이징을 함께 사용할 수 있습니다."
     )
     @GetMapping
     public ApiResponse<CursorResponse<ContentResDTO.ContentInfo>> getContents(
-            @ParameterObject @ModelAttribute ContentReqDTO.ContentListReq request,
+            @Valid @ParameterObject @ModelAttribute ContentReqDTO.ContentListReq request,
             @AuthenticationPrincipal AuthUser authUser
     ){
         Long userId = authUser == null ? null : authUser.userId();
