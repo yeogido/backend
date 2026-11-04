@@ -20,7 +20,7 @@ public class CourseSemanticSearchService {
 
     public CourseSemanticSearchService(CourseEmbeddingClient client, CourseEmbeddingIndexService index,
             CourseSemanticSearchSessionRepository sessions,
-            @Value("${app.course-search.embedding.minimum-similarity:0.72}") double minimumSimilarity) {
+            @Value("${app.course-search.embedding.minimum-similarity:0.675}") double minimumSimilarity) {
         if (!Double.isFinite(minimumSimilarity) || minimumSimilarity < -1 || minimumSimilarity > 1) {
             throw new GeneralException(CourseErrorCode.INVALID_COURSE_SEARCH_CONFIG);
         }
