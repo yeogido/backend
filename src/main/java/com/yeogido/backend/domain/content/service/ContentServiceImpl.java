@@ -107,7 +107,17 @@ public class ContentServiceImpl implements ContentService{
         }
 
         builder.and(qContent.publicationStatus.eq(publicationStatus));
-        applyStatusFilter(builder, request.statuses(), LocalDate.now());
+        if (!request.isValidDateRange()) {
+            throw new GeneralException(GeneralErrorCode.INVALID_PARAMETER);
+        }
+        if (request.startDate() != null) {
+            builder.and(qContent.startDate.loe(request.endDate())
+                    .and(qContent.endDate.goe(request.startDate())));
+        }
+        // 날짜 조회는 과거 행사도 포함하고, 명시한 상태 필터는 함께 적용합니다.
+        if (request.startDate() == null || (request.statuses() != null && !request.statuses().isEmpty())) {
+            applyStatusFilter(builder, request.statuses(), LocalDate.now());
+        }
 
         int size = request.size() == null ? DEFAULT_PAGE_SIZE : request.size();
 

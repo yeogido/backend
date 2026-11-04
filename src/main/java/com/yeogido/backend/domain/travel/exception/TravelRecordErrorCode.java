@@ -57,6 +57,30 @@ public enum TravelRecordErrorCode implements ErrorCode {
             "공개범위 값이 올바르지 않습니다."
     ),
 
+    INVALID_INVITATION_TARGET(
+            HttpStatus.BAD_REQUEST,
+            "TRAVEL_RECORD4009",
+            "초대 대상 정보가 올바르지 않습니다."
+    ),
+
+    INVITATION_ALREADY_PENDING(
+            HttpStatus.CONFLICT,
+            "TRAVEL_RECORD4092",
+            "이미 수락 대기 중인 초대가 있습니다."
+    ),
+
+    ALREADY_PARTICIPATING(
+            HttpStatus.CONFLICT,
+            "TRAVEL_RECORD4093",
+            "이미 앨범에 참여 중인 사용자입니다."
+    ),
+
+    INVALID_INVITATION_STATE(
+            HttpStatus.CONFLICT,
+            "TRAVEL_RECORD4095",
+            "현재 앨범 상태에서는 요청한 작업을 처리할 수 없습니다."
+    ),
+
     TRAVEL_RECORD_NOT_FOUND(
             HttpStatus.NOT_FOUND,
             "TRAVEL_RECORD4041",
