@@ -94,7 +94,18 @@ app:
 
   course-search:
     enabled: ${COURSE_SEARCH_ENABLED:false}
-    timeout-seconds: ${COURSE_SEARCH_TIMEOUT_SECONDS:3}
+    timeout-seconds: ${COURSE_SEARCH_TIMEOUT_SECONDS:45}
+    embedding:
+      enabled: ${COURSE_SEARCH_EMBEDDING_ENABLED:false}
+      model: ${COURSE_SEARCH_EMBEDDING_MODEL:gemini-embedding-001}
+      dimensions: ${COURSE_SEARCH_EMBEDDING_DIMENSIONS:768}
+      timeout-seconds: ${COURSE_SEARCH_EMBEDDING_TIMEOUT_SECONDS:10}
+      minimum-similarity: ${COURSE_SEARCH_EMBEDDING_MINIMUM_SIMILARITY:0.65}
+      session-ttl-seconds: ${COURSE_SEARCH_EMBEDDING_SESSION_TTL_SECONDS:900}
+      index-batch-size: ${COURSE_SEARCH_EMBEDDING_INDEX_BATCH_SIZE:20}
+      index-scan-size: ${COURSE_SEARCH_EMBEDDING_INDEX_SCAN_SIZE:100}
+      fixed-delay-ms: ${COURSE_SEARCH_EMBEDDING_FIXED_DELAY_MS:60000}
+      initial-delay-ms: ${COURSE_SEARCH_EMBEDDING_INITIAL_DELAY_MS:1000}
 
   # 검색 근거 기반 장소 설명 생성용 Gemini 설정
   gemini:
