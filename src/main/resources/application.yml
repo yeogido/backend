@@ -92,6 +92,10 @@ app:
     timeout-seconds: 15
     search-size: 5
 
+  course-search:
+    enabled: ${COURSE_SEARCH_ENABLED:false}
+    timeout-seconds: ${COURSE_SEARCH_TIMEOUT_SECONDS:3}
+
   # 검색 근거 기반 장소 설명 생성용 Gemini 설정
   gemini:
     api-key: ${GEMINI_API_KEY:}
