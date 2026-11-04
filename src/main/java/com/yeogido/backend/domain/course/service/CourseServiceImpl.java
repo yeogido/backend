@@ -8,6 +8,7 @@ import com.yeogido.backend.domain.content.enums.ContentPublicationStatus;
 import com.yeogido.backend.domain.business.enums.DayOfWeek;
 import com.yeogido.backend.domain.course.converter.CourseConverter;
 import com.yeogido.backend.domain.course.validation.CourseScheduleValidator;
+import com.yeogido.backend.domain.course.converter.CourseSearchCursorConverter;
 import com.yeogido.backend.domain.course.dto.request.CourseReqDTO;
 import com.yeogido.backend.domain.course.dto.response.CourseResDTO;
 import com.yeogido.backend.domain.course.entity.*;
@@ -57,6 +58,10 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
+import com.yeogido.backend.domain.course.dto.CourseSearchDTO.Interpretation;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
@@ -79,6 +84,9 @@ public class CourseServiceImpl implements CourseService {
     private static final int DEFAULT_COURSE_REVIEW_PAGE_SIZE = 10;
     private static final int RECOMMENDED_COURSE_SIZE = 5;
 
+    private final PlatformTransactionManager transactionManager;
+    private final CourseSearchService courseSearchService;
+    private final CourseSearchCursorConverter courseSearchCursorConverter;
     private final CourseRepository courseRepository;
     private final CourseLikeRepository courseLikeRepository;
     private final CourseHashtagRepository courseHashtagRepository;
@@ -176,20 +184,40 @@ public class CourseServiceImpl implements CourseService {
     }
 
     @Override
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public CursorResponse<CourseResDTO.CoursePreview> getCourses(
             CourseReqDTO.CourseListReq request,
             Long userId
     ) {
-        validateCourseListRequest(request);
+        var decoded = courseSearchCursorConverter.decode(request);
+        var pageRequest = decoded.request();
+        validateCourseListRequest(pageRequest);
+        // 기존 커서의 문자열 검색 유지 및 신규 커서의 해석 결과 재사용
+        var interpretation = decoded.pinned() ? decoded.interpretation()
+                : pageRequest.cursorId() == null ? courseSearchService.interpret(pageRequest) : null;
 
+        // 외부 AI 호출 종료 후 코스 조회 구간에만 읽기 트랜잭션 적용
+        TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+        transaction.setReadOnly(true);
+        return transaction.execute(status -> getCoursesInTransaction(pageRequest, userId, interpretation, decoded.pinned()));
+    }
+
+    private CursorResponse<CourseResDTO.CoursePreview> getCoursesInTransaction(
+            CourseReqDTO.CourseListReq request,
+            Long userId,
+            Interpretation interpretation,
+            boolean pinned
+    ) {
         int size = request.size();
         User currentUser = userId == null
                 ? null
                 : getCurrentUser(userId);
         CourseQueryRepository.CourseLocation location = resolveCourseLocation(request, currentUser);
         Map<Long, Long> popularityScores = getPopularityScores(request);
-        List<CourseQueryRepository.CourseListRow> rows =
-                courseRepository.findCoursesByCursor(request, location, popularityScores, size + 1);
+        List<CourseQueryRepository.CourseListRow> rows = interpretation == null
+                ? courseRepository.findCoursesByCursor(request, location, popularityScores, size + 1)
+                : courseRepository.findCoursesByCursor(interpretation.request(), location, popularityScores,
+                        size + 1, interpretation.terms(), interpretation.totalDays());
 
         boolean hasNext = rows.size() > size;
         if (hasNext) {
@@ -215,9 +243,13 @@ public class CourseServiceImpl implements CourseService {
                 ? null
                 : rows.get(rows.size() - 1);
 
+        Object cursorValue = nextCourseCursorValue(request.sort(), lastRow);
+        if (lastRow != null && (interpretation != null || pinned)) {
+            cursorValue = courseSearchCursorConverter.encode(request, interpretation, cursorValue);
+        }
         return CursorResponse.of(
                 items,
-                nextCourseCursorValue(request.sort(), lastRow),
+                cursorValue,
                 lastRow == null ? null : lastRow.courseId(),
                 hasNext
         );
