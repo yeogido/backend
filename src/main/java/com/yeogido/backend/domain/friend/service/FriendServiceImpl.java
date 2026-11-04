@@ -14,6 +14,9 @@ import com.yeogido.backend.domain.friend.enums.RelationStatus;
 import com.yeogido.backend.domain.friend.exception.FriendErrorCode;
 import com.yeogido.backend.domain.friend.repository.FriendCourseRepository;
 import com.yeogido.backend.domain.friend.repository.FriendshipRepository;
+import com.yeogido.backend.domain.travel.repository.TravelRecordMemberRepository;
+import com.yeogido.backend.domain.travel.repository.TravelRecordRepository;
+import com.yeogido.backend.domain.travel.service.TravelRecordService;
 import com.yeogido.backend.domain.user.entity.User;
 import com.yeogido.backend.domain.user.enums.UserRole;
 import com.yeogido.backend.domain.user.enums.UserStatus;
@@ -33,6 +36,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -47,6 +51,9 @@ public class FriendServiceImpl implements FriendService {
     private final CourseHashtagRepository courseHashtagRepository;
     private final CourseLikeRepository courseLikeRepository;
     private final S3Service s3Service;
+    private final TravelRecordService travelRecordService;
+    private final TravelRecordRepository travelRecordRepository;
+    private final TravelRecordMemberRepository travelRecordMemberRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -290,6 +297,29 @@ public class FriendServiceImpl implements FriendService {
         );
     }
 
+    /**
+     * 친구 관계와 함께한 공유 앨범을 한 트랜잭션에서 정리합니다. 대기 초대는 친구 관계를 지울 때 FK CASCADE로 함께 삭제됩니다.
+     * 초대 수락과 같은 순서(앨범 → 친구 관계)로 잠그고, 잠금 대기 중 커밋된 참여 변경을 읽도록 READ_COMMITTED를 사용합니다.
+     */
+    @Override
+    @Transactional(isolation = Isolation.READ_COMMITTED)
+    public void deleteFriend(Long userId, Long friendUserId) {
+        getFriend(userId, friendUserId);
+
+        lockSharedAlbums(userId, friendUserId);
+        Friendship friendship = findFriendship(userId, friendUserId)
+                .flatMap(found -> friendshipRepository.findByIdForUpdate(found.getId()))
+                .orElseThrow(() -> new GeneralException(FriendErrorCode.NOT_FRIEND));
+
+        // 친구 관계 잠금을 기다리는 사이 수락된 초대의 앨범까지 잠근 뒤 최신 참여자 수로 판단
+        lockSharedAlbums(userId, friendUserId);
+        travelRecordMemberRepository.findSharedAlbums(userId, friendUserId)
+                .forEach(album -> cleanUpSharedAlbum(album, userId, friendUserId));
+
+        friendshipRepository.delete(friendship);
+        friendshipRepository.flush();
+    }
+
     @Override
     @Transactional(readOnly = true)
     public boolean areFriends(Long userIdA, Long userIdB) {
@@ -302,6 +332,26 @@ public class FriendServiceImpl implements FriendService {
                 Math.max(userIdA, userIdB),
                 FriendshipStatus.ACCEPTED
         );
+    }
+
+    private void lockSharedAlbums(Long userId, Long friendUserId) {
+        travelRecordMemberRepository.findSharedAlbums(userId, friendUserId)
+                .forEach(album -> travelRecordRepository.findActiveDetailForUpdate(album.getTravelRecordId()));
+    }
+
+    private void cleanUpSharedAlbum(
+            TravelRecordMemberRepository.SharedAlbum album,
+            Long userId,
+            Long friendUserId
+    ) {
+        Long travelRecordId = album.getTravelRecordId();
+        if (!album.getOwnerId().equals(userId)) {
+            travelRecordService.leaveTravelRecord(travelRecordId, userId);
+        } else if (album.getMemberCount() == 1) {
+            travelRecordService.deleteTravelRecord(travelRecordId, userId);
+        } else {
+            travelRecordService.excludeMemberByOwner(travelRecordId, userId, friendUserId);
+        }
     }
 
     private User getUser(Long userId) {

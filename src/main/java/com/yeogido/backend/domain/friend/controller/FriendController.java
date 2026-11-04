@@ -68,6 +68,19 @@ public class FriendController {
         return ApiResponse.onSuccess(SuccessCode.OK, response);
     }
 
+    @Operation(
+            summary = "친구 삭제 API",
+            description = "친구 관계를 삭제하고 함께한 공유 앨범을 정리합니다. 친구 관계가 없으면 FRIEND4043을 반환합니다."
+    )
+    @DeleteMapping("/{friendUserId}")
+    public ApiResponse<Void> deleteFriend(
+            @PathVariable Long friendUserId,
+            @AuthenticationPrincipal AuthUser authUser
+    ) {
+        friendService.deleteFriend(authUser.userId(), friendUserId);
+        return ApiResponse.onSuccess(SuccessCode.OK);
+    }
+
     @Operation(summary = "내 친구코드 조회 API", description = "프로필 QR 모달에 표시할 내 친구코드를 조회합니다.")
     @GetMapping("/me/code")
     public ApiResponse<FriendResDTO.MyFriendCode> getMyFriendCode(
