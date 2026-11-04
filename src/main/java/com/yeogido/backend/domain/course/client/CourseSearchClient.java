@@ -22,7 +22,7 @@ public class CourseSearchClient {
       @Value("${app.gemini.api-key:}") String apiKey,
       @Value("${app.gemini.base-url:https://generativelanguage.googleapis.com/v1beta}") String baseUrl,
       @Value("${app.gemini.model:gemini-3.5-flash-lite}") String model,
-      @Value("${app.course-search.timeout-seconds:3}") int timeoutSeconds) {
+      @Value("${app.course-search.timeout-seconds:45}") int timeoutSeconds) {
     this.enabled = enabled && StringUtils.hasText(apiKey);
     if (!this.enabled) {
       this.delegate = null;
