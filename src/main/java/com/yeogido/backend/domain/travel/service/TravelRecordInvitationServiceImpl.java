@@ -1,5 +1,6 @@
 package com.yeogido.backend.domain.travel.service;
 
+import com.yeogido.backend.domain.file.service.S3Service;
 import com.yeogido.backend.domain.friend.enums.FriendshipStatus;
 import com.yeogido.backend.domain.friend.repository.FriendshipRepository;
 import com.yeogido.backend.domain.travel.converter.TravelRecordInvitationConverter;
@@ -16,6 +17,7 @@ import com.yeogido.backend.domain.travel.repository.TravelRecordRepository;
 import com.yeogido.backend.domain.user.entity.User;
 import com.yeogido.backend.domain.user.enums.UserStatus;
 import com.yeogido.backend.domain.user.repository.UserRepository;
+import com.yeogido.backend.global.common.response.CursorResponse;
 import com.yeogido.backend.global.exception.GeneralErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
 import jakarta.persistence.EntityManager;
@@ -35,12 +37,36 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class TravelRecordInvitationServiceImpl implements TravelRecordInvitationService {
 
+    private static final int DEFAULT_PAGE_SIZE = 10;
+    private static final int MAX_PAGE_SIZE = 100;
+
     private final TravelRecordRepository travelRecordRepository;
     private final TravelRecordMemberRepository travelRecordMemberRepository;
     private final TravelRecordInvitationRepository invitationRepository;
     private final UserRepository userRepository;
     private final FriendshipRepository friendshipRepository;
     private final EntityManager entityManager;
+    private final S3Service s3Service;
+
+    @Override
+    public CursorResponse<TravelRecordInvitationResDTO.ReceivedInvitation> getReceivedInvitations(
+            Long userId, TravelRecordInvitationReqDTO.ListRequest request
+    ) {
+        int size = request.size() == null ? DEFAULT_PAGE_SIZE : request.size();
+        if (size <= 0 || size > MAX_PAGE_SIZE || (request.cursor() != null && request.cursor() <= 0)) {
+            throw new GeneralException(TravelRecordErrorCode.INVALID_PAGE_REQUEST);
+        }
+        TravelRecordInvitation cursor = request.cursor() == null ? null
+                : invitationRepository.findReceivedCursor(userId, request.cursor())
+                    .orElseThrow(() -> new GeneralException(TravelRecordErrorCode.INVALID_PAGE_REQUEST));
+        List<TravelRecordInvitation> invitations = invitationRepository.findPendingReceived(userId, cursor, size + 1);
+        boolean hasNext = invitations.size() > size;
+        List<TravelRecordInvitation> content = hasNext ? invitations.subList(0, size) : invitations;
+        List<TravelRecordInvitationResDTO.ReceivedInvitation> items = content.stream()
+                .map(invitation -> TravelRecordInvitationConverter.toReceivedInvitation(invitation, s3Service::getImageUrl))
+                .toList();
+        return CursorResponse.of(items, null, content.isEmpty() ? null : content.getLast().getId(), hasNext);
+    }
 
     /** 앨범 행 잠금 아래 모든 대상을 검증한 뒤 초대를 함께 저장하며 참여 관계는 생성하지 않습니다. */
     @Override

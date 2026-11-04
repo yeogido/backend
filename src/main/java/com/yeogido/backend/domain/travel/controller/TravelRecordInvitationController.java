@@ -6,11 +6,15 @@ import com.yeogido.backend.domain.travel.dto.response.TravelRecordInvitationResD
 import com.yeogido.backend.domain.travel.service.TravelRecordInvitationService;
 import com.yeogido.backend.global.common.code.SuccessCode;
 import com.yeogido.backend.global.common.response.ApiResponse;
+import com.yeogido.backend.global.common.response.CursorResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -24,6 +28,17 @@ import org.springframework.web.bind.annotation.RestController;
 public class TravelRecordInvitationController {
 
     private final TravelRecordInvitationService invitationService;
+
+    @Operation(summary = "받은 공유 앨범 초대 목록 조회", description = "본인이 받은 PENDING 초대를 생성일, ID 내림차순으로 조회합니다. "
+            + "수락 전 사진 정보는 제공하지 않으며 cursor에는 이전 응답의 cursorId를 전달합니다.")
+    @GetMapping("/invitations")
+    public ApiResponse<CursorResponse<TravelRecordInvitationResDTO.ReceivedInvitation>> getReceivedInvitations(
+            @AuthenticationPrincipal AuthUser authUser,
+            @ParameterObject @ModelAttribute TravelRecordInvitationReqDTO.ListRequest request
+    ) {
+        return ApiResponse.onSuccess(SuccessCode.OK,
+                invitationService.getReceivedInvitations(authUser.userId(), request));
+    }
 
     @Operation(summary = "공유 앨범 초대", description = "FRIENDS 앨범의 생성자와 현재 참여자가 실제 친구에게 참여 초대를 보냅니다. "
             + "전체 대상 검증 후 함께 저장하며 초대만으로 조회나 수정 권한을 부여하지 않습니다.")
