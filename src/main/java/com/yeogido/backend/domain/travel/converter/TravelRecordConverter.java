@@ -220,6 +220,10 @@ public class TravelRecordConverter {
                 shared && (owner || participant), record.getVisibility() == TravelRecordVisibility.PUBLIC);
     }
 
+    public static TravelRecordResDTO.VisibilityUpdateResponse toVisibilityUpdateResponse(TravelRecord record) {
+        return new TravelRecordResDTO.VisibilityUpdateResponse(record.getId(), record.getVisibility(), record.getVersion());
+    }
+
     public static TravelRecordResDTO.UpdateResponse toUpdateResponse(
             TravelRecord travelRecord
     ) {

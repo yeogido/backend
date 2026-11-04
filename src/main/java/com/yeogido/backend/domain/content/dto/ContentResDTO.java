@@ -61,7 +61,7 @@ public class ContentResDTO {
             LocalDate startDate,
       
             @JsonFormat(pattern = "yyyy.MM")
-            @Schema(description = "종료일", example = "2026.07")
+            @Schema(description = "종료일", example = "2026.08")
             LocalDate endDate,
 
             @Schema(description = "게시 상태", example = "PUBLISHED")

@@ -8,13 +8,11 @@ import com.yeogido.backend.global.common.code.SuccessCode;
 import com.yeogido.backend.global.common.response.ApiResponse;
 import com.yeogido.backend.global.common.response.CursorResponse;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springdoc.core.annotations.ParameterObject;
-import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import com.yeogido.backend.domain.auth.security.AuthUser;
@@ -35,11 +33,11 @@ public class ContentController {
     //문화콘텐츠 목록 조회
     @Operation(
             summary = "문화콘텐츠 목록 조회",
-            description = "문화콘텐츠를 검색어, 카테고리, 지역 및 행사 상태로 필터링하고 추천순, 저장순, 거리순 또는 종료 임박순으로 정렬합니다. "
+            description = "startDate와 endDate를 함께 전달하면 선택 기간과 하루라도 겹치는 문화콘텐츠를 조회합니다. 날짜 필터와 기존 필터, 정렬, 커서 페이징을 함께 사용할 수 있습니다."
     )
     @GetMapping
     public ApiResponse<CursorResponse<ContentResDTO.ContentInfo>> getContents(
-            @ParameterObject @ModelAttribute ContentReqDTO.ContentListReq request,
+            @Valid @ParameterObject @ModelAttribute ContentReqDTO.ContentListReq request,
             @AuthenticationPrincipal AuthUser authUser
     ){
         Long userId = authUser == null ? null : authUser.userId();

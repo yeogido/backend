@@ -9,6 +9,7 @@ import com.yeogido.backend.domain.place.enums.PlaceSource;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
@@ -19,6 +20,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import org.springframework.format.annotation.DateTimeFormat;
 
 public class ContentReqDTO {
 
@@ -33,8 +35,7 @@ public class ContentReqDTO {
             ContentCategory category,
 
             @Schema(
-                    description = "행사 상태 목록 (UPCOMING: 진행 예정, ONGOING: 진행 중, ENDED: 종료). 여러 상태 선택 가능",
-                    defaultValue = "[UPCOMING, ONGOING]"
+                    description = "행사 상태 목록 (UPCOMING: 예정, ONGOING: 진행 중, ENDED: 종료). 생략 시 날짜 필터가 없으면 예정·진행 중, 날짜 필터가 있으면 전체 상태"
             )
             List<ContentListStatus> statuses,
 
@@ -64,8 +65,24 @@ public class ContentReqDTO {
 
             @Schema(description = "조회 개수")
             @Positive
-            Integer size
-    ){}
+            Integer size,
+
+            @Schema(description = "조회 시작일. endDate와 함께 전달", example = "2026-11-01")
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            LocalDate startDate,
+
+            @Schema(description = "조회 종료일. 양 끝 날짜 포함", example = "2026-11-30")
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            LocalDate endDate
+    ) {
+        @Schema(hidden = true)
+        @AssertTrue(message = "조회 시작일과 종료일을 함께 전달해야 하며, 시작일은 종료일보다 늦을 수 없습니다.")
+        public boolean isValidDateRange() {
+            return (startDate == null && endDate == null)
+                    || (startDate != null && endDate != null && !startDate.isAfter(endDate)
+                    && startDate.getYear() >= 1 && endDate.getYear() <= 9999);
+        }
+    }
 
     public record ContentCreateReq(
 

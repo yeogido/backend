@@ -36,6 +36,10 @@ public interface TravelRecordService {
             TravelRecordReqDTO.UpdateRequest request
     );
 
+    TravelRecordResDTO.VisibilityUpdateResponse updateVisibility(
+            Long travelRecordId, Long userId, TravelRecordReqDTO.VisibilityUpdateRequest request
+    );
+
     void deleteTravelRecord(Long travelRecordId, Long userId);
 
     void leaveTravelRecord(Long travelRecordId, Long userId);

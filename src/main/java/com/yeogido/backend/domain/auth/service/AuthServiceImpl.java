@@ -1,7 +1,7 @@
 package com.yeogido.backend.domain.auth.service;
 
-import com.yeogido.backend.domain.auth.client.KakaoUserInfoClient;
 import com.yeogido.backend.domain.auth.client.KakaoTokenClient;
+import com.yeogido.backend.domain.auth.client.KakaoUserInfoClient;
 import com.yeogido.backend.domain.auth.client.NaverUserInfoClient;
 import com.yeogido.backend.domain.auth.converter.AuthConverter;
 import com.yeogido.backend.domain.auth.dto.AuthReqDTO;
@@ -18,6 +18,7 @@ import com.yeogido.backend.domain.friend.service.FriendCodeGenerator;
 import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.region.exception.RegionErrorCode;
 import com.yeogido.backend.domain.region.repository.RegionRepository;
+import com.yeogido.backend.domain.terms.service.TermsService;
 import com.yeogido.backend.domain.user.entity.User;
 import com.yeogido.backend.domain.user.enums.UserRole;
 import com.yeogido.backend.domain.user.enums.UserStatus;
@@ -50,11 +51,13 @@ public class AuthServiceImpl implements AuthService {
   private final PasswordResetCodeService passwordResetCodeService;
   private final EmailVerificationService emailVerificationService;
   private final MailService mailService;
+  private final TermsService termsService;
   private final FriendCodeGenerator friendCodeGenerator;
 
   @Override
   @Transactional
   public AuthResDTO.SignUp signUp(AuthReqDTO.SignUp request) {
+    var agreedDocuments = termsService.validate(request.agreements());
     validateEmailAvailable(request.email());
 
     emailVerificationService.verifyToken(request.email(), request.emailVerificationToken());
@@ -84,6 +87,7 @@ public class AuthServiceImpl implements AuthService {
       throw new GeneralException(GeneralErrorCode.INTERNAL_SERVER_ERROR);
     }
 
+    termsService.record(user, agreedDocuments);
     emailVerificationService.deleteToken(request.emailVerificationToken());
 
     return new AuthResDTO.SignUp(user.getId());
@@ -159,6 +163,7 @@ public class AuthServiceImpl implements AuthService {
   @Override
   @Transactional
   public AuthResDTO.Token completeSocialSignup(AuthReqDTO.SocialSignupComplete request) {
+    var agreedDocuments = termsService.validate(request.agreements());
     SocialSignupTokenPayload payload = socialSignupTokenService.getPayload(request.temporaryToken());
 
     if (socialAccountRepository.existsByProviderAndProviderId(payload.provider(), payload.providerId())) {
@@ -191,6 +196,7 @@ public class AuthServiceImpl implements AuthService {
       .providerId(payload.providerId())
       .build());
 
+    termsService.record(user, agreedDocuments);
     socialSignupTokenService.deleteToken(request.temporaryToken());
 
     return issueAndSaveToken(user);
@@ -223,19 +229,19 @@ public class AuthServiceImpl implements AuthService {
       .filter(foundUser -> foundUser.getStatus() == UserStatus.ACTIVE)
       .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
 
-    AuthResDTO.Token token = jwtTokenProvider.issueToken(user, authUser.sessionId());
+    var token = jwtTokenProvider.issueToken(user, authUser.sessionId());
     if (!refreshTokenService.rotate(user.getId(), authUser.sessionId(), request.refreshToken(), token.refreshToken())) {
       throw new GeneralException(AuthErrorCode.INVALID_REFRESH_TOKEN);
     }
 
-    return token;
+    return AuthConverter.toTokenResponse(user, token, termsService.isAgreementRequired(user.getId()));
   }
 
   private AuthResDTO.Token issueAndSaveToken(User user) {
-    AuthResDTO.Token token = jwtTokenProvider.issueToken(user);
+    var token = jwtTokenProvider.issueToken(user);
     AuthUser authUser = jwtTokenProvider.parseRefreshToken(token.refreshToken());
     refreshTokenService.save(user.getId(), authUser.sessionId(), token.refreshToken());
-    return token;
+    return AuthConverter.toTokenResponse(user, token, termsService.isAgreementRequired(user.getId()));
   }
 
   @Override

@@ -127,6 +127,21 @@ public class TravelRecordController {
     }
 
     @Operation(
+            summary = "여행 기록 공개범위 수정",
+            description = "생성자만 PRIVATE와 PUBLIC 사이에서 변경합니다. 상세 조회의 version은 필수이며 "
+                    + "같은 상태 요청도 버전을 검사합니다. FRIENDS 관련 전환은 지원하지 않습니다."
+    )
+    @PatchMapping("/{travelRecordId}/visibility")
+    public ApiResponse<TravelRecordResDTO.VisibilityUpdateResponse> updateVisibility(
+            @PathVariable Long travelRecordId,
+            @AuthenticationPrincipal AuthUser authUser,
+            @Valid @RequestBody TravelRecordReqDTO.VisibilityUpdateRequest request
+    ) {
+        return ApiResponse.onSuccess(SuccessCode.OK,
+                travelRecordService.updateVisibility(travelRecordId, authUser.userId(), request));
+    }
+
+    @Operation(
             summary = "공유 앨범 나가기",
             description = "현재 FRIENDS 참여자가 본인의 참여 관계만 삭제합니다. 앨범·사진·스티커·다른 참여자는 유지하며 이후 조회·수정 권한은 제거됩니다. 생성자는 409로 거부됩니다."
     )
