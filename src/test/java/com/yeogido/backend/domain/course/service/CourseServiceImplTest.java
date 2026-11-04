@@ -634,7 +634,7 @@ class CourseServiceImplTest {
     }
 
     @Test
-    void semanticProviderFailurePropagatesBeforeOpeningSearchTransaction() {
+    void semanticProviderFailureFallsBackToTermSearchAndKeepsNaturalCursor() {
         var original = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, "비 오는 날", null,
                 null, null, null, null, CourseSortType.LATEST, null, null, null, null, 1);
         var interpretation = new Interpretation(original, List.of("비 오는 날"));
@@ -642,8 +642,33 @@ class CourseServiceImplTest {
         when(courseSemanticSearchService.isEnabled()).thenReturn(true);
         when(courseSemanticSearchService.search(interpretation)).thenThrow(
                 new GeneralException(CourseErrorCode.COURSE_SEARCH_API_ERROR));
-        assertThatThrownBy(() -> courseService.getCourses(original, null)).isInstanceOf(GeneralException.class);
-        Mockito.verifyNoInteractions(courseRepository, transactionManager);
+        when(courseRepository.findSearchPhaseByCursor(any(), any(), anyMap(), eq(2),
+                eq(List.of()), ArgumentMatchers.isNull(), eq("비 오는 날"), eq(true)))
+                .thenReturn(List.of());
+        when(courseRepository.findSearchPhaseByCursor(any(), any(), anyMap(), eq(2),
+                eq(List.of("비 오는 날")), ArgumentMatchers.isNull(), eq("비 오는 날"), eq(false)))
+                .thenReturn(List.of(priorityRow(10), priorityRow(11)));
+
+        var first = courseService.getCourses(original, null);
+
+        assertThat(first.getItems()).extracting(CourseResDTO.CoursePreview::courseId).containsExactly(10L);
+        assertThat(first.isHasNext()).isTrue();
+        assertThat(first.getCursorValue().toString()).startsWith("nl2.");
+        var next = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, "비 오는 날", null,
+                null, null, null, null, CourseSortType.LATEST, null, null,
+                first.getCursorValue().toString(), first.getCursorId(), 1);
+        var decoded = courseSearchCursorConverter.decode(next);
+        assertThat(decoded.interpretation().semanticSessionId()).isNull();
+        assertThat(decoded.interpretation().terms()).containsExactly("비 오는 날");
+
+        var second = courseService.getCourses(next, null);
+
+        assertThat(second.getCursorValue().toString()).startsWith("nl2.");
+        Mockito.verify(courseSearchService, Mockito.times(1)).interpret(any());
+        Mockito.verify(courseSemanticSearchService, Mockito.times(1)).search(any());
+        Mockito.verify(courseSemanticSearchService, never()).restore(any());
+        Mockito.verify(courseRepository, never()).findSemanticCoursesByCursor(any(), any(), anyMap(),
+                Mockito.anyInt(), any(), any(), any());
     }
 
     private CourseQueryRepository.CourseListRow priorityRow(long id) {

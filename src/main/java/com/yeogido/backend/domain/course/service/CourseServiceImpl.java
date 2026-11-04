@@ -204,10 +204,15 @@ public class CourseServiceImpl implements CourseService {
             semanticCourseIds = courseSemanticSearchService.restore(interpretation);
         } else if (!decoded.pinned() && pageRequest.cursorId() == null && interpretation != null
                 && !interpretation.terms().isEmpty() && courseSemanticSearchService.isEnabled()) {
-            var candidates = courseSemanticSearchService.search(interpretation);
-            semanticCourseIds = candidates.courseIds();
-            interpretation = new Interpretation(interpretation.request(), interpretation.terms(),
-                    interpretation.totalDays(), interpretation.extractedKeywords(), candidates.sessionId());
+            try {
+                var candidates = courseSemanticSearchService.search(interpretation);
+                semanticCourseIds = candidates.courseIds();
+                interpretation = new Interpretation(interpretation.request(), interpretation.terms(),
+                        interpretation.totalDays(), interpretation.extractedKeywords(), candidates.sessionId());
+            } catch (GeneralException exception) {
+                log.warn("의미 기반 검색 실패에 따른 키워드 기반 자연어 검색 적용. code={}",
+                        exception.getErrorCode().getCode());
+            }
         }
 
         // 외부 AI 호출 종료 후 코스 조회 구간에만 읽기 트랜잭션 적용
