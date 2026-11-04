@@ -217,6 +217,19 @@ public class TravelRecordResDTO {
     ) {
     }
 
+    @Schema(name = "TravelRecordVisibilityUpdateResponse", description = "여행 기록 공개범위 수정 응답")
+    public record VisibilityUpdateResponse(
+            @Schema(description = "여행 기록 ID", example = "20")
+            Long travelRecordId,
+
+            @Schema(description = "저장된 공개범위", example = "PUBLIC")
+            TravelRecordVisibility visibility,
+
+            @Schema(description = "저장 후 수정 버전. 같은 공개범위이면 기존 버전 유지", example = "1")
+            Long version
+    ) {
+    }
+
     @Schema(name = "TravelRecordUpdateResponse", description = "여행 기록 수정 응답")
     public record UpdateResponse(
             @Schema(description = "수정된 여행 기록 ID", example = "1")

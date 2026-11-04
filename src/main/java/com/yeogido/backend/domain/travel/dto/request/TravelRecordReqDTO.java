@@ -150,6 +150,19 @@ public class TravelRecordReqDTO {
     ) {
     }
 
+    @Schema(name = "TravelRecordVisibilityUpdateRequest", description = "여행 기록 공개범위 수정 요청")
+    public record VisibilityUpdateRequest(
+            @Schema(description = "변경할 공개범위. FRIENDS 관련 전환은 지원하지 않습니다.",
+                    allowableValues = {"PRIVATE", "PUBLIC"}, example = "PUBLIC")
+            String visibility,
+
+            @Schema(description = "상세 조회에서 받은 현재 수정 버전", example = "0")
+            @NotNull(message = "수정 버전은 필수입니다.")
+            @PositiveOrZero(message = "수정 버전은 0 이상이어야 합니다.")
+            Long version
+    ) {
+    }
+
     @Schema(name = "TravelRecordImageRequest", description = "여행 기록 사진 요청")
     public record ImageRequest(
             @Schema(description = "사진 이미지 key", example = "travel-records/1/image-1.jpg")
