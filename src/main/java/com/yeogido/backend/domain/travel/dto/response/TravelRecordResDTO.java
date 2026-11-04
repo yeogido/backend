@@ -2,11 +2,38 @@ package com.yeogido.backend.domain.travel.dto.response;
 
 import com.yeogido.backend.domain.travel.enums.TravelRecordVisibility;
 import io.swagger.v3.oas.annotations.media.Schema;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
 public class TravelRecordResDTO {
+
+    @Schema(name = "TravelRecordMapItem", description = "지도에 표시할 앨범별 사진과 지역 중심 좌표")
+    public record MapItem(
+            @Schema(description = "여행 기록 ID", example = "20")
+            Long travelRecordId,
+            @Schema(description = "여행 기록 제목", example = "부산 바다 여행")
+            String title,
+            @Schema(description = "지역 ID", example = "1")
+            Long regionId,
+            @Schema(description = "지역명", example = "부산")
+            String regionName,
+            @Schema(description = "지역 중심 위도. 실제 사진 촬영 위치가 아니며 좌표가 불완전하면 null", nullable = true,
+                    example = "35.1796")
+            BigDecimal latitude,
+            @Schema(description = "지역 중심 경도. 좌표가 불완전하면 null", nullable = true, example = "129.0756")
+            BigDecimal longitude,
+            @Schema(description = "여행 시작일", example = "2026-05-22")
+            LocalDate startDate,
+            @Schema(description = "여행 종료일", example = "2026-05-24")
+            LocalDate endDate,
+            @Schema(description = "공개범위")
+            TravelRecordVisibility visibility,
+            @Schema(description = "앨범의 전체 사진. imageOrder 오름차순")
+            List<ImageResponse> images
+    ) {
+    }
 
     @Schema(name = "TravelRecordYearListResponse", description = "내 여행 기록 연도 목록 조회 응답")
     public record YearListResponse(

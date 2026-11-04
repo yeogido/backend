@@ -11,6 +11,10 @@ public interface TravelRecordService {
             TravelRecordReqDTO.ListRequest request
     );
 
+    CursorResponse<TravelRecordResDTO.MapItem> getMyTravelMap(
+            Long userId, TravelRecordReqDTO.MapRequest request
+    );
+
     TravelRecordResDTO.YearListResponse getMyTravelRecordYears(
             Long userId, TravelRecordReqDTO.YearListRequest request
     );
@@ -29,4 +33,6 @@ public interface TravelRecordService {
     );
 
     void deleteTravelRecord(Long travelRecordId, Long userId);
+
+    void leaveTravelRecord(Long travelRecordId, Long userId);
 }

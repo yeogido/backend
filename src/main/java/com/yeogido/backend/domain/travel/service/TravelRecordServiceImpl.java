@@ -31,6 +31,7 @@ import com.yeogido.backend.global.common.response.CursorResponse;
 import com.yeogido.backend.global.exception.GeneralErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.Year;
@@ -117,6 +118,44 @@ public class TravelRecordServiceImpl implements TravelRecordService {
         return CursorResponse.of(items,null, nextCursor, hasNext);
     }
 
+    /**
+     * 본인 생성 기록과 현재 참여 중인 공유 기록을 종료 연도, 공개범위로 필터링하여 조회합니다.
+     * 종료일과 ID 내림차순으로 앨범 단위 페이징하고, 현재 페이지의 사진은 일괄 조회합니다.
+     */
+    @Override
+    public CursorResponse<TravelRecordResDTO.MapItem> getMyTravelMap(
+            Long userId, TravelRecordReqDTO.MapRequest request
+    ) {
+        int size = resolveSize(request.size());
+        int year = resolveYear(request.year());
+        validateCursor(request.cursor());
+        TravelRecordVisibility visibility = resolveVisibilityFilter(request.visibility());
+        LocalDate yearStart = LocalDate.of(year, 1, 1);
+        LocalDate yearEnd = LocalDate.of(year, 12, 31);
+        TravelRecord cursor = request.cursor() == null ? null
+                : travelRecordRepository.findVisibleCursor(userId, userId, visibility,
+                        request.cursor(), yearStart, yearEnd)
+                    .orElseThrow(() -> new GeneralException(TravelRecordErrorCode.INVALID_PAGE_REQUEST));
+        List<TravelRecord> records = travelRecordRepository.findVisibleRecords(
+                userId, userId, visibility, yearStart, yearEnd, cursor, size + 1);
+        boolean hasNext = records.size() > size;
+        List<TravelRecord> content = hasNext ? records.subList(0, size) : records;
+        if (content.isEmpty()) {
+            return CursorResponse.of(List.of(), null, null, false);
+        }
+
+        // 폴더, 스티커, 참여자 정보는 조회하지 않고 현재 페이지의 전체 사진만 일괄 조회합니다.
+        List<Long> recordIds = content.stream().map(TravelRecord::getId).toList();
+        Map<Long, List<TravelRecordPhoto>> photos = travelRecordPhotoRepository
+                .findByTravelRecordIdInOrderByTravelRecordIdAscImageOrderAsc(recordIds)
+                .stream().collect(Collectors.groupingBy(photo -> photo.getTravelRecord().getId()));
+        List<TravelRecordResDTO.MapItem> items = content.stream()
+                .map(record -> TravelRecordConverter.toMapItem(record,
+                        photos.getOrDefault(record.getId(), List.of()), s3Service::getImageUrl))
+                .toList();
+        return CursorResponse.of(items, null, items.get(items.size() - 1).travelRecordId(), hasNext);
+    }
+
     @Override
     public TravelRecordResDTO.YearListResponse getMyTravelRecordYears(
             Long userId, TravelRecordReqDTO.YearListRequest request
@@ -154,6 +193,7 @@ public class TravelRecordServiceImpl implements TravelRecordService {
         );
     }
 
+    /** 사진을 이동하기 전에 스티커를 검증하고 검증된 스티커로 새 여행 기록을 저장합니다. */
     @Override
     @Transactional
     public TravelRecordResDTO.CreateResponse createTravelRecord(
@@ -166,6 +206,12 @@ public class TravelRecordServiceImpl implements TravelRecordService {
 
         validateDateRange(request);
         validateImageOrders(request.images());
+
+        // DB 롤백으로 복구할 수 없는 사진 이동 전에 스티커 검증을 완료합니다.
+        List<TravelRecordReqDTO.StickerRequest> stickerRequests = resolveStickers(request.stickers());
+        validateStickerZIndex(stickerRequests);
+        Map<Long, Sticker> stickerMap = stickerRequests.isEmpty()
+                ? Map.of() : getAvailableStickerMap(stickerRequests, user.getId());
 
         List<TravelRecordReqDTO.ImageRequest> movedImages = moveImages(request.images());
         String coverImageKey = findCoverImageKey(movedImages);
@@ -189,15 +235,7 @@ public class TravelRecordServiceImpl implements TravelRecordService {
 
         travelRecordPhotoRepository.saveAll(photos);
 
-        List<TravelRecordReqDTO.StickerRequest> stickerRequests = resolveStickers(request.stickers());
         if (!stickerRequests.isEmpty()) {
-            validateStickerZIndex(stickerRequests);
-
-            Map<Long, Sticker> stickerMap = getAvailableStickerMap(
-                    stickerRequests,
-                    user.getId()
-            );
-
             List<TravelRecordSticker> stickers = TravelRecordConverter.toTravelRecordStickers(
                     savedTravelRecord,
                     stickerRequests,
@@ -234,6 +272,10 @@ public class TravelRecordServiceImpl implements TravelRecordService {
             throw new GeneralException(TravelRecordErrorCode.VERSION_CONFLICT);
         }
 
+        Map<Long, Sticker> stickerMap = validateAndGetStickerMapForUpdate(
+                travelRecord, request.stickers(), userId
+        );
+
         List<TravelRecordReqDTO.ImageRequest> movedImages = moveImages(request.images());
         String coverImageKey = findCoverImageKey(movedImages);
 
@@ -258,21 +300,51 @@ public class TravelRecordServiceImpl implements TravelRecordService {
         );
         travelRecordPhotoRepository.saveAll(photos);
 
-        updateStickersIfRequested(travelRecord, request.stickers(), userId);
+        updateStickersIfRequested(travelRecord, request.stickers(), stickerMap);
 
         return TravelRecordConverter.toUpdateResponse(travelRecord);
     }
 
+    /** 생성자만 앨범을 삭제하며 참여 관계·초대는 기존 FK CASCADE로 함께 정리합니다. */
     @Override
     @Transactional
     public void deleteTravelRecord(Long travelRecordId, Long userId) {
-        TravelRecord travelRecord = getTravelRecordOrThrow(travelRecordId);
+        validateActiveUser(userId);
+        TravelRecord travelRecord = getLockedTravelRecordOrThrow(travelRecordId);
         validateOwner(travelRecord, userId);
 
         // FK 제약이 있으므로 자식 테이블 데이터를 먼저 삭제한 뒤 여행 기록을 삭제합니다.
         travelRecordStickerRepository.deleteAllByTravelRecord_Id(travelRecordId);
         travelRecordPhotoRepository.deleteAllByTravelRecord_Id(travelRecordId);
         travelRecordRepository.delete(travelRecord);
+        travelRecordRepository.flush();
+    }
+
+    /** 현재 FRIENDS 참여 관계만 제거하고 이전 화면·진행 중인 수정의 버전을 무효화합니다. */
+    @Override
+    @Transactional
+    public void leaveTravelRecord(Long travelRecordId, Long userId) {
+        validateActiveUser(userId);
+        TravelRecord travelRecord = getLockedTravelRecordOrThrow(travelRecordId);
+        if (travelRecord.getUser().getId().equals(userId)) {
+            throw new GeneralException(TravelRecordErrorCode.OWNER_CANNOT_LEAVE);
+        }
+        if (travelRecord.getVisibility() != TravelRecordVisibility.FRIENDS
+                || travelRecordMemberRepository.deleteCurrentMembership(travelRecordId, userId) == 0) {
+            throw new GeneralException(GeneralErrorCode.FORBIDDEN);
+        }
+        // 앨범 행 잠금을 유지한 채 버전을 변경하므로 먼저 권한을 확인한 수정도 덮어쓰지 못합니다.
+        if (travelRecordRepository.reserveVersion(travelRecordId, travelRecord.getVersion()) == 0) {
+            throw new GeneralException(TravelRecordErrorCode.VERSION_CONFLICT);
+        }
+        entityManager.refresh(travelRecord, LockModeType.PESSIMISTIC_WRITE);
+    }
+
+    /** 탈퇴한 사용자는 남아 있는 참여 행이 있더라도 변경 API를 사용할 수 없습니다. */
+    private void validateActiveUser(Long userId) {
+        if (getUserOrThrow(userId).getStatus() != UserStatus.ACTIVE) {
+            throw new GeneralException(GeneralErrorCode.FORBIDDEN);
+        }
     }
 
     private User getUserOrThrow(Long userId) {
@@ -337,9 +409,12 @@ public class TravelRecordServiceImpl implements TravelRecordService {
         }
     }
 
-    private TravelRecord getTravelRecordOrThrow(Long travelRecordId) {
-        return travelRecordRepository.findById(travelRecordId)
+    /** 잠금 대기 중 반영된 버전도 읽도록 기존 영속 상태를 갱신합니다. */
+    private TravelRecord getLockedTravelRecordOrThrow(Long travelRecordId) {
+        TravelRecord record = travelRecordRepository.findActiveDetailForUpdate(travelRecordId)
                 .orElseThrow(() -> new GeneralException(TravelRecordErrorCode.TRAVEL_RECORD_NOT_FOUND));
+        entityManager.refresh(record, LockModeType.PESSIMISTIC_WRITE);
+        return record;
     }
 
     private Region getRegionOrThrow(Long regionId) {
@@ -397,32 +472,38 @@ public class TravelRecordServiceImpl implements TravelRecordService {
         }
     }
 
-    private void updateStickersIfRequested(
+    /** 버전 선점 후 기존 배치를 기준으로 검증하고 사진 이동 전에 사용할 스티커를 확정합니다. */
+    private Map<Long, Sticker> validateAndGetStickerMapForUpdate(
             TravelRecord travelRecord,
             List<TravelRecordReqDTO.StickerRequest> stickerRequests,
             Long userId
+    ) {
+        if (stickerRequests == null || stickerRequests.isEmpty()) {
+            return Map.of();
+        }
+        validateStickerZIndex(stickerRequests);
+        return getAvailableStickerMapForUpdate(
+                stickerRequests,
+                userId,
+                getExistingStickerCounts(travelRecord.getId()),
+                countRequestedStickerIds(stickerRequests)
+        );
+    }
+
+    /** 사전 검증 결과로 배치만 교체하며 null은 유지, 빈 목록은 전체 삭제를 의미합니다. */
+    private void updateStickersIfRequested(
+            TravelRecord travelRecord,
+            List<TravelRecordReqDTO.StickerRequest> stickerRequests,
+            Map<Long, Sticker> stickerMap
     ) {
         if (stickerRequests == null) {
             return;
         }
 
+        travelRecordStickerRepository.deleteAllByTravelRecord_Id(travelRecord.getId());
         if (stickerRequests.isEmpty()) {
-            travelRecordStickerRepository.deleteAllByTravelRecord_Id(travelRecord.getId());
             return;
         }
-
-        validateStickerZIndex(stickerRequests);
-
-        Map<Long, Long> existingStickerCounts = getExistingStickerCounts(travelRecord.getId());
-        Map<Long, Long> requestedStickerCounts = countRequestedStickerIds(stickerRequests);
-        Map<Long, Sticker> stickerMap = getAvailableStickerMapForUpdate(
-                stickerRequests,
-                userId,
-                existingStickerCounts,
-                requestedStickerCounts
-        );
-
-        travelRecordStickerRepository.deleteAllByTravelRecord_Id(travelRecord.getId());
         travelRecordStickerRepository.flush();
 
         List<TravelRecordSticker> stickers = TravelRecordConverter.toTravelRecordStickers(

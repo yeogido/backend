@@ -1,6 +1,7 @@
 package com.yeogido.backend.domain.user.repository;
 
 import com.yeogido.backend.domain.user.entity.User;
+import com.yeogido.backend.domain.user.enums.UserStatus;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -19,4 +20,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
   Optional<User> findByEmail(String email);
 
   boolean existsByFriendCode(String friendCode);
+
+  Optional<User> findByFriendCodeAndStatus(String friendCode, UserStatus status);
 }

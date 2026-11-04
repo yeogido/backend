@@ -132,9 +132,7 @@ public class PlaceServiceImpl implements PlaceService {
                 );
 
         if (optionalPlace.isPresent()) {
-            Place place = optionalPlace.get();
-
-            return place;
+            return optionalPlace.get();
         }
 
         Region region = findRegionByAddress(
