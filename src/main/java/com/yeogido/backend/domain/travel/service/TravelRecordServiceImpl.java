@@ -305,6 +305,34 @@ public class TravelRecordServiceImpl implements TravelRecordService {
         return TravelRecordConverter.toUpdateResponse(travelRecord);
     }
 
+    /** 생성자의 PRIVATE, PUBLIC 전환만 허용하며 콘텐츠 수정과 같은 앨범 행에서 버전을 검사합니다. */
+    @Override
+    @Transactional
+    public TravelRecordResDTO.VisibilityUpdateResponse updateVisibility(
+            Long travelRecordId, Long userId, TravelRecordReqDTO.VisibilityUpdateRequest request
+    ) {
+        TravelRecordVisibility visibility = parseVisibility(request.visibility());
+        TravelRecord record = getLockedTravelRecordOrThrow(travelRecordId);
+        validateOwner(record, userId);
+        // 잠금 대기 전 스냅샷이나 인증 단계에서 로딩된 사용자 상태에 의존하지 않습니다.
+        entityManager.refresh(record.getUser(), LockModeType.PESSIMISTIC_READ);
+        if (record.getUser().getStatus() != UserStatus.ACTIVE) {
+            throw new GeneralException(GeneralErrorCode.FORBIDDEN);
+        }
+        if (record.getVisibility() == TravelRecordVisibility.FRIENDS || visibility == TravelRecordVisibility.FRIENDS) {
+            throw new GeneralException(TravelRecordErrorCode.INVALID_INVITATION_STATE);
+        }
+        if (!record.getVersion().equals(request.version())) {
+            throw new GeneralException(TravelRecordErrorCode.VERSION_CONFLICT);
+        }
+        if (record.getVisibility() != visibility) {
+            record.updateVisibility(visibility);
+            // 실제 변경이 있을 때만 JPA의 @Version을 증가시키고 응답에도 반영합니다.
+            travelRecordRepository.flush();
+        }
+        return TravelRecordConverter.toVisibilityUpdateResponse(record);
+    }
+
     /** 생성자만 앨범을 삭제하며 참여 관계·초대는 기존 FK CASCADE로 함께 정리합니다. */
     @Override
     @Transactional

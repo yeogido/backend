@@ -59,6 +59,10 @@ public class TravelRecord extends BaseEntity {
     @Column(name = "version", nullable = false)
     private Long version;
 
+    public void updateVisibility(TravelRecordVisibility visibility) {
+        this.visibility = visibility;
+    }
+
     public void update(
             Region region,
             String title,
