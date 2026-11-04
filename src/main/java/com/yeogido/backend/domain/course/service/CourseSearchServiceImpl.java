@@ -150,12 +150,7 @@ public class CourseSearchServiceImpl implements CourseSearchService {
         default -> extraction.totalDays() + "일";
       });
     } else if (extraction.durationType() != null) {
-      keywords.add(switch (extraction.durationType()) {
-        case DAY_TRIP -> "당일치기";
-        case ONE_NIGHT -> "1박2일";
-        case TWO_NIGHT -> "2박3일";
-        case THREE_PLUS -> "3박 이상";
-      });
+      keywords.add(extraction.durationType().getDisplayName());
     }
     if (extraction.transportType() != null) {
       keywords.add(extraction.transportType() == TransportType.WALK ? "도보·대중교통" : "자동차");
