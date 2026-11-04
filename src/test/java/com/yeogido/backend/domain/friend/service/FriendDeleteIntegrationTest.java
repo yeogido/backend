@@ -17,6 +17,7 @@ import com.yeogido.backend.domain.travel.entity.TravelRecordPhoto;
 import com.yeogido.backend.domain.travel.enums.FolderTheme;
 import com.yeogido.backend.domain.travel.enums.TravelRecordInvitationStatus;
 import com.yeogido.backend.domain.travel.enums.TravelRecordVisibility;
+import com.yeogido.backend.domain.travel.repository.TravelRecordMemberRepository;
 import com.yeogido.backend.domain.travel.service.TravelRecordInvitationServiceImpl;
 import com.yeogido.backend.domain.travel.service.TravelRecordServiceImpl;
 import com.yeogido.backend.domain.user.entity.User;
@@ -50,6 +51,7 @@ class FriendDeleteIntegrationTest {
 
     @Autowired private FriendService friendService;
     @Autowired private TravelRecordInvitationServiceImpl invitationService;
+    @Autowired private TravelRecordMemberRepository memberRepository;
     @Autowired private TestEntityManager em;
     @MockitoBean private FileService fileService;
     @MockitoBean private S3Service s3Service;
@@ -116,6 +118,23 @@ class FriendDeleteIntegrationTest {
         delete();
 
         assertThat(em.find(TravelRecord.class, album.getId())).isNull();
+    }
+
+    /** 친구가 검증 직후 탈퇴해도 남은 참여자가 있는 앨범을 삭제 대상으로 판단하지 않습니다. */
+    @Test
+    void remainingMemberCountIsUnaffectedWhenFriendWithdrawsDuringDeletion() {
+        User withdrawnFriend = user("탈퇴한 친구", UserStatus.DELETED);
+        TravelRecord album = album(me);
+        member(album, withdrawnFriend);
+        member(album, third);
+        flushAndClear();
+
+        var albums = memberRepository.findSharedAlbums(me.getId(), withdrawnFriend.getId());
+
+        assertThat(albums).singleElement().satisfies(found -> {
+            assertThat(found.getTravelRecordId()).isEqualTo(album.getId());
+            assertThat(found.getRemainingMemberCount()).isEqualTo(1L);
+        });
     }
 
     @Test

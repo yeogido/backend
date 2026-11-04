@@ -482,10 +482,10 @@ class FriendServiceImplTest {
         when(friendshipRepository.findByUserLowIdAndUserHighId(ME_ID, OTHER_ID)).thenReturn(Optional.of(friendship));
         when(friendshipRepository.findByIdForUpdate(REQUEST_ID)).thenReturn(Optional.of(friendship));
         when(travelRecordMemberRepository.findSharedAlbums(ME_ID, OTHER_ID)).thenReturn(List.of(
-                sharedAlbum(100L, ME_ID, 1L),
-                sharedAlbum(101L, ME_ID, 2L),
-                sharedAlbum(102L, OTHER_ID, 1L),
-                sharedAlbum(103L, THIRD_ID, 2L)
+                sharedAlbum(100L, ME_ID, 0L),
+                sharedAlbum(101L, ME_ID, 1L),
+                sharedAlbum(102L, OTHER_ID, 0L),
+                sharedAlbum(103L, THIRD_ID, 1L)
         ));
 
         friendService.deleteFriend(ME_ID, OTHER_ID);
@@ -501,7 +501,7 @@ class FriendServiceImplTest {
         order.verify(friendshipRepository).flush();
     }
 
-    private static TravelRecordMemberRepository.SharedAlbum sharedAlbum(Long id, Long ownerId, Long memberCount) {
+    private static TravelRecordMemberRepository.SharedAlbum sharedAlbum(Long id, Long ownerId, Long remaining) {
         return new TravelRecordMemberRepository.SharedAlbum() {
             @Override
             public Long getTravelRecordId() {
@@ -514,8 +514,8 @@ class FriendServiceImplTest {
             }
 
             @Override
-            public Long getMemberCount() {
-                return memberCount;
+            public Long getRemainingMemberCount() {
+                return remaining;
             }
         };
     }

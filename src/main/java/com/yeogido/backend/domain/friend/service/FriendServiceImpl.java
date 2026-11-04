@@ -347,7 +347,7 @@ public class FriendServiceImpl implements FriendService {
         Long travelRecordId = album.getTravelRecordId();
         if (!album.getOwnerId().equals(userId)) {
             travelRecordService.leaveTravelRecord(travelRecordId, userId);
-        } else if (album.getMemberCount() == 1) {
+        } else if (album.getRemainingMemberCount() == 0) {
             travelRecordService.deleteTravelRecord(travelRecordId, userId);
         } else {
             travelRecordService.excludeMemberByOwner(travelRecordId, userId, friendUserId);
