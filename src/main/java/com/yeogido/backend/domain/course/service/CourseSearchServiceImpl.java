@@ -104,7 +104,7 @@ public class CourseSearchServiceImpl implements CourseSearchService {
     }
     Integer totalDays = nullablePositiveInteger(output.get("totalDays"));
     DurationType duration = enumValue(DurationType.class, output.get("durationType"));
-    if (query.matches("(?s).*\\b[0-9]+\\s*박\\s*(?:이상|부터|~|∼).*")) {
+    if (query.matches("(?s).*\\b[0-9]+\\s*(?:박\\s*(?:[0-9]+\\s*일\\s*)?|일\\s*)(?:이상|부터|~|∼).*")) {
       require(totalDays == null);
     }
     if (totalDays != null) {

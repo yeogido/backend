@@ -215,6 +215,34 @@ class CourseSearchServiceImplTest {
     assertThat(result.request().transportType()).isEqualTo(TransportType.WALK);
   }
 
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {
+      "3박 이상", "3박4일 이상", "6일 이상", "3박 4일 부터", "6일~", "3박4일∼"
+  })
+  void dayRangesRejectProviderExactDays(String query) {
+    respond("""
+        {"supported":true,"region":null,"durationType":"THREE_PLUS","transportType":null,
+         "companionType":null,"terms":[],"totalDays":4}
+        """);
+
+    assertThat(interpreter.interpret(request(query + " 강릉 카페", null, null, null, null))).isNull();
+    verifyNoInteractions(regions);
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"3박4일 이상", "6일 이상"})
+  void dayRangesAcceptNullExactDays(String query) {
+    respond("""
+        {"supported":true,"region":null,"durationType":"THREE_PLUS","transportType":null,
+         "companionType":null,"terms":[],"totalDays":null}
+        """);
+
+    var result = interpreter.interpret(request(query + " 강릉 카페", null, null, null, null));
+
+    assertThat(result.totalDays()).isNull();
+    assertThat(result.request().durationType()).isEqualTo(DurationType.THREE_PLUS);
+  }
+
   @Test
   void exactDaysAreNotPartOfPublicListRequest() {
     assertThat(java.util.Arrays.stream(CourseListReq.class.getRecordComponents())
