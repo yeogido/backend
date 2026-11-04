@@ -18,6 +18,23 @@ public interface CourseQueryRepository {
             int limit
     );
 
+    List<CourseListRow> findCoursesByCursor(
+            CourseReqDTO.CourseListReq request,
+            CourseLocation location,
+            Map<Long, Long> popularityScores,
+            int limit,
+            List<String> searchTerms
+    );
+
+    List<CourseListRow> findCoursesByCursor(
+            CourseReqDTO.CourseListReq request,
+            CourseLocation location,
+            Map<Long, Long> popularityScores,
+            int limit,
+            List<String> searchTerms,
+            Integer totalDays
+    );
+
     record CourseLocation(
             Double latitude,
             Double longitude

@@ -3,6 +3,12 @@ package com.yeogido.backend.domain.course.repository;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.yeogido.backend.domain.course.dto.request.CourseReqDTO;
+import com.yeogido.backend.domain.content.entity.Content;
+import com.yeogido.backend.domain.content.enums.ContentSource;
+import com.yeogido.backend.domain.course.entity.CourseItem;
+import com.yeogido.backend.domain.course.enums.CourseItemType;
+import com.yeogido.backend.domain.place.entity.Place;
+import com.yeogido.backend.domain.place.enums.PlaceSource;
 import com.yeogido.backend.domain.course.entity.Course;
 import com.yeogido.backend.domain.course.entity.CourseLike;
 import com.yeogido.backend.domain.course.entity.CourseReview;
@@ -246,6 +252,181 @@ class CourseQueryRepositoryImplTest {
                 .doesNotContain(unspecified.getId());
     }
 
+    @Test
+    void naturalLanguageTermsMustAllMatchAndMayMatchDifferentPlacesWithoutDuplicatingCourses() {
+        Region region = persistRegion("Busan", "35.1796", "129.0756");
+        Course matching = persistCourse(region, "coastal route", 1);
+        persistPlaceItem(matching, persistPlace(region, "바다 전망대", "파도와 해변"), 1);
+        persistPlaceItem(matching, persistPlace(region, "쉼터", "조용한 산책길"), 2);
+        persistPlaceItem(matching, persistPlace(region, "바다 카페", "조용한 휴식"), 3);
+        Course partial = persistCourse(region, "partial route", 2);
+        persistPlaceItem(partial, persistPlace(region, "바다 놀이터", "활기찬 공간"), 1);
+        persistCourse(region, "unrelated route", 3);
+        flushAndClear();
+
+        var rows = courseRepository.findCoursesByCursor(courseListRequest(CourseSortType.RECOMMEND),
+                new CourseQueryRepository.CourseLocation(null, null), Map.of(), 10, List.of("바다", "조용"));
+
+        assertThat(rows).extracting(CourseQueryRepository.CourseListRow::courseId)
+                .containsExactly(matching.getId());
+    }
+
+    @Test
+    void naturalLanguageTermsSearchContentDescriptionAndItsLinkedPlaceOverview() {
+        Region region = persistRegion("Busan", "35.1796", "129.0756");
+        Course matching = persistCourse(region, "event route", 1);
+        Place place = persistPlace(region, "행사장", "바다를 바라보는 공간");
+        Content content = entityManager.persist(Content.builder().place(place).source(ContentSource.ADMIN)
+                .title("주말 행사").description("조용한 음악 감상").build());
+        entityManager.persist(CourseItem.builder().course(matching).content(content)
+                .itemType(CourseItemType.CONTENT).orderNo(1).build());
+        Course unrelated = persistCourse(region, "unrelated event route", 2);
+        persistPlaceItem(unrelated, persistPlace(region, "공연장", "신나는 음악"), 1);
+        flushAndClear();
+
+        var rows = courseRepository.findCoursesByCursor(courseListRequest(CourseSortType.RECOMMEND),
+                new CourseQueryRepository.CourseLocation(null, null), Map.of(), 10, List.of("바다", "조용"));
+
+        assertThat(rows).extracting(CourseQueryRepository.CourseListRow::courseId)
+                .containsExactly(matching.getId());
+    }
+
+    @Test
+    void naturalLanguageTermsKeepRegionDurationAndSoftDeleteConditions() {
+        Region busan = persistRegion("Busan", "35.1796", "129.0756");
+        Region seoul = persistRegion("Seoul", "37.5665", "126.9780");
+        Course matching = persistCourse(busan, "eligible route", 1);
+        persistPlaceItem(matching, persistPlace(busan, "바다", "산책길"), 1);
+        Course wrongRegion = persistCourse(seoul, "other region route", 2);
+        persistPlaceItem(wrongRegion, persistPlace(seoul, "바다", "산책길"), 1);
+        Course wrongDuration = entityManager.persist(Course.builder().region(busan).title("overnight route")
+                .courseType(CourseType.OFFICIAL).durationType(DurationType.ONE_NIGHT)
+                .transportType(TransportType.CAR).companionType(CompanionType.FRIEND)
+                .thumbnailKey("courses/overnight.jpg").build());
+        persistPlaceItem(wrongDuration, persistPlace(busan, "바다", "산책길"), 1);
+        Course deleted = persistCourse(busan, "deleted route", 3);
+        persistPlaceItem(deleted, persistPlace(busan, "바다", "산책길"), 1);
+        deleted.delete();
+        flushAndClear();
+        var request = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, null, null, busan.getId(),
+                null, DurationType.DAY_TRIP, null, CourseSortType.RECOMMEND, null, null, null, null, 20);
+
+        var rows = courseRepository.findCoursesByCursor(request,
+                new CourseQueryRepository.CourseLocation(null, null), Map.of(), 10, List.of("바다"));
+
+        assertThat(rows).extracting(CourseQueryRepository.CourseListRow::courseId)
+                .containsExactly(matching.getId());
+    }
+
+    @Test
+    void naturalLanguageTermsApplyExactTotalDaysAndTransportWithoutCollapsingThreePlusCourses() {
+        Region region = persistRegion("Busan", "35.1796", "129.0756");
+        Course fourDayWalk = persistLongCourse(region, "4일 일정", 4, TransportType.WALK, 1);
+        Course sixDayWalk = persistLongCourse(region, "6일 일정", 6, TransportType.WALK, 2);
+        Course sixDayCar = persistLongCourse(region, "차량 6일 일정", 6, TransportType.CAR, 3);
+        Place place = persistPlace(region, "전망대", "바다를 바라보는 산책길");
+        for (Course course : List.of(fourDayWalk, sixDayWalk, sixDayCar)) {
+            persistPlaceItem(course, place, 1);
+        }
+        flushAndClear();
+        var location = new CourseQueryRepository.CourseLocation(null, null);
+        var exactDaysRequest = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, null, null,
+                region.getId(), TransportType.WALK, DurationType.THREE_PLUS, null, CourseSortType.RECOMMEND,
+                null, null, null, null, 20);
+
+        var exactDaysRows = courseRepository.findCoursesByCursor(exactDaysRequest,
+                location, Map.of(), 10, List.of("바다"), 6);
+
+        assertThat(exactDaysRows).extracting(CourseQueryRepository.CourseListRow::courseId)
+                .containsExactly(sixDayWalk.getId());
+
+        var anyDaysRequest = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, null, null,
+                region.getId(), TransportType.WALK, DurationType.THREE_PLUS, null, CourseSortType.RECOMMEND,
+                null, null, null, null, 20);
+        var anyDaysRows = courseRepository.findCoursesByCursor(anyDaysRequest,
+                location, Map.of(), 10, List.of("바다"));
+
+        assertThat(anyDaysRows).extracting(CourseQueryRepository.CourseListRow::courseId)
+                .containsExactly(fourDayWalk.getId(), sixDayWalk.getId());
+
+        var carRequest = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, null, null,
+                region.getId(), TransportType.CAR, DurationType.THREE_PLUS, null, CourseSortType.RECOMMEND,
+                null, null, null, null, 20);
+        var carRows = courseRepository.findCoursesByCursor(carRequest,
+                location, Map.of(), 10, List.of("바다"), 6);
+
+        assertThat(carRows).extracting(CourseQueryRepository.CourseListRow::courseId)
+                .containsExactly(sixDayCar.getId());
+
+        var literalRequest = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, "일정", null,
+                region.getId(), TransportType.WALK, DurationType.THREE_PLUS, null, CourseSortType.RECOMMEND,
+                null, null, null, null, 20);
+        var literalRows = courseRepository.findCoursesByCursor(literalRequest, location, Map.of(), 10);
+
+        assertThat(literalRows).extracting(CourseQueryRepository.CourseListRow::courseId)
+                .containsExactly(fourDayWalk.getId(), sixDayWalk.getId());
+    }
+
+    @Test
+    void naturalLanguageTermsPreserveRecommendCursorPagination() {
+        Region region = persistRegion("Busan", "35.1796", "129.0756");
+        Course first = persistCourse(region, "first route", 1);
+        Course second = persistCourse(region, "second route", 2);
+        Course third = persistCourse(region, "third route", 3);
+        for (Course course : List.of(first, second, third)) {
+            persistPlaceItem(course, persistPlace(region, "바다", "산책길"), 1);
+            persistPlaceItem(course, persistPlace(region, "바다 전망대", "파도"), 2);
+        }
+        flushAndClear();
+        var location = new CourseQueryRepository.CourseLocation(null, null);
+        var firstPage = courseRepository.findCoursesByCursor(courseListRequest(CourseSortType.RECOMMEND),
+                location, Map.of(), 2, List.of("바다"));
+        var last = firstPage.get(1);
+        var secondPage = courseRepository.findCoursesByCursor(
+                courseListRequest(CourseSortType.RECOMMEND, last.recommendOrder().toString(), last.courseId()),
+                location, Map.of(), 2, List.of("바다"));
+
+        assertThat(firstPage).extracting(CourseQueryRepository.CourseListRow::courseId)
+                .containsExactly(first.getId(), second.getId());
+        assertThat(secondPage).extracting(CourseQueryRepository.CourseListRow::courseId)
+                .containsExactly(third.getId());
+    }
+
+    @Test
+    void literalSearchStillMatchesWholePhraseInTitleOrRegionOnly() {
+        Region region = persistRegion("Busan", "35.1796", "129.0756");
+        Course titleMatch = persistCourse(region, "조용한 바다 여행", 1);
+        Course overviewOnly = persistCourse(region, "another route", 2);
+        persistPlaceItem(overviewOnly, persistPlace(region, "전망대", "조용한 바다 여행"), 1);
+        Course separateTerms = persistCourse(region, "바다 조용한", 3);
+        flushAndClear();
+        var request = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, "조용한 바다", null, null,
+                null, null, null, CourseSortType.RECOMMEND, null, null, null, null, 20);
+
+        var rows = courseRepository.findCoursesByCursor(request,
+                new CourseQueryRepository.CourseLocation(null, null), Map.of(), 10);
+        assertThat(rows).extracting(CourseQueryRepository.CourseListRow::courseId)
+                .containsExactly(titleMatch.getId());
+
+        var regionRequest = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, "busan", null, null,
+                null, null, null, CourseSortType.RECOMMEND, null, null, null, null, 20);
+        var regionRows = courseRepository.findCoursesByCursor(regionRequest,
+                new CourseQueryRepository.CourseLocation(null, null), Map.of(), 10);
+        assertThat(regionRows).extracting(CourseQueryRepository.CourseListRow::courseId)
+                .containsExactly(titleMatch.getId(), overviewOnly.getId(), separateTerms.getId());
+    }
+
+    private Place persistPlace(Region region, String name, String overview) {
+        return entityManager.persist(Place.builder().region(region).source(PlaceSource.KAKAO)
+                .externalPlaceId(java.util.UUID.randomUUID().toString()).name(name).overview(overview)
+                .latitude(new BigDecimal("35.1796")).longitude(new BigDecimal("129.0756")).build());
+    }
+
+    private void persistPlaceItem(Course course, Place place, int orderNo) {
+        entityManager.persist(CourseItem.builder().course(course).place(place)
+                .itemType(CourseItemType.PLACE).orderNo(orderNo).build());
+    }
+
     private CourseReqDTO.CourseListReq courseListRequest(CourseSortType sort) {
         return courseListRequest(CourseType.OFFICIAL, sort, null, null);
     }
@@ -313,6 +494,14 @@ class CourseQueryRepositoryImplTest {
                 .companionType(CompanionType.FRIEND)
                 .thumbnailKey("courses/" + title + ".jpg")
                 .build());
+    }
+
+    private Course persistLongCourse(Region region, String title, int totalDays,
+            TransportType transportType, int recommendOrder) {
+        return entityManager.persist(Course.builder().region(region).title(title)
+                .courseType(CourseType.OFFICIAL).recommendOrder(recommendOrder)
+                .durationType(DurationType.THREE_PLUS).totalDays(totalDays).transportType(transportType)
+                .companionType(CompanionType.FRIEND).thumbnailKey("courses/long.jpg").build());
     }
 
     private Course persistLocalCourse(Region region, User user, String title) {
