@@ -1,6 +1,9 @@
 package com.yeogido.backend.domain.course.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yeogido.backend.domain.content.repository.ContentRepository;
+import com.yeogido.backend.domain.course.converter.CourseSearchCursorConverter;
+import com.yeogido.backend.domain.course.dto.CourseSearchDTO.Interpretation;
 import com.yeogido.backend.domain.course.dto.request.CourseReqDTO;
 import com.yeogido.backend.domain.course.dto.response.CourseResDTO;
 import com.yeogido.backend.domain.course.entity.Course;
@@ -13,8 +16,8 @@ import com.yeogido.backend.domain.course.enums.TransportType;
 import com.yeogido.backend.domain.course.exception.CourseErrorCode;
 import com.yeogido.backend.domain.course.popularity.repository.CoursePopularityRankingRedisRepository;
 import com.yeogido.backend.domain.course.repository.CourseHashtagRepository;
-import com.yeogido.backend.domain.course.repository.CourseItemTimeRepository;
 import com.yeogido.backend.domain.course.repository.CourseItemRepository;
+import com.yeogido.backend.domain.course.repository.CourseItemTimeRepository;
 import com.yeogido.backend.domain.course.repository.CourseLikeRepository;
 import com.yeogido.backend.domain.course.repository.CourseQueryRepository;
 import com.yeogido.backend.domain.course.repository.CourseRedisRepository;
@@ -37,23 +40,28 @@ import com.yeogido.backend.domain.user.enums.UserRole;
 import com.yeogido.backend.domain.user.enums.UserStatus;
 import com.yeogido.backend.domain.user.repository.UserRepository;
 import com.yeogido.backend.global.exception.GeneralException;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.test.util.ReflectionTestUtils;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
-
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentCaptor;
+import org.mockito.ArgumentMatchers;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.Mockito;
+import org.mockito.Spy;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -113,6 +121,16 @@ class CourseServiceImplTest {
 
     @Mock
     private S3Service s3Service;
+
+    @Mock
+    private CourseSearchService courseSearchService;
+
+    @Spy
+    private CourseSearchCursorConverter courseSearchCursorConverter =
+            new CourseSearchCursorConverter(new ObjectMapper());
+
+    @Mock
+    private PlatformTransactionManager transactionManager;
 
     @InjectMocks
     private CourseServiceImpl courseService;
@@ -387,6 +405,70 @@ class CourseServiceImplTest {
 
         assertThat(course.getRouteImageKey()).isEqualTo("courses/moved/temp/route/updated.png");
         verify(fileService).moveToDirectory("temp/route/updated.png", ImageDirectory.COURSE);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void getCoursesPinsInterpretationOrLiteralFallbackAcrossPages(boolean interpreted) {
+        var original = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, "당일치기 바다", null,
+                null, null, null, null, CourseSortType.LATEST, null, null, null, null, 1);
+        var effective = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, null, null,
+                null, null, DurationType.DAY_TRIP, null, CourseSortType.LATEST, null, null, null, null, 1);
+        var interpretation = interpreted
+                ? new Interpretation(effective, List.of("바다"))
+                : null;
+        when(courseSearchService.interpret(original)).thenReturn(interpretation);
+        var row = new CourseQueryRepository.CourseListRow(10L, CourseType.OFFICIAL, null,
+                null, null, "바다", "부산", DurationType.DAY_TRIP, TransportType.CAR, CompanionType.SOLO,
+                java.time.LocalDateTime.of(2026, 1, 1, 0, 0), null, 0L, 0L, 0.0, 0L);
+        if (interpreted) {
+            when(courseRepository.findCoursesByCursor(any(), any(), anyMap(), eq(2), eq(List.of("바다")), ArgumentMatchers.isNull()))
+                    .thenReturn(List.of(row, row)).thenReturn(List.of());
+        } else {
+            when(courseRepository.findCoursesByCursor(any(), any(), anyMap(), eq(2)))
+                    .thenReturn(List.of(row, row)).thenReturn(List.of());
+        }
+        var first = courseService.getCourses(original, null);
+        assertThat(first.isHasNext()).isTrue();
+        if (interpreted) {
+            assertThat(first.getCursorValue().toString()).startsWith("nl1.");
+        } else {
+            assertThat(first.getCursorValue().toString()).isEqualTo("2026-01-01T00:00");
+        }
+        var next = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, original.keyword(), null,
+                null, null, null, null, CourseSortType.LATEST, null, null,
+                first.getCursorValue().toString(), first.getCursorId(), 1);
+
+        assertThat(courseService.getCourses(next, null).getItems()).isEmpty();
+
+        Mockito.verify(courseSearchService, Mockito.times(1)).interpret(any());
+        if (interpreted) {
+            Mockito.verify(courseRepository).findCoursesByCursor(
+                    ArgumentMatchers.argThat(req -> req.cursorId() != null
+                            && "2026-01-01T00:00".equals(req.cursorValue())
+                            && req.durationType() == DurationType.DAY_TRIP),
+                    any(), anyMap(), eq(2), eq(List.of("바다")), ArgumentMatchers.isNull());
+        }
+    }
+
+    @Test
+    void getCoursesUsesInternalInterpretationWithoutChangingSelectedFilters() {
+        var original = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, "당일치기 바다", null,
+                null, null, null, null, CourseSortType.LATEST, null, null, null, null, 20);
+        var effective = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, null, null,
+                null, null, DurationType.DAY_TRIP, null, CourseSortType.LATEST, null, null, null, null, 20);
+        var interpretation = new Interpretation(
+                effective, List.of("바다"), 1);
+        when(courseSearchService.interpret(original)).thenReturn(interpretation);
+        when(courseRepository.findCoursesByCursor(eq(effective), any(), anyMap(), eq(21), eq(List.of("바다")), eq(1)))
+                .thenReturn(List.of());
+
+        assertThat(courseService.getCourses(original, null).getItems()).isEmpty();
+
+        Mockito.verify(courseRepository).findCoursesByCursor(eq(effective), any(), anyMap(),
+                eq(21), eq(List.of("바다")), eq(1));
+        assertThat(original.durationType()).isNull();
+        assertThat(original.keyword()).isEqualTo("당일치기 바다");
     }
 
     @Test

@@ -1,21 +1,20 @@
 package com.yeogido.backend.domain.course.service;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.when;
-
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.yeogido.backend.domain.business.enums.DayOfWeek;
 import com.yeogido.backend.domain.content.entity.Content;
 import com.yeogido.backend.domain.content.enums.ContentSource;
+import com.yeogido.backend.domain.course.converter.CourseSearchCursorConverter;
+import com.yeogido.backend.domain.course.dto.CourseSearchDTO.DecodedCursor;
+import com.yeogido.backend.domain.course.dto.request.CourseReqDTO.CourseListReq;
 import com.yeogido.backend.domain.course.dto.response.CourseResDTO;
 import com.yeogido.backend.domain.course.entity.Course;
 import com.yeogido.backend.domain.course.entity.CourseItem;
 import com.yeogido.backend.domain.course.entity.CourseItemTime;
 import com.yeogido.backend.domain.course.enums.CourseItemType;
+import com.yeogido.backend.domain.course.enums.CourseSortType;
 import com.yeogido.backend.domain.course.enums.CourseType;
 import com.yeogido.backend.domain.course.enums.DurationType;
 import com.yeogido.backend.domain.course.enums.TransportMode;
@@ -40,6 +39,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
@@ -48,6 +48,13 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
+
 
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -61,6 +68,8 @@ class CourseDetailIntegrationTest {
     @Autowired private CourseService courseService;
     @Autowired private TestEntityManager entityManager;
 
+    @MockitoBean private CourseSearchService courseSearchService;
+    @MockitoBean private CourseSearchCursorConverter courseSearchCursorConverter;
     @MockitoBean private PlaceService placeService;
     @MockitoBean private FileService fileService;
     @MockitoBean private S3Service s3Service;
@@ -84,6 +93,25 @@ class CourseDetailIntegrationTest {
                 .openTime(LocalTime.of(9, 0)).closeTime(LocalTime.of(18, 0)).build());
         when(s3Service.getImageUrl(anyString())).thenAnswer(invocation ->
                 "https://example.com/" + invocation.getArgument(0, String.class));
+    }
+
+    @Test
+    void interpretsNaturalLanguageOutsideTheDatabaseTransaction() {
+        var request = new CourseListReq(
+                CourseType.OFFICIAL, "바다", null, null, null, null, null,
+                CourseSortType.LATEST,
+                null, null, null, null, 20);
+        when(courseSearchCursorConverter.decode(request)).thenReturn(
+                new DecodedCursor(request, null, false));
+        when(courseSearchService.interpret(request)).thenAnswer(invocation -> {
+            assertThat(TransactionSynchronizationManager.isActualTransactionActive())
+                    .isFalse();
+            return null;
+        });
+
+        courseService.getCourses(request, null);
+
+        Mockito.verify(courseSearchService).interpret(request);
     }
 
     @ParameterizedTest
