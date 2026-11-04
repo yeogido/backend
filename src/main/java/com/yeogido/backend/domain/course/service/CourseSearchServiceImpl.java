@@ -121,11 +121,16 @@ public class CourseSearchServiceImpl implements CourseSearchService {
     require(extraction.region() != null || extraction.durationType() != null || extraction.transportType() != null
         || extraction.companionType() != null || extraction.totalDays() != null || !extraction.terms().isEmpty());
     Long regionId = request.regionId();
-    if (regionId == null && extraction.region() != null) {
+    String regionName = null;
+    if (extraction.region() != null) {
       List<Region> regions = regionRepository.findAllByNameOrFullName(extraction.region(), extraction.region());
       // 중복 지역명의 임의 선택 및 지역 조건의 무조건 해제 방지
       require(regions.size() == 1);
-      regionId = regions.get(0).getId();
+      Region region = regions.get(0);
+      regionName = region.getName();
+      if (regionId == null) {
+        regionId = region.getId();
+      }
     }
     DurationType duration = request.durationType() != null ? request.durationType() : extraction.durationType();
     Integer totalDays = extraction.totalDays();
@@ -139,12 +144,14 @@ public class CourseSearchServiceImpl implements CourseSearchService {
         duration,
         request.companionType() != null ? request.companionType() : extraction.companionType(),
         request.sort(), request.latitude(), request.longitude(), request.cursorValue(), request.cursorId(), request.size());
-    return new Interpretation(effective, extraction.terms(), totalDays, displayKeywords(extraction));
+    return new Interpretation(effective, extraction.terms(), totalDays, displayKeywords(extraction, regionName));
   }
 
-  private static List<String> displayKeywords(Extraction extraction) {
+  private static List<String> displayKeywords(Extraction extraction, String regionName) {
     List<String> keywords = new ArrayList<>();
-    if (extraction.region() != null) keywords.add(extraction.region());
+    if (regionName != null) {
+      keywords.add(regionName);
+    }
     if (extraction.totalDays() != null) {
       keywords.add(switch (extraction.totalDays()) {
         case 1 -> "당일치기";

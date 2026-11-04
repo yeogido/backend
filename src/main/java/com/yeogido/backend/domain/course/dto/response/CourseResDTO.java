@@ -28,7 +28,7 @@ public class CourseResDTO {
     @Schema(name = "CourseListResponse", description = "코스 검색 결과 및 자연어에서 추출한 표시용 키워드")
     public static class CourseListRes extends CursorResponse<CoursePreview> {
         @Schema(description = "자연어에서 추출한 지역·기간·교통·동행·검색어. 해석하지 못하면 빈 배열",
-                example = "[\"서울특별시\", \"당일치기\", \"바다\"]")
+                example = "[\"서울\", \"당일치기\", \"바다\"]")
         private final List<String> extractedKeywords;
 
         public CourseListRes(List<CoursePreview> items, Object cursorValue, Long cursorId,

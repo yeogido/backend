@@ -38,7 +38,7 @@ class CourseSearchServiceImplTest {
         "companionType":"COUPLE","terms":["조용","바다"]}
         """);
     when(regions.findAllByNameOrFullName("부산광역시", "부산광역시"))
-        .thenReturn(List.of(Region.builder().id(7L).build()));
+        .thenReturn(List.of(Region.builder().id(7L).name("부산").fullName("부산광역시").build()));
     CourseListReq request = request("부산에서 연인이랑 당일치기 조용한 바다 여행", null, null, null, null);
 
     var result = interpreter.interpret(request);
@@ -48,7 +48,7 @@ class CourseSearchServiceImplTest {
     assertThat(result.request().companionType()).isEqualTo(CompanionType.COUPLE);
     assertThat(result.request().transportType()).isNull();
     assertThat(result.terms()).containsExactly("조용", "바다");
-    assertThat(result.extractedKeywords()).containsExactly("부산광역시", "당일치기", "커플", "조용", "바다");
+    assertThat(result.extractedKeywords()).containsExactly("부산", "당일치기", "커플", "조용", "바다");
     assertThat(request.regionId()).isNull();
     assertThat(request.durationType()).isNull();
     assertThat(request.keyword()).contains("부산");
@@ -69,15 +69,17 @@ class CourseSearchServiceImplTest {
         {"supported":true,"totalDays":null,"region":"부산광역시","durationType":"DAY_TRIP","transportType":"WALK",
         "companionType":"COUPLE","terms":[]}
         """);
+    when(regions.findAllByNameOrFullName("부산광역시", "부산광역시"))
+        .thenReturn(List.of(Region.builder().id(7L).name("부산").build()));
     var result = interpreter.interpret(request("부산 당일 도보 데이트", 2L,
         DurationType.ONE_NIGHT, TransportType.CAR, CompanionType.FAMILY));
     assertThat(result.request().regionId()).isEqualTo(2L);
     assertThat(result.request().durationType()).isEqualTo(DurationType.ONE_NIGHT);
     assertThat(result.request().transportType()).isEqualTo(TransportType.CAR);
     assertThat(result.request().companionType()).isEqualTo(CompanionType.FAMILY);
-    assertThat(result.extractedKeywords()).containsExactly("부산광역시", "당일치기", "도보·대중교통", "커플");
+    assertThat(result.extractedKeywords()).containsExactly("부산", "당일치기", "도보·대중교통", "커플");
     assertThat(result.terms()).isEmpty();
-    verifyNoInteractions(regions);
+    verify(regions).findAllByNameOrFullName("부산광역시", "부산광역시");
   }
 
   @Test
@@ -253,6 +255,39 @@ class CourseSearchServiceImplTest {
         """);
     var result = interpreter.interpret(request("3박 이상 자동차 반려동물 여행", null, null, null, null));
     assertThat(result.extractedKeywords()).containsExactly("3박 이상", "자동차", "반려동물");
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.CsvSource({
+      "강남,서울특별시 강남구,강남",
+      "강남구에서 산책,서울특별시 강남구,강남",
+      "노원구,서울특별시 노원구,노원",
+      "서울특별시 강남구,서울특별시 강남구,강남",
+      "서울 강남,서울특별시 강남구,강남",
+      "부산광역시 해운대구,부산광역시 해운대구,해운대",
+      "부산에서 여행,부산광역시,부산",
+      "서울특별시,서울특별시,서울",
+      "서울,서울특별시,서울",
+      "대구광역시,대구광역시,대구",
+      "강릉시,강릉시,강릉",
+      "제주도,제주특별자치도,제주",
+      "전북,전북특별자치도,전북",
+      "경기도,경기도,경기",
+      "중구,서울특별시 중구,중구"
+  })
+  void displayRegionUsesStoredName(String query, String region, String expected) {
+    respond("""
+        {"supported":true,"region":"%s","durationType":null,"transportType":null,
+         "companionType":null,"terms":[],"totalDays":null}
+        """.formatted(region));
+    when(regions.findAllByNameOrFullName(region, region))
+        .thenReturn(List.of(Region.builder().id(3L).name(expected).fullName(region).build()));
+
+    var result = interpreter.interpret(request(query, null, null, null, null));
+
+    assertThat(result.request().regionId()).isEqualTo(3L);
+    assertThat(result.extractedKeywords()).containsExactly(expected);
+    verify(regions).findAllByNameOrFullName(region, region);
   }
 
   private void respond(String payload) {
