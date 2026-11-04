@@ -1,5 +1,6 @@
 package com.yeogido.backend.domain.friend.service;
 
+import com.yeogido.backend.domain.course.dto.response.CourseResDTO;
 import com.yeogido.backend.domain.friend.dto.FriendReqDTO;
 import com.yeogido.backend.domain.friend.dto.FriendResDTO;
 import com.yeogido.backend.global.common.response.CursorResponse;
@@ -21,6 +22,23 @@ public interface FriendService {
     void rejectRequest(Long userId, Long requestId);
 
     void cancelRequest(Long userId, Long requestId);
+
+    CursorResponse<FriendResDTO.UserSummary> getFriends(
+            Long userId,
+            String keyword,
+            String cursorNickname,
+            Long cursorId,
+            Integer size
+    );
+
+    FriendResDTO.FriendProfile getFriendProfile(Long userId, Long friendUserId);
+
+    CursorResponse<CourseResDTO.CoursePreview> getFriendLocalCourses(
+            Long userId,
+            Long friendUserId,
+            Long cursorId,
+            Integer size
+    );
 
     // 다른 도메인(공유 앨범 초대 등)에서 친구 관계를 확인할 때 사용
     boolean areFriends(Long userIdA, Long userIdB);

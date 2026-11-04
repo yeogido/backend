@@ -8,6 +8,10 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.yeogido.backend.domain.course.dto.response.CourseResDTO;
+import com.yeogido.backend.domain.course.entity.Course;
+import com.yeogido.backend.domain.course.repository.CourseHashtagRepository;
+import com.yeogido.backend.domain.course.repository.CourseLikeRepository;
 import com.yeogido.backend.domain.file.service.S3Service;
 import com.yeogido.backend.domain.friend.dto.FriendReqDTO;
 import com.yeogido.backend.domain.friend.dto.FriendResDTO;
@@ -15,8 +19,11 @@ import com.yeogido.backend.domain.friend.entity.Friendship;
 import com.yeogido.backend.domain.friend.enums.FriendshipStatus;
 import com.yeogido.backend.domain.friend.enums.RelationStatus;
 import com.yeogido.backend.domain.friend.exception.FriendErrorCode;
+import com.yeogido.backend.domain.friend.repository.FriendCourseRepository;
 import com.yeogido.backend.domain.friend.repository.FriendshipRepository;
+import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.user.entity.User;
+import com.yeogido.backend.domain.user.enums.UserRole;
 import com.yeogido.backend.domain.user.enums.UserStatus;
 import com.yeogido.backend.domain.user.exception.UserErrorCode;
 import com.yeogido.backend.domain.user.repository.UserRepository;
@@ -49,6 +56,15 @@ class FriendServiceImplTest {
 
     @Mock
     private FriendshipRepository friendshipRepository;
+
+    @Mock
+    private FriendCourseRepository friendCourseRepository;
+
+    @Mock
+    private CourseHashtagRepository courseHashtagRepository;
+
+    @Mock
+    private CourseLikeRepository courseLikeRepository;
 
     @Mock
     private S3Service s3Service;
@@ -315,6 +331,154 @@ class FriendServiceImplTest {
 
     private void givenOtherFoundByCode() {
         when(userRepository.findByFriendCodeAndStatus(OTHER_CODE, UserStatus.ACTIVE)).thenReturn(Optional.of(other));
+    }
+
+    @Test
+    void getFriendsNormalizesAndEscapesKeywordAndReturnsNextCursor() {
+        User second = user(THIRD_ID, "BBBB3333");
+        when(friendshipRepository.findFriends(ME_ID, "%a!%b%", "A!%B%", null, null, PageRequest.of(0, 2)))
+                .thenReturn(List.of(other, second));
+
+        CursorResponse<FriendResDTO.UserSummary> result = friendService.getFriends(ME_ID, "  a%b ", null, null, 1);
+
+        assertThat(result.getItems()).extracting(FriendResDTO.UserSummary::userId).containsExactly(OTHER_ID);
+        assertThat(result.isHasNext()).isTrue();
+        assertThat(result.getCursorValue()).isEqualTo(other.getNickname());
+        assertThat(result.getCursorId()).isEqualTo(OTHER_ID);
+    }
+
+    @Test
+    void getFriendsTreatsBlankKeywordAsNoFilter() {
+        when(friendshipRepository.findFriends(ME_ID, null, null, null, null, PageRequest.of(0, 11)))
+                .thenReturn(List.of(other));
+
+        CursorResponse<FriendResDTO.UserSummary> result = friendService.getFriends(ME_ID, "   ", null, null, 10);
+
+        assertThat(result.getItems()).hasSize(1);
+        assertThat(result.isHasNext()).isFalse();
+        assertThat(result.getCursorValue()).isNull();
+        assertThat(result.getCursorId()).isNull();
+    }
+
+    @Test
+    void getFriendsRejectsPartialCursorAndInvalidSize() {
+        assertErrorCode(() -> friendService.getFriends(ME_ID, null, "name", null, 10),
+                GeneralErrorCode.INVALID_PARAMETER);
+        assertErrorCode(() -> friendService.getFriends(ME_ID, null, null, 5L, 10),
+                GeneralErrorCode.INVALID_PARAMETER);
+        assertErrorCode(() -> friendService.getFriends(ME_ID, null, null, null, 101),
+                GeneralErrorCode.INVALID_PARAMETER);
+    }
+
+    @Test
+    void friendOnlyApisRejectNonFriendSelfAndWithdrawnFriend() {
+        assertErrorCode(() -> friendService.getFriendProfile(ME_ID, ME_ID), FriendErrorCode.NOT_FRIEND);
+
+        when(friendshipRepository.existsByUserLowIdAndUserHighIdAndStatus(ME_ID, OTHER_ID, FriendshipStatus.ACCEPTED))
+                .thenReturn(false);
+        assertErrorCode(() -> friendService.getFriendProfile(ME_ID, OTHER_ID), FriendErrorCode.NOT_FRIEND);
+        assertErrorCode(() -> friendService.getFriendLocalCourses(ME_ID, OTHER_ID, null, 10),
+                FriendErrorCode.NOT_FRIEND);
+
+        when(friendshipRepository.existsByUserLowIdAndUserHighIdAndStatus(ME_ID, OTHER_ID, FriendshipStatus.ACCEPTED))
+                .thenReturn(true);
+        other.withdraw();
+        when(userRepository.findById(OTHER_ID)).thenReturn(Optional.of(other));
+        assertErrorCode(() -> friendService.getFriendProfile(ME_ID, OTHER_ID), FriendErrorCode.NOT_FRIEND);
+    }
+
+    @Test
+    void getFriendProfileReturnsBasicInfoWithRegion() {
+        User friend = User.builder()
+                .id(OTHER_ID)
+                .nickname("친구")
+                .email("friend@test.com")
+                .region(Region.builder().id(7L).name("서울").build())
+                .profileImage("profile-key")
+                .status(UserStatus.ACTIVE)
+                .build();
+        stubFriend(friend);
+        when(s3Service.getImageUrl("profile-key")).thenReturn("https://cdn/profile");
+
+        FriendResDTO.FriendProfile result = friendService.getFriendProfile(ME_ID, OTHER_ID);
+
+        assertThat(result.userId()).isEqualTo(OTHER_ID);
+        assertThat(result.email()).isEqualTo("friend@test.com");
+        assertThat(result.profileImageUrl()).isEqualTo("https://cdn/profile");
+        assertThat(result.region().regionId()).isEqualTo(7L);
+        assertThat(result.region().name()).isEqualTo("서울");
+    }
+
+    @Test
+    void getFriendLocalCoursesMapsTagsLikesAndNextCursor() {
+        stubFriend(other);
+        when(userRepository.findById(ME_ID)).thenReturn(Optional.of(me));
+        when(friendCourseRepository.findLocalCourses(OTHER_ID, null, PageRequest.of(0, 2)))
+                .thenReturn(List.of(course(20L), course(19L)));
+        when(courseHashtagRepository.findHashtagNamesByCourseIdIn(List.of(20L)))
+                .thenReturn(List.of(hashtag(20L, "바다")));
+        when(courseLikeRepository.findLikedCourseIdsByUserIdAndCourseIdIn(ME_ID, List.of(20L)))
+                .thenReturn(List.of(20L));
+
+        CursorResponse<CourseResDTO.CoursePreview> result =
+                friendService.getFriendLocalCourses(ME_ID, OTHER_ID, null, 1);
+
+        assertThat(result.getItems()).hasSize(1);
+        CourseResDTO.CoursePreview item = result.getItems().get(0);
+        assertThat(item.courseId()).isEqualTo(20L);
+        assertThat(item.region()).isEqualTo("강릉");
+        assertThat(item.tags()).containsExactly("바다");
+        assertThat(item.isLiked()).isTrue();
+        assertThat(item.canManage()).isFalse();
+        assertThat(result.isHasNext()).isTrue();
+        assertThat(result.getCursorId()).isEqualTo(20L);
+    }
+
+    @Test
+    void getFriendLocalCoursesAllowsManageForAdminAndHandlesEmptyPage() {
+        User admin = User.builder().id(ME_ID).role(UserRole.ADMIN).status(UserStatus.ACTIVE).build();
+        stubFriend(other);
+        when(userRepository.findById(ME_ID)).thenReturn(Optional.of(admin));
+        when(friendCourseRepository.findLocalCourses(OTHER_ID, 5L, PageRequest.of(0, 11)))
+                .thenReturn(List.of(course(4L)));
+
+        assertThat(friendService.getFriendLocalCourses(ME_ID, OTHER_ID, 5L, 10).getItems().get(0).canManage())
+                .isTrue();
+
+        when(friendCourseRepository.findLocalCourses(OTHER_ID, 4L, PageRequest.of(0, 11))).thenReturn(List.of());
+        CursorResponse<CourseResDTO.CoursePreview> empty =
+                friendService.getFriendLocalCourses(ME_ID, OTHER_ID, 4L, 10);
+
+        assertThat(empty.getItems()).isEmpty();
+        assertThat(empty.getCursorId()).isNull();
+    }
+
+    private void stubFriend(User friend) {
+        when(friendshipRepository.existsByUserLowIdAndUserHighIdAndStatus(ME_ID, OTHER_ID, FriendshipStatus.ACCEPTED))
+                .thenReturn(true);
+        when(userRepository.findById(OTHER_ID)).thenReturn(Optional.of(friend));
+    }
+
+    private static Course course(Long id) {
+        return Course.builder()
+                .id(id)
+                .title("코스" + id)
+                .region(Region.builder().id(1L).name("강릉").build())
+                .build();
+    }
+
+    private static CourseHashtagRepository.CourseHashtagNameProjection hashtag(Long courseId, String name) {
+        return new CourseHashtagRepository.CourseHashtagNameProjection() {
+            @Override
+            public Long getCourseId() {
+                return courseId;
+            }
+
+            @Override
+            public String getHashtagName() {
+                return name;
+            }
+        };
     }
 
     private void assertErrorCode(ThrowingCallable call, ErrorCode errorCode) {

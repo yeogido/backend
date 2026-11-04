@@ -28,6 +28,33 @@ public class FriendResDTO {
     ) {
     }
 
+    public record FriendProfile(
+            @Schema(description = "사용자 ID", example = "2")
+            Long userId,
+
+            @Schema(description = "닉네임", example = "여기도")
+            String nickname,
+
+            @Schema(description = "프로필 이미지 URL")
+            String profileImageUrl,
+
+            @Schema(description = "이메일", example = "friend@example.com")
+            String email,
+
+            @Schema(description = "지역")
+            FriendRegion region
+    ) {
+    }
+
+    public record FriendRegion(
+            @Schema(description = "지역 ID", example = "1")
+            Long regionId,
+
+            @Schema(description = "지역명", example = "서울")
+            String name
+    ) {
+    }
+
     public record SearchResult(
             @Schema(description = "사용자 ID", example = "2")
             Long userId,
