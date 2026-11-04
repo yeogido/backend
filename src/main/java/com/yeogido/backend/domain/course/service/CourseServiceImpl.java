@@ -63,6 +63,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import com.yeogido.backend.domain.course.dto.CourseSearchDTO.Interpretation;
 import com.yeogido.backend.domain.course.enums.SearchPhase;
+import com.yeogido.backend.domain.course.embedding.CourseSemanticSearchService;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
@@ -87,6 +88,7 @@ public class CourseServiceImpl implements CourseService {
 
     private final PlatformTransactionManager transactionManager;
     private final CourseSearchService courseSearchService;
+    private final CourseSemanticSearchService courseSemanticSearchService;
     private final CourseSearchCursorConverter courseSearchCursorConverter;
     private final CourseRepository courseRepository;
     private final CourseLikeRepository courseLikeRepository;
@@ -197,13 +199,26 @@ public class CourseServiceImpl implements CourseService {
         var interpretation = decoded.pinned() ? decoded.interpretation()
                 : pageRequest.cursorId() == null ? courseSearchService.interpret(pageRequest) : null;
 
+        List<Long> semanticCourseIds = null;
+        if (interpretation != null && interpretation.semanticSessionId() != null) {
+            semanticCourseIds = courseSemanticSearchService.restore(interpretation);
+        } else if (!decoded.pinned() && pageRequest.cursorId() == null && interpretation != null
+                && !interpretation.terms().isEmpty() && courseSemanticSearchService.isEnabled()) {
+            var candidates = courseSemanticSearchService.search(interpretation);
+            semanticCourseIds = candidates.courseIds();
+            interpretation = new Interpretation(interpretation.request(), interpretation.terms(),
+                    interpretation.totalDays(), interpretation.extractedKeywords(), candidates.sessionId());
+        }
+
         // 외부 AI 호출 종료 후 코스 조회 구간에만 읽기 트랜잭션 적용
         TransactionTemplate transaction = new TransactionTemplate(transactionManager);
         transaction.setReadOnly(true);
-        return transaction.execute(status -> getCoursesInTransaction(pageRequest, userId, interpretation, decoded.pinned(),
-                decoded.phase() != null ? decoded.phase()
-                        : !decoded.pinned() && pageRequest.cursorId() == null && interpretation != null
-                                ? SearchPhase.TITLE : null));
+        Interpretation search = interpretation;
+        List<Long> candidates = semanticCourseIds;
+        SearchPhase phase = decoded.phase() != null ? decoded.phase()
+                : !decoded.pinned() && pageRequest.cursorId() == null && search != null ? SearchPhase.TITLE : null;
+        return transaction.execute(status -> getCoursesInTransaction(pageRequest, userId, search,
+                decoded.pinned(), phase, candidates));
     }
 
     private CourseResDTO.CourseListRes getCoursesInTransaction(
@@ -211,7 +226,8 @@ public class CourseServiceImpl implements CourseService {
             Long userId,
             Interpretation interpretation,
             boolean pinned,
-            SearchPhase phase
+            SearchPhase phase,
+            List<Long> semanticCourseIds
     ) {
         int size = request.size();
         User currentUser = userId == null
@@ -236,9 +252,14 @@ public class CourseServiceImpl implements CourseService {
             if (rows.size() < size + 1) {
                 CourseReqDTO.CourseListReq naturalRequest = phase == SearchPhase.TITLE
                         ? withoutKeyword(interpretation.request(), true) : interpretation.request();
-                rows.addAll(courseRepository.findSearchPhaseByCursor(naturalRequest, location, popularityScores,
-                        size + 1 - rows.size(), interpretation.terms(), interpretation.totalDays(),
-                        request.keyword(), false));
+                if (semanticCourseIds == null) {
+                    rows.addAll(courseRepository.findSearchPhaseByCursor(naturalRequest, location, popularityScores,
+                            size + 1 - rows.size(), interpretation.terms(), interpretation.totalDays(),
+                            request.keyword(), false));
+                } else {
+                    rows.addAll(courseRepository.findSemanticCoursesByCursor(naturalRequest, location, popularityScores,
+                            size + 1 - rows.size(), interpretation.totalDays(), request.keyword(), semanticCourseIds));
+                }
             }
         }
 

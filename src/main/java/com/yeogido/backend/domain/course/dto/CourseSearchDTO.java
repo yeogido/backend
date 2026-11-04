@@ -27,11 +27,17 @@ public class CourseSearchDTO {
             CourseListReq request,
             List<String> terms,
             Integer totalDays,
-            List<String> extractedKeywords
+            List<String> extractedKeywords,
+            String semanticSessionId
     ) {
         public Interpretation {
             terms = List.copyOf(terms);
             extractedKeywords = List.copyOf(extractedKeywords);
+        }
+
+        public Interpretation(CourseListReq request, List<String> terms, Integer totalDays,
+                List<String> extractedKeywords) {
+            this(request, terms, totalDays, extractedKeywords, null);
         }
 
         public Interpretation(CourseListReq request, List<String> terms, Integer totalDays) {
@@ -61,6 +67,15 @@ public class CourseSearchDTO {
             String cursorValue,
             Conditions conditions,
             SearchPhase phase
+    ) { }
+
+    // 의미 검색 후보 스냅샷을 참조하는 nl3 커서
+    public record SemanticCursorPayload(
+            String fingerprint,
+            String cursorValue,
+            Conditions conditions,
+            SearchPhase phase,
+            String semanticSessionId
     ) { }
 
     // 기존 nl1 커서의 저장 형식

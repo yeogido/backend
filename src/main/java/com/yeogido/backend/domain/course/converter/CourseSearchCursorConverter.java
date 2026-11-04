@@ -6,6 +6,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.yeogido.backend.domain.course.dto.CourseSearchDTO.Conditions;
+import com.yeogido.backend.domain.course.dto.CourseSearchDTO.SemanticCursorPayload;
+import java.util.UUID;
 import com.yeogido.backend.domain.course.dto.CourseSearchDTO.PriorityCursorPayload;
 import com.yeogido.backend.domain.course.enums.SearchPhase;
 import com.yeogido.backend.domain.course.dto.CourseSearchDTO.CursorPayload;
@@ -30,6 +32,7 @@ import org.springframework.util.StringUtils;
 public class CourseSearchCursorConverter {
   private static final String PREFIX = "nl1.";
   private static final String PRIORITY_PREFIX = "nl2.";
+  private static final String SEMANTIC_PREFIX = "nl3.";
   private static final int MAX_LENGTH = 8192;
   private final ObjectMapper mapper;
 
@@ -39,13 +42,14 @@ public class CourseSearchCursorConverter {
 
   public DecodedCursor decode(CourseListReq original) {
     String value = original.cursorValue();
-    if (value == null || (!value.startsWith(PREFIX) && !value.startsWith(PRIORITY_PREFIX))) {
+    if (value == null || (!value.startsWith(PREFIX) && !value.startsWith(PRIORITY_PREFIX) && !value.startsWith(SEMANTIC_PREFIX))) {
       return new DecodedCursor(original, null, false);
     }
     try {
       require(value.length() <= MAX_LENGTH && original.cursorId() != null);
+      boolean semantic = value.startsWith(SEMANTIC_PREFIX);
       boolean priority = value.startsWith(PRIORITY_PREFIX);
-      var reader = mapper.readerFor(priority ? PriorityCursorPayload.class : CursorPayload.class)
+      var reader = mapper.readerFor(semantic ? SemanticCursorPayload.class : priority ? PriorityCursorPayload.class : CursorPayload.class)
           .with(JsonParser.Feature.STRICT_DUPLICATE_DETECTION)
           .with(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES,
               DeserializationFeature.FAIL_ON_TRAILING_TOKENS,
@@ -68,8 +72,16 @@ public class CourseSearchCursorConverter {
       }
       Object decoded = reader.readValue(tree);
       SearchPhase phase = null;
+      String semanticSessionId = null;
       CursorPayload payload;
-      if (priority) {
+      if (semantic) {
+        SemanticCursorPayload ranked = (SemanticCursorPayload) decoded;
+        require(ranked != null && ranked.phase() != null && ranked.conditions() != null);
+        semanticSessionId = ranked.semanticSessionId();
+        require(semanticSessionId != null && UUID.fromString(semanticSessionId).toString().equals(semanticSessionId));
+        phase = ranked.phase();
+        payload = new CursorPayload(ranked.fingerprint(), ranked.cursorValue(), ranked.conditions());
+      } else if (priority) {
         PriorityCursorPayload ranked = (PriorityCursorPayload) decoded;
         require(ranked != null && ranked.phase() != null && ranked.conditions() != null);
         phase = ranked.phase();
@@ -106,7 +118,7 @@ public class CourseSearchCursorConverter {
       requireUnchanged(original.companionType(), conditions.companionType());
       CourseListReq effective = copy(original, null, conditions.regionId(), conditions.durationType(),
           conditions.transportType(), conditions.companionType(), payload.cursorValue());
-      return new DecodedCursor(request, new Interpretation(effective, List.copyOf(conditions.terms()), conditions.totalDays(), conditions.extractedKeywords()), true, phase);
+      return new DecodedCursor(request, new Interpretation(effective, List.copyOf(conditions.terms()), conditions.totalDays(), conditions.extractedKeywords(), semanticSessionId), true, phase);
     } catch (Exception exception) {
       throw new GeneralException(CourseErrorCode.INVALID_COURSE_SEARCH_CURSOR);
     }
@@ -135,9 +147,14 @@ public class CourseSearchCursorConverter {
       Conditions conditions = new Conditions(interpretation.request().regionId(),
           interpretation.request().durationType(), interpretation.request().transportType(),
           interpretation.request().companionType(), interpretation.terms(), interpretation.totalDays(), interpretation.extractedKeywords());
-      var payload = new PriorityCursorPayload(fingerprint(original),
-          actualCursorValue == null ? null : actualCursorValue.toString(), conditions, phase);
-      String value = PRIORITY_PREFIX + Base64.getUrlEncoder().withoutPadding()
+      Object payload = interpretation.semanticSessionId() == null
+          ? new PriorityCursorPayload(fingerprint(original),
+              actualCursorValue == null ? null : actualCursorValue.toString(), conditions, phase)
+          : new SemanticCursorPayload(fingerprint(original),
+              actualCursorValue == null ? null : actualCursorValue.toString(), conditions, phase,
+              interpretation.semanticSessionId());
+      String prefix = interpretation.semanticSessionId() == null ? PRIORITY_PREFIX : SEMANTIC_PREFIX;
+      String value = prefix + Base64.getUrlEncoder().withoutPadding()
           .encodeToString(mapper.writeValueAsBytes(payload));
       require(value.length() <= MAX_LENGTH);
       return value;

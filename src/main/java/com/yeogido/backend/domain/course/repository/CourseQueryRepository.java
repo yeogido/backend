@@ -46,6 +46,16 @@ public interface CourseQueryRepository {
             boolean titlePhase
     );
 
+    List<CourseListRow> findSemanticCoursesByCursor(
+            CourseReqDTO.CourseListReq request,
+            CourseLocation location,
+            Map<Long, Long> popularityScores,
+            int limit,
+            Integer totalDays,
+            String originalKeyword,
+            List<Long> candidateIds
+    );
+
     record CourseLocation(
             Double latitude,
             Double longitude

@@ -87,6 +87,27 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
             String originalKeyword,
             boolean titlePhase
     ) {
+        return findSearchPhase(request, location, popularityScores, limit, searchTerms, totalDays,
+                originalKeyword, titlePhase, null);
+    }
+
+    @Override
+    public List<CourseListRow> findSemanticCoursesByCursor(
+            CourseReqDTO.CourseListReq request, CourseLocation location, Map<Long, Long> popularityScores,
+            int limit, Integer totalDays, String originalKeyword, List<Long> candidateIds
+    ) {
+        if (candidateIds.isEmpty()) {
+            return List.of();
+        }
+        return findSearchPhase(request, location, popularityScores, limit, List.of(), totalDays,
+                originalKeyword, false, candidateIds);
+    }
+
+    private List<CourseListRow> findSearchPhase(
+            CourseReqDTO.CourseListReq request, CourseLocation location, Map<Long, Long> popularityScores,
+            int limit, List<String> searchTerms, Integer totalDays, String originalKeyword,
+            boolean titlePhase, List<Long> candidateIds
+    ) {
         CourseSortType sort = CourseSortType.resolve(request.sort());
         boolean savedSort = sort == CourseSortType.SAVED;
         boolean reviewSort = sort == CourseSortType.REVIEW;
@@ -153,6 +174,9 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
         }
 
         BooleanBuilder condition = courseListCondition(request, searchTerms, totalDays);
+        if (candidateIds != null) {
+            condition.and(course.id.in(candidateIds));
+        }
         if (hasKeyword(originalKeyword)) {
             BooleanExpression titleMatches = course.title.containsIgnoreCase(originalKeyword.trim());
             condition.and(titlePhase ? titleMatches : titleMatches.not());
