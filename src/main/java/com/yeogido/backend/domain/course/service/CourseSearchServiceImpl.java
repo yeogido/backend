@@ -60,10 +60,13 @@ public class CourseSearchServiceImpl implements CourseSearchService {
       return toInterpretation(request, extraction);
     } catch (GeneralException exception) {
       // 검색 문장과 인증 정보 및 제공자 응답의 로그 노출 방지
-      log.warn("자연어 검색 해석 실패에 따른 기존 문자열 검색 적용. code={}", exception.getErrorCode().getCode());
+      String failureType = exception.getErrorCode() == CourseErrorCode.INVALID_COURSE_SEARCH_RESPONSE
+          ? "response_validation_error" : "generation_api_error";
+      log.warn("자연어 검색 해석 실패에 따른 기존 문자열 검색 적용. failureType={}, code={}",
+          failureType, exception.getErrorCode().getCode());
       return null;
     } catch (JsonProcessingException | IllegalArgumentException exception) {
-      log.warn("자연어 검색 응답 검증 실패에 따른 기존 문자열 검색 적용. code={}",
+      log.warn("자연어 검색 응답 검증 실패에 따른 기존 문자열 검색 적용. failureType=response_parse_error, code={}",
           CourseErrorCode.INVALID_COURSE_SEARCH_RESPONSE.getCode());
       return null;
     }
