@@ -84,6 +84,7 @@ public class SecurityConfig {
     };
 
     private static final String[] PUBLIC_GET_PATHS = {
+            "/api/v1/terms",
             "/api/v1/auth/check-email",
             "/api/v1/regions",
             "/api/v1/regions/**",

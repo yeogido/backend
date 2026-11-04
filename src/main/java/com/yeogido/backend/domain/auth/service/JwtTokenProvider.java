@@ -3,7 +3,7 @@ package com.yeogido.backend.domain.auth.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.yeogido.backend.domain.auth.dto.AuthResDTO;
+import com.yeogido.backend.domain.auth.dto.IssuedTokens;
 import com.yeogido.backend.domain.auth.exception.AuthErrorCode;
 import com.yeogido.backend.domain.auth.security.AuthUser;
 import com.yeogido.backend.domain.user.entity.User;
@@ -40,14 +40,12 @@ public class JwtTokenProvider {
   @Value("${app.jwt.refresh-token-expiration-days}")
   private long refreshTokenExpirationDays;
 
-  public AuthResDTO.Token issueToken(User user) {
+  public IssuedTokens issueToken(User user) {
     return issueToken(user, UUID.randomUUID().toString());
   }
 
-  public AuthResDTO.Token issueToken(User user, String sessionId) {
-    return new AuthResDTO.Token(
-      user.getId(),
-      user.getRole(),
+  public IssuedTokens issueToken(User user, String sessionId) {
+    return new IssuedTokens(
       issueAccessToken(user, sessionId),
       issueRefreshToken(user, sessionId)
     );
