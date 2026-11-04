@@ -1,6 +1,7 @@
 package com.yeogido.backend.domain.course.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.yeogido.backend.domain.course.embedding.CourseSemanticSearchService;
 import com.yeogido.backend.domain.content.repository.ContentRepository;
 import com.yeogido.backend.domain.course.converter.CourseSearchCursorConverter;
 import com.yeogido.backend.domain.course.dto.CourseSearchDTO.Interpretation;
@@ -125,6 +126,9 @@ class CourseServiceImplTest {
 
     @Mock
     private CourseSearchService courseSearchService;
+
+    @Mock
+    private CourseSemanticSearchService courseSemanticSearchService;
 
     @Spy
     private CourseSearchCursorConverter courseSearchCursorConverter =
@@ -586,6 +590,60 @@ class CourseServiceImplTest {
         assertThat(json.path("extractedKeywords").get(0).asText()).isEqualTo("바다");
         assertThat(mapper.valueToTree(com.yeogido.backend.global.common.response.CursorResponse
                 .of(List.of(), null, null, false)).has("extractedKeywords")).isFalse();
+    }
+
+    @Test
+    void semanticSearchKeepsTitlePriorityAndRestoresTheSameCandidateSnapshotOnNextPage() {
+        String session = java.util.UUID.randomUUID().toString();
+        var original = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, "조용한", null,
+                null, null, null, null, CourseSortType.LATEST, null, null, null, null, 1);
+        var effective = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, null, null,
+                null, null, null, null, CourseSortType.LATEST, null, null, null, null, 1);
+        var interpretation = new Interpretation(effective, List.of("조용한"), null, List.of("조용한"));
+        when(courseSearchService.interpret(original)).thenReturn(interpretation);
+        when(courseSemanticSearchService.isEnabled()).thenReturn(true);
+        when(courseSemanticSearchService.search(interpretation)).thenReturn(
+                new CourseSemanticSearchService.SemanticCandidates(session, List.of(10L, 11L)));
+        when(courseRepository.findSearchPhaseByCursor(any(), any(), anyMap(), eq(2), eq(List.of()),
+                ArgumentMatchers.isNull(), eq("조용한"), eq(true)))
+                .thenReturn(List.of(priorityRow(1)), List.of());
+        when(courseRepository.findSemanticCoursesByCursor(any(), any(), anyMap(), eq(1),
+                ArgumentMatchers.isNull(), eq("조용한"), eq(List.of(10L, 11L))))
+                .thenReturn(List.of(priorityRow(10)));
+        var first = courseService.getCourses(original, null);
+        assertThat(first.getItems()).extracting(CourseResDTO.CoursePreview::courseId).containsExactly(1L);
+        assertThat(first.getCursorValue().toString()).startsWith("nl3.");
+        assertThat(first.getExtractedKeywords()).containsExactly("조용한");
+        assertThat(first.isHasNext()).isTrue();
+        var next = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, "조용한", null,
+                null, null, null, null, CourseSortType.LATEST, null, null,
+                first.getCursorValue().toString(), first.getCursorId(), 1);
+        when(courseSemanticSearchService.restore(any())).thenReturn(List.of(10L, 11L));
+        when(courseRepository.findSemanticCoursesByCursor(any(), any(), anyMap(), eq(2),
+                ArgumentMatchers.isNull(), eq("조용한"), eq(List.of(10L, 11L))))
+                .thenReturn(List.of(priorityRow(10), priorityRow(11)));
+        var second = courseService.getCourses(next, null);
+        assertThat(second.getItems()).extracting(CourseResDTO.CoursePreview::courseId).containsExactly(10L);
+        assertThat(second.getExtractedKeywords()).containsExactly("조용한");
+        Mockito.verify(courseSearchService, Mockito.times(1)).interpret(any());
+        Mockito.verify(courseSemanticSearchService, Mockito.times(1)).search(any());
+        Mockito.verify(courseSemanticSearchService).restore(
+                ArgumentMatchers.argThat(value -> session.equals(value.semanticSessionId())));
+        Mockito.verify(courseRepository, never()).findSearchPhaseByCursor(any(), any(), anyMap(),
+                Mockito.anyInt(), eq(List.of("조용한")), any(), any(), eq(false));
+    }
+
+    @Test
+    void semanticProviderFailurePropagatesBeforeOpeningSearchTransaction() {
+        var original = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, "비 오는 날", null,
+                null, null, null, null, CourseSortType.LATEST, null, null, null, null, 1);
+        var interpretation = new Interpretation(original, List.of("비 오는 날"));
+        when(courseSearchService.interpret(original)).thenReturn(interpretation);
+        when(courseSemanticSearchService.isEnabled()).thenReturn(true);
+        when(courseSemanticSearchService.search(interpretation)).thenThrow(
+                new GeneralException(CourseErrorCode.COURSE_SEARCH_API_ERROR));
+        assertThatThrownBy(() -> courseService.getCourses(original, null)).isInstanceOf(GeneralException.class);
+        Mockito.verifyNoInteractions(courseRepository, transactionManager);
     }
 
     private CourseQueryRepository.CourseListRow priorityRow(long id) {

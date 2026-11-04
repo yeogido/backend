@@ -493,6 +493,65 @@ class CourseQueryRepositoryImplTest {
                 .containsExactly(both.getId());
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(CourseSortType.class)
+    void semanticCandidatesUseUserSortAndKeysetRatherThanLiteralTermMatching(CourseSortType sort) {
+        Region region = persistRegion("Seoul", "37.5665", "126.9780");
+        Course quiet = persistCourse(region, "한적한 해변 산책", 1);
+        Course calm = persistCourse(region, "고요한 해안 휴식", null);
+        Course unrelated = persistCourse(region, "놀이공원", 2);
+        Course title = persistCourse(region, "조용한 코스", 3);
+        User user = persistUser(region, "semantic@example.com");
+        persistLike(quiet, user);
+        persistReview(calm, user);
+        flushAndClear();
+        var scores = Map.of(quiet.getId(), 9L, calm.getId(), 20L);
+        var location = new CourseQueryRepository.CourseLocation(37.5665, 126.9780);
+        var request = courseListRequest(sort);
+        var ids = List.of(quiet.getId(), calm.getId(), title.getId());
+        var expected = courseRepository.findCoursesByCursor(request, location, scores, 20).stream()
+                .filter(row -> ids.contains(row.courseId()) && !row.courseId().equals(title.getId()))
+                .map(CourseQueryRepository.CourseListRow::courseId).toList();
+        var first = courseRepository.findSemanticCoursesByCursor(request, location, scores,
+                1, null, "조용한", ids);
+        var last = first.get(0);
+        String position = switch (sort) {
+            case LATEST -> last.createdAt().toString();
+            case SAVED -> last.savedCount().toString();
+            case REVIEW -> last.reviewCount().toString();
+            case POPULAR -> last.popularityScore().toString();
+            case DISTANCE -> last.distance().toString();
+            case RECOMMEND -> last.recommendOrder() == null ? null : last.recommendOrder().toString();
+        };
+        var next = courseRepository.findSemanticCoursesByCursor(
+                courseListRequest(sort, position, last.courseId()), location, scores, 20, null, "조용한", ids);
+        var actual = new java.util.ArrayList<Long>();
+        actual.add(last.courseId());
+        next.forEach(row -> actual.add(row.courseId()));
+        assertThat(actual).containsExactlyElementsOf(expected).doesNotHaveDuplicates().doesNotContain(unrelated.getId());
+        assertThat(courseRepository.findSemanticCoursesByCursor(request, location, scores,
+                20, null, "조용한", List.of())).isEmpty();
+    }
+
+    @Test
+    void semanticCandidateIdsDoNotOverrideStructuredFiltersOrSoftDeletion() {
+        Region region = persistRegion("Seoul", "37.5665", "126.9780");
+        Region other = persistRegion("Busan", "35.1796", "129.0756");
+        Course matching = persistLongCourse(region, "한적한 해변", 6, TransportType.WALK, 1);
+        Course wrongDays = persistLongCourse(region, "고요한 해변", 4, TransportType.WALK, 2);
+        Course wrongRegion = persistLongCourse(other, "평화로운 산책", 6, TransportType.WALK, 3);
+        Course deleted = persistLongCourse(region, "고요한 숲", 6, TransportType.WALK, 4);
+        deleted.delete();
+        flushAndClear();
+        var request = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, null, null, region.getId(),
+                TransportType.WALK, DurationType.THREE_PLUS, null, CourseSortType.RECOMMEND,
+                null, null, null, null, 20);
+        var actual = courseRepository.findSemanticCoursesByCursor(request,
+                new CourseQueryRepository.CourseLocation(null, null), Map.of(), 20, 6, "조용한",
+                List.of(matching.getId(), wrongDays.getId(), wrongRegion.getId(), deleted.getId()));
+        assertThat(actual).extracting(CourseQueryRepository.CourseListRow::courseId).containsExactly(matching.getId());
+    }
+
     private Place persistPlace(Region region, String name, String overview) {
         return entityManager.persist(Place.builder().region(region).source(PlaceSource.KAKAO)
                 .externalPlaceId(java.util.UUID.randomUUID().toString()).name(name).overview(overview)

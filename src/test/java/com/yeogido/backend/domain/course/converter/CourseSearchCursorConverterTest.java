@@ -227,6 +227,28 @@ class CourseSearchCursorConverterTest {
     }
   }
 
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.EnumSource(SearchPhase.class)
+  void semanticCursorPinsSnapshotWithoutEmbeddingVectorOrCandidateIds(SearchPhase phase) throws Exception {
+    var original = request("조용한 바다", null, null, 20, null, null);
+    String session = java.util.UUID.randomUUID().toString();
+    var interpretation = new Interpretation(original, List.of("조용한", "바다"), null,
+        List.of("조용한", "바다"), session);
+    String encoded = cursor.encodePriority(original, interpretation, null, phase);
+    assertThat(encoded).startsWith("nl3.");
+    var restored = cursor.decode(request(original.keyword(), encoded, 8L, 2, null, null));
+    assertThat(restored.phase()).isEqualTo(phase);
+    assertThat(restored.interpretation().semanticSessionId()).isEqualTo(session);
+    assertThat(restored.interpretation().extractedKeywords()).containsExactly("조용한", "바다");
+    assertThat(payload(encoded).has("candidateIds")).isFalse();
+    assertThat(payload(encoded).has("vector")).isFalse();
+    ObjectNode changed = payload(encoded);
+    changed.put("semanticSessionId", "invalid");
+    assertInvalid(request(original.keyword(), "nl3." + token(changed).substring(4), 8L, 2, null, null));
+    changed.remove("semanticSessionId");
+    assertInvalid(request(original.keyword(), "nl3." + token(changed).substring(4), 8L, 2, null, null));
+  }
+
   private void assertInvalid(CourseListReq request) {
     assertThatThrownBy(() -> cursor.decode(request)).isInstanceOfSatisfying(GeneralException.class,
         exception -> assertThat(exception.getErrorCode()).isEqualTo(CourseErrorCode.INVALID_COURSE_SEARCH_CURSOR));
