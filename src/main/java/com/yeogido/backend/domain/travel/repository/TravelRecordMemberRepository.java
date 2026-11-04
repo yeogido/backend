@@ -1,13 +1,20 @@
 package com.yeogido.backend.domain.travel.repository;
 
 import com.yeogido.backend.domain.travel.entity.TravelRecordMember;
+import jakarta.persistence.LockModeType;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface TravelRecordMemberRepository extends JpaRepository<TravelRecordMember, Long> {
+
+  @Lock(LockModeType.PESSIMISTIC_WRITE)
+  @Query("select m from TravelRecordMember m where m.travelRecord.id = :recordId and m.user.id = :userId")
+  Optional<TravelRecordMember> findCurrentForUpdate(@Param("recordId") Long recordId, @Param("userId") Long userId);
 
   /** 로그인 사용자의 현재 참여 관계만 제거하고 다른 참여자·콘텐츠는 유지합니다. */
   @Modifying(flushAutomatically = true)

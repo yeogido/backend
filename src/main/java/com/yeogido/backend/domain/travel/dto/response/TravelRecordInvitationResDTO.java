@@ -9,6 +9,14 @@ import java.util.List;
 
 public class TravelRecordInvitationResDTO {
 
+    @Schema(name = "TravelRecordInvitationRespondResponse", description = "공유 앨범 초대 응답 결과")
+    public record RespondResponse(
+            @Schema(description = "초대 ID", example = "101") Long invitationId,
+            @Schema(description = "여행 기록 ID", example = "20") Long travelRecordId,
+            @Schema(description = "처리된 상태", example = "ACCEPTED") TravelRecordInvitationStatus status
+    ) {
+    }
+
     @Schema(name = "TravelRecordReceivedInvitation", description = "수신한 참여 대기 초대. 사진 정보는 제공하지 않음")
     public record ReceivedInvitation(
             @Schema(description = "초대 ID", example = "101") Long invitationId,

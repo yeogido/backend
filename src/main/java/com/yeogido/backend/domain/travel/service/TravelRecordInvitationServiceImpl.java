@@ -1,6 +1,7 @@
 package com.yeogido.backend.domain.travel.service;
 
 import com.yeogido.backend.domain.file.service.S3Service;
+import com.yeogido.backend.domain.friend.entity.Friendship;
 import com.yeogido.backend.domain.friend.enums.FriendshipStatus;
 import com.yeogido.backend.domain.friend.repository.FriendshipRepository;
 import com.yeogido.backend.domain.travel.converter.TravelRecordInvitationConverter;
@@ -8,6 +9,7 @@ import com.yeogido.backend.domain.travel.dto.request.TravelRecordInvitationReqDT
 import com.yeogido.backend.domain.travel.dto.response.TravelRecordInvitationResDTO;
 import com.yeogido.backend.domain.travel.entity.TravelRecord;
 import com.yeogido.backend.domain.travel.entity.TravelRecordInvitation;
+import com.yeogido.backend.domain.travel.entity.TravelRecordMember;
 import com.yeogido.backend.domain.travel.enums.TravelRecordInvitationStatus;
 import com.yeogido.backend.domain.travel.enums.TravelRecordVisibility;
 import com.yeogido.backend.domain.travel.exception.TravelRecordErrorCode;
@@ -22,6 +24,7 @@ import com.yeogido.backend.global.exception.GeneralErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -47,6 +50,73 @@ public class TravelRecordInvitationServiceImpl implements TravelRecordInvitation
     private final FriendshipRepository friendshipRepository;
     private final EntityManager entityManager;
     private final S3Service s3Service;
+
+    /** 앨범, 친구 관계, 초대 순서로 잠근 뒤 상태와 참여 관계를 함께 반영합니다. */
+    @Override
+    @Transactional
+    public TravelRecordInvitationResDTO.RespondResponse respondToInvitation(
+            Long invitationId, Long userId, TravelRecordInvitationReqDTO.RespondRequest request
+    ) {
+        TravelRecordInvitationStatus response = parseResponse(request.status());
+        Long recordId = invitationRepository.findTravelRecordId(invitationId)
+                .orElseThrow(() -> new GeneralException(TravelRecordErrorCode.INVITATION_NOT_FOUND));
+        TravelRecord record = travelRecordRepository.findActiveDetailForUpdate(recordId)
+                .orElseThrow(() -> new GeneralException(TravelRecordErrorCode.INVITATION_NOT_FOUND));
+        entityManager.refresh(record, LockModeType.PESSIMISTIC_WRITE);
+        // 친구 해제가 먼저 완료되면 FK CASCADE로 초대가 사라지고, 응답이 먼저라면 해제가 완료까지 대기합니다.
+        Friendship friendship = invitationRepository.findFriendshipId(invitationId)
+                .flatMap(friendshipRepository::findByIdForUpdate).orElse(null);
+        if (friendship != null) {
+            entityManager.refresh(friendship, LockModeType.PESSIMISTIC_WRITE);
+        }
+        TravelRecordInvitation invitation = invitationRepository.findByIdForUpdate(invitationId)
+                .orElseThrow(() -> new GeneralException(TravelRecordErrorCode.INVITATION_NOT_FOUND));
+        entityManager.refresh(invitation, LockModeType.PESSIMISTIC_WRITE);
+        if (!invitation.getInvitee().getId().equals(userId)) {
+            throw new GeneralException(GeneralErrorCode.FORBIDDEN);
+        }
+        User invitee = invitation.getInvitee();
+        // 최초 조회의 REPEATABLE READ 스냅샷이나 이미 로딩된 사용자 상태로 수락을 허용하지 않습니다.
+        entityManager.refresh(invitee, LockModeType.PESSIMISTIC_READ);
+        if (invitee.getStatus() != UserStatus.ACTIVE) {
+            throw new GeneralException(GeneralErrorCode.FORBIDDEN);
+        }
+        if (record.getVisibility() != TravelRecordVisibility.FRIENDS) {
+            throw new GeneralException(TravelRecordErrorCode.INVALID_INVITATION_STATE);
+        }
+        boolean member = travelRecordMemberRepository.findCurrentForUpdate(recordId, userId).isPresent();
+        if (invitation.getStatus() != TravelRecordInvitationStatus.PENDING) {
+            if (invitation.getStatus() != response || (response == TravelRecordInvitationStatus.ACCEPTED && !member)) {
+                throw new GeneralException(TravelRecordErrorCode.INVITATION_ALREADY_PROCESSED);
+            }
+            return TravelRecordInvitationConverter.toRespondResponse(invitation);
+        }
+        User inviter = invitation.getInviter();
+        entityManager.refresh(inviter, LockModeType.PESSIMISTIC_READ);
+        if (friendship == null || friendship.getStatus() != FriendshipStatus.ACCEPTED
+                || inviter.getStatus() != UserStatus.ACTIVE) {
+            throw new GeneralException(TravelRecordErrorCode.INVITATION_NOT_FOUND);
+        }
+        if (response == TravelRecordInvitationStatus.ACCEPTED && !member) {
+            travelRecordMemberRepository.save(TravelRecordMember.builder().travelRecord(record)
+                    .user(invitation.getInvitee()).build());
+            // 참여자 변경 전에 열어 둔 편집 화면이 이전 참여자 상태로 저장하지 않도록 버전을 무효화합니다.
+            if (travelRecordRepository.reserveVersion(recordId, record.getVersion()) == 0) {
+                throw new GeneralException(TravelRecordErrorCode.VERSION_CONFLICT);
+            }
+        }
+        invitation.respond(response);
+        invitationRepository.flush();
+        return TravelRecordInvitationConverter.toRespondResponse(invitation);
+    }
+
+    /** PENDING이나 정의되지 않은 상태로 초대를 응답할 수 없습니다. */
+    private TravelRecordInvitationStatus parseResponse(String status) {
+        if (!"ACCEPTED".equals(status) && !"DECLINED".equals(status)) {
+            throw new GeneralException(GeneralErrorCode.INVALID_PARAMETER);
+        }
+        return TravelRecordInvitationStatus.valueOf(status);
+    }
 
     @Override
     public CursorResponse<TravelRecordInvitationResDTO.ReceivedInvitation> getReceivedInvitations(
@@ -99,7 +169,7 @@ public class TravelRecordInvitationServiceImpl implements TravelRecordInvitation
         }
         Map<Long, User> targets = userRepository.findAllById(ids).stream()
                 .collect(Collectors.toMap(User::getId, Function.identity()));
-        validateFriends(ids, targets, userId);
+        Map<Long, Friendship> friendships = validateFriends(ids, targets, userId);
         List<TravelRecordInvitation> previous = invitationRepository
                 .findByTravelRecordIdAndInviteeIdIn(travelRecordId, ids);
         if (previous.stream().anyMatch(invitation -> invitation.getStatus() == TravelRecordInvitationStatus.PENDING)) {
@@ -112,7 +182,7 @@ public class TravelRecordInvitationServiceImpl implements TravelRecordInvitation
         }
         List<TravelRecordInvitation> invitations = ids.stream()
                 .map(id -> TravelRecordInvitation.builder().travelRecord(record)
-                        .inviter(inviter).invitee(targets.get(id)).build()).toList();
+                        .inviter(inviter).invitee(targets.get(id)).friendship(friendships.get(id)).build()).toList();
         return TravelRecordInvitationConverter.toCreateResponse(travelRecordId,
                 invitationRepository.saveAllAndFlush(invitations));
     }
@@ -125,15 +195,24 @@ public class TravelRecordInvitationServiceImpl implements TravelRecordInvitation
         }
     }
 
-    /** 요청자를 기준으로 활성 대상과 수락 완료된 친구 관계를 확인합니다. */
-    private void validateFriends(List<Long> ids, Map<Long, User> targets, Long userId) {
-        for (Long id : ids) {
+    /** 대상 ID 순서로 친구 관계를 잠가 다중 초대의 잠금 순서를 유지합니다. */
+    private Map<Long, Friendship> validateFriends(List<Long> ids, Map<Long, User> targets, Long userId) {
+        Map<Long, Friendship> friendships = new HashMap<>();
+        for (Long id : ids.stream().sorted().toList()) {
             User target = targets.get(id);
-            if (target == null || target.getStatus() != UserStatus.ACTIVE
-                    || !friendshipRepository.existsByUserLowIdAndUserHighIdAndStatus(
-                        Math.min(userId, id), Math.max(userId, id), FriendshipStatus.ACCEPTED)) {
+            if (target == null || target.getStatus() != UserStatus.ACTIVE) {
                 throw new GeneralException(TravelRecordErrorCode.INVALID_INVITATION_TARGET);
             }
+            Friendship friendship = friendshipRepository.findByUserLowIdAndUserHighId(
+                            Math.min(userId, id), Math.max(userId, id))
+                    .flatMap(found -> friendshipRepository.findByIdForUpdate(found.getId()))
+                    .orElseThrow(() -> new GeneralException(TravelRecordErrorCode.INVALID_INVITATION_TARGET));
+            entityManager.refresh(friendship, LockModeType.PESSIMISTIC_WRITE);
+            if (friendship.getStatus() != FriendshipStatus.ACCEPTED) {
+                throw new GeneralException(TravelRecordErrorCode.INVALID_INVITATION_TARGET);
+            }
+            friendships.put(id, friendship);
         }
+        return friendships;
     }
 }

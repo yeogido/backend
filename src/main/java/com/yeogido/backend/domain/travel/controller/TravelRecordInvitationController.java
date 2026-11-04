@@ -15,6 +15,7 @@ import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -28,6 +29,18 @@ import org.springframework.web.bind.annotation.RestController;
 public class TravelRecordInvitationController {
 
     private final TravelRecordInvitationService invitationService;
+
+    @Operation(summary = "공유 앨범 초대 수락, 거절", description = "본인이 받은 PENDING 초대에 응답합니다. "
+            + "수락하면 참여 관계가 생성되며, 같은 응답의 재요청은 현재 상태가 유효하면 성공합니다.")
+    @PatchMapping("/invitations/{invitationId}")
+    public ApiResponse<TravelRecordInvitationResDTO.RespondResponse> respondToInvitation(
+            @PathVariable Long invitationId,
+            @AuthenticationPrincipal AuthUser authUser,
+            @Valid @RequestBody TravelRecordInvitationReqDTO.RespondRequest request
+    ) {
+        return ApiResponse.onSuccess(SuccessCode.OK,
+                invitationService.respondToInvitation(invitationId, authUser.userId(), request));
+    }
 
     @Operation(summary = "받은 공유 앨범 초대 목록 조회", description = "본인이 받은 PENDING 초대를 생성일, ID 내림차순으로 조회합니다. "
             + "수락 전 사진 정보는 제공하지 않으며 cursor에는 이전 응답의 cursorId를 전달합니다.")

@@ -6,6 +6,11 @@ import com.yeogido.backend.global.common.response.CursorResponse;
 
 public interface TravelRecordInvitationService {
 
+    TravelRecordInvitationResDTO.RespondResponse respondToInvitation(
+            Long invitationId, Long userId, TravelRecordInvitationReqDTO.RespondRequest request
+    );
+
+
     CursorResponse<TravelRecordInvitationResDTO.ReceivedInvitation> getReceivedInvitations(
             Long userId, TravelRecordInvitationReqDTO.ListRequest request
     );
