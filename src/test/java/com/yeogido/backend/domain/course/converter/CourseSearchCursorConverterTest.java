@@ -10,6 +10,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.yeogido.backend.domain.course.dto.CourseSearchDTO.DecodedCursor;
 import com.yeogido.backend.domain.course.dto.CourseSearchDTO.Interpretation;
+import com.yeogido.backend.domain.course.enums.SearchPhase;
 import com.yeogido.backend.domain.course.dto.request.CourseReqDTO.CourseListReq;
 import com.yeogido.backend.domain.course.exception.CourseErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
@@ -165,6 +166,64 @@ class CourseSearchCursorConverterTest {
       ObjectNode payload = payload(token);
       ((ObjectNode) payload.get("conditions")).put("totalDays", days);
       assertInvalid(request(original.keyword(), token(payload), 8L, 20, null, null));
+    }
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.EnumSource(SearchPhase.class)
+  void priorityCursorPreservesBucketConditionsAndNullRecommendPosition(SearchPhase phase) {
+    var original = request("5박6일 바다", null, null, 20, null, null);
+    String token = cursor.encodePriority(original,
+        new Interpretation(original, List.of("바다"), 6), null, phase);
+    assertThat(token).startsWith("nl2.");
+    var decoded = cursor.decode(request(original.keyword(), token, 8L, 3, null, null));
+    assertThat(decoded.phase()).isEqualTo(phase);
+    assertThat(decoded.interpretation().totalDays()).isEqualTo(6);
+    assertThat(decoded.request().cursorValue()).isNull();
+    assertThat(decoded.request().size()).isEqualTo(3);
+    assertInvalid(request("산", token, 8L, 3, null, null));
+  }
+
+  @Test
+  void priorityCursorRejectsMissingOrInvalidBucket() throws Exception {
+    var original = request("바다", null, null, 20, null, null);
+    String token = cursor.encodePriority(original, new Interpretation(original, List.of("바다")), "1", SearchPhase.TITLE);
+    for (String phase : new String[] {null, "UNKNOWN"}) {
+      ObjectNode payload = payload(token);
+      if (phase == null) payload.remove("phase");
+      else payload.put("phase", phase);
+      String changed = "nl2." + token(payload).substring(4);
+      assertInvalid(request("바다", changed, 8L, 20, null, null));
+    }
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(booleans = {true, false})
+  void displayKeywordsRoundTripAndOldCursorsMayOmitOnlyTheOptionalField(boolean priority) throws Exception {
+    var original = request("5박6일 바다", null, null, 20, null, null);
+    var interpretation = new Interpretation(original, List.of("바다"), 6, List.of("6일", "바다"));
+    String encoded = priority ? cursor.encodePriority(original, interpretation, "1", SearchPhase.NATURAL)
+        : cursor.encode(original, interpretation, "1");
+    var decoded = cursor.decode(request(original.keyword(), encoded, 8L, 20, null, null));
+    assertThat(decoded.interpretation().extractedKeywords()).containsExactly("6일", "바다");
+    ObjectNode old = payload(encoded);
+    ((ObjectNode) old.get("conditions")).remove("extractedKeywords");
+    String oldToken = encoded.substring(0, 4) + token(old).substring(4);
+    assertThat(cursor.decode(request(original.keyword(), oldToken, 8L, 20, null, null))
+        .interpretation().extractedKeywords()).isEmpty();
+    ((ObjectNode) old.get("conditions")).remove("terms");
+    assertInvalid(request(original.keyword(), encoded.substring(0, 4) + token(old).substring(4), 8L, 20, null, null));
+  }
+
+  @Test
+  void rejectsMalformedDisplayKeywordsWithoutCoercingValuesToStrings() throws Exception {
+    var original = request("바다", null, null, 20, null, null);
+    String encoded = cursor.encodePriority(original, new Interpretation(original, List.of("바다")), "1", SearchPhase.TITLE);
+    for (String json : List.of("null", "{}", "123", "[123]", "[true]", "[null]", "[\" \"]", "[\"바다\",\"바다\"]",
+        mapper.writeValueAsString(List.of("a".repeat(101))), mapper.writeValueAsString(java.util.Collections.nCopies(13, "바다")))) {
+      ObjectNode changed = payload(encoded);
+      ((ObjectNode) changed.get("conditions")).set("extractedKeywords", mapper.readTree(json));
+      assertInvalid(request(original.keyword(), "nl2." + token(changed).substring(4), 8L, 20, null, null));
     }
   }
 

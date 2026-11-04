@@ -48,6 +48,7 @@ class CourseSearchServiceImplTest {
     assertThat(result.request().companionType()).isEqualTo(CompanionType.COUPLE);
     assertThat(result.request().transportType()).isNull();
     assertThat(result.terms()).containsExactly("조용", "바다");
+    assertThat(result.extractedKeywords()).containsExactly("부산광역시", "당일치기", "커플", "조용", "바다");
     assertThat(request.regionId()).isNull();
     assertThat(request.durationType()).isNull();
     assertThat(request.keyword()).contains("부산");
@@ -74,6 +75,7 @@ class CourseSearchServiceImplTest {
     assertThat(result.request().durationType()).isEqualTo(DurationType.ONE_NIGHT);
     assertThat(result.request().transportType()).isEqualTo(TransportType.CAR);
     assertThat(result.request().companionType()).isEqualTo(CompanionType.FAMILY);
+    assertThat(result.extractedKeywords()).containsExactly("부산광역시", "당일치기", "도보·대중교통", "커플");
     assertThat(result.terms()).isEmpty();
     verifyNoInteractions(regions);
   }
@@ -216,6 +218,41 @@ class CourseSearchServiceImplTest {
     assertThat(java.util.Arrays.stream(CourseListReq.class.getRecordComponents())
         .map(java.lang.reflect.RecordComponent::getName))
         .doesNotContain("totalDays");
+  }
+
+  @Test
+  void displayKeywordsExcludeExplicitOnlyFiltersAndAreDeduplicatedAndImmutable() {
+    respond("""
+        {"supported":true,"region":null,"durationType":null,"transportType":null,
+         "companionType":null,"terms":["바다","바다"],"totalDays":null}
+        """);
+    var result = interpreter.interpret(request("바다", 2L, DurationType.DAY_TRIP,
+        TransportType.CAR, CompanionType.FAMILY));
+    assertThat(result.extractedKeywords()).containsExactly("바다");
+    assertThatThrownBy(() -> result.extractedKeywords().add("서울"))
+        .isInstanceOf(UnsupportedOperationException.class);
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.CsvSource({"1,DAY_TRIP,당일치기", "2,ONE_NIGHT,1박2일",
+      "3,TWO_NIGHT,2박3일", "6,THREE_PLUS,6일"})
+  void displayDurationUsesOneReadableExactTag(int days, String duration, String expected) {
+    respond("""
+        {"supported":true,"region":null,"durationType":"%s","transportType":null,
+         "companionType":null,"terms":[],"totalDays":%d}
+        """.formatted(duration, days));
+    var result = interpreter.interpret(request(days + "일 여행", null, null, null, null));
+    assertThat(result.extractedKeywords()).containsExactly(expected);
+  }
+
+  @Test
+  void unspecifiedLongTripDisplaysRangeWithoutAssumingExactDays() {
+    respond("""
+        {"supported":true,"region":null,"durationType":"THREE_PLUS","transportType":"CAR",
+         "companionType":"PET","terms":[],"totalDays":null}
+        """);
+    var result = interpreter.interpret(request("3박 이상 자동차 반려동물 여행", null, null, null, null));
+    assertThat(result.extractedKeywords()).containsExactly("3박 이상", "자동차", "반려동물");
   }
 
   private void respond(String payload) {

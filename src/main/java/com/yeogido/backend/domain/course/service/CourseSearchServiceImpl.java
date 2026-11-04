@@ -136,7 +136,41 @@ public class CourseSearchServiceImpl implements CourseSearchService {
         duration,
         request.companionType() != null ? request.companionType() : extraction.companionType(),
         request.sort(), request.latitude(), request.longitude(), request.cursorValue(), request.cursorId(), request.size());
-    return new Interpretation(effective, extraction.terms(), totalDays);
+    return new Interpretation(effective, extraction.terms(), totalDays, displayKeywords(extraction));
+  }
+
+  private static List<String> displayKeywords(Extraction extraction) {
+    List<String> keywords = new ArrayList<>();
+    if (extraction.region() != null) keywords.add(extraction.region());
+    if (extraction.totalDays() != null) {
+      keywords.add(switch (extraction.totalDays()) {
+        case 1 -> "당일치기";
+        case 2 -> "1박2일";
+        case 3 -> "2박3일";
+        default -> extraction.totalDays() + "일";
+      });
+    } else if (extraction.durationType() != null) {
+      keywords.add(switch (extraction.durationType()) {
+        case DAY_TRIP -> "당일치기";
+        case ONE_NIGHT -> "1박2일";
+        case TWO_NIGHT -> "2박3일";
+        case THREE_PLUS -> "3박 이상";
+      });
+    }
+    if (extraction.transportType() != null) {
+      keywords.add(extraction.transportType() == TransportType.WALK ? "도보·대중교통" : "자동차");
+    }
+    if (extraction.companionType() != null) {
+      keywords.add(switch (extraction.companionType()) {
+        case SOLO -> "혼자";
+        case FRIEND -> "친구";
+        case COUPLE -> "커플";
+        case FAMILY -> "가족";
+        case PET -> "반려동물";
+      });
+    }
+    keywords.addAll(extraction.terms());
+    return keywords.stream().distinct().toList();
   }
 
   private static Integer nullablePositiveInteger(JsonNode value) {

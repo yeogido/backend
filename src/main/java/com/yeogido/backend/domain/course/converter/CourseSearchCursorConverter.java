@@ -3,7 +3,11 @@ package com.yeogido.backend.domain.course.converter;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.yeogido.backend.domain.course.dto.CourseSearchDTO.Conditions;
+import com.yeogido.backend.domain.course.dto.CourseSearchDTO.PriorityCursorPayload;
+import com.yeogido.backend.domain.course.enums.SearchPhase;
 import com.yeogido.backend.domain.course.dto.CourseSearchDTO.CursorPayload;
 import com.yeogido.backend.domain.course.dto.CourseSearchDTO.DecodedCursor;
 import com.yeogido.backend.domain.course.dto.CourseSearchDTO.Interpretation;
@@ -25,6 +29,7 @@ import org.springframework.util.StringUtils;
 @Component
 public class CourseSearchCursorConverter {
   private static final String PREFIX = "nl1.";
+  private static final String PRIORITY_PREFIX = "nl2.";
   private static final int MAX_LENGTH = 8192;
   private final ObjectMapper mapper;
 
@@ -34,18 +39,44 @@ public class CourseSearchCursorConverter {
 
   public DecodedCursor decode(CourseListReq original) {
     String value = original.cursorValue();
-    if (value == null || !value.startsWith(PREFIX)) {
+    if (value == null || (!value.startsWith(PREFIX) && !value.startsWith(PRIORITY_PREFIX))) {
       return new DecodedCursor(original, null, false);
     }
     try {
       require(value.length() <= MAX_LENGTH && original.cursorId() != null);
-      CursorPayload payload = mapper.readerFor(CursorPayload.class)
+      boolean priority = value.startsWith(PRIORITY_PREFIX);
+      var reader = mapper.readerFor(priority ? PriorityCursorPayload.class : CursorPayload.class)
           .with(JsonParser.Feature.STRICT_DUPLICATE_DETECTION)
           .with(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES,
               DeserializationFeature.FAIL_ON_TRAILING_TOKENS,
               DeserializationFeature.FAIL_ON_MISSING_CREATOR_PROPERTIES,
-              DeserializationFeature.FAIL_ON_NUMBERS_FOR_ENUMS)
-          .readValue(Base64.getUrlDecoder().decode(value.substring(PREFIX.length())));
+              DeserializationFeature.FAIL_ON_NUMBERS_FOR_ENUMS);
+      JsonNode tree = mapper.reader().with(JsonParser.Feature.STRICT_DUPLICATE_DETECTION)
+          .with(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
+          .readTree(Base64.getUrlDecoder().decode(value.substring(PREFIX.length())));
+      if (tree != null && tree.path("conditions").isObject()
+          && !tree.path("conditions").has("extractedKeywords")) {
+        ((ObjectNode) tree.path("conditions")).putArray("extractedKeywords");
+      }
+      if (tree != null && tree.path("conditions").isObject()) {
+        JsonNode keywords = tree.path("conditions").path("extractedKeywords");
+        require(keywords.isArray() && keywords.size() <= 12);
+        for (JsonNode keyword : keywords) {
+          require(keyword.isTextual() && StringUtils.hasText(keyword.textValue())
+              && keyword.textValue().length() <= 100);
+        }
+      }
+      Object decoded = reader.readValue(tree);
+      SearchPhase phase = null;
+      CursorPayload payload;
+      if (priority) {
+        PriorityCursorPayload ranked = (PriorityCursorPayload) decoded;
+        require(ranked != null && ranked.phase() != null && ranked.conditions() != null);
+        phase = ranked.phase();
+        payload = new CursorPayload(ranked.fingerprint(), ranked.cursorValue(), ranked.conditions());
+      } else {
+        payload = (CursorPayload) decoded;
+      }
       require(payload != null && fingerprint(original).equals(payload.fingerprint()));
       require(payload.cursorValue() == null || payload.cursorValue().length() <= 100);
       CourseListReq request = copy(original, original.keyword(), original.regionId(), original.durationType(),
@@ -56,6 +87,11 @@ public class CourseSearchCursorConverter {
       }
       require(conditions.regionId() == null || conditions.regionId() > 0);
       require(conditions.totalDays() == null || conditions.totalDays() >= 1);
+      require(conditions.extractedKeywords() != null && conditions.extractedKeywords().size() <= 12);
+      for (String keyword : conditions.extractedKeywords()) {
+        require(StringUtils.hasText(keyword) && keyword.length() <= 100);
+      }
+      require(conditions.extractedKeywords().stream().distinct().count() == conditions.extractedKeywords().size());
       require(conditions.terms() != null && conditions.terms().size() <= 6);
       for (String term : conditions.terms()) {
         require(StringUtils.hasText(term) && term.length() <= 100);
@@ -70,7 +106,7 @@ public class CourseSearchCursorConverter {
       requireUnchanged(original.companionType(), conditions.companionType());
       CourseListReq effective = copy(original, null, conditions.regionId(), conditions.durationType(),
           conditions.transportType(), conditions.companionType(), payload.cursorValue());
-      return new DecodedCursor(request, new Interpretation(effective, List.copyOf(conditions.terms()), conditions.totalDays()), true);
+      return new DecodedCursor(request, new Interpretation(effective, List.copyOf(conditions.terms()), conditions.totalDays(), conditions.extractedKeywords()), true, phase);
     } catch (Exception exception) {
       throw new GeneralException(CourseErrorCode.INVALID_COURSE_SEARCH_CURSOR);
     }
@@ -81,10 +117,28 @@ public class CourseSearchCursorConverter {
       Conditions conditions = interpretation == null ? null : new Conditions(
           interpretation.request().regionId(), interpretation.request().durationType(),
           interpretation.request().transportType(), interpretation.request().companionType(),
-          interpretation.terms(), interpretation.totalDays());
+          interpretation.terms(), interpretation.totalDays(), interpretation.extractedKeywords());
       CursorPayload payload = new CursorPayload(fingerprint(original),
           actualCursorValue == null ? null : actualCursorValue.toString(), conditions);
       String value = PREFIX + Base64.getUrlEncoder().withoutPadding().encodeToString(mapper.writeValueAsBytes(payload));
+      require(value.length() <= MAX_LENGTH);
+      return value;
+    } catch (Exception exception) {
+      throw new GeneralException(CourseErrorCode.COURSE_SEARCH_CURSOR_ENCODING_FAILED);
+    }
+  }
+
+  public String encodePriority(CourseListReq original, Interpretation interpretation,
+      Object actualCursorValue, SearchPhase phase) {
+    try {
+      require(interpretation != null && phase != null);
+      Conditions conditions = new Conditions(interpretation.request().regionId(),
+          interpretation.request().durationType(), interpretation.request().transportType(),
+          interpretation.request().companionType(), interpretation.terms(), interpretation.totalDays(), interpretation.extractedKeywords());
+      var payload = new PriorityCursorPayload(fingerprint(original),
+          actualCursorValue == null ? null : actualCursorValue.toString(), conditions, phase);
+      String value = PRIORITY_PREFIX + Base64.getUrlEncoder().withoutPadding()
+          .encodeToString(mapper.writeValueAsBytes(payload));
       require(value.length() <= MAX_LENGTH);
       return value;
     } catch (Exception exception) {
