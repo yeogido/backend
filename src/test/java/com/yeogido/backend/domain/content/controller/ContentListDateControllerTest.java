@@ -19,7 +19,6 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.time.LocalDate;
 import java.util.List;
-import com.yeogido.backend.global.common.response.CursorResponse;
 
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -51,9 +50,10 @@ class ContentListDateControllerTest {
     var request = new ContentReqDTO.ContentListReq(null,null,null,null,null,null,null,null,null,null,null,
         LocalDate.parse("2026-11-01"),LocalDate.parse("2026-11-30"));
     when(service.getContents(request,null))
-        .thenReturn(CursorResponse.<ContentResDTO.ContentInfo>of(List.of(),null,null,false));
+        .thenReturn(new ContentResDTO.ContentListResponse(List.of(), null, null, false, 0));
     mvc.perform(get("/api/v1/contents").param("startDate","2026-11-01").param("endDate","2026-11-30"))
-        .andExpect(status().isOk()).andExpect(jsonPath("$.result.items").isEmpty());
+        .andExpect(status().isOk()).andExpect(jsonPath("$.result.items").isEmpty())
+        .andExpect(jsonPath("$.result.totalCount").value(0));
     verify(service).getContents(request,null);
   }
 

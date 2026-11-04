@@ -6,7 +6,6 @@ import com.yeogido.backend.domain.content.dto.ContentResDTO;
 import com.yeogido.backend.domain.content.service.ContentService;
 import com.yeogido.backend.global.common.code.SuccessCode;
 import com.yeogido.backend.global.common.response.ApiResponse;
-import com.yeogido.backend.global.common.response.CursorResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
@@ -36,12 +35,12 @@ public class ContentController {
             description = "startDate와 endDate를 함께 전달하면 선택 기간과 하루라도 겹치는 문화콘텐츠를 조회합니다. 날짜 필터와 기존 필터, 정렬, 커서 페이징을 함께 사용할 수 있습니다."
     )
     @GetMapping
-    public ApiResponse<CursorResponse<ContentResDTO.ContentInfo>> getContents(
+    public ApiResponse<ContentResDTO.ContentListResponse> getContents(
             @Valid @ParameterObject @ModelAttribute ContentReqDTO.ContentListReq request,
             @AuthenticationPrincipal AuthUser authUser
     ){
         Long userId = authUser == null ? null : authUser.userId();
-        CursorResponse<ContentResDTO.ContentInfo> result = contentService.getContents(request, userId);
+        ContentResDTO.ContentListResponse result = contentService.getContents(request, userId);
         return ApiResponse.onSuccess(SuccessCode.OK,result);
     }
 

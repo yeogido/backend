@@ -123,6 +123,31 @@ class ContentListDateIntegrationTest {
         LocalDate.of(2026,10,1),LocalDate.of(2026,10,31))).isEmpty();
   }
 
+  @Test
+  void countsMatchingEventsIndependentlyOfThePageCursor() {
+    save("첫 행사", "2026-10-01", "2026-10-10", ContentPublicationStatus.PUBLISHED);
+    save("둘째 행사", "2026-10-01", "2026-10-20", ContentPublicationStatus.PUBLISHED);
+    save("미게시", "2026-10-01", "2026-10-15", ContentPublicationStatus.PENDING);
+    save("다른 달", "2026-09-01", "2026-09-30", ContentPublicationStatus.PUBLISHED);
+    em.flush();
+    em.clear();
+
+    LocalDate start = LocalDate.of(2026, 10, 1);
+    LocalDate end = LocalDate.of(2026, 10, 31);
+    var first = service.getContents(new ContentReqDTO.ContentListReq(null, null, null, null, null,
+        ContentSort.DEADLINE, null, null, null, null, 1, start, end), null);
+    var second = service.getContents(new ContentReqDTO.ContentListReq(null, null, null, null, null,
+        ContentSort.DEADLINE, null, null, first.getCursorValue().toString(), first.getCursorId(), 1, start, end), null);
+    var empty = service.getContents(new ContentReqDTO.ContentListReq(null, null, null, null, null,
+        ContentSort.DEADLINE, null, null, null, null, 1, end.plusDays(1), end.plusMonths(1)), null);
+
+    assertThat(first.getItems()).hasSize(1);
+    assertThat(first.getTotalCount()).isEqualTo(2);
+    assertThat(second.getItems()).hasSize(1);
+    assertThat(second.getTotalCount()).isEqualTo(2);
+    assertThat(empty.getTotalCount()).isZero();
+  }
+
   private Content save(String title,String start,String end,ContentPublicationStatus status) {
     return em.persist(Content.builder().place(place).source(ContentSource.ADMIN).title(title)
         .category(ContentCategory.FESTIVAL).startDate(start==null ? null : LocalDate.parse(start))
