@@ -62,6 +62,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import com.yeogido.backend.domain.course.dto.CourseSearchDTO.Interpretation;
+import com.yeogido.backend.domain.course.enums.SearchPhase;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
@@ -185,7 +186,7 @@ public class CourseServiceImpl implements CourseService {
 
     @Override
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
-    public CursorResponse<CourseResDTO.CoursePreview> getCourses(
+    public CourseResDTO.CourseListRes getCourses(
             CourseReqDTO.CourseListReq request,
             Long userId
     ) {
@@ -199,14 +200,18 @@ public class CourseServiceImpl implements CourseService {
         // 외부 AI 호출 종료 후 코스 조회 구간에만 읽기 트랜잭션 적용
         TransactionTemplate transaction = new TransactionTemplate(transactionManager);
         transaction.setReadOnly(true);
-        return transaction.execute(status -> getCoursesInTransaction(pageRequest, userId, interpretation, decoded.pinned()));
+        return transaction.execute(status -> getCoursesInTransaction(pageRequest, userId, interpretation, decoded.pinned(),
+                decoded.phase() != null ? decoded.phase()
+                        : !decoded.pinned() && pageRequest.cursorId() == null && interpretation != null
+                                ? SearchPhase.TITLE : null));
     }
 
-    private CursorResponse<CourseResDTO.CoursePreview> getCoursesInTransaction(
+    private CourseResDTO.CourseListRes getCoursesInTransaction(
             CourseReqDTO.CourseListReq request,
             Long userId,
             Interpretation interpretation,
-            boolean pinned
+            boolean pinned,
+            SearchPhase phase
     ) {
         int size = request.size();
         User currentUser = userId == null
@@ -214,10 +219,28 @@ public class CourseServiceImpl implements CourseService {
                 : getCurrentUser(userId);
         CourseQueryRepository.CourseLocation location = resolveCourseLocation(request, currentUser);
         Map<Long, Long> popularityScores = getPopularityScores(request);
-        List<CourseQueryRepository.CourseListRow> rows = interpretation == null
-                ? courseRepository.findCoursesByCursor(request, location, popularityScores, size + 1)
-                : courseRepository.findCoursesByCursor(interpretation.request(), location, popularityScores,
-                        size + 1, interpretation.terms(), interpretation.totalDays());
+        List<CourseQueryRepository.CourseListRow> rows;
+        int titleCount = 0;
+        if (phase == null) {
+            rows = interpretation == null
+                    ? courseRepository.findCoursesByCursor(request, location, popularityScores, size + 1)
+                    : courseRepository.findCoursesByCursor(interpretation.request(), location, popularityScores,
+                            size + 1, interpretation.terms(), interpretation.totalDays());
+        } else {
+            rows = new ArrayList<>();
+            if (phase == SearchPhase.TITLE) {
+                rows.addAll(courseRepository.findSearchPhaseByCursor(withoutKeyword(request, false),
+                        location, popularityScores, size + 1, List.of(), null, request.keyword(), true));
+                titleCount = rows.size();
+            }
+            if (rows.size() < size + 1) {
+                CourseReqDTO.CourseListReq naturalRequest = phase == SearchPhase.TITLE
+                        ? withoutKeyword(interpretation.request(), true) : interpretation.request();
+                rows.addAll(courseRepository.findSearchPhaseByCursor(naturalRequest, location, popularityScores,
+                        size + 1 - rows.size(), interpretation.terms(), interpretation.totalDays(),
+                        request.keyword(), false));
+            }
+        }
 
         boolean hasNext = rows.size() > size;
         if (hasNext) {
@@ -244,15 +267,26 @@ public class CourseServiceImpl implements CourseService {
                 : rows.get(rows.size() - 1);
 
         Object cursorValue = nextCourseCursorValue(request.sort(), lastRow);
-        if (lastRow != null && (interpretation != null || pinned)) {
+        if (lastRow != null && phase != null) {
+            cursorValue = courseSearchCursorConverter.encodePriority(request, interpretation, cursorValue,
+                    titleCount >= rows.size() ? SearchPhase.TITLE : SearchPhase.NATURAL);
+        } else if (lastRow != null && (interpretation != null || pinned)) {
             cursorValue = courseSearchCursorConverter.encode(request, interpretation, cursorValue);
         }
-        return CursorResponse.of(
+        return new CourseResDTO.CourseListRes(
                 items,
                 cursorValue,
                 lastRow == null ? null : lastRow.courseId(),
-                hasNext
+                hasNext,
+                interpretation == null ? List.of() : interpretation.extractedKeywords()
         );
+    }
+
+    private CourseReqDTO.CourseListReq withoutKeyword(CourseReqDTO.CourseListReq request, boolean resetCursor) {
+        return new CourseReqDTO.CourseListReq(request.courseType(), null, request.contentId(), request.regionId(),
+                request.transportType(), request.durationType(), request.companionType(), request.sort(),
+                request.latitude(), request.longitude(), resetCursor ? null : request.cursorValue(),
+                resetCursor ? null : request.cursorId(), request.size());
     }
 
     @Override

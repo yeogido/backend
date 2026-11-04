@@ -93,14 +93,14 @@ public class CourseController {
 
     @Operation(summary = "추천 코스 목록 조회", description = "추천 코스 목록을 조회합니다.")
     @GetMapping
-    public ApiResponse<CursorResponse<CourseResDTO.CoursePreview>> getCourses(
+    public ApiResponse<CourseResDTO.CourseListRes> getCourses(
             @AuthenticationPrincipal AuthUser authUser,
             @Valid @ParameterObject @ModelAttribute CourseReqDTO.CourseListReq request
     ) {
         Long userId = authUser == null
                 ? null
                 : authUser.userId();
-        CursorResponse<CourseResDTO.CoursePreview> response = courseService.getCourses(request, userId);
+        CourseResDTO.CourseListRes response = courseService.getCourses(request, userId);
 
         return ApiResponse.onSuccess(SuccessCode.OK, response);
     }

@@ -1,6 +1,8 @@
 package com.yeogido.backend.domain.course.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.yeogido.backend.global.common.response.CursorResponse;
+import lombok.Getter;
 import com.yeogido.backend.domain.content.enums.ContentStatus;
 import com.yeogido.backend.domain.course.enums.CompanionType;
 import com.yeogido.backend.domain.course.enums.CourseItemType;
@@ -21,6 +23,20 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 public class CourseResDTO {
+
+    @Getter
+    @Schema(name = "CourseListResponse", description = "코스 검색 결과 및 자연어에서 추출한 표시용 키워드")
+    public static class CourseListRes extends CursorResponse<CoursePreview> {
+        @Schema(description = "자연어에서 추출한 지역·기간·교통·동행·검색어. 해석하지 못하면 빈 배열",
+                example = "[\"서울특별시\", \"당일치기\", \"바다\"]")
+        private final List<String> extractedKeywords;
+
+        public CourseListRes(List<CoursePreview> items, Object cursorValue, Long cursorId,
+                boolean hasNext, List<String> extractedKeywords) {
+            super(items, cursorValue, cursorId, hasNext);
+            this.extractedKeywords = List.copyOf(extractedKeywords);
+        }
+    }
 
     @Schema(name = "CourseIdResponse", description = "추천 코스 ID 응답")
     public record CourseIdRes(

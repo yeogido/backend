@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yeogido.backend.domain.content.repository.ContentRepository;
 import com.yeogido.backend.domain.course.converter.CourseSearchCursorConverter;
 import com.yeogido.backend.domain.course.dto.CourseSearchDTO.Interpretation;
+import com.yeogido.backend.domain.course.enums.SearchPhase;
 import com.yeogido.backend.domain.course.dto.request.CourseReqDTO;
 import com.yeogido.backend.domain.course.dto.response.CourseResDTO;
 import com.yeogido.backend.domain.course.entity.Course;
@@ -415,14 +416,16 @@ class CourseServiceImplTest {
         var effective = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, null, null,
                 null, null, DurationType.DAY_TRIP, null, CourseSortType.LATEST, null, null, null, null, 1);
         var interpretation = interpreted
-                ? new Interpretation(effective, List.of("바다"))
+                ? new Interpretation(effective, List.of("바다"), null, List.of("당일치기", "바다"))
                 : null;
         when(courseSearchService.interpret(original)).thenReturn(interpretation);
         var row = new CourseQueryRepository.CourseListRow(10L, CourseType.OFFICIAL, null,
                 null, null, "바다", "부산", DurationType.DAY_TRIP, TransportType.CAR, CompanionType.SOLO,
                 java.time.LocalDateTime.of(2026, 1, 1, 0, 0), null, 0L, 0L, 0.0, 0L);
         if (interpreted) {
-            when(courseRepository.findCoursesByCursor(any(), any(), anyMap(), eq(2), eq(List.of("바다")), ArgumentMatchers.isNull()))
+            when(courseRepository.findSearchPhaseByCursor(any(), any(), anyMap(), eq(2), eq(List.of()),
+                    ArgumentMatchers.isNull(), eq(original.keyword()), eq(true))).thenReturn(List.of());
+            when(courseRepository.findSearchPhaseByCursor(any(), any(), anyMap(), eq(2), eq(List.of("바다")), ArgumentMatchers.isNull(), eq(original.keyword()), eq(false)))
                     .thenReturn(List.of(row, row)).thenReturn(List.of());
         } else {
             when(courseRepository.findCoursesByCursor(any(), any(), anyMap(), eq(2)))
@@ -430,8 +433,9 @@ class CourseServiceImplTest {
         }
         var first = courseService.getCourses(original, null);
         assertThat(first.isHasNext()).isTrue();
+        assertThat(first.getExtractedKeywords()).isEqualTo(interpreted ? List.of("당일치기", "바다") : List.of());
         if (interpreted) {
-            assertThat(first.getCursorValue().toString()).startsWith("nl1.");
+            assertThat(first.getCursorValue().toString()).startsWith("nl2.");
         } else {
             assertThat(first.getCursorValue().toString()).isEqualTo("2026-01-01T00:00");
         }
@@ -439,15 +443,17 @@ class CourseServiceImplTest {
                 null, null, null, null, CourseSortType.LATEST, null, null,
                 first.getCursorValue().toString(), first.getCursorId(), 1);
 
-        assertThat(courseService.getCourses(next, null).getItems()).isEmpty();
+        var empty = courseService.getCourses(next, null);
+        assertThat(empty.getItems()).isEmpty();
+        assertThat(empty.getExtractedKeywords()).isEqualTo(interpreted ? List.of("당일치기", "바다") : List.of());
 
         Mockito.verify(courseSearchService, Mockito.times(1)).interpret(any());
         if (interpreted) {
-            Mockito.verify(courseRepository).findCoursesByCursor(
+            Mockito.verify(courseRepository).findSearchPhaseByCursor(
                     ArgumentMatchers.argThat(req -> req.cursorId() != null
                             && "2026-01-01T00:00".equals(req.cursorValue())
                             && req.durationType() == DurationType.DAY_TRIP),
-                    any(), anyMap(), eq(2), eq(List.of("바다")), ArgumentMatchers.isNull());
+                    any(), anyMap(), eq(2), eq(List.of("바다")), ArgumentMatchers.isNull(), eq(original.keyword()), eq(false));
         }
     }
 
@@ -458,17 +464,134 @@ class CourseServiceImplTest {
         var effective = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, null, null,
                 null, null, DurationType.DAY_TRIP, null, CourseSortType.LATEST, null, null, null, null, 20);
         var interpretation = new Interpretation(
-                effective, List.of("바다"), 1);
+                effective, List.of("바다"), 1, List.of("당일치기", "바다"));
         when(courseSearchService.interpret(original)).thenReturn(interpretation);
-        when(courseRepository.findCoursesByCursor(eq(effective), any(), anyMap(), eq(21), eq(List.of("바다")), eq(1)))
+        when(courseRepository.findSearchPhaseByCursor(any(), any(), anyMap(), eq(21), eq(List.of()),
+                ArgumentMatchers.isNull(), eq(original.keyword()), eq(true))).thenReturn(List.of());
+        when(courseRepository.findSearchPhaseByCursor(eq(effective), any(), anyMap(), eq(21), eq(List.of("바다")), eq(1), eq(original.keyword()), eq(false)))
                 .thenReturn(List.of());
 
-        assertThat(courseService.getCourses(original, null).getItems()).isEmpty();
+        var empty = courseService.getCourses(original, null);
+        assertThat(empty.getItems()).isEmpty();
+        assertThat(empty.getExtractedKeywords()).containsExactly("당일치기", "바다");
 
-        Mockito.verify(courseRepository).findCoursesByCursor(eq(effective), any(), anyMap(),
-                eq(21), eq(List.of("바다")), eq(1));
+        Mockito.verify(courseRepository).findSearchPhaseByCursor(eq(effective), any(), anyMap(),
+                eq(21), eq(List.of("바다")), eq(1), eq(original.keyword()), eq(false));
         assertThat(original.durationType()).isNull();
         assertThat(original.keyword()).isEqualTo("당일치기 바다");
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {1, 2, 3})
+    void titlePriorityFillsPagesAndPinsTheLastReturnedBucket(int titleRows) {
+        var original = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, "바다", null,
+                null, TransportType.CAR, null, null, CourseSortType.RECOMMEND,
+                null, null, null, null, 2);
+        var effective = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, null, null,
+                7L, TransportType.CAR, DurationType.DAY_TRIP, null, CourseSortType.RECOMMEND,
+                null, null, null, null, 2);
+        var interpretation = new Interpretation(effective, List.of("바다"), 1, List.of("당일치기", "바다"));
+        when(courseSearchService.interpret(original)).thenReturn(interpretation);
+        var titles = java.util.stream.LongStream.rangeClosed(1, titleRows)
+                .mapToObj(this::priorityRow).toList();
+        when(courseRepository.findSearchPhaseByCursor(any(), any(), anyMap(), eq(3),
+                eq(List.of()), ArgumentMatchers.isNull(), eq("바다"), eq(true)))
+                .thenReturn(titles);
+        if (titleRows < 3) {
+            when(courseRepository.findSearchPhaseByCursor(any(), any(), anyMap(), eq(3 - titleRows),
+                    eq(List.of("바다")), eq(1), eq("바다"), eq(false)))
+                    .thenReturn(java.util.stream.LongStream.rangeClosed(10, 12 - titleRows)
+                            .mapToObj(this::priorityRow).toList());
+        }
+        var first = courseService.getCourses(original, null);
+        assertThat(first.isHasNext()).isTrue();
+        assertThat(first.getExtractedKeywords()).containsExactly("당일치기", "바다");
+        assertThat(first.getItems()).extracting(CourseResDTO.CoursePreview::courseId)
+                .containsExactly(1L, titleRows == 1 ? 10L : 2L);
+        var next = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, "바다", null,
+                null, TransportType.CAR, null, null, CourseSortType.RECOMMEND,
+                null, null, first.getCursorValue().toString(), first.getCursorId(), 2);
+        var decoded = courseSearchCursorConverter.decode(next);
+        assertThat(decoded.phase()).isEqualTo(titleRows >= 2 ? SearchPhase.TITLE : SearchPhase.NATURAL);
+        // Null RECOMMEND cursor is valid when a position ID is present.
+        assertThat(decoded.request().cursorValue()).isNull();
+        assertThat(decoded.interpretation().totalDays()).isEqualTo(1);
+        assertThat(decoded.interpretation().extractedKeywords()).containsExactly("당일치기", "바다");
+        if (titleRows < 3) {
+            Mockito.verify(courseRepository).findSearchPhaseByCursor(
+                    ArgumentMatchers.argThat(req -> req.cursorId() == null && req.cursorValue() == null
+                            && Long.valueOf(7L).equals(req.regionId())), any(), anyMap(), eq(3 - titleRows),
+                    eq(List.of("바다")), eq(1), eq("바다"), eq(false));
+        }
+        Mockito.verify(courseRepository).findSearchPhaseByCursor(
+                ArgumentMatchers.argThat(req -> req.regionId() == null && req.durationType() == null
+                        && req.transportType() == TransportType.CAR), any(), anyMap(), eq(3),
+                eq(List.of()), ArgumentMatchers.isNull(), eq("바다"), eq(true));
+    }
+
+    @Test
+    void titleContinuationResetsSortPositionBeforeStartingNaturalResults() {
+        var original = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, "바다", null,
+                null, null, null, null, CourseSortType.LATEST, null, null, null, null, 2);
+        var effective = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, null, null,
+                null, null, DurationType.DAY_TRIP, null, CourseSortType.LATEST, null, null, null, null, 2);
+        var interpretation = new Interpretation(effective, List.of("바다"), 1, List.of("당일치기", "바다"));
+        String token = courseSearchCursorConverter.encodePriority(original, interpretation,
+                "2026-01-01T00:00", SearchPhase.TITLE);
+        var next = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, "바다", null,
+                null, null, null, null, CourseSortType.LATEST, null, null, token, 3L, 2);
+        when(courseRepository.findSearchPhaseByCursor(any(), any(), anyMap(), eq(3), eq(List.of()),
+                ArgumentMatchers.isNull(), eq("바다"), eq(true))).thenReturn(List.of(priorityRow(4)));
+        when(courseRepository.findSearchPhaseByCursor(any(), any(), anyMap(), eq(2), eq(List.of("바다")),
+                eq(1), eq("바다"), eq(false))).thenReturn(List.of(priorityRow(10), priorityRow(11)));
+        var page = courseService.getCourses(next, null);
+        assertThat(page.getItems()).extracting(CourseResDTO.CoursePreview::courseId).containsExactly(4L, 10L);
+        assertThat(page.isHasNext()).isTrue();
+        Mockito.verify(courseRepository).findSearchPhaseByCursor(
+                ArgumentMatchers.argThat(req -> req.cursorId() != null && req.cursorId().equals(3L)
+                        && "2026-01-01T00:00".equals(req.cursorValue())), any(), anyMap(), eq(3), eq(List.of()),
+                ArgumentMatchers.isNull(), eq("바다"), eq(true));
+        Mockito.verify(courseRepository).findSearchPhaseByCursor(
+                ArgumentMatchers.argThat(req -> req.cursorId() == null && req.cursorValue() == null),
+                any(), anyMap(), eq(2), eq(List.of("바다")), eq(1), eq("바다"), eq(false));
+        Mockito.verifyNoInteractions(courseSearchService);
+    }
+
+    @Test
+    void legacyNaturalCursorKeepsItsOriginalSearchWithoutAddingTitleResults() {
+        var original = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, "바다", null,
+                null, null, null, null, CourseSortType.RECOMMEND, null, null, null, null, 2);
+        var interpretation = new Interpretation(original, List.of("바다"), 6);
+        String token = courseSearchCursorConverter.encode(original, interpretation, null);
+        var next = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, "바다", null,
+                null, null, null, null, CourseSortType.RECOMMEND, null, null, token, 8L, 2);
+        when(courseRepository.findCoursesByCursor(any(), any(), anyMap(), eq(3), eq(List.of("바다")), eq(6)))
+                .thenReturn(List.of());
+        assertThat(courseService.getCourses(next, null).getItems()).isEmpty();
+        Mockito.verifyNoInteractions(courseSearchService);
+        Mockito.verify(courseRepository, Mockito.never()).findSearchPhaseByCursor(
+                any(), any(), anyMap(), Mockito.anyInt(), any(), any(), any(), Mockito.anyBoolean());
+    }
+
+    @Test
+    void courseListJsonAddsKeywordsWithoutChangingGlobalCursorResponse() {
+        var mapper = new ObjectMapper();
+        var response = new CourseResDTO.CourseListRes(List.of(), null, null, false, List.of("바다"));
+        var json = mapper.valueToTree(response);
+        assertThat(json.size()).isEqualTo(5);
+        assertThat(json.has("items")).isTrue();
+        assertThat(json.has("cursorValue")).isTrue();
+        assertThat(json.has("cursorId")).isTrue();
+        assertThat(json.path("hasNext").asBoolean()).isFalse();
+        assertThat(json.path("extractedKeywords").get(0).asText()).isEqualTo("바다");
+        assertThat(mapper.valueToTree(com.yeogido.backend.global.common.response.CursorResponse
+                .of(List.of(), null, null, false)).has("extractedKeywords")).isFalse();
+    }
+
+    private CourseQueryRepository.CourseListRow priorityRow(long id) {
+        return new CourseQueryRepository.CourseListRow(id, CourseType.OFFICIAL, null, null, null,
+                "바다", "서울", DurationType.DAY_TRIP, TransportType.CAR, CompanionType.SOLO,
+                LocalDateTime.of(2026, 1, 1, 0, 0), null, 0L, 0L, 0.0, 0L);
     }
 
     @Test
