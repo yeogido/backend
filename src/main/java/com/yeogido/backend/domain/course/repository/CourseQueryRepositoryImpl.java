@@ -72,6 +72,21 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
             List<String> searchTerms,
             Integer totalDays
     ) {
+        return findSearchPhaseByCursor(request, location, popularityScores, limit, searchTerms,
+                totalDays, null, false);
+    }
+
+    @Override
+    public List<CourseListRow> findSearchPhaseByCursor(
+            CourseReqDTO.CourseListReq request,
+            CourseLocation location,
+            Map<Long, Long> popularityScores,
+            int limit,
+            List<String> searchTerms,
+            Integer totalDays,
+            String originalKeyword,
+            boolean titlePhase
+    ) {
         CourseSortType sort = CourseSortType.resolve(request.sort());
         boolean savedSort = sort == CourseSortType.SAVED;
         boolean reviewSort = sort == CourseSortType.REVIEW;
@@ -137,7 +152,12 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
             );
         }
 
-        query.where(courseListCondition(request, searchTerms, totalDays))
+        BooleanBuilder condition = courseListCondition(request, searchTerms, totalDays);
+        if (hasKeyword(originalKeyword)) {
+            BooleanExpression titleMatches = course.title.containsIgnoreCase(originalKeyword.trim());
+            condition.and(titlePhase ? titleMatches : titleMatches.not());
+        }
+        query.where(condition)
                 .orderBy(orderSpecifiers(sort, savedCount, reviewCount, distance, popularityScore))
                 .limit(limit);
 

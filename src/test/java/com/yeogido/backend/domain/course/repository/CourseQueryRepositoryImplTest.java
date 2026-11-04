@@ -416,6 +416,83 @@ class CourseQueryRepositoryImplTest {
                 .containsExactly(titleMatch.getId(), overviewOnly.getId(), separateTerms.getId());
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(CourseSortType.class)
+    void priorityBucketsKeepUserSortAndKeysetPaginationWithoutDuplicates(CourseSortType sort) {
+        Region region = persistRegion("Seoul", "37.5665", "126.9780");
+        Course titleFirst = persistCourse(region, "바다 여행 A", null);
+        Course titleSecond = persistCourse(region, "바다 여행 B", 1);
+        Course naturalFirst = persistCourse(region, "산책 A", 2);
+        Course naturalSecond = persistCourse(region, "산책 B", 0);
+        Place place = persistPlace(region, "바다", "산책길");
+        for (Course route : List.of(titleFirst, titleSecond, naturalFirst, naturalSecond)) {
+            persistPlaceItem(route, place, 1);
+            persistPlaceItem(route, place, 2);
+        }
+        User user = persistUser(region, "priority@example.com");
+        persistLike(titleFirst, user);
+        persistLike(naturalFirst, user);
+        persistReview(titleSecond, user);
+        persistReview(naturalSecond, user);
+        flushAndClear();
+        var scores = Map.of(titleFirst.getId(), 9L, naturalFirst.getId(), 20L);
+        var location = new CourseQueryRepository.CourseLocation(37.5665, 126.9780);
+        var request = courseListRequest(sort);
+        var baseline = courseRepository.findCoursesByCursor(request, location, scores, 10, List.of("바다"));
+        for (boolean titlePhase : new boolean[] {true, false}) {
+            var expected = baseline.stream().filter(row -> row.title().contains("바다") == titlePhase)
+                    .map(CourseQueryRepository.CourseListRow::courseId).toList();
+            var first = courseRepository.findSearchPhaseByCursor(request, location, scores,
+                    1, List.of("바다"), null, "바다", titlePhase);
+            var last = first.get(0);
+            String position = switch (sort) {
+                case LATEST -> last.createdAt().toString();
+                case SAVED -> last.savedCount().toString();
+                case REVIEW -> last.reviewCount().toString();
+                case POPULAR -> last.popularityScore().toString();
+                case DISTANCE -> last.distance().toString();
+                case RECOMMEND -> last.recommendOrder() == null ? null : last.recommendOrder().toString();
+            };
+            var next = courseRepository.findSearchPhaseByCursor(courseListRequest(sort, position, last.courseId()),
+                    location, scores, 10, List.of("바다"), null, "바다", titlePhase);
+            var actual = new java.util.ArrayList<Long>();
+            actual.add(last.courseId());
+            next.forEach(row -> actual.add(row.courseId()));
+            assertThat(actual).containsExactlyElementsOf(expected).doesNotHaveDuplicates();
+        }
+    }
+
+    @Test
+    void titleBucketIgnoresInferredFiltersButKeepsExplicitFiltersAndExcludesDeletedCourses() {
+        Region seoul = persistRegion("Seoul", "37.5665", "126.9780");
+        Region busan = persistRegion("Busan", "35.1796", "129.0756");
+        Course titleOnly = persistLongCourse(seoul, "바다 여행", 6, TransportType.CAR, 1);
+        Course naturalOnly = persistCourse(busan, "해변 산책", 2);
+        persistPlaceItem(naturalOnly, persistPlace(busan, "바다", "산책"), 1);
+        Course both = persistCourse(busan, "바다 나들이", 3);
+        persistPlaceItem(both, persistPlace(busan, "바다", "산책"), 1);
+        Course deleted = persistCourse(seoul, "바다 삭제", 4);
+        deleted.delete();
+        flushAndClear();
+        var location = new CourseQueryRepository.CourseLocation(null, null);
+        var explicit = courseListRequest(CourseSortType.RECOMMEND);
+        var titleRows = courseRepository.findSearchPhaseByCursor(explicit, location, Map.of(),
+                10, List.of(), null, "바다", true);
+        assertThat(titleRows).extracting(CourseQueryRepository.CourseListRow::courseId)
+                .containsExactly(titleOnly.getId(), both.getId());
+        var inferred = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, null, null,
+                busan.getId(), TransportType.CAR, DurationType.DAY_TRIP, null, CourseSortType.RECOMMEND,
+                null, null, null, null, 20);
+        var naturalRows = courseRepository.findSearchPhaseByCursor(inferred, location, Map.of(),
+                10, List.of("바다"), null, "바다", false);
+        assertThat(naturalRows).extracting(CourseQueryRepository.CourseListRow::courseId)
+                .containsExactly(naturalOnly.getId());
+        var explicitRegionRows = courseRepository.findSearchPhaseByCursor(inferred, location, Map.of(),
+                10, List.of(), null, "바다", true);
+        assertThat(explicitRegionRows).extracting(CourseQueryRepository.CourseListRow::courseId)
+                .containsExactly(both.getId());
+    }
+
     private Place persistPlace(Region region, String name, String overview) {
         return entityManager.persist(Place.builder().region(region).source(PlaceSource.KAKAO)
                 .externalPlaceId(java.util.UUID.randomUUID().toString()).name(name).overview(overview)

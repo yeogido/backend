@@ -35,6 +35,17 @@ public interface CourseQueryRepository {
             Integer totalDays
     );
 
+    List<CourseListRow> findSearchPhaseByCursor(
+            CourseReqDTO.CourseListReq request,
+            CourseLocation location,
+            Map<Long, Long> popularityScores,
+            int limit,
+            List<String> searchTerms,
+            Integer totalDays,
+            String originalKeyword,
+            boolean titlePhase
+    );
+
     record CourseLocation(
             Double latitude,
             Double longitude
