@@ -35,8 +35,10 @@ public class FriendQrTokenService {
         return new IssuedToken(token, expiresAt);
     }
 
+    // 이전 토큰 삭제가 실패해 키가 남아 있어도 사용자의 현재 토큰이 아니면 무효로 처리
     public Optional<Long> findUserId(String token) {
         return Optional.ofNullable(stringRedisTemplate.opsForValue().get(TOKEN_KEY_PREFIX + token))
+                .filter(userId -> token.equals(stringRedisTemplate.opsForValue().get(USER_KEY_PREFIX + userId)))
                 .map(Long::valueOf);
     }
 

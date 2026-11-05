@@ -70,9 +70,18 @@ class FriendQrTokenServiceTest {
     @Test
     void findUserIdReturnsOwnerOrEmptyWhenExpired() {
         when(valueOperations.get("friend:qr:token:valid")).thenReturn("1");
+        when(valueOperations.get("friend:qr:user:1")).thenReturn("valid");
         when(valueOperations.get("friend:qr:token:expired")).thenReturn(null);
 
         assertThat(friendQrTokenService.findUserId("valid")).contains(1L);
         assertThat(friendQrTokenService.findUserId("expired")).isEmpty();
+    }
+
+    @Test
+    void findUserIdRejectsLeftoverTokenThatIsNoLongerCurrent() {
+        when(valueOperations.get("friend:qr:token:leftover")).thenReturn("1");
+        when(valueOperations.get("friend:qr:user:1")).thenReturn("current");
+
+        assertThat(friendQrTokenService.findUserId("leftover")).isEmpty();
     }
 }
