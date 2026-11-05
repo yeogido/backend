@@ -378,6 +378,23 @@ public class TravelRecordServiceImpl implements TravelRecordService {
         entityManager.refresh(travelRecord, LockModeType.PESSIMISTIC_WRITE);
     }
 
+    /** 나가기와 같은 순서로 대상의 참여 관계만 제거하며 대상이 올린 사진과 스티커는 유지합니다. */
+    @Override
+    @Transactional
+    public void excludeMemberByOwner(Long travelRecordId, Long ownerId, Long memberUserId) {
+        validateActiveUser(ownerId);
+        TravelRecord travelRecord = getLockedTravelRecordOrThrow(travelRecordId);
+        validateOwner(travelRecord, ownerId);
+        if (travelRecord.getVisibility() != TravelRecordVisibility.FRIENDS
+                || travelRecordMemberRepository.deleteCurrentMembership(travelRecordId, memberUserId) == 0) {
+            throw new GeneralException(GeneralErrorCode.FORBIDDEN);
+        }
+        if (travelRecordRepository.reserveVersion(travelRecordId, travelRecord.getVersion()) == 0) {
+            throw new GeneralException(TravelRecordErrorCode.VERSION_CONFLICT);
+        }
+        entityManager.refresh(travelRecord, LockModeType.PESSIMISTIC_WRITE);
+    }
+
     /** 탈퇴한 사용자는 남아 있는 참여 행이 있더라도 변경 API를 사용할 수 없습니다. */
     private void validateActiveUser(Long userId) {
         if (getUserOrThrow(userId).getStatus() != UserStatus.ACTIVE) {

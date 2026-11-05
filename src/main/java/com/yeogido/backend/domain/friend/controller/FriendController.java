@@ -71,6 +71,19 @@ public class FriendController {
         return ApiResponse.onSuccess(SuccessCode.OK, response);
     }
 
+    @Operation(
+            summary = "친구 삭제 API",
+            description = "친구 관계를 삭제하고 함께한 공유 앨범을 정리합니다. 친구 관계가 없으면 FRIEND4043을 반환합니다."
+    )
+    @DeleteMapping("/{friendUserId}")
+    public ApiResponse<Void> deleteFriend(
+            @PathVariable Long friendUserId,
+            @AuthenticationPrincipal AuthUser authUser
+    ) {
+        friendService.deleteFriend(authUser.userId(), friendUserId);
+        return ApiResponse.onSuccess(SuccessCode.OK);
+    }
+
     @Operation(summary = "친구 여행 지도 조회 API", description = "친구가 만든 PUBLIC 기록과 내가 참여 중인 FRIENDS 기록을 지도 항목으로 조회합니다. 그 외 기록은 내려주지 않습니다.")
     @GetMapping("/{friendUserId}/travel-map")
     public ApiResponse<CursorResponse<TravelRecordResDTO.MapItem>> getFriendTravelMap(

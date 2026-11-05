@@ -41,6 +41,8 @@ public interface FriendService {
             Integer size
     );
 
+    void deleteFriend(Long userId, Long friendUserId);
+
     CursorResponse<TravelRecordResDTO.MapItem> getFriendTravelMap(
             Long userId,
             Long friendUserId,

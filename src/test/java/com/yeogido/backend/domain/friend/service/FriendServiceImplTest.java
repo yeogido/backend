@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -24,6 +25,8 @@ import com.yeogido.backend.domain.friend.repository.FriendshipRepository;
 import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.travel.dto.request.TravelRecordReqDTO;
 import com.yeogido.backend.domain.travel.dto.response.TravelRecordResDTO;
+import com.yeogido.backend.domain.travel.repository.TravelRecordMemberRepository;
+import com.yeogido.backend.domain.travel.repository.TravelRecordRepository;
 import com.yeogido.backend.domain.travel.service.TravelRecordService;
 import com.yeogido.backend.domain.user.entity.User;
 import com.yeogido.backend.domain.user.enums.UserRole;
@@ -39,6 +42,7 @@ import java.util.Optional;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -74,6 +78,12 @@ class FriendServiceImplTest {
 
     @Mock
     private S3Service s3Service;
+
+    @Mock
+    private TravelRecordRepository travelRecordRepository;
+
+    @Mock
+    private TravelRecordMemberRepository travelRecordMemberRepository;
 
     @InjectMocks
     private FriendServiceImpl friendService;
@@ -457,6 +467,59 @@ class FriendServiceImplTest {
 
         assertThat(empty.getItems()).isEmpty();
         assertThat(empty.getCursorId()).isNull();
+    }
+
+    @Test
+    void deleteFriendRejectsNonFriendWithoutTouchingAlbums() {
+        assertErrorCode(() -> friendService.deleteFriend(ME_ID, OTHER_ID), FriendErrorCode.NOT_FRIEND);
+
+        verify(travelRecordMemberRepository, never()).findSharedAlbums(ME_ID, OTHER_ID);
+        verify(friendshipRepository, never()).delete(any());
+    }
+
+    @Test
+    void deleteFriendLocksAlbumsBeforeFriendshipAndDeletesFriendshipLast() {
+        stubFriend(other);
+        Friendship friendship = friendship(me, other, FriendshipStatus.ACCEPTED);
+        when(friendshipRepository.findByUserLowIdAndUserHighId(ME_ID, OTHER_ID)).thenReturn(Optional.of(friendship));
+        when(friendshipRepository.findByIdForUpdate(REQUEST_ID)).thenReturn(Optional.of(friendship));
+        when(travelRecordMemberRepository.findSharedAlbums(ME_ID, OTHER_ID)).thenReturn(List.of(
+                sharedAlbum(100L, ME_ID, 0L),
+                sharedAlbum(101L, ME_ID, 1L),
+                sharedAlbum(102L, OTHER_ID, 0L),
+                sharedAlbum(103L, THIRD_ID, 1L)
+        ));
+
+        friendService.deleteFriend(ME_ID, OTHER_ID);
+
+        InOrder order = inOrder(travelRecordRepository, friendshipRepository, travelRecordService);
+        order.verify(travelRecordRepository).findActiveDetailForUpdate(100L);
+        order.verify(friendshipRepository).findByIdForUpdate(REQUEST_ID);
+        order.verify(travelRecordService).deleteTravelRecord(100L, ME_ID);
+        order.verify(travelRecordService).excludeMemberByOwner(101L, ME_ID, OTHER_ID);
+        order.verify(travelRecordService).leaveTravelRecord(102L, ME_ID);
+        order.verify(travelRecordService).leaveTravelRecord(103L, ME_ID);
+        order.verify(friendshipRepository).delete(friendship);
+        order.verify(friendshipRepository).flush();
+    }
+
+    private static TravelRecordMemberRepository.SharedAlbum sharedAlbum(Long id, Long ownerId, Long remaining) {
+        return new TravelRecordMemberRepository.SharedAlbum() {
+            @Override
+            public Long getTravelRecordId() {
+                return id;
+            }
+
+            @Override
+            public Long getOwnerId() {
+                return ownerId;
+            }
+
+            @Override
+            public Long getRemainingMemberCount() {
+                return remaining;
+            }
+        };
     }
 
     @Test
