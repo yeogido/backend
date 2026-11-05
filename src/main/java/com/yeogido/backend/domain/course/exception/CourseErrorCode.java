@@ -61,6 +61,36 @@ public enum CourseErrorCode implements ErrorCode {
             HttpStatus.BAD_REQUEST,
             "COURSE4009",
             "LOCAL 추천 코스의 장소 항목 이미지는 필수입니다."
+    ),
+
+    INVALID_COURSE_SEARCH_CURSOR(
+            HttpStatus.BAD_REQUEST,
+            "COURSE4010",
+            "자연어 검색 커서가 올바르지 않습니다."
+    ),
+
+    INVALID_COURSE_SEARCH_RESPONSE(
+            HttpStatus.BAD_GATEWAY,
+            "COURSE5021",
+            "자연어 검색 해석 응답을 검증할 수 없습니다."
+    ),
+
+    COURSE_SEARCH_API_ERROR(
+            HttpStatus.BAD_GATEWAY,
+            "COURSE5022",
+            "자연어 검색 해석 요청에 실패했습니다."
+    ),
+
+    INVALID_COURSE_SEARCH_CONFIG(
+            HttpStatus.INTERNAL_SERVER_ERROR,
+            "COURSE5001",
+            "자연어 검색 설정이 올바르지 않습니다."
+    ),
+
+    COURSE_SEARCH_CURSOR_ENCODING_FAILED(
+            HttpStatus.INTERNAL_SERVER_ERROR,
+            "COURSE5002",
+            "자연어 검색 커서 생성에 실패했습니다."
     );
 
     private final HttpStatus httpStatus;

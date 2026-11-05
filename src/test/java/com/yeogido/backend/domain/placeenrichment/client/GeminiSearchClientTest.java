@@ -14,7 +14,53 @@ import static org.assertj.core.api.Assertions.*;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.*;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.*;
 
+@org.junit.jupiter.api.extension.ExtendWith(org.springframework.boot.test.system.OutputCaptureExtension.class)
 class GeminiSearchClientTest {
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({
+        "401,authentication_failure", "403,permission_or_access_failure", "429,quota_or_rate_limit",
+        "400,request_error", "503,provider_server_error"
+    })
+    void classifiesHttpFailuresWithoutLoggingSecrets(int status, String type,
+            org.springframework.boot.test.system.CapturedOutput output) {
+        RestClient.Builder builder = RestClient.builder().baseUrl("https://example.com");
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(anything()).andRespond(withStatus(HttpStatus.valueOf(status)).body("private-provider-body"));
+        GeminiSearchClient client = new GeminiSearchClient(builder.build(), "secret-key", "model");
+        assertThatThrownBy(() -> client.search("private-instructions", "private-search-query"))
+                .isInstanceOfSatisfying(GeneralException.class, e -> assertThat(e.getErrorCode())
+                        .isEqualTo(PlaceEnrichmentErrorCode.GEMINI_GENERATION_API_ERROR)).hasNoCause();
+        assertThat(output.getOut()).contains("failureType=" + type, "httpStatus=" + status)
+                .doesNotContain("secret-key", "private-provider-body", "private-instructions", "private-search-query");
+        server.verify();
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"", "null", "{broken-json"})
+    void invalidJsonAndEmptyResponsesRemainSanitizedApiErrors(String body,
+            org.springframework.boot.test.system.CapturedOutput output) {
+        RestClient.Builder builder = RestClient.builder().baseUrl("https://example.com");
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(anything()).andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
+        assertThatThrownBy(() -> new GeminiSearchClient(builder.build(), "secret-key", "model").search("a", "b"))
+                .isInstanceOfSatisfying(GeneralException.class, e -> assertThat(e.getErrorCode())
+                        .isEqualTo(PlaceEnrichmentErrorCode.GEMINI_GENERATION_API_ERROR)).hasNoCause();
+        assertThat(output.getOut()).contains("failureType=response_parse_error").doesNotContain("secret-key", "broken-json");
+        server.verify();
+    }
+
+
+    @Test
+    void timeoutIsLoggedWithoutExceptionMessage(org.springframework.boot.test.system.CapturedOutput output) {
+        RestClient.Builder builder = RestClient.builder().baseUrl("https://example.com");
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(anything()).andRespond(withException(new java.net.SocketTimeoutException("secret-timeout-details")));
+        assertThatThrownBy(() -> new GeminiSearchClient(builder.build(), "secret-key", "model").search("a", "b"))
+                .isInstanceOf(GeneralException.class).hasNoCause();
+        assertThat(output.getOut()).contains("failureType=timeout").doesNotContain("secret-timeout-details", "secret-key");
+        server.verify();
+    }
 
     @Test
     void usesOrdinaryGenerationAndKeepsCredentialsOutOfUrl() throws Exception {

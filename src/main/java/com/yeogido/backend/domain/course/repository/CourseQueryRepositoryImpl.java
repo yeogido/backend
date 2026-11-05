@@ -11,6 +11,8 @@ import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQuery;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import com.yeogido.backend.domain.course.dto.request.CourseReqDTO;
+import com.yeogido.backend.domain.place.entity.QPlace;
+import com.yeogido.backend.domain.content.entity.QContent;
 import com.yeogido.backend.domain.course.entity.QCourse;
 import com.yeogido.backend.domain.course.entity.QCourseItem;
 import com.yeogido.backend.domain.course.entity.QCourseLike;
@@ -46,6 +48,65 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
             CourseLocation location,
             Map<Long, Long> popularityScores,
             int limit
+    ) {
+        return findCoursesByCursor(request, location, popularityScores, limit, null);
+    }
+
+    @Override
+    public List<CourseListRow> findCoursesByCursor(
+            CourseReqDTO.CourseListReq request,
+            CourseLocation location,
+            Map<Long, Long> popularityScores,
+            int limit,
+            List<String> searchTerms
+    ) {
+        return findCoursesByCursor(request, location, popularityScores, limit, searchTerms, null);
+    }
+
+    @Override
+    public List<CourseListRow> findCoursesByCursor(
+            CourseReqDTO.CourseListReq request,
+            CourseLocation location,
+            Map<Long, Long> popularityScores,
+            int limit,
+            List<String> searchTerms,
+            Integer totalDays
+    ) {
+        return findSearchPhaseByCursor(request, location, popularityScores, limit, searchTerms,
+                totalDays, null, false);
+    }
+
+    @Override
+    public List<CourseListRow> findSearchPhaseByCursor(
+            CourseReqDTO.CourseListReq request,
+            CourseLocation location,
+            Map<Long, Long> popularityScores,
+            int limit,
+            List<String> searchTerms,
+            Integer totalDays,
+            String originalKeyword,
+            boolean titlePhase
+    ) {
+        return findSearchPhase(request, location, popularityScores, limit, searchTerms, totalDays,
+                originalKeyword, titlePhase, null);
+    }
+
+    @Override
+    public List<CourseListRow> findSemanticCoursesByCursor(
+            CourseReqDTO.CourseListReq request, CourseLocation location, Map<Long, Long> popularityScores,
+            int limit, Integer totalDays, String originalKeyword, List<Long> candidateIds
+    ) {
+        if (candidateIds.isEmpty()) {
+            return List.of();
+        }
+        return findSearchPhase(request, location, popularityScores, limit, List.of(), totalDays,
+                originalKeyword, false, candidateIds);
+    }
+
+    private List<CourseListRow> findSearchPhase(
+            CourseReqDTO.CourseListReq request, CourseLocation location, Map<Long, Long> popularityScores,
+            int limit, List<String> searchTerms, Integer totalDays, String originalKeyword,
+            boolean titlePhase, List<Long> candidateIds
     ) {
         CourseSortType sort = CourseSortType.resolve(request.sort());
         boolean savedSort = sort == CourseSortType.SAVED;
@@ -112,7 +173,15 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
             );
         }
 
-        query.where(courseListCondition(request))
+        BooleanBuilder condition = courseListCondition(request, searchTerms, totalDays);
+        if (candidateIds != null) {
+            condition.and(course.id.in(candidateIds));
+        }
+        if (hasKeyword(originalKeyword)) {
+            BooleanExpression titleMatches = course.title.containsIgnoreCase(originalKeyword.trim());
+            condition.and(titlePhase ? titleMatches : titleMatches.not());
+        }
+        query.where(condition)
                 .orderBy(orderSpecifiers(sort, savedCount, reviewCount, distance, popularityScore))
                 .limit(limit);
 
@@ -136,7 +205,7 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
         return query.fetch();
     }
 
-    private BooleanBuilder courseListCondition(CourseReqDTO.CourseListReq request) {
+    private BooleanBuilder courseListCondition(CourseReqDTO.CourseListReq request, List<String> searchTerms, Integer totalDays) {
         BooleanBuilder builder = new BooleanBuilder();
 
         builder.and(courseTypeEq(request));
@@ -145,8 +214,15 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
         builder.and(regionIdEq(request.regionId()));
         builder.and(transportTypeEq(request));
         builder.and(durationTypeEq(request));
+        builder.and(totalDays == null ? null : course.totalDays.eq(totalDays));
         builder.and(companionTypeEq(request));
-        builder.and(keywordSearchCondition(request.keyword()));
+        if (searchTerms == null) {
+            builder.and(keywordSearchCondition(request.keyword()));
+        } else {
+            for (String term : searchTerms) {
+                builder.and(placeSearchCondition(term));
+            }
+        }
         builder.and(distanceSortRegionCoordinateExists(request));
 
         return builder;
@@ -207,6 +283,28 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
         return course.title.containsIgnoreCase(normalizedKeyword)
                 .or(region.name.containsIgnoreCase(normalizedKeyword))
                 .or(region.fullName.containsIgnoreCase(normalizedKeyword));
+    }
+
+    private BooleanExpression placeSearchCondition(String term) {
+        QPlace place = QPlace.place;
+        QContent content = QContent.content;
+        QPlace contentPlace = new QPlace("searchContentPlace");
+        BooleanExpression itemMatches = JPAExpressions.selectOne()
+                .from(courseItem)
+                .leftJoin(courseItem.place, place)
+                .leftJoin(courseItem.content, content)
+                .leftJoin(content.place, contentPlace)
+                .where(courseItem.course.eq(course).and(
+                        place.name.containsIgnoreCase(term)
+                                .or(place.overview.containsIgnoreCase(term))
+                                .or(content.title.containsIgnoreCase(term))
+                                .or(content.description.containsIgnoreCase(term))
+                                .or(contentPlace.name.containsIgnoreCase(term))
+                                .or(contentPlace.overview.containsIgnoreCase(term))))
+                .exists();
+        return keywordSearchCondition(term)
+                .or(course.description.containsIgnoreCase(term))
+                .or(itemMatches);
     }
 
     private boolean hasKeyword(String keyword) {
