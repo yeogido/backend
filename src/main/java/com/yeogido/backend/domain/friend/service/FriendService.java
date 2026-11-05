@@ -3,6 +3,7 @@ package com.yeogido.backend.domain.friend.service;
 import com.yeogido.backend.domain.course.dto.response.CourseResDTO;
 import com.yeogido.backend.domain.friend.dto.FriendReqDTO;
 import com.yeogido.backend.domain.friend.dto.FriendResDTO;
+import com.yeogido.backend.domain.travel.dto.response.TravelRecordResDTO;
 import com.yeogido.backend.global.common.response.CursorResponse;
 
 public interface FriendService {
@@ -41,6 +42,12 @@ public interface FriendService {
     );
 
     void deleteFriend(Long userId, Long friendUserId);
+
+    CursorResponse<TravelRecordResDTO.MapItem> getFriendTravelMap(
+            Long userId,
+            Long friendUserId,
+            FriendReqDTO.TravelMapRequest request
+    );
 
     // 다른 도메인(공유 앨범 초대 등)에서 친구 관계를 확인할 때 사용
     boolean areFriends(Long userIdA, Long userIdB);

@@ -14,6 +14,8 @@ import com.yeogido.backend.domain.friend.enums.RelationStatus;
 import com.yeogido.backend.domain.friend.exception.FriendErrorCode;
 import com.yeogido.backend.domain.friend.repository.FriendCourseRepository;
 import com.yeogido.backend.domain.friend.repository.FriendshipRepository;
+import com.yeogido.backend.domain.travel.dto.request.TravelRecordReqDTO;
+import com.yeogido.backend.domain.travel.dto.response.TravelRecordResDTO;
 import com.yeogido.backend.domain.travel.repository.TravelRecordMemberRepository;
 import com.yeogido.backend.domain.travel.repository.TravelRecordRepository;
 import com.yeogido.backend.domain.travel.service.TravelRecordService;
@@ -50,8 +52,8 @@ public class FriendServiceImpl implements FriendService {
     private final FriendCourseRepository friendCourseRepository;
     private final CourseHashtagRepository courseHashtagRepository;
     private final CourseLikeRepository courseLikeRepository;
-    private final S3Service s3Service;
     private final TravelRecordService travelRecordService;
+    private final S3Service s3Service;
     private final TravelRecordRepository travelRecordRepository;
     private final TravelRecordMemberRepository travelRecordMemberRepository;
 
@@ -318,6 +320,24 @@ public class FriendServiceImpl implements FriendService {
 
         friendshipRepository.delete(friendship);
         friendshipRepository.flush();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public CursorResponse<TravelRecordResDTO.MapItem> getFriendTravelMap(
+            Long userId,
+            Long friendUserId,
+            FriendReqDTO.TravelMapRequest request
+    ) {
+        getFriend(userId, friendUserId);
+
+        // 공개범위 필터를 받지 않아 비공개 기록의 존재를 추측할 수 없도록 함
+        return travelRecordService.getTravelMap(userId, friendUserId, new TravelRecordReqDTO.MapRequest(
+                request.cursor(),
+                request.size(),
+                request.year(),
+                null
+        ));
     }
 
     @Override
