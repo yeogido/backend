@@ -4,13 +4,15 @@ import com.yeogido.backend.domain.friend.entity.Friendship;
 import com.yeogido.backend.domain.friend.enums.FriendshipStatus;
 import com.yeogido.backend.domain.user.entity.User;
 import jakarta.persistence.LockModeType;
-import java.util.List;
-import java.util.Optional;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+
+import java.util.List;
+import java.util.Optional;
 
 public interface FriendshipRepository extends JpaRepository<Friendship, Long> {
 
@@ -20,6 +22,14 @@ public interface FriendshipRepository extends JpaRepository<Friendship, Long> {
     Optional<Friendship> findByIdForUpdate(@Param("id") Long id);
 
     Optional<Friendship> findByUserLowIdAndUserHighId(Long userLowId, Long userHighId);
+
+    // 회원 탈퇴 시 정리. 이 관계에 연결된 대기 초대는 FK CASCADE로 함께 삭제
+    @Modifying(flushAutomatically = true)
+    @Query("""
+        delete from Friendship friendship
+        where friendship.requester.id = :userId or friendship.receiver.id = :userId
+        """)
+    int deleteAllByUserId(@Param("userId") Long userId);
 
     boolean existsByUserLowIdAndUserHighIdAndStatus(
             Long userLowId,
