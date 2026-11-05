@@ -707,6 +707,53 @@ class TravelRecordVisibilityIntegrationTest {
         .extracting(TravelRecordResDTO.MapItem::travelRecordId).containsExactly(current.getId());
   }
 
+  /** 친구 지도는 대상 사용자가 만든 기록 중 조회자가 열람할 수 있는 것만 보여주며 연도 목록과 일치해야 합니다. */
+  @Test
+  void targetMapShowsOnlyViewableRecordsCreatedByTargetAndMatchesYearList() {
+    var open = record(owner, TravelRecordVisibility.PUBLIC, 2026);
+    var shared = record(owner, TravelRecordVisibility.FRIENDS, 2025);
+    member(shared, viewer);
+    record(owner, TravelRecordVisibility.PRIVATE, 2024);
+    record(owner, TravelRecordVisibility.FRIENDS, 2023);
+    var stalePrivate = record(owner, TravelRecordVisibility.PRIVATE, 2026);
+    member(stalePrivate, viewer);
+    var thirdPartyAlbum = record(user("제3자"), TravelRecordVisibility.FRIENDS, 2026);
+    member(thirdPartyAlbum, owner);
+    member(thirdPartyAlbum, viewer);
+    flushAndClear();
+
+    assertThat(targetMap(2026, null, 10).getItems()).extracting(TravelRecordResDTO.MapItem::travelRecordId)
+        .containsExactly(open.getId());
+    assertThat(targetMap(2025, null, 10).getItems()).extracting(TravelRecordResDTO.MapItem::travelRecordId)
+        .containsExactly(shared.getId());
+    assertThat(targetMap(2024, null, 10).getItems()).isEmpty();
+    assertThat(targetMap(2023, null, 10).getItems()).isEmpty();
+    assertThat(years(owner.getId(), null)).containsExactly(2026, 2025);
+  }
+
+  /** 볼 수 없는 기록의 ID를 커서로 보내면 잘못된 페이지 요청으로 처리되어야 합니다. */
+  @Test
+  void targetMapPaginatesAndRejectsCursorOfHiddenRecord() {
+    var older = record(owner, TravelRecordVisibility.PUBLIC, 2026);
+    var newer = record(owner, TravelRecordVisibility.PUBLIC, 2026);
+    var hidden = record(owner, TravelRecordVisibility.PRIVATE, 2026);
+    flushAndClear();
+
+    var page1 = targetMap(2026, null, 1);
+    assertThat(page1.getItems()).extracting(TravelRecordResDTO.MapItem::travelRecordId).containsExactly(newer.getId());
+    assertThat(page1.isHasNext()).isTrue();
+    var page2 = targetMap(2026, page1.getCursorId(), 1);
+    assertThat(page2.getItems()).extracting(TravelRecordResDTO.MapItem::travelRecordId).containsExactly(older.getId());
+    assertThat(page2.isHasNext()).isFalse();
+
+    assertError(() -> targetMap(2026, hidden.getId(), 1), TravelRecordErrorCode.INVALID_PAGE_REQUEST);
+  }
+
+  private com.yeogido.backend.global.common.response.CursorResponse<TravelRecordResDTO.MapItem> targetMap(
+      int year, Long cursor, int size) {
+    return service.getTravelMap(viewer.getId(), owner.getId(), mapRequest(cursor, size, year, null));
+  }
+
   private TravelRecordReqDTO.MapRequest mapRequest(Long cursor, Integer size, Integer year, String visibility) {
     return new TravelRecordReqDTO.MapRequest(cursor, size, year, visibility);
   }

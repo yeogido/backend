@@ -22,6 +22,9 @@ import com.yeogido.backend.domain.friend.exception.FriendErrorCode;
 import com.yeogido.backend.domain.friend.repository.FriendCourseRepository;
 import com.yeogido.backend.domain.friend.repository.FriendshipRepository;
 import com.yeogido.backend.domain.region.entity.Region;
+import com.yeogido.backend.domain.travel.dto.request.TravelRecordReqDTO;
+import com.yeogido.backend.domain.travel.dto.response.TravelRecordResDTO;
+import com.yeogido.backend.domain.travel.service.TravelRecordService;
 import com.yeogido.backend.domain.user.entity.User;
 import com.yeogido.backend.domain.user.enums.UserRole;
 import com.yeogido.backend.domain.user.enums.UserStatus;
@@ -65,6 +68,9 @@ class FriendServiceImplTest {
 
     @Mock
     private CourseLikeRepository courseLikeRepository;
+
+    @Mock
+    private TravelRecordService travelRecordService;
 
     @Mock
     private S3Service s3Service;
@@ -451,6 +457,36 @@ class FriendServiceImplTest {
 
         assertThat(empty.getItems()).isEmpty();
         assertThat(empty.getCursorId()).isNull();
+    }
+
+    @Test
+    void getFriendTravelMapRejectsNonFriendWithoutQueryingRecords() {
+        FriendReqDTO.TravelMapRequest request = new FriendReqDTO.TravelMapRequest(null, 10, 2026);
+
+        when(friendshipRepository.existsByUserLowIdAndUserHighIdAndStatus(ME_ID, OTHER_ID, FriendshipStatus.ACCEPTED))
+                .thenReturn(false);
+        assertErrorCode(() -> friendService.getFriendTravelMap(ME_ID, OTHER_ID, request), FriendErrorCode.NOT_FRIEND);
+        assertErrorCode(() -> friendService.getFriendTravelMap(ME_ID, ME_ID, request), FriendErrorCode.NOT_FRIEND);
+
+        when(friendshipRepository.existsByUserLowIdAndUserHighIdAndStatus(ME_ID, OTHER_ID, FriendshipStatus.ACCEPTED))
+                .thenReturn(true);
+        other.withdraw();
+        when(userRepository.findById(OTHER_ID)).thenReturn(Optional.of(other));
+        assertErrorCode(() -> friendService.getFriendTravelMap(ME_ID, OTHER_ID, request), FriendErrorCode.NOT_FRIEND);
+
+        verify(travelRecordService, never()).getTravelMap(any(), any(), any());
+    }
+
+    @Test
+    void getFriendTravelMapQueriesFriendMapAsViewerWithoutVisibilityFilter() {
+        stubFriend(other);
+        CursorResponse<TravelRecordResDTO.MapItem> expected = CursorResponse.of(List.of(), null, null, false);
+        when(travelRecordService.getTravelMap(ME_ID, OTHER_ID, new TravelRecordReqDTO.MapRequest(20L, 5, 2026, null)))
+                .thenReturn(expected);
+
+        assertThat(friendService.getFriendTravelMap(
+                ME_ID, OTHER_ID, new FriendReqDTO.TravelMapRequest(20L, 5, 2026)
+        )).isSameAs(expected);
     }
 
     private void stubFriend(User friend) {

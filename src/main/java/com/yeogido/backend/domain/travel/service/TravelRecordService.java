@@ -15,6 +15,10 @@ public interface TravelRecordService {
             Long userId, TravelRecordReqDTO.MapRequest request
     );
 
+    CursorResponse<TravelRecordResDTO.MapItem> getTravelMap(
+            Long viewerId, Long targetUserId, TravelRecordReqDTO.MapRequest request
+    );
+
     TravelRecordResDTO.YearListResponse getMyTravelRecordYears(
             Long userId, TravelRecordReqDTO.YearListRequest request
     );

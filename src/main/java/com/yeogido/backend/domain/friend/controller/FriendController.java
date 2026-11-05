@@ -5,6 +5,7 @@ import com.yeogido.backend.domain.course.dto.response.CourseResDTO;
 import com.yeogido.backend.domain.friend.dto.FriendReqDTO;
 import com.yeogido.backend.domain.friend.dto.FriendResDTO;
 import com.yeogido.backend.domain.friend.service.FriendService;
+import com.yeogido.backend.domain.travel.dto.response.TravelRecordResDTO;
 import com.yeogido.backend.global.common.code.SuccessCode;
 import com.yeogido.backend.global.common.response.ApiResponse;
 import com.yeogido.backend.global.common.response.CursorResponse;
@@ -12,9 +13,11 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -65,6 +68,18 @@ public class FriendController {
     ) {
         CursorResponse<CourseResDTO.CoursePreview> response =
                 friendService.getFriendLocalCourses(authUser.userId(), friendUserId, cursorId, size);
+        return ApiResponse.onSuccess(SuccessCode.OK, response);
+    }
+
+    @Operation(summary = "친구 여행 지도 조회 API", description = "친구가 만든 PUBLIC 기록과 내가 참여 중인 FRIENDS 기록을 지도 항목으로 조회합니다. 그 외 기록은 내려주지 않습니다.")
+    @GetMapping("/{friendUserId}/travel-map")
+    public ApiResponse<CursorResponse<TravelRecordResDTO.MapItem>> getFriendTravelMap(
+            @PathVariable Long friendUserId,
+            @Valid @ParameterObject @ModelAttribute FriendReqDTO.TravelMapRequest request,
+            @AuthenticationPrincipal AuthUser authUser
+    ) {
+        CursorResponse<TravelRecordResDTO.MapItem> response =
+                friendService.getFriendTravelMap(authUser.userId(), friendUserId, request);
         return ApiResponse.onSuccess(SuccessCode.OK, response);
     }
 

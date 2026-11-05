@@ -126,6 +126,16 @@ public class TravelRecordServiceImpl implements TravelRecordService {
     public CursorResponse<TravelRecordResDTO.MapItem> getMyTravelMap(
             Long userId, TravelRecordReqDTO.MapRequest request
     ) {
+        return getTravelMap(userId, userId, request);
+    }
+
+    /**
+     * 대상 사용자의 지도를 조회자 기준 열람 조건으로 조회합니다. 조회자가 볼 수 없는 기록은 응답에 포함하지 않습니다.
+     */
+    @Override
+    public CursorResponse<TravelRecordResDTO.MapItem> getTravelMap(
+            Long viewerId, Long targetUserId, TravelRecordReqDTO.MapRequest request
+    ) {
         int size = resolveSize(request.size());
         int year = resolveYear(request.year());
         validateCursor(request.cursor());
@@ -133,11 +143,11 @@ public class TravelRecordServiceImpl implements TravelRecordService {
         LocalDate yearStart = LocalDate.of(year, 1, 1);
         LocalDate yearEnd = LocalDate.of(year, 12, 31);
         TravelRecord cursor = request.cursor() == null ? null
-                : travelRecordRepository.findVisibleCursor(userId, userId, visibility,
+                : travelRecordRepository.findVisibleCursor(viewerId, targetUserId, visibility,
                         request.cursor(), yearStart, yearEnd)
                     .orElseThrow(() -> new GeneralException(TravelRecordErrorCode.INVALID_PAGE_REQUEST));
         List<TravelRecord> records = travelRecordRepository.findVisibleRecords(
-                userId, userId, visibility, yearStart, yearEnd, cursor, size + 1);
+                viewerId, targetUserId, visibility, yearStart, yearEnd, cursor, size + 1);
         boolean hasNext = records.size() > size;
         List<TravelRecord> content = hasNext ? records.subList(0, size) : records;
         if (content.isEmpty()) {
