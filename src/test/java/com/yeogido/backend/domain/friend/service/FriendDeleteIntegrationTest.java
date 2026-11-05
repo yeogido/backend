@@ -55,6 +55,7 @@ class FriendDeleteIntegrationTest {
     @Autowired private TestEntityManager em;
     @MockitoBean private FileService fileService;
     @MockitoBean private S3Service s3Service;
+    @MockitoBean private FriendQrTokenService friendQrTokenService;
 
     private Region region;
     private User me;

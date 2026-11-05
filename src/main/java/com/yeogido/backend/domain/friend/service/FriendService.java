@@ -10,7 +10,14 @@ public interface FriendService {
 
     FriendResDTO.MyFriendCode getMyFriendCode(Long userId);
 
-    FriendResDTO.SearchResult searchByFriendCode(Long userId, String friendCode);
+    CursorResponse<FriendResDTO.SearchResult> searchUsers(
+            Long userId,
+            String keyword,
+            Long cursorId,
+            Integer size
+    );
+
+    FriendResDTO.QrUser getUserByQrToken(Long userId, String qrToken);
 
     FriendResDTO.SentRequest sendRequest(Long userId, FriendReqDTO.SendRequest request);
 

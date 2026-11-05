@@ -37,6 +37,18 @@ public interface FriendshipRepository extends JpaRepository<Friendship, Long> {
             FriendshipStatus status
     );
 
+    // 검색 결과 행마다 조회하지 않도록 나와 대상들 사이의 관계를 한 번에 조회
+    @Query("""
+        select friendship
+        from Friendship friendship
+        where (friendship.requester.id = :userId and friendship.receiver.id in :otherUserIds)
+           or (friendship.receiver.id = :userId and friendship.requester.id in :otherUserIds)
+        """)
+    List<Friendship> findAllBetween(
+            @Param("userId") Long userId,
+            @Param("otherUserIds") List<Long> otherUserIds
+    );
+
     // 탈퇴·비활성 사용자가 보낸 요청은 제외
     @Query("""
         select friendship

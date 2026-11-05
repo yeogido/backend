@@ -8,6 +8,7 @@ import com.yeogido.backend.domain.friend.enums.FriendshipStatus;
 import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.region.enums.RegionType;
 import com.yeogido.backend.domain.user.entity.User;
+import com.yeogido.backend.domain.user.repository.UserRepository;
 import com.yeogido.backend.domain.user.enums.Gender;
 import com.yeogido.backend.domain.user.enums.UserRole;
 import com.yeogido.backend.domain.user.enums.UserStatus;
@@ -37,6 +38,9 @@ class FriendshipRepositoryTest {
 
     @Autowired
     private FriendshipRepository friendshipRepository;
+
+    @Autowired
+    private UserRepository userRepository;
 
     @Autowired
     private TestEntityManager entityManager;
@@ -198,6 +202,42 @@ class FriendshipRepositoryTest {
     ) {
         return friendshipRepository.findFriends(
                 user.getId(), namePattern, codePattern, cursorNickname, cursorId, PageRequest.of(0, 10));
+    }
+
+    @Test
+    void findAllBetweenReturnsRelationsInBothDirectionsOnlyForGivenUsers() {
+        User me = persistUser("나", "me-between@example.com");
+        User sentTo = persistUser("보낸 상대", "sent-between@example.com");
+        User receivedFrom = persistUser("받은 상대", "received-between@example.com");
+        User excluded = persistUser("제외", "excluded-between@example.com");
+        Friendship sent = friendshipRepository.save(Friendship.request(me, sentTo));
+        Friendship received = friendshipRepository.save(Friendship.request(receivedFrom, me));
+        friendshipRepository.save(Friendship.request(me, excluded));
+        friendshipRepository.save(Friendship.request(sentTo, receivedFrom));
+
+        assertThat(friendshipRepository.findAllBetween(me.getId(), List.of(sentTo.getId(), receivedFrom.getId())))
+                .containsExactlyInAnyOrder(sent, received);
+    }
+
+    @Test
+    void findSearchableUsersMatchesExactNameOrCodeAndExcludesMeAndInactive() {
+        User me = persistUser("같은이름", "me-search@example.com");
+        User sameName = persistUser("같은이름", "same-search@example.com");
+        User sameName2 = persistUser("같은이름", "same2-search@example.com");
+        persistUser("같은이름 더 긴 이름", "partial-search@example.com");
+        persistUser("같은이름", "withdrawn-search@example.com", UserStatus.DELETED);
+        User byCode = persistUser("코드로 찾기", "code-search@example.com");
+
+        assertThat(search(me, "같은이름", "같은이름", null, 10)).containsExactly(sameName, sameName2);
+        assertThat(search(me, "같은이름", "같은이름", sameName.getId(), 10)).containsExactly(sameName2);
+        assertThat(search(me, "같은이름", "같은이름", null, 1)).containsExactly(sameName);
+        assertThat(search(me, "없음", byCode.getFriendCode(), null, 10)).containsExactly(byCode);
+        assertThat(search(me, "없음", me.getFriendCode(), null, 10)).isEmpty();
+        assertThat(search(me, "같은", "같은", null, 10)).isEmpty();
+    }
+
+    private List<User> search(User me, String nickname, String friendCode, Long cursorId, int size) {
+        return userRepository.findSearchableUsers(me.getId(), nickname, friendCode, cursorId, PageRequest.of(0, size));
     }
 
     private void accept(User requester, User receiver) {

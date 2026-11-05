@@ -6,6 +6,7 @@ import com.yeogido.backend.domain.friend.dto.FriendResDTO;
 import com.yeogido.backend.domain.friend.entity.Friendship;
 import com.yeogido.backend.domain.friend.enums.RelationStatus;
 import com.yeogido.backend.domain.user.entity.User;
+import java.time.LocalDateTime;
 import java.util.List;
 
 public class FriendConverter {
@@ -13,8 +14,12 @@ public class FriendConverter {
     private FriendConverter() {
     }
 
-    public static FriendResDTO.MyFriendCode toMyFriendCode(User user) {
-        return new FriendResDTO.MyFriendCode(user.getFriendCode());
+    public static FriendResDTO.MyFriendCode toMyFriendCode(
+            User user,
+            String qrToken,
+            LocalDateTime qrExpiresAt
+    ) {
+        return new FriendResDTO.MyFriendCode(user.getFriendCode(), qrToken, qrExpiresAt);
     }
 
     public static FriendResDTO.UserSummary toUserSummary(User user, String profileImageUrl) {
@@ -59,6 +64,22 @@ public class FriendConverter {
         );
     }
 
+    public static FriendResDTO.QrUser toQrUser(
+            User user,
+            String profileImageUrl,
+            RelationStatus relationStatus,
+            Long requestId
+    ) {
+        return new FriendResDTO.QrUser(
+                user.getId(),
+                user.getNickname(),
+                profileImageUrl,
+                user.getFriendCode(),
+                relationStatus,
+                requestId
+        );
+    }
+
     public static FriendResDTO.SearchResult toSearchResult(
             User user,
             String profileImageUrl,
@@ -69,7 +90,8 @@ public class FriendConverter {
                 user.getId(),
                 user.getNickname(),
                 profileImageUrl,
-                user.getEmail(),
+                user.getFriendCode(),
+                relationStatus == RelationStatus.FRIEND ? user.getEmail() : null,
                 relationStatus,
                 requestId
         );

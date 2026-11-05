@@ -96,7 +96,7 @@ public class FriendController {
         return ApiResponse.onSuccess(SuccessCode.OK, response);
     }
 
-    @Operation(summary = "내 친구코드 조회 API", description = "프로필 QR 모달에 표시할 내 친구코드를 조회합니다.")
+    @Operation(summary = "내 친구코드 조회 API", description = "프로필 QR 모달에 표시할 내 친구코드와 3분짜리 QR 토큰을 조회합니다. 호출할 때마다 새 토큰을 발급하고 이전 토큰은 무효가 됩니다.")
     @GetMapping("/me/code")
     public ApiResponse<FriendResDTO.MyFriendCode> getMyFriendCode(
             @AuthenticationPrincipal AuthUser authUser
@@ -105,13 +105,32 @@ public class FriendController {
         return ApiResponse.onSuccess(SuccessCode.OK, response);
     }
 
-    @Operation(summary = "친구코드로 사용자 검색 API", description = "친구코드로 사용자를 검색하고 나와의 관계 상태를 함께 조회합니다.")
+    @Operation(
+            summary = "새 친구 검색 API",
+            description = "이름 또는 친구코드가 정확히 일치하는 활성 사용자를 나와의 관계와 함께 조회합니다. 검색어가 비어 있거나 결과가 없으면 빈 목록을 반환합니다."
+    )
     @GetMapping("/search")
-    public ApiResponse<FriendResDTO.SearchResult> searchByFriendCode(
-            @RequestParam String friendCode,
+    public ApiResponse<CursorResponse<FriendResDTO.SearchResult>> searchUsers(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Long cursorId,
+            @RequestParam(defaultValue = "10") Integer size,
             @AuthenticationPrincipal AuthUser authUser
     ) {
-        FriendResDTO.SearchResult response = friendService.searchByFriendCode(authUser.userId(), friendCode);
+        CursorResponse<FriendResDTO.SearchResult> response =
+                friendService.searchUsers(authUser.userId(), keyword, cursorId, size);
+        return ApiResponse.onSuccess(SuccessCode.OK, response);
+    }
+
+    @Operation(
+            summary = "QR 토큰으로 사용자 조회 API",
+            description = "QR 토큰의 주인과 나와의 관계를 조회합니다. 만료되었거나 없는 토큰은 FRIEND4044, 내 QR은 FRIEND4001을 반환합니다."
+    )
+    @GetMapping("/qr/{qrToken}")
+    public ApiResponse<FriendResDTO.QrUser> getUserByQrToken(
+            @PathVariable String qrToken,
+            @AuthenticationPrincipal AuthUser authUser
+    ) {
+        FriendResDTO.QrUser response = friendService.getUserByQrToken(authUser.userId(), qrToken);
         return ApiResponse.onSuccess(SuccessCode.OK, response);
     }
 
