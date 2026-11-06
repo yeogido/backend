@@ -63,6 +63,17 @@ class LoggingProfileTest {
         assertThat(upstream.path("retryable").asBoolean()).isTrue();
         assertThat(upstream.path("errorCode").asText()).isEqualTo("PROBE_ERROR");
         assertThat(upstream.path("requestId").asText()).isEqualTo(REQUEST_ID);
+        JsonNode scheduled = logs.stream()
+                .filter(log -> "scheduler.execution.completed".equals(log.path("event").asText()))
+                .findFirst().orElseThrow(() -> new AssertionError(output));
+        assertThat(scheduled.path("executionId").asText()).isNotBlank();
+        assertThat(scheduled.path("jobName").asText()).isEqualTo("profileScheduler");
+        assertThat(scheduled.path("outcome").asText()).isEqualTo("partial_failure");
+        assertThat(scheduled.path("processedCount").asInt()).isEqualTo(3);
+        assertThat(scheduled.path("successCount").asInt()).isEqualTo(2);
+        assertThat(scheduled.path("failedCount").asInt()).isEqualTo(1);
+        assertThat(scheduled.path("durationMs").isIntegralNumber()).isTrue();
+        assertThat(scheduled.has("requestId")).isFalse();
         assertThat(output).doesNotContain("fake-access-token", "fake-service-key", "fake-cookie");
     }
 
@@ -143,6 +154,12 @@ class LoggingProfileTest {
                             .addKeyValue("retryable", true)
                             .addKeyValue("errorCode", "PROBE_ERROR")
                             .log("External API call failed");
+                    try (var execution = ScheduledExecution.start("profileScheduler")) {
+                        execution.counts(3, 2, 1).complete();
+                    }
+                    if (!REQUEST_ID.equals(MDC.get("requestId"))) {
+                        throw new AssertionError("스케줄러 종료 후 요청 문맥 복원 실패");
+                    }
                 } finally {
                     MDC.clear();
                 }

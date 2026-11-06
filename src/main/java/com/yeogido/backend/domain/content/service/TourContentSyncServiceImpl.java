@@ -85,6 +85,12 @@ public class TourContentSyncServiceImpl implements TourContentSyncService {
 
     @Override
     public TourContentSyncDTO.Result synchronize() {
+        return synchronizeWithReport().result();
+    }
+
+    @Override
+    public SyncReport synchronizeWithReport() {
+        SyncProgress progress = new SyncProgress();
         LocalDate startDate = LocalDate.now();
         LocalDate endDate = startDate.plusMonths(syncMonths);
         int receivedCount = 0;
@@ -112,7 +118,8 @@ public class TourContentSyncServiceImpl implements TourContentSyncService {
                 try {
                     SyncCommand command = prepareCommand(
                             item,
-                            remainingDetailCalls
+                            remainingDetailCalls,
+                            progress
                     );
                     if (command == null) {
                         skippedCount++;
@@ -127,10 +134,12 @@ public class TourContentSyncServiceImpl implements TourContentSyncService {
                     }
                 } catch (RuntimeException exception) {
                     skippedCount++;
+                    progress.failedItemCount++;
                     log.atWarn().addKeyValue("event", "content.sync.item.skipped")
                             .addKeyValue("operation", "synchronizeContent")
                             .addKeyValue("failureType", "item_processing_error")
                             .addKeyValue("exceptionType", exception.getClass().getName())
+                            .addKeyValue("contentId", safeContentId(text(item, "contentid")))
                             .log("Tour content synchronization item skipped.");
                 }
             }
@@ -160,7 +169,7 @@ public class TourContentSyncServiceImpl implements TourContentSyncService {
                 LocalDateTime.now()
         );
         log.info("Tour content synchronization completed. result={}", result);
-        return result;
+        return new SyncReport(result, progress.failedItemCount, progress.detailFailureCount);
     }
 
     @Override
@@ -171,7 +180,8 @@ public class TourContentSyncServiceImpl implements TourContentSyncService {
 
     private SyncCommand prepareCommand(
             JsonNode item,
-            AtomicInteger remainingDetailCalls
+            AtomicInteger remainingDetailCalls,
+            SyncProgress progress
     ) {
         String contentId = text(item, "contentid");
         String title = text(item, "title");
@@ -209,7 +219,7 @@ public class TourContentSyncServiceImpl implements TourContentSyncService {
                 .orElse(true);
 
         if (needsDetail && reserveDetailCall(remainingDetailCalls)) {
-            detail = fetchDetail(contentId);
+            detail = fetchDetail(contentId, progress);
         }
 
         return new SyncCommand(
@@ -327,6 +337,10 @@ public class TourContentSyncServiceImpl implements TourContentSyncService {
     }
 
     private DetailData fetchDetail(String contentId) {
+        return fetchDetail(contentId, new SyncProgress());
+    }
+
+    private DetailData fetchDetail(String contentId, SyncProgress progress) {
         try {
             JsonNode common = tourApiClient.items(
                             tourApiClient.detailCommon(contentId)
@@ -347,13 +361,24 @@ public class TourContentSyncServiceImpl implements TourContentSyncService {
                     links
             );
         } catch (RuntimeException exception) {
+            progress.detailFailureCount++;
             log.atInfo().addKeyValue("event", "external_api.fallback.selected")
                     .addKeyValue("provider", "tour").addKeyValue("operation", "detailCommon")
                     .addKeyValue("fallback", "basic_content")
                     .addKeyValue("exceptionType", exception.getClass().getName())
+                    .addKeyValue("contentId", safeContentId(contentId))
                     .log("Tour content detail unavailable; basic content selected.");
             return null;
         }
+    }
+
+    private static String safeContentId(String contentId) {
+        return contentId != null && contentId.matches("[0-9]{1,20}") ? contentId : "invalid";
+    }
+
+    private static class SyncProgress {
+        private int failedItemCount;
+        private int detailFailureCount;
     }
 
     private List<LinkData> extractLinks(String homepageValue) {

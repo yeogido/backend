@@ -127,6 +127,41 @@ class CourseEmbeddingIndexServiceTest {
     }
 
     @Test
+    void itemFailureKeepsCourseIdentityAndOriginalExceptionWithoutLeakingContent() {
+        when(documents.findCourseIdsAfter(0, 100)).thenReturn(List.of(1L));
+        when(documents.findDocuments(List.of(1L))).thenReturn(Map.of(1L, document(1, "fake-private-source")));
+        when(client.embedDocuments(anyList())).thenReturn(List.of(List.of(1.0, 0.0)));
+        var failure = new IllegalStateException("fake-private-database-credentials");
+        when(embeddings.save(any())).thenThrow(failure);
+        var logger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(CourseEmbeddingIndexService.class);
+        var logs = new ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent>() {
+            @Override protected void append(ch.qos.logback.classic.spi.ILoggingEvent event) {
+                event.prepareForDeferredProcessing();
+                super.append(event);
+            }
+        };
+        logs.start();
+        logger.addAppender(logs);
+        try (var execution = com.yeogido.backend.global.logging.ScheduledExecution.start("embeddingTest")) {
+            String id = org.slf4j.MDC.get("executionId");
+            assertThatThrownBy(service::reindexNextBatch).isSameAs(failure);
+            assertThat(logs.list).singleElement().satisfies(event -> {
+                assertThat(event.getMDCPropertyMap()).containsEntry("executionId", id);
+                assertThat(event.getKeyValuePairs()).anySatisfy(pair -> {
+                    assertThat(pair.key).isEqualTo("courseId");
+                    assertThat(pair.value).isEqualTo(1L);
+                });
+                assertThat(event.getThrowableProxy()).isNull();
+                assertThat(event.getFormattedMessage() + event.getKeyValuePairs()).doesNotContain("fake-private");
+            });
+            assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+        } finally {
+            logger.detachAppender(logs);
+            logs.stop();
+        }
+    }
+
+    @Test
     void disabledFeatureDoesNotReadOrCallProvider() {
         when(client.isEnabled()).thenReturn(false);
         assertThat(service.reindexNextBatch()).isZero();

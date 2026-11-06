@@ -39,7 +39,9 @@ class CourseViewCountSyncServiceTest {
         when(courseViewCountSyncRedisRepository.getActivityViewCounts(any()))
                 .thenReturn(Map.of());
 
-        courseViewCountSyncService.syncRecentViewCounts();
+        var result = courseViewCountSyncService.syncRecentViewCounts();
+        assertThat(result).isEqualTo(new CourseViewCountSyncService.SyncResult(0, 0, 0, 7, 0));
+        assertThat(result.hasFailures()).isFalse();
 
         ArgumentCaptor<LocalDate> dateCaptor = ArgumentCaptor.forClass(LocalDate.class);
 
@@ -76,7 +78,10 @@ class CourseViewCountSyncServiceTest {
         when(courseViewCountSyncRedisRepository.getSyncViewCounts(today.minusDays(2)))
                 .thenReturn(Map.of());
 
-        courseViewCountSyncService.syncRecentViewCounts();
+        var result = courseViewCountSyncService.syncRecentViewCounts();
+        assertThat(result).isEqualTo(new CourseViewCountSyncService.SyncResult(2, 2, 0, 6, 1));
+        assertThat(result.hasFailures()).isTrue();
+        assertThat(result.allFailed()).isFalse();
 
         verify(transactionService)
                 .syncViewCount(today, 1L, 4L, 4L);
@@ -97,13 +102,43 @@ class CourseViewCountSyncServiceTest {
         doThrow(new RuntimeException("db error"))
                 .when(transactionService)
                 .syncViewCount(eq(today), eq(1L), eq(10L), eq(3L));
+        org.mockito.Mockito.doNothing().when(transactionService).syncViewCount(today, 2L, 5L, 0L);
 
-        courseViewCountSyncService.syncRecentViewCounts();
+        var result = courseViewCountSyncService.syncRecentViewCounts();
+        assertThat(result).isEqualTo(new CourseViewCountSyncService.SyncResult(2, 1, 1, 7, 0));
+        assertThat(result.allFailed()).isFalse();
 
         verify(transactionService)
                 .syncViewCount(today, 1L, 10L, 3L);
 
         verify(transactionService)
                 .syncViewCount(today, 2L, 5L, 0L);
+    }
+
+    @Test
+    void allDateFailuresRemainSwallowedAndAreReportedWithoutPretendingItemCounts() {
+        when(courseViewCountSyncRedisRepository.getActivityViewCounts(any()))
+                .thenThrow(new IllegalStateException("fake-private-redis-secret"));
+
+        var result = courseViewCountSyncService.syncRecentViewCounts();
+
+        assertThat(result).isEqualTo(new CourseViewCountSyncService.SyncResult(0, 0, 0, 0, 7));
+        assertThat(result.allFailed()).isTrue();
+        verify(courseViewCountSyncRedisRepository, times(7)).getActivityViewCounts(any());
+    }
+
+    @Test
+    void allCourseFailuresRemainSwallowedAndAreReportedAsFailed() {
+        when(courseViewCountSyncRedisRepository.getActivityViewCounts(any()))
+                .thenReturn(Map.of(1L, 2L));
+        when(courseViewCountSyncRedisRepository.getSyncViewCounts(any())).thenReturn(Map.of());
+        doThrow(new IllegalStateException("fake-private-database-secret")).when(transactionService)
+                .syncViewCount(any(), eq(1L), eq(2L), eq(2L));
+
+        var result = courseViewCountSyncService.syncRecentViewCounts();
+
+        assertThat(result).isEqualTo(new CourseViewCountSyncService.SyncResult(7, 0, 7, 7, 0));
+        assertThat(result.allFailed()).isTrue();
+        verify(transactionService, times(7)).syncViewCount(any(), eq(1L), eq(2L), eq(2L));
     }
 }
