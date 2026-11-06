@@ -15,7 +15,7 @@ public final class SafeSchedulerErrorHandler implements ErrorHandler {
         try {
             LoggingEventBuilder event = log.atError()
                     .addKeyValue("event", "scheduler.task.failed")
-                    .addKeyValue("exceptionType", failure.getClass().getSimpleName())
+                    .addKeyValue("exceptionType", failure.getClass().getName())
                     .addKeyValue("stackFrames", SafeLogDetails.stackFrames(failure));
             if (failure instanceof GeneralException generalException) {
                 event.addKeyValue("errorCode", generalException.getErrorCode().getCode());

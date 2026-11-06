@@ -96,7 +96,7 @@ class CourseServiceImplTest {
                 assertThat(event.getFormattedMessage() + event.getKeyValuePairs()).doesNotContain("fake-private");
                 assertThat(event.getKeyValuePairs()).anySatisfy(pair -> {
                     assertThat(pair.key).isEqualTo("exceptionType");
-                    assertThat(pair.value).isEqualTo("IllegalStateException");
+                    assertThat(pair.value).isEqualTo("java.lang.IllegalStateException");
                 });
             });
         } finally {

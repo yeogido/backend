@@ -63,6 +63,9 @@ class SchedulerLoggingConfigTest {
                 assertThat(event.getKeyValuePairs().toString())
                         .contains("scheduler.task.failed", "exceptionType", "IllegalStateException", "stackFrames")
                         .doesNotContain("secret-token", "private-response-body");
+                assertThat(event.getKeyValuePairs()).filteredOn(pair -> pair.key.equals("exceptionType"))
+                        .singleElement().satisfies(pair ->
+                                assertThat(pair.value).isEqualTo("java.lang.IllegalStateException"));
                 assertThat(event.getMDCPropertyMap()).doesNotContainKeys("executionId", "requestId");
             }
         } finally {

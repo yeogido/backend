@@ -879,7 +879,7 @@ public class CourseServiceImpl implements CourseService {
         } catch (RuntimeException exception) {
             log.atWarn().addKeyValue("event", "course.created_event.failed")
                     .addKeyValue("courseId", courseId)
-                    .addKeyValue("exceptionType", exception.getClass().getSimpleName())
+                    .addKeyValue("exceptionType", exception.getClass().getName())
                     .log("Failed to save course created event.");
         }
     }
@@ -904,7 +904,7 @@ public class CourseServiceImpl implements CourseService {
         } catch (RuntimeException exception) {
             log.atWarn().addKeyValue("event", "course.ranking_cleanup.failed")
                     .addKeyValue("courseId", courseId)
-                    .addKeyValue("exceptionType", exception.getClass().getSimpleName())
+                    .addKeyValue("exceptionType", exception.getClass().getName())
                     .log("Failed to remove course from local popularity ranking.");
         }
     }
