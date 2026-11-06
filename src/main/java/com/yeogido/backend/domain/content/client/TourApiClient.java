@@ -3,7 +3,9 @@ package com.yeogido.backend.domain.content.client;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.yeogido.backend.domain.content.exception.ContentErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.PostConstruct;
+import java.time.Duration;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -16,7 +18,6 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 
 @Component
-@RequiredArgsConstructor
 @Slf4j
 public class TourApiClient {
 
@@ -24,6 +25,10 @@ public class TourApiClient {
             DateTimeFormatter.BASIC_ISO_DATE;
 
     private final RestClient.Builder restClientBuilder;
+
+    public TourApiClient(RestClient.Builder restClientBuilder) {
+        this.restClientBuilder = restClientBuilder.clone();
+    }
 
     @Value("${app.tour-api.base-url}")
     private String baseUrl;
@@ -36,6 +41,14 @@ public class TourApiClient {
 
     @Value("${app.tour-api.mobile-app:Yeogido}")
     private String mobileApp;
+
+    @PostConstruct
+    void configureTimeouts() {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(Duration.ofSeconds(10));
+        factory.setReadTimeout(Duration.ofSeconds(15));
+        restClientBuilder.requestFactory(factory);
+    }
 
     public JsonNode searchFestivals(
             LocalDate startDate,
@@ -52,6 +65,42 @@ public class TourApiClient {
                         .queryParam("pageNo", page)
                         .queryParam("numOfRows", size)
                         .build()
+        );
+    }
+
+    public JsonNode legalDistrictCodes(String provinceCode, int page, int size) {
+        return execute(
+                "/ldongCode2",
+                uriBuilder -> {
+                    commonQuery(uriBuilder)
+                            .queryParam("lDongListYn", "N")
+                            .queryParam("pageNo", page)
+                            .queryParam("numOfRows", size);
+                    if (StringUtils.hasText(provinceCode)) {
+                        uriBuilder.queryParam("lDongRegnCd", provinceCode);
+                    }
+                    return uriBuilder.build();
+                }
+        );
+    }
+
+    public JsonNode searchPlaces(String keyword, String provinceCode, String districtCode, int page, int size) {
+        return execute(
+                "/searchKeyword2",
+                uriBuilder -> {
+                    commonQuery(uriBuilder)
+                            .queryParam("keyword", "{keyword}")
+                            .queryParam("arrange", "A")
+                            .queryParam("pageNo", page)
+                            .queryParam("numOfRows", size);
+                    if (StringUtils.hasText(provinceCode)) {
+                        uriBuilder.queryParam("lDongRegnCd", provinceCode);
+                        if (StringUtils.hasText(districtCode)) {
+                            uriBuilder.queryParam("lDongSignguCd", districtCode);
+                        }
+                    }
+                    return uriBuilder.build(keyword);
+                }
         );
     }
 

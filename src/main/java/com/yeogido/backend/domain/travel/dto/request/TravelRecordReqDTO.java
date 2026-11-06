@@ -1,7 +1,9 @@
 package com.yeogido.backend.domain.travel.dto.request;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -13,19 +15,60 @@ import java.util.List;
 
 public class TravelRecordReqDTO {
 
-    @Schema(name = "TravelRecordListRequest", description = "내 여행 기록 목록 조회 요청")
+    @Schema(name = "TravelRecordListRequest", description = "열람 가능한 여행 기록 목록 조회 요청")
     public record ListRequest(
             @Schema(description = "마지막으로 조회한 여행 기록 ID", example = "20")
             @Positive(message = "cursor는 양수여야 합니다.")
             Long cursor,
 
-            @Schema(description = "조회할 여행 기록 개수", example = "10", defaultValue = "10")
+            @Schema(description = "조회할 여행 기록 개수 (1~100)", example = "10", defaultValue = "10",
+                    minimum = "1", maximum = "100")
             @Positive(message = "size는 양수여야 합니다.")
             Integer size,
 
             @Schema(description = "조회할 여행 연도", example = "2026", defaultValue = "현재 연도")
             @Positive(message = "year는 양수여야 합니다.")
-            Integer year
+            @Max(value = 9999, message = "year는 9999 이하여야 합니다.")
+            Integer year,
+
+            @Schema(description = "공개범위 필터. 미전달 시 전체", allowableValues = {"PRIVATE", "FRIENDS", "PUBLIC"})
+            String visibility,
+
+            @Schema(description = "조회할 생성자 ID. 미전달 또는 본인 ID이면 내 보관함", example = "2")
+            @Positive(message = "userId는 양수여야 합니다.")
+            Long userId
+    ) {
+    }
+
+    @Schema(name = "TravelRecordMapRequest", description = "내 여행 지도 조회 요청")
+    public record MapRequest(
+            @Schema(description = "이전 응답의 cursorId", example = "20")
+            @Positive(message = "cursor는 양수여야 합니다.")
+            Long cursor,
+
+            @Schema(description = "조회할 앨범 개수 (1~100)", example = "10", defaultValue = "10",
+                    minimum = "1", maximum = "100")
+            @Positive(message = "size는 양수여야 합니다.")
+            Integer size,
+
+            @Schema(description = "여행 종료 연도. 미전달 시 현재 연도", example = "2026")
+            @Positive(message = "year는 양수여야 합니다.")
+            @Max(value = 9999, message = "year는 9999 이하여야 합니다.")
+            Integer year,
+
+            @Schema(description = "공개범위 필터. 미전달 시 전체", allowableValues = {"PRIVATE", "FRIENDS", "PUBLIC"})
+            String visibility
+    ) {
+    }
+
+    @Schema(name = "TravelRecordYearListRequest", description = "열람 가능한 여행 기록 연도 조회 요청")
+    public record YearListRequest(
+            @Schema(description = "조회할 생성자 ID. 미전달 시 본인", example = "2")
+            @Positive(message = "userId는 양수여야 합니다.")
+            Long userId,
+
+            @Schema(description = "공개범위 필터. 미전달 시 전체", allowableValues = {"PRIVATE", "FRIENDS", "PUBLIC"})
+            String visibility
     ) {
     }
 
@@ -59,12 +102,22 @@ public class TravelRecordReqDTO {
 
             @Schema(description = "여행 기록 폴더 위에 배치할 스티커 목록")
             @Valid
-            List<StickerRequest> stickers
+            List<StickerRequest> stickers,
+
+            @Schema(description = "공개범위. 미전달 시 PRIVATE, 명시적 null은 허용하지 않음", defaultValue = "PRIVATE",
+                    allowableValues = {"PRIVATE", "FRIENDS", "PUBLIC"})
+            @JsonDeserialize(using = TravelRecordVisibilityDeserializer.class)
+            String visibility
     ) {
     }
 
     @Schema(name = "TravelRecordUpdateRequest", description = "여행 기록 수정 요청")
     public record UpdateRequest(
+            @Schema(description = "상세 조회에서 받은 현재 수정 버전", example = "0")
+            @NotNull(message = "수정 버전은 필수입니다.")
+            @PositiveOrZero(message = "수정 버전은 0 이상이어야 합니다.")
+            Long version,
+
             @Schema(description = "여행 기록 제목", example = "부산 바다 여행 기록 수정")
             @NotBlank(message = "여행 기록 제목은 필수입니다.")
             String title,
@@ -94,6 +147,19 @@ public class TravelRecordReqDTO {
             @Schema(description = "수정 후 최종 여행 기록 스티커 목록. 미전달 또는 null이면 기존 스티커를 유지하고, 빈 배열이면 전체 삭제합니다.")
             @Valid
             List<StickerRequest> stickers
+    ) {
+    }
+
+    @Schema(name = "TravelRecordVisibilityUpdateRequest", description = "여행 기록 공개범위 수정 요청")
+    public record VisibilityUpdateRequest(
+            @Schema(description = "변경할 공개범위. FRIENDS 관련 전환은 지원하지 않습니다.",
+                    allowableValues = {"PRIVATE", "PUBLIC"}, example = "PUBLIC")
+            String visibility,
+
+            @Schema(description = "상세 조회에서 받은 현재 수정 버전", example = "0")
+            @NotNull(message = "수정 버전은 필수입니다.")
+            @PositiveOrZero(message = "수정 버전은 0 이상이어야 합니다.")
+            Long version
     ) {
     }
 

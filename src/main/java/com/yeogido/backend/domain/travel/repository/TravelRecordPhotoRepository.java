@@ -11,6 +11,8 @@ public interface TravelRecordPhotoRepository extends JpaRepository<TravelRecordP
 
     List<TravelRecordPhoto> findByTravelRecordIdOrderByImageOrderAsc(Long travelRecordId);
 
+    List<TravelRecordPhoto> findByTravelRecordIdInOrderByTravelRecordIdAscImageOrderAsc(List<Long> recordIds);
+
     void deleteAllByTravelRecord_Id(Long travelRecordId);
 
     @Modifying(flushAutomatically = true)

@@ -20,8 +20,8 @@ import lombok.NoArgsConstructor;
         name = "course_item",
         uniqueConstraints = {
                 @UniqueConstraint(
-                        name = "uk_course_item_order",
-                        columnNames = {"course_id", "order_no"}
+                        name = "uk_course_item_day_order",
+                        columnNames = {"course_id", "day_no", "order_no"}
                 )
         }
 )
@@ -46,6 +46,10 @@ public class CourseItem extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "item_type", nullable = false, length = 20)
     private CourseItemType itemType;
+
+    @Builder.Default
+    @Column(name = "day_no", nullable = false)
+    private Integer day = 1;
 
     @Column(name = "order_no", nullable = false)
     private Integer orderNo;

@@ -34,6 +34,7 @@ import com.yeogido.backend.domain.place.entity.PlaceLike;
 import com.yeogido.backend.domain.place.entity.QPlace;
 import com.yeogido.backend.domain.place.entity.QPlaceLike;
 import com.yeogido.backend.domain.place.enums.PlaceLikeSourceType;
+import com.yeogido.backend.domain.friend.repository.FriendshipRepository;
 import com.yeogido.backend.domain.place.repository.PlaceLikeRepository;
 import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.region.exception.RegionErrorCode;
@@ -90,6 +91,7 @@ public class UserServiceImpl implements UserService{
     private final BusinessPromotionRepository businessPromotionRepository;
     private final BusinessPromotionHashtagRepository businessPromotionHashtagRepository;
     private final BusinessPromotionImageRepository businessPromotionImageRepository;
+    private final FriendshipRepository friendshipRepository;
     private final FileService fileService;
     private final S3Service s3Service;
     private final RefreshTokenService refreshTokenService;
@@ -758,6 +760,7 @@ public class UserServiceImpl implements UserService{
         stickerRepository.softDeleteAllByUserId(userId, deletedAt);
         courseRepository.softDeleteAllByUserId(userId, deletedAt);
         businessPromotionRepository.softDeleteAllActiveByUserId(userId);
+        friendshipRepository.deleteAllByUserId(userId);
     }
 
 

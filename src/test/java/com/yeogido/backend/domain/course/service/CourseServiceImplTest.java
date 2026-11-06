@@ -1,6 +1,11 @@
 package com.yeogido.backend.domain.course.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.yeogido.backend.domain.course.embedding.CourseSemanticSearchService;
 import com.yeogido.backend.domain.content.repository.ContentRepository;
+import com.yeogido.backend.domain.course.converter.CourseSearchCursorConverter;
+import com.yeogido.backend.domain.course.dto.CourseSearchDTO.Interpretation;
+import com.yeogido.backend.domain.course.enums.SearchPhase;
 import com.yeogido.backend.domain.course.dto.request.CourseReqDTO;
 import com.yeogido.backend.domain.course.dto.response.CourseResDTO;
 import com.yeogido.backend.domain.course.entity.Course;
@@ -13,8 +18,8 @@ import com.yeogido.backend.domain.course.enums.TransportType;
 import com.yeogido.backend.domain.course.exception.CourseErrorCode;
 import com.yeogido.backend.domain.course.popularity.repository.CoursePopularityRankingRedisRepository;
 import com.yeogido.backend.domain.course.repository.CourseHashtagRepository;
-import com.yeogido.backend.domain.course.repository.CourseItemTimeRepository;
 import com.yeogido.backend.domain.course.repository.CourseItemRepository;
+import com.yeogido.backend.domain.course.repository.CourseItemTimeRepository;
 import com.yeogido.backend.domain.course.repository.CourseLikeRepository;
 import com.yeogido.backend.domain.course.repository.CourseQueryRepository;
 import com.yeogido.backend.domain.course.repository.CourseRedisRepository;
@@ -37,23 +42,28 @@ import com.yeogido.backend.domain.user.enums.UserRole;
 import com.yeogido.backend.domain.user.enums.UserStatus;
 import com.yeogido.backend.domain.user.repository.UserRepository;
 import com.yeogido.backend.global.exception.GeneralException;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.test.util.ReflectionTestUtils;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
-
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentCaptor;
+import org.mockito.ArgumentMatchers;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.Mockito;
+import org.mockito.Spy;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -114,6 +124,19 @@ class CourseServiceImplTest {
     @Mock
     private S3Service s3Service;
 
+    @Mock
+    private CourseSearchService courseSearchService;
+
+    @Mock
+    private CourseSemanticSearchService courseSemanticSearchService;
+
+    @Spy
+    private CourseSearchCursorConverter courseSearchCursorConverter =
+            new CourseSearchCursorConverter(new ObjectMapper());
+
+    @Mock
+    private PlatformTransactionManager transactionManager;
+
     @InjectMocks
     private CourseServiceImpl courseService;
 
@@ -153,6 +176,87 @@ class CourseServiceImplTest {
         ArgumentCaptor<LocalDate> dateCaptor = ArgumentCaptor.forClass(LocalDate.class);
         verify(courseRedisRepository).saveCreatedEvent(eq(10L), dateCaptor.capture());
         assertThat(dateCaptor.getValue()).isNotNull();
+    }
+
+    @Test
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    void createCoursePreservesDailyScheduleThroughImageProcessingAndSavesTimesWithinEachDay() {
+        stubSuccessfulCreateCourse(createUser());
+        var base = createRequest();
+        var place = createPlaceItem("AT4");
+        // 십의 자리는 일차, 일의 자리는 방문 순서이며 정렬 검증을 위해 입력 순서 혼합
+        var items = java.util.stream.IntStream.of(22, 11, 21, 12).mapToObj(value ->
+                new CourseReqDTO.CourseItemCreateReq(value % 10, place.type(), null, place.externalPlaceId(),
+                        place.categoryGroupCode(), place.name(), place.roadAddress(), place.lotAddress(),
+                        place.latitude(), place.longitude(), place.imageKey(), null,
+                        value % 10 == 1 ? null : List.of(new CourseReqDTO.CourseItemTimeReq(
+                                com.yeogido.backend.domain.course.enums.TransportMode.CAR, 10)), value / 10)).toList();
+        var request = new CourseReqDTO.CourseCreateReq(base.title(), base.regionId(), base.description(),
+                DurationType.ONE_NIGHT, base.transportType(), base.companionType(), base.monthStart(), base.monthEnd(),
+                base.thumbnailKey(), null, base.hashtagIds(), items, 2);
+
+        courseService.createCourse(1L, request);
+
+        ArgumentCaptor<Course> courseCaptor = ArgumentCaptor.forClass(Course.class);
+        verify(courseRepository).save(courseCaptor.capture());
+        assertThat(courseCaptor.getValue().getTotalDays()).isEqualTo(2);
+        ArgumentCaptor<List<com.yeogido.backend.domain.course.entity.CourseItemTime>> times =
+                ArgumentCaptor.forClass((Class) List.class);
+        verify(courseItemTimeRepository).saveAll(times.capture());
+        assertThat(times.getValue()).hasSize(2).allSatisfy(time -> {
+            assertThat(time.getFromCourseItem().getDay()).isEqualTo(time.getToCourseItem().getDay());
+            assertThat(time.getFromCourseItem().getOrderNo()).isEqualTo(1);
+            assertThat(time.getToCourseItem().getOrderNo()).isEqualTo(2);
+        });
+        assertThat(times.getValue()).extracting(time -> time.getFromCourseItem().getDay()).containsExactly(1, 2);
+    }
+
+    @Test
+    void updateCourseRejectsDurationChangeBeforeMovingImagesOrDeletingItems() {
+        Course course = createCourse(10L);
+        when(courseRepository.findByIdAndDeletedAtIsNull(10L)).thenReturn(Optional.of(course));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(createUser()));
+        var request = new CourseReqDTO.CourseUpdateReq(null, null, DurationType.ONE_NIGHT, null, null,
+                null, null, "temp/image.jpg", null, null, null, 2);
+
+        assertThatThrownBy(() -> courseService.updateCourse(1L, 10L, request))
+                .isInstanceOf(GeneralException.class);
+
+        verify(fileService, never()).moveToDirectory(anyString(), any());
+        verify(courseItemRepository, never()).deleteAllByCourseId(anyLong());
+        assertThat(course.getDurationType()).isEqualTo(DurationType.DAY_TRIP);
+        assertThat(course.getTotalDays()).isEqualTo(1);
+    }
+
+    @Test
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    void updateCoursePersistsChangedDurationAndFullDailySchedule() {
+        Course course = createCourse(10L);
+        when(courseRepository.findByIdAndDeletedAtIsNull(10L)).thenReturn(Optional.of(course));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(createUser()));
+        when(placeService.getPlaceMap(anyList())).thenReturn(Map.of());
+        when(placeService.getOrCreatePlace(any(), any())).thenReturn(createPlace());
+        when(fileService.moveToDirectory(anyString(), eq(ImageDirectory.COURSE)))
+                .thenAnswer(invocation -> "courses/moved/" + invocation.getArgument(0, String.class));
+        var place = createPlaceItem("AT4");
+        var items = java.util.stream.IntStream.rangeClosed(1, 2).mapToObj(day ->
+                new CourseReqDTO.CourseItemCreateReq(1, place.type(), null, place.externalPlaceId(),
+                        place.categoryGroupCode(), place.name(), place.roadAddress(), place.lotAddress(),
+                        place.latitude(), place.longitude(), place.imageKey(), null, null, day)).toList();
+        var request = new CourseReqDTO.CourseUpdateReq(null, null, DurationType.ONE_NIGHT, null, null,
+                null, null, null, null, null, items, 2);
+
+        courseService.updateCourse(1L, 10L, request);
+
+        assertThat(course.getDurationType()).isEqualTo(DurationType.ONE_NIGHT);
+        assertThat(course.getTotalDays()).isEqualTo(2);
+        verify(courseItemTimeRepository).deleteAllByCourseId(10L);
+        verify(courseItemRepository).deleteAllByCourseId(10L);
+        ArgumentCaptor<List<com.yeogido.backend.domain.course.entity.CourseItem>> saved =
+                ArgumentCaptor.forClass((Class) List.class);
+        verify(courseItemRepository).saveAll(saved.capture());
+        assertThat(saved.getValue()).extracting(com.yeogido.backend.domain.course.entity.CourseItem::getDay)
+                .containsExactly(1, 2);
     }
 
     @Test
@@ -306,6 +410,271 @@ class CourseServiceImplTest {
 
         assertThat(course.getRouteImageKey()).isEqualTo("courses/moved/temp/route/updated.png");
         verify(fileService).moveToDirectory("temp/route/updated.png", ImageDirectory.COURSE);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void getCoursesPinsInterpretationOrLiteralFallbackAcrossPages(boolean interpreted) {
+        var original = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, "당일치기 바다", null,
+                null, null, null, null, CourseSortType.LATEST, null, null, null, null, 1);
+        var effective = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, null, null,
+                null, null, DurationType.DAY_TRIP, null, CourseSortType.LATEST, null, null, null, null, 1);
+        var interpretation = interpreted
+                ? new Interpretation(effective, List.of("바다"), null, List.of("당일치기", "바다"))
+                : null;
+        when(courseSearchService.interpret(original)).thenReturn(interpretation);
+        var row = new CourseQueryRepository.CourseListRow(10L, CourseType.OFFICIAL, null,
+                null, null, "바다", "부산", DurationType.DAY_TRIP, TransportType.CAR, CompanionType.SOLO,
+                java.time.LocalDateTime.of(2026, 1, 1, 0, 0), null, 0L, 0L, 0.0, 0L);
+        if (interpreted) {
+            when(courseRepository.findSearchPhaseByCursor(any(), any(), anyMap(), eq(2), eq(List.of()),
+                    ArgumentMatchers.isNull(), eq(original.keyword()), eq(true))).thenReturn(List.of());
+            when(courseRepository.findSearchPhaseByCursor(any(), any(), anyMap(), eq(2), eq(List.of("바다")), ArgumentMatchers.isNull(), eq(original.keyword()), eq(false)))
+                    .thenReturn(List.of(row, row)).thenReturn(List.of());
+        } else {
+            when(courseRepository.findCoursesByCursor(any(), any(), anyMap(), eq(2)))
+                    .thenReturn(List.of(row, row)).thenReturn(List.of());
+        }
+        var first = courseService.getCourses(original, null);
+        assertThat(first.isHasNext()).isTrue();
+        assertThat(first.getExtractedKeywords()).isEqualTo(interpreted ? List.of("당일치기", "바다") : List.of());
+        if (interpreted) {
+            assertThat(first.getCursorValue().toString()).startsWith("nl2.");
+        } else {
+            assertThat(first.getCursorValue().toString()).isEqualTo("2026-01-01T00:00");
+        }
+        var next = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, original.keyword(), null,
+                null, null, null, null, CourseSortType.LATEST, null, null,
+                first.getCursorValue().toString(), first.getCursorId(), 1);
+
+        var empty = courseService.getCourses(next, null);
+        assertThat(empty.getItems()).isEmpty();
+        assertThat(empty.getExtractedKeywords()).isEqualTo(interpreted ? List.of("당일치기", "바다") : List.of());
+
+        Mockito.verify(courseSearchService, Mockito.times(1)).interpret(any());
+        if (interpreted) {
+            Mockito.verify(courseRepository).findSearchPhaseByCursor(
+                    ArgumentMatchers.argThat(req -> req.cursorId() != null
+                            && "2026-01-01T00:00".equals(req.cursorValue())
+                            && req.durationType() == DurationType.DAY_TRIP),
+                    any(), anyMap(), eq(2), eq(List.of("바다")), ArgumentMatchers.isNull(), eq(original.keyword()), eq(false));
+        }
+    }
+
+    @Test
+    void getCoursesUsesInternalInterpretationWithoutChangingSelectedFilters() {
+        var original = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, "당일치기 바다", null,
+                null, null, null, null, CourseSortType.LATEST, null, null, null, null, 20);
+        var effective = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, null, null,
+                null, null, DurationType.DAY_TRIP, null, CourseSortType.LATEST, null, null, null, null, 20);
+        var interpretation = new Interpretation(
+                effective, List.of("바다"), 1, List.of("당일치기", "바다"));
+        when(courseSearchService.interpret(original)).thenReturn(interpretation);
+        when(courseRepository.findSearchPhaseByCursor(any(), any(), anyMap(), eq(21), eq(List.of()),
+                ArgumentMatchers.isNull(), eq(original.keyword()), eq(true))).thenReturn(List.of());
+        when(courseRepository.findSearchPhaseByCursor(eq(effective), any(), anyMap(), eq(21), eq(List.of("바다")), eq(1), eq(original.keyword()), eq(false)))
+                .thenReturn(List.of());
+
+        var empty = courseService.getCourses(original, null);
+        assertThat(empty.getItems()).isEmpty();
+        assertThat(empty.getExtractedKeywords()).containsExactly("당일치기", "바다");
+
+        Mockito.verify(courseRepository).findSearchPhaseByCursor(eq(effective), any(), anyMap(),
+                eq(21), eq(List.of("바다")), eq(1), eq(original.keyword()), eq(false));
+        assertThat(original.durationType()).isNull();
+        assertThat(original.keyword()).isEqualTo("당일치기 바다");
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {1, 2, 3})
+    void titlePriorityFillsPagesAndPinsTheLastReturnedBucket(int titleRows) {
+        var original = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, "바다", null,
+                null, TransportType.CAR, null, null, CourseSortType.RECOMMEND,
+                null, null, null, null, 2);
+        var effective = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, null, null,
+                7L, TransportType.CAR, DurationType.DAY_TRIP, null, CourseSortType.RECOMMEND,
+                null, null, null, null, 2);
+        var interpretation = new Interpretation(effective, List.of("바다"), 1, List.of("당일치기", "바다"));
+        when(courseSearchService.interpret(original)).thenReturn(interpretation);
+        var titles = java.util.stream.LongStream.rangeClosed(1, titleRows)
+                .mapToObj(this::priorityRow).toList();
+        when(courseRepository.findSearchPhaseByCursor(any(), any(), anyMap(), eq(3),
+                eq(List.of()), ArgumentMatchers.isNull(), eq("바다"), eq(true)))
+                .thenReturn(titles);
+        if (titleRows < 3) {
+            when(courseRepository.findSearchPhaseByCursor(any(), any(), anyMap(), eq(3 - titleRows),
+                    eq(List.of("바다")), eq(1), eq("바다"), eq(false)))
+                    .thenReturn(java.util.stream.LongStream.rangeClosed(10, 12 - titleRows)
+                            .mapToObj(this::priorityRow).toList());
+        }
+        var first = courseService.getCourses(original, null);
+        assertThat(first.isHasNext()).isTrue();
+        assertThat(first.getExtractedKeywords()).containsExactly("당일치기", "바다");
+        assertThat(first.getItems()).extracting(CourseResDTO.CoursePreview::courseId)
+                .containsExactly(1L, titleRows == 1 ? 10L : 2L);
+        var next = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, "바다", null,
+                null, TransportType.CAR, null, null, CourseSortType.RECOMMEND,
+                null, null, first.getCursorValue().toString(), first.getCursorId(), 2);
+        var decoded = courseSearchCursorConverter.decode(next);
+        assertThat(decoded.phase()).isEqualTo(titleRows >= 2 ? SearchPhase.TITLE : SearchPhase.NATURAL);
+        // Null RECOMMEND cursor is valid when a position ID is present.
+        assertThat(decoded.request().cursorValue()).isNull();
+        assertThat(decoded.interpretation().totalDays()).isEqualTo(1);
+        assertThat(decoded.interpretation().extractedKeywords()).containsExactly("당일치기", "바다");
+        if (titleRows < 3) {
+            Mockito.verify(courseRepository).findSearchPhaseByCursor(
+                    ArgumentMatchers.argThat(req -> req.cursorId() == null && req.cursorValue() == null
+                            && Long.valueOf(7L).equals(req.regionId())), any(), anyMap(), eq(3 - titleRows),
+                    eq(List.of("바다")), eq(1), eq("바다"), eq(false));
+        }
+        Mockito.verify(courseRepository).findSearchPhaseByCursor(
+                ArgumentMatchers.argThat(req -> req.regionId() == null && req.durationType() == null
+                        && req.transportType() == TransportType.CAR), any(), anyMap(), eq(3),
+                eq(List.of()), ArgumentMatchers.isNull(), eq("바다"), eq(true));
+    }
+
+    @Test
+    void titleContinuationResetsSortPositionBeforeStartingNaturalResults() {
+        var original = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, "바다", null,
+                null, null, null, null, CourseSortType.LATEST, null, null, null, null, 2);
+        var effective = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, null, null,
+                null, null, DurationType.DAY_TRIP, null, CourseSortType.LATEST, null, null, null, null, 2);
+        var interpretation = new Interpretation(effective, List.of("바다"), 1, List.of("당일치기", "바다"));
+        String token = courseSearchCursorConverter.encodePriority(original, interpretation,
+                "2026-01-01T00:00", SearchPhase.TITLE);
+        var next = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, "바다", null,
+                null, null, null, null, CourseSortType.LATEST, null, null, token, 3L, 2);
+        when(courseRepository.findSearchPhaseByCursor(any(), any(), anyMap(), eq(3), eq(List.of()),
+                ArgumentMatchers.isNull(), eq("바다"), eq(true))).thenReturn(List.of(priorityRow(4)));
+        when(courseRepository.findSearchPhaseByCursor(any(), any(), anyMap(), eq(2), eq(List.of("바다")),
+                eq(1), eq("바다"), eq(false))).thenReturn(List.of(priorityRow(10), priorityRow(11)));
+        var page = courseService.getCourses(next, null);
+        assertThat(page.getItems()).extracting(CourseResDTO.CoursePreview::courseId).containsExactly(4L, 10L);
+        assertThat(page.isHasNext()).isTrue();
+        Mockito.verify(courseRepository).findSearchPhaseByCursor(
+                ArgumentMatchers.argThat(req -> req.cursorId() != null && req.cursorId().equals(3L)
+                        && "2026-01-01T00:00".equals(req.cursorValue())), any(), anyMap(), eq(3), eq(List.of()),
+                ArgumentMatchers.isNull(), eq("바다"), eq(true));
+        Mockito.verify(courseRepository).findSearchPhaseByCursor(
+                ArgumentMatchers.argThat(req -> req.cursorId() == null && req.cursorValue() == null),
+                any(), anyMap(), eq(2), eq(List.of("바다")), eq(1), eq("바다"), eq(false));
+        Mockito.verifyNoInteractions(courseSearchService);
+    }
+
+    @Test
+    void legacyNaturalCursorKeepsItsOriginalSearchWithoutAddingTitleResults() {
+        var original = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, "바다", null,
+                null, null, null, null, CourseSortType.RECOMMEND, null, null, null, null, 2);
+        var interpretation = new Interpretation(original, List.of("바다"), 6);
+        String token = courseSearchCursorConverter.encode(original, interpretation, null);
+        var next = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, "바다", null,
+                null, null, null, null, CourseSortType.RECOMMEND, null, null, token, 8L, 2);
+        when(courseRepository.findCoursesByCursor(any(), any(), anyMap(), eq(3), eq(List.of("바다")), eq(6)))
+                .thenReturn(List.of());
+        assertThat(courseService.getCourses(next, null).getItems()).isEmpty();
+        Mockito.verifyNoInteractions(courseSearchService);
+        Mockito.verify(courseRepository, Mockito.never()).findSearchPhaseByCursor(
+                any(), any(), anyMap(), Mockito.anyInt(), any(), any(), any(), Mockito.anyBoolean());
+    }
+
+    @Test
+    void courseListJsonAddsKeywordsWithoutChangingGlobalCursorResponse() {
+        var mapper = new ObjectMapper();
+        var response = new CourseResDTO.CourseListRes(List.of(), null, null, false, List.of("바다"));
+        var json = mapper.valueToTree(response);
+        assertThat(json.size()).isEqualTo(5);
+        assertThat(json.has("items")).isTrue();
+        assertThat(json.has("cursorValue")).isTrue();
+        assertThat(json.has("cursorId")).isTrue();
+        assertThat(json.path("hasNext").asBoolean()).isFalse();
+        assertThat(json.path("extractedKeywords").get(0).asText()).isEqualTo("바다");
+        assertThat(mapper.valueToTree(com.yeogido.backend.global.common.response.CursorResponse
+                .of(List.of(), null, null, false)).has("extractedKeywords")).isFalse();
+    }
+
+    @Test
+    void semanticSearchKeepsTitlePriorityAndRestoresTheSameCandidateSnapshotOnNextPage() {
+        String session = java.util.UUID.randomUUID().toString();
+        var original = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, "조용한", null,
+                null, null, null, null, CourseSortType.LATEST, null, null, null, null, 1);
+        var effective = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, null, null,
+                null, null, null, null, CourseSortType.LATEST, null, null, null, null, 1);
+        var interpretation = new Interpretation(effective, List.of("조용한"), null, List.of("조용한"));
+        when(courseSearchService.interpret(original)).thenReturn(interpretation);
+        when(courseSemanticSearchService.isEnabled()).thenReturn(true);
+        when(courseSemanticSearchService.search(interpretation)).thenReturn(
+                new CourseSemanticSearchService.SemanticCandidates(session, List.of(10L, 11L)));
+        when(courseRepository.findSearchPhaseByCursor(any(), any(), anyMap(), eq(2), eq(List.of()),
+                ArgumentMatchers.isNull(), eq("조용한"), eq(true)))
+                .thenReturn(List.of(priorityRow(1)), List.of());
+        when(courseRepository.findSemanticCoursesByCursor(any(), any(), anyMap(), eq(1),
+                ArgumentMatchers.isNull(), eq("조용한"), eq(List.of(10L, 11L))))
+                .thenReturn(List.of(priorityRow(10)));
+        var first = courseService.getCourses(original, null);
+        assertThat(first.getItems()).extracting(CourseResDTO.CoursePreview::courseId).containsExactly(1L);
+        assertThat(first.getCursorValue().toString()).startsWith("nl3.");
+        assertThat(first.getExtractedKeywords()).containsExactly("조용한");
+        assertThat(first.isHasNext()).isTrue();
+        var next = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, "조용한", null,
+                null, null, null, null, CourseSortType.LATEST, null, null,
+                first.getCursorValue().toString(), first.getCursorId(), 1);
+        when(courseSemanticSearchService.restore(any())).thenReturn(List.of(10L, 11L));
+        when(courseRepository.findSemanticCoursesByCursor(any(), any(), anyMap(), eq(2),
+                ArgumentMatchers.isNull(), eq("조용한"), eq(List.of(10L, 11L))))
+                .thenReturn(List.of(priorityRow(10), priorityRow(11)));
+        var second = courseService.getCourses(next, null);
+        assertThat(second.getItems()).extracting(CourseResDTO.CoursePreview::courseId).containsExactly(10L);
+        assertThat(second.getExtractedKeywords()).containsExactly("조용한");
+        Mockito.verify(courseSearchService, Mockito.times(1)).interpret(any());
+        Mockito.verify(courseSemanticSearchService, Mockito.times(1)).search(any());
+        Mockito.verify(courseSemanticSearchService).restore(
+                ArgumentMatchers.argThat(value -> session.equals(value.semanticSessionId())));
+        Mockito.verify(courseRepository, never()).findSearchPhaseByCursor(any(), any(), anyMap(),
+                Mockito.anyInt(), eq(List.of("조용한")), any(), any(), eq(false));
+    }
+
+    @Test
+    void semanticProviderFailureFallsBackToTermSearchAndKeepsNaturalCursor() {
+        var original = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, "비 오는 날", null,
+                null, null, null, null, CourseSortType.LATEST, null, null, null, null, 1);
+        var interpretation = new Interpretation(original, List.of("비 오는 날"));
+        when(courseSearchService.interpret(original)).thenReturn(interpretation);
+        when(courseSemanticSearchService.isEnabled()).thenReturn(true);
+        when(courseSemanticSearchService.search(interpretation)).thenThrow(
+                new GeneralException(CourseErrorCode.COURSE_SEARCH_API_ERROR));
+        when(courseRepository.findSearchPhaseByCursor(any(), any(), anyMap(), eq(2),
+                eq(List.of()), ArgumentMatchers.isNull(), eq("비 오는 날"), eq(true)))
+                .thenReturn(List.of());
+        when(courseRepository.findSearchPhaseByCursor(any(), any(), anyMap(), eq(2),
+                eq(List.of("비 오는 날")), ArgumentMatchers.isNull(), eq("비 오는 날"), eq(false)))
+                .thenReturn(List.of(priorityRow(10), priorityRow(11)));
+
+        var first = courseService.getCourses(original, null);
+
+        assertThat(first.getItems()).extracting(CourseResDTO.CoursePreview::courseId).containsExactly(10L);
+        assertThat(first.isHasNext()).isTrue();
+        assertThat(first.getCursorValue().toString()).startsWith("nl2.");
+        var next = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, "비 오는 날", null,
+                null, null, null, null, CourseSortType.LATEST, null, null,
+                first.getCursorValue().toString(), first.getCursorId(), 1);
+        var decoded = courseSearchCursorConverter.decode(next);
+        assertThat(decoded.interpretation().semanticSessionId()).isNull();
+        assertThat(decoded.interpretation().terms()).containsExactly("비 오는 날");
+
+        var second = courseService.getCourses(next, null);
+
+        assertThat(second.getCursorValue().toString()).startsWith("nl2.");
+        Mockito.verify(courseSearchService, Mockito.times(1)).interpret(any());
+        Mockito.verify(courseSemanticSearchService, Mockito.times(1)).search(any());
+        Mockito.verify(courseSemanticSearchService, never()).restore(any());
+        Mockito.verify(courseRepository, never()).findSemanticCoursesByCursor(any(), any(), anyMap(),
+                Mockito.anyInt(), any(), any(), any());
+    }
+
+    private CourseQueryRepository.CourseListRow priorityRow(long id) {
+        return new CourseQueryRepository.CourseListRow(id, CourseType.OFFICIAL, null, null, null,
+                "바다", "서울", DurationType.DAY_TRIP, TransportType.CAR, CompanionType.SOLO,
+                LocalDateTime.of(2026, 1, 1, 0, 0), null, 0L, 0L, 0.0, 0L);
     }
 
     @Test
@@ -489,7 +858,7 @@ class CourseServiceImplTest {
         when(courseLikeRepository.existsByUserIdAndCourseId(1L, 10L)).thenReturn(false);
         when(userRepository.findById(1L)).thenReturn(Optional.of(createUser()));
         when(courseHashtagRepository.findByCourseId(10L)).thenReturn(List.of());
-        when(courseItemRepository.findByCourseIdOrderByOrderNoAsc(10L)).thenReturn(List.of());
+        when(courseItemRepository.findByCourseIdOrderByDayAscOrderNoAsc(10L)).thenReturn(List.of());
 
         CourseResDTO.CourseDetail response = courseService.getCourseDetail(10L, 1L);
 
@@ -502,7 +871,7 @@ class CourseServiceImplTest {
 
         when(courseRepository.findCourseDetailByIdAndDeletedAtIsNull(10L)).thenReturn(Optional.of(course));
         when(courseHashtagRepository.findByCourseId(10L)).thenReturn(List.of());
-        when(courseItemRepository.findByCourseIdOrderByOrderNoAsc(10L)).thenReturn(List.of());
+        when(courseItemRepository.findByCourseIdOrderByDayAscOrderNoAsc(10L)).thenReturn(List.of());
 
         CourseResDTO.CourseDetail response = courseService.getCourseDetail(10L, null);
 
@@ -517,7 +886,7 @@ class CourseServiceImplTest {
         when(courseLikeRepository.existsByUserIdAndCourseId(1L, 10L)).thenReturn(false);
         when(userRepository.findById(1L)).thenReturn(Optional.of(createAdmin()));
         when(courseHashtagRepository.findByCourseId(10L)).thenReturn(List.of());
-        when(courseItemRepository.findByCourseIdOrderByOrderNoAsc(10L)).thenReturn(List.of());
+        when(courseItemRepository.findByCourseIdOrderByDayAscOrderNoAsc(10L)).thenReturn(List.of());
 
         CourseResDTO.CourseDetail response = courseService.getCourseDetail(10L, 1L);
 
@@ -823,6 +1192,7 @@ class CourseServiceImplTest {
                 .description("Enjoy Busan night views.")
                 .courseType(courseType)
                 .durationType(DurationType.DAY_TRIP)
+                .totalDays(1)
                 .transportType(TransportType.CAR)
                 .companionType(CompanionType.FRIEND)
                 .monthStart(4)

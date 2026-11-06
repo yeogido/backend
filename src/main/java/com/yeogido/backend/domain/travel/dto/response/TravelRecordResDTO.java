@@ -1,11 +1,39 @@
 package com.yeogido.backend.domain.travel.dto.response;
 
+import com.yeogido.backend.domain.travel.enums.TravelRecordVisibility;
 import io.swagger.v3.oas.annotations.media.Schema;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
 public class TravelRecordResDTO {
+
+    @Schema(name = "TravelRecordMapItem", description = "지도에 표시할 앨범별 사진과 지역 중심 좌표")
+    public record MapItem(
+            @Schema(description = "여행 기록 ID", example = "20")
+            Long travelRecordId,
+            @Schema(description = "여행 기록 제목", example = "부산 바다 여행")
+            String title,
+            @Schema(description = "지역 ID", example = "1")
+            Long regionId,
+            @Schema(description = "지역명", example = "부산")
+            String regionName,
+            @Schema(description = "지역 중심 위도. 실제 사진 촬영 위치가 아니며 좌표가 불완전하면 null", nullable = true,
+                    example = "35.1796")
+            BigDecimal latitude,
+            @Schema(description = "지역 중심 경도. 좌표가 불완전하면 null", nullable = true, example = "129.0756")
+            BigDecimal longitude,
+            @Schema(description = "여행 시작일", example = "2026-05-22")
+            LocalDate startDate,
+            @Schema(description = "여행 종료일", example = "2026-05-24")
+            LocalDate endDate,
+            @Schema(description = "공개범위")
+            TravelRecordVisibility visibility,
+            @Schema(description = "앨범의 전체 사진. imageOrder 오름차순")
+            List<ImageResponse> images
+    ) {
+    }
 
     @Schema(name = "TravelRecordYearListResponse", description = "내 여행 기록 연도 목록 조회 응답")
     public record YearListResponse(
@@ -37,8 +65,37 @@ public class TravelRecordResDTO {
             @Schema(description = "폴더 색상/테마", example = "BASIC")
             String folderTheme,
 
+            @Schema(description = "공개범위")
+            TravelRecordVisibility visibility,
+
+            @Schema(description = "최초 생성자")
+            UserProfile owner,
+
+            @Schema(description = "수락한 현재 추가 참여자. 생성자 제외")
+            List<UserProfile> participants,
+
+            @Schema(description = "사진 순서대로 최대 2장의 폴더 미리보기")
+            List<PreviewImage> previewImages,
+
+            @Schema(description = "폴더 스티커 배치")
+            List<StickerResponse> stickers,
+
             @Schema(description = "생성 일시", example = "2026-05-22T14:30:00")
             LocalDateTime createdAt
+    ) {
+    }
+
+    @Schema(name = "TravelRecordUserProfile", description = "앨범 생성자 및 현재 참여자")
+    public record UserProfile(Long userId, String nickname, String profileImageUrl) {
+    }
+
+    @Schema(name = "TravelRecordPreviewImage", description = "폴더 미리보기 사진")
+    public record PreviewImage(String imageUrl, Integer imageOrder) {
+    }
+
+    @Schema(name = "TravelRecordPermissions", description = "현재 사용자의 앨범 작업 권한")
+    public record Permissions(
+            boolean canEdit, boolean canDelete, boolean canLeave, boolean canInvite, boolean canLinkShare
     ) {
     }
 
@@ -64,6 +121,21 @@ public class TravelRecordResDTO {
 
             @Schema(description = "폴더 색상/테마", example = "BASIC")
             String folderTheme,
+
+            @Schema(description = "공개범위")
+            TravelRecordVisibility visibility,
+
+            @Schema(description = "수정 요청 시 전달할 현재 버전", example = "0")
+            Long version,
+
+            @Schema(description = "최초 생성자")
+            UserProfile owner,
+
+            @Schema(description = "수락한 현재 추가 참여자. 생성자 제외")
+            List<UserProfile> participants,
+
+            @Schema(description = "현재 사용자의 작업 권한")
+            Permissions permissions,
 
             @Schema(description = "여행 기록 사진 목록")
             List<ImageResponse> images,
@@ -134,15 +206,37 @@ public class TravelRecordResDTO {
             @Schema(description = "대표 이미지 key", example = "travel-records/1/image-1.jpg")
             String coverImageKey,
 
+            @Schema(description = "저장된 공개범위")
+            TravelRecordVisibility visibility,
+
+            @Schema(description = "최초 수정 버전", example = "0")
+            Long version,
+
             @Schema(description = "생성 일시", example = "2026-05-22T14:30:00")
             LocalDateTime createdAt
+    ) {
+    }
+
+    @Schema(name = "TravelRecordVisibilityUpdateResponse", description = "여행 기록 공개범위 수정 응답")
+    public record VisibilityUpdateResponse(
+            @Schema(description = "여행 기록 ID", example = "20")
+            Long travelRecordId,
+
+            @Schema(description = "저장된 공개범위", example = "PUBLIC")
+            TravelRecordVisibility visibility,
+
+            @Schema(description = "저장 후 수정 버전. 같은 공개범위이면 기존 버전 유지", example = "1")
+            Long version
     ) {
     }
 
     @Schema(name = "TravelRecordUpdateResponse", description = "여행 기록 수정 응답")
     public record UpdateResponse(
             @Schema(description = "수정된 여행 기록 ID", example = "1")
-            Long travelRecordId
+            Long travelRecordId,
+
+            @Schema(description = "저장 후 수정 버전", example = "1")
+            Long version
     ) {
     }
 }

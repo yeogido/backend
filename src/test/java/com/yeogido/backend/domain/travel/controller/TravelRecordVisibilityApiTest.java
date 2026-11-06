@@ -1,0 +1,363 @@
+package com.yeogido.backend.domain.travel.controller;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import com.yeogido.backend.domain.auth.security.AuthUser;
+import com.yeogido.backend.domain.file.service.FileService;
+import com.yeogido.backend.domain.file.service.S3Service;
+import com.yeogido.backend.domain.region.entity.Region;
+import com.yeogido.backend.domain.region.enums.RegionType;
+import com.yeogido.backend.domain.travel.entity.TravelRecord;
+import com.yeogido.backend.domain.travel.enums.TravelRecordVisibility;
+import com.yeogido.backend.domain.user.entity.User;
+import com.yeogido.backend.domain.user.enums.Gender;
+import com.yeogido.backend.domain.user.enums.UserRole;
+import com.yeogido.backend.domain.user.enums.UserStatus;
+import jakarta.persistence.EntityManager;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
+import org.springframework.transaction.annotation.Transactional;
+
+@SpringBootTest(properties = {
+    "spring.datasource.url=jdbc:h2:mem:travel-visibility-api;MODE=MySQL;NON_KEYWORDS=USER;DB_CLOSE_DELAY=-1"
+})
+@AutoConfigureMockMvc
+@ActiveProfiles("test")
+@Transactional
+class TravelRecordVisibilityApiTest {
+
+  @Autowired private MockMvc mockMvc;
+  @Autowired private EntityManager entityManager;
+  @MockitoBean private FileService fileService;
+  @MockitoBean private S3Service s3Service;
+  private Region region;
+  private User viewer;
+  private User owner;
+  private TravelRecord publicRecord;
+
+  @BeforeEach
+  void setUp() {
+    region = entityManager.merge(Region.builder().name("부산").type(RegionType.REGION).build());
+    viewer = user("조회자");
+    owner = user("생성자");
+    publicRecord = entityManager.merge(TravelRecord.builder().user(owner).region(region).title("공개 여행")
+        .startDate(LocalDate.of(2026, 5, 1)).endDate(LocalDate.of(2026, 5, 3))
+        .visibility(TravelRecordVisibility.PUBLIC).coverImageKey("travel-records/public.jpg").build());
+    entityManager.flush();
+    when(s3Service.getImageUrl(anyString())).thenAnswer(call -> "https://example.com/" + call.getArgument(0));
+    when(fileService.moveToDirectory(anyString(), any())).thenAnswer(call -> call.getArgument(0));
+  }
+
+  @Test
+  void mapRequiresLoginAndDoesNotAllowOtherUsersCollection() throws Exception {
+    mockMvc.perform(get("/api/v1/travel-records/map")).andExpect(status().isUnauthorized());
+    mockMvc.perform(get("/api/v1/travel-records/map").with(login())
+        .param("year", "2026").param("userId", owner.getId().toString()))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.result.items").isEmpty());
+  }
+
+  @Test
+  void mapBindsStaticRouteAndReturnsPhotoContractWithoutFolderData() throws Exception {
+    mockMvc.perform(get("/api/v1/travel-records/map").with(loginAs(owner))
+        .param("year", "2026").param("size", "1").param("visibility", "PUBLIC"))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.result.items.length()").value(1))
+        .andExpect(jsonPath("$.result.items[0].travelRecordId").value(publicRecord.getId()))
+        .andExpect(jsonPath("$.result.items[0].regionName").value("부산"))
+        .andExpect(jsonPath("$.result.items[0].latitude").isEmpty())
+        .andExpect(jsonPath("$.result.items[0].longitude").isEmpty())
+        .andExpect(jsonPath("$.result.items[0].images").isArray())
+        .andExpect(jsonPath("$.result.items[0].stickers").doesNotExist())
+        .andExpect(jsonPath("$.result.items[0].folderTheme").doesNotExist())
+        .andExpect(jsonPath("$.result.hasNext").value(false));
+  }
+
+  /** 지도 조회의 범위 초과, 잘못된 필터, 숫자가 아닌 입력이 400으로 처리되는지 검증합니다. */
+  @Test
+  void mapRejectsInvalidQueryParameters() throws Exception {
+    for (String[] query : List.of(new String[]{"size", "101"}, new String[]{"year", "10000"},
+        new String[]{"cursor", "-1"}, new String[]{"visibility", "ALL"}, new String[]{"size", "abc"})) {
+      mockMvc.perform(get("/api/v1/travel-records/map").with(login()).param(query[0], query[1]))
+          .andExpect(status().isBadRequest());
+    }
+  }
+
+  @Test
+  void publicAlbumListDetailAndYearsStillRequireLogin() throws Exception {
+    for (String path : List.of("/api/v1/travel-records", "/api/v1/travel-records/years",
+        "/api/v1/travel-records/" + publicRecord.getId())) {
+      mockMvc.perform(get(path)).andExpect(status().isUnauthorized())
+          .andExpect(jsonPath("$.isSuccess").value(false));
+    }
+  }
+
+  @Test
+  void createWithoutVisibilityKeepsLegacyRequestAndReturnsPrivateVersionZero() throws Exception {
+    mockMvc.perform(post("/api/v1/travel-records").with(login())
+        .contentType(MediaType.APPLICATION_JSON).content(createBody("")))
+        .andExpect(status().isCreated()).andExpect(jsonPath("$.code").value("COMMON201"))
+        .andExpect(jsonPath("$.result.visibility").value("PRIVATE"))
+        .andExpect(jsonPath("$.result.version").value(0));
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"null", "\"ALL\"", "\"\""})
+  void createRejectsExplicitNullAndInvalidVisibilityWithDomainError(String value) throws Exception {
+    mockMvc.perform(post("/api/v1/travel-records").with(login())
+        .contentType(MediaType.APPLICATION_JSON).content(createBody(",\"visibility\":" + value)))
+        .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("TRAVEL_RECORD4008"));
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"1", "true", "{}", "[]"})
+  void createRejectsNonStringVisibilityAsMalformedRequest(String value) throws Exception {
+    mockMvc.perform(post("/api/v1/travel-records").with(login())
+        .contentType(MediaType.APPLICATION_JSON).content(createBody(",\"visibility\":" + value)))
+        .andExpect(status().isBadRequest()).andExpect(jsonPath("$.isSuccess").value(false));
+  }
+
+  @Test
+  void queryParametersBindToTargetAndVisibilityAndDetailHasExpandedContract() throws Exception {
+    mockMvc.perform(get("/api/v1/travel-records").with(login())
+        .param("userId", owner.getId().toString()).param("visibility", "PUBLIC").param("year", "2026"))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.result.items.length()").value(1))
+        .andExpect(jsonPath("$.result.items[0].owner.userId").value(owner.getId()))
+        .andExpect(jsonPath("$.result.items[0].participants").isArray())
+        .andExpect(jsonPath("$.result.items[0].previewImages").isArray())
+        .andExpect(jsonPath("$.result.items[0].stickers").isArray());
+    mockMvc.perform(get("/api/v1/travel-records/years").with(login())
+        .param("userId", owner.getId().toString()).param("visibility", "PUBLIC"))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.result.years[0]").value(2026));
+    mockMvc.perform(get("/api/v1/travel-records/" + publicRecord.getId()).with(login()))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.result.visibility").value("PUBLIC"))
+        .andExpect(jsonPath("$.result.version").value(0))
+        .andExpect(jsonPath("$.result.permissions.canEdit").value(false))
+        .andExpect(jsonPath("$.result.permissions.canLinkShare").value(true));
+  }
+
+  @Test
+  void publicReadDoesNotGrantWritePermission() throws Exception {
+    mockMvc.perform(patch("/api/v1/travel-records/" + publicRecord.getId()).with(login())
+        .contentType(MediaType.APPLICATION_JSON).content(updateBody("0", "")))
+        .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("COMMON4031"));
+    assertThat(entityManager.find(TravelRecord.class, publicRecord.getId()).getTitle()).isEqualTo("공개 여행");
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"/api/v1/travel-records", "/api/v1/travel-records/years"})
+  void invalidFilterIsRejectedForBothCollectionEndpoints(String path) throws Exception {
+    mockMvc.perform(get(path).with(login()).param("visibility", "ALL"))
+        .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("TRAVEL_RECORD4008"));
+    mockMvc.perform(get(path).with(login()).param("userId", "-1"))
+        .andExpect(status().isBadRequest());
+  }
+
+  @Test
+  void invalidYearAndSizeDoNotBecomeServerErrors() throws Exception {
+    mockMvc.perform(get("/api/v1/travel-records").with(login()).param("year", "10000"))
+        .andExpect(status().isBadRequest());
+    for (String size : List.of("-1", "0", "2147483647")) {
+      mockMvc.perform(get("/api/v1/travel-records").with(login()).param("size", size))
+          .andExpect(status().isBadRequest());
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {101, 1000000, Integer.MAX_VALUE})
+  void listRejectsOversizedPagesWithDomainError(int size) throws Exception {
+    mockMvc.perform(get("/api/v1/travel-records").with(login()).param("size", Integer.toString(size)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("TRAVEL_RECORD4006"));
+  }
+
+  @Test
+  void listAcceptsMaximumPageSize() throws Exception {
+    mockMvc.perform(get("/api/v1/travel-records").with(login()).param("size", "100")
+        .param("userId", owner.getId().toString()).param("year", "2026"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.result.items[0].travelRecordId").value(publicRecord.getId()));
+  }
+
+  @Test
+  void updateRequiresLogin() throws Exception {
+    mockMvc.perform(patch("/api/v1/travel-records/" + publicRecord.getId())
+        .contentType(MediaType.APPLICATION_JSON).content(updateBody("0", "")))
+        .andExpect(status().isUnauthorized());
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"null", "-1"})
+  void updateRejectsMissingOrNegativeVersion(String version) throws Exception {
+    mockMvc.perform(patch("/api/v1/travel-records/" + publicRecord.getId()).with(login())
+        .contentType(MediaType.APPLICATION_JSON).content(updateBody(version, "")))
+        .andExpect(status().isBadRequest());
+  }
+
+  @Test
+  void participantUpdateReturnsNextVersionAndStaleRetryReturns409() throws Exception {
+    // 다른 테스트의 PUBLIC 조회 fixture와 분리해 공동 편집 대상을 생성합니다.
+    TravelRecord shared = entityManager.merge(TravelRecord.builder().user(owner).region(region).title("공유")
+        .startDate(LocalDate.of(2026, 5, 1)).endDate(LocalDate.of(2026, 5, 3))
+        .visibility(TravelRecordVisibility.FRIENDS).coverImageKey("travel-records/shared.jpg").build());
+    entityManager.persist(com.yeogido.backend.domain.travel.entity.TravelRecordMember.builder()
+        .travelRecord(shared).user(viewer).build());
+    entityManager.flush();
+    mockMvc.perform(patch("/api/v1/travel-records/" + shared.getId()).with(login())
+        .contentType(MediaType.APPLICATION_JSON).content(updateBody("0", "")))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.result.version").value(1));
+    mockMvc.perform(patch("/api/v1/travel-records/" + shared.getId()).with(login())
+        .contentType(MediaType.APPLICATION_JSON).content(updateBody("0", "")))
+        .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("TRAVEL_RECORD4091"));
+  }
+
+  @Test
+  void publicViewerCannotEditEvenWithCurrentVersion() throws Exception {
+    mockMvc.perform(patch("/api/v1/travel-records/" + publicRecord.getId()).with(login())
+        .contentType(MediaType.APPLICATION_JSON).content(updateBody("0", "")))
+        .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("COMMON4031"));
+  }
+
+  @Test
+  void updateRejectsSixPhotosForEntireAlbum() throws Exception {
+    String images = java.util.stream.IntStream.rangeClosed(1, 6)
+        .mapToObj(i -> "{\"imageKey\":\"travel-records/" + i + ".jpg\",\"imageOrder\":" + i + "}")
+        .collect(java.util.stream.Collectors.joining(","));
+    String body = updateBody("0", "").replace("[{\"imageKey\":\"travel-records/test.jpg\",\"imageOrder\":1}]",
+        "[" + images + "]");
+    mockMvc.perform(patch("/api/v1/travel-records/" + publicRecord.getId()).with(login())
+        .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isBadRequest());
+  }
+
+  /** 두 DELETE 경로 모두 인증 없이 접근할 수 없는지 확인합니다. */
+  @Test
+  void removalEndpointsRequireLogin() throws Exception {
+    for (String suffix : List.of("", "/members/me")) {
+      mockMvc.perform(delete("/api/v1/travel-records/" + publicRecord.getId() + suffix))
+          .andExpect(status().isUnauthorized());
+    }
+  }
+
+  @Test
+  void sharedParticipantCannotDeleteButCanLeaveAndLosesReadAndEditAccess() throws Exception {
+    TravelRecord shared = sharedAlbum();
+    mockMvc.perform(delete("/api/v1/travel-records/" + shared.getId()).with(login()))
+        .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("COMMON4031"));
+    mockMvc.perform(delete("/api/v1/travel-records/" + shared.getId() + "/members/me").with(login()))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.code").value("COMMON200"))
+        .andExpect(jsonPath("$.result").doesNotExist());
+    mockMvc.perform(get("/api/v1/travel-records/" + shared.getId()).with(login()))
+        .andExpect(status().isForbidden());
+    mockMvc.perform(patch("/api/v1/travel-records/" + shared.getId()).with(login())
+        .contentType(MediaType.APPLICATION_JSON).content(updateBody("0", "")))
+        .andExpect(status().isForbidden());
+    assertThat(entityManager.find(TravelRecord.class, shared.getId())).isNotNull();
+  }
+
+  @Test
+  void ownerLeaveReturnsDedicatedConflict() throws Exception {
+    TravelRecord shared = sharedAlbum();
+    mockMvc.perform(delete("/api/v1/travel-records/" + shared.getId() + "/members/me").with(loginAs(owner)))
+        .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("TRAVEL_RECORD4096"));
+  }
+
+  @Test
+  void ownerDeleteCleansMembershipAndInvitationAndReturnsNullResult() throws Exception {
+    TravelRecord shared = sharedAlbum();
+    entityManager.persist(com.yeogido.backend.domain.travel.entity.TravelRecordInvitation.builder()
+        .travelRecord(shared).inviter(owner).invitee(viewer).build());
+    entityManager.flush();
+    mockMvc.perform(delete("/api/v1/travel-records/" + shared.getId()).with(loginAs(owner)))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.result").doesNotExist());
+    entityManager.clear();
+    assertThat(entityManager.find(TravelRecord.class, shared.getId())).isNull();
+    assertThat(entityManager.createQuery("select count(m) from TravelRecordMember m where m.travelRecord.id = :id", Long.class)
+        .setParameter("id", shared.getId()).getSingleResult()).isZero();
+    assertThat(entityManager.createQuery("select count(i) from TravelRecordInvitation i where i.travelRecord.id = :id", Long.class)
+        .setParameter("id", shared.getId()).getSingleResult()).isZero();
+    mockMvc.perform(get("/api/v1/travel-records/" + shared.getId()).with(login()))
+        .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("TRAVEL_RECORD4041"));
+  }
+
+  @Test
+  void repeatedLeaveAndPublicViewerLeaveAreForbidden() throws Exception {
+    TravelRecord shared = sharedAlbum();
+    mockMvc.perform(delete("/api/v1/travel-records/" + shared.getId() + "/members/me").with(login()))
+        .andExpect(status().isOk());
+    mockMvc.perform(delete("/api/v1/travel-records/" + shared.getId() + "/members/me").with(login()))
+        .andExpect(status().isForbidden());
+    mockMvc.perform(delete("/api/v1/travel-records/" + publicRecord.getId() + "/members/me").with(login()))
+        .andExpect(status().isForbidden());
+  }
+
+  /** 전체 삭제와 나가기 모두 존재하지 않는 앨범은 동일한 404 규약을 사용합니다. */
+  @Test
+  void removalOfNonExistingAlbumReturns404() throws Exception {
+    for (String suffix : List.of("", "/members/me")) {
+      mockMvc.perform(delete("/api/v1/travel-records/" + Long.MAX_VALUE + suffix).with(login()))
+          .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("TRAVEL_RECORD4041"));
+    }
+  }
+
+  private TravelRecord sharedAlbum() {
+    TravelRecord shared = TravelRecord.builder().user(owner).region(region).title("공유")
+        .startDate(LocalDate.of(2026, 5, 1)).endDate(LocalDate.of(2026, 5, 3))
+        .visibility(TravelRecordVisibility.FRIENDS).coverImageKey("travel-records/shared.jpg").build();
+    entityManager.persist(shared);
+    entityManager.persist(com.yeogido.backend.domain.travel.entity.TravelRecordMember.builder()
+        .travelRecord(shared).user(viewer).build());
+    entityManager.flush();
+    return shared;
+  }
+
+  private RequestPostProcessor loginAs(User user) {
+    return authentication(new UsernamePasswordAuthenticationToken(new AuthUser(user.getId(), UserRole.USER, "test-session"),
+        null, List.of(new SimpleGrantedAuthority("ROLE_USER"))));
+  }
+
+  private String updateBody(String version, String extra) {
+    return createBody(",\"version\":" + version + extra);
+  }
+
+  private RequestPostProcessor login() {
+    return authentication(new UsernamePasswordAuthenticationToken(new AuthUser(viewer.getId(), UserRole.USER, "test-session"),
+        null, List.of(new SimpleGrantedAuthority("ROLE_USER"))));
+  }
+
+  private User user(String name) {
+    User user = User.builder().nickname(name).email(UUID.randomUUID() + "@test.com").gender(Gender.FEMALE)
+        .birthYear("2000").region(region).role(UserRole.USER).status(UserStatus.ACTIVE).build();
+    entityManager.persist(user);
+    return user;
+  }
+
+  private String createBody(String visibilityField) {
+    return """
+        {"title":"부산 여행","regionId":%d,"startDate":"2026-05-22","endDate":"2026-05-24",
+         "images":[{"imageKey":"travel-records/test.jpg","imageOrder":1}]%s}
+        """.formatted(region.getId(), visibilityField);
+  }
+}

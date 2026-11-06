@@ -1,0 +1,808 @@
+package com.yeogido.backend.domain.travel.service;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.json.JsonMapper;
+import com.yeogido.backend.domain.file.service.FileService;
+import com.yeogido.backend.domain.file.service.S3Service;
+import com.yeogido.backend.domain.region.entity.Region;
+import com.yeogido.backend.domain.region.enums.RegionType;
+import com.yeogido.backend.domain.travel.dto.request.TravelRecordReqDTO;
+import com.yeogido.backend.domain.travel.dto.response.TravelRecordResDTO;
+import com.yeogido.backend.domain.travel.entity.Sticker;
+import com.yeogido.backend.domain.travel.entity.TravelRecord;
+import com.yeogido.backend.domain.travel.entity.TravelRecordInvitation;
+import com.yeogido.backend.domain.travel.entity.TravelRecordMember;
+import com.yeogido.backend.domain.travel.entity.TravelRecordPhoto;
+import com.yeogido.backend.domain.travel.entity.TravelRecordSticker;
+import com.yeogido.backend.domain.travel.enums.FolderTheme;
+import com.yeogido.backend.domain.travel.enums.StickerCategory;
+import com.yeogido.backend.domain.travel.enums.StickerType;
+import com.yeogido.backend.domain.travel.enums.TravelRecordInvitationStatus;
+import com.yeogido.backend.domain.travel.enums.TravelRecordVisibility;
+import com.yeogido.backend.domain.travel.exception.TravelRecordErrorCode;
+import com.yeogido.backend.domain.user.entity.User;
+import com.yeogido.backend.domain.user.enums.Gender;
+import com.yeogido.backend.domain.user.enums.UserRole;
+import com.yeogido.backend.domain.user.enums.UserStatus;
+import com.yeogido.backend.domain.user.exception.UserErrorCode;
+import com.yeogido.backend.global.config.JpaConfig;
+import com.yeogido.backend.global.exception.ErrorCode;
+import com.yeogido.backend.global.exception.GeneralErrorCode;
+import com.yeogido.backend.global.exception.GeneralException;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+import org.hibernate.SessionFactory;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
+import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
+import org.springframework.context.annotation.Import;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+
+@DataJpaTest
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+@Import({JpaConfig.class, TravelRecordServiceImpl.class})
+@ActiveProfiles("test")
+@TestPropertySource(properties = {
+    "spring.datasource.url=jdbc:h2:mem:travel-visibility-test;MODE=MySQL;NON_KEYWORDS=USER;DB_CLOSE_DELAY=-1",
+    "spring.jpa.properties.hibernate.generate_statistics=true"
+})
+class TravelRecordVisibilityIntegrationTest {
+
+  @Autowired private TravelRecordService service;
+  @Autowired private TestEntityManager entityManager;
+  @MockitoBean private FileService fileService;
+  @MockitoBean private S3Service s3Service;
+
+  private final ObjectMapper mapper = JsonMapper.builder().findAndAddModules().build();
+  private Region region;
+  private User viewer;
+  private User owner;
+  private User third;
+
+  @BeforeEach
+  void setUp() {
+    region = entityManager.persist(Region.builder().name("부산").type(RegionType.REGION).build());
+    viewer = user("조회자");
+    owner = user("생성자");
+    third = user("다른 참여자");
+    when(s3Service.getImageUrl(anyString())).thenAnswer(call -> "https://example.com/" + call.getArgument(0));
+    when(fileService.moveToDirectory(anyString(), any())).thenAnswer(call -> call.getArgument(0));
+  }
+
+  @Test
+  void omittedVisibilityCreatesPrivateRecordWithVersionZeroAndPreservesExistingContent() throws Exception {
+    var request = createRequest(null);
+    assertThat(request.visibility()).isEqualTo("PRIVATE");
+
+    var response = service.createTravelRecord(viewer.getId(), request);
+    flushAndClear();
+    TravelRecord stored = entityManager.find(TravelRecord.class, response.travelRecordId());
+
+    assertThat(response.visibility()).isEqualTo(TravelRecordVisibility.PRIVATE);
+    assertThat(response.version()).isZero();
+    assertThat(stored.getVisibility()).isEqualTo(TravelRecordVisibility.PRIVATE);
+    assertThat(stored.getFolderTheme()).isEqualTo(FolderTheme.BASIC);
+    assertThat(service.getTravelRecord(viewer.getId(), stored.getId()).images()).hasSize(1);
+  }
+
+  @ParameterizedTest
+  @EnumSource(TravelRecordVisibility.class)
+  void storesRequestedVisibilityWithoutCreatingMembersOrInvitations(TravelRecordVisibility visibility) throws Exception {
+    var response = service.createTravelRecord(viewer.getId(), createRequest('"' + visibility.name() + '"'));
+    flushAndClear();
+
+    assertThat(response.visibility()).isEqualTo(visibility);
+    assertThat(response.version()).isZero();
+    var detail = service.getTravelRecord(viewer.getId(), response.travelRecordId());
+    assertThat(detail.visibility()).isEqualTo(visibility);
+    assertThat(detail.owner().userId()).isEqualTo(viewer.getId());
+    assertThat(detail.participants()).isEmpty();
+    assertThat(entityManager.getEntityManager().createQuery("select count(m) from TravelRecordMember m", Long.class)
+        .getSingleResult()).isZero();
+    assertThat(entityManager.getEntityManager().createQuery("select count(i) from TravelRecordInvitation i", Long.class)
+        .getSingleResult()).isZero();
+    assertError(() -> service.getTravelRecord(owner.getId(), response.travelRecordId()),
+        visibility == TravelRecordVisibility.PUBLIC ? null : GeneralErrorCode.FORBIDDEN);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"null", "\"\"", "\"ALL\"", "\"public\"", "\" PUBLIC \""})
+  void rejectsInvalidCreateVisibilityBeforeMovingFiles(String value) throws Exception {
+    var request = createRequest(value);
+    assertError(() -> service.createTravelRecord(viewer.getId(), request), TravelRecordErrorCode.INVALID_VISIBILITY);
+    verify(fileService, never()).moveToDirectory(anyString(), any());
+  }
+
+  @Test
+  void ownCollectionIncludesOwnedAndCurrentSharedRecordsOnly() {
+    TravelRecord ownPrivate = record(viewer, TravelRecordVisibility.PRIVATE, 2026);
+    TravelRecord ownPublic = record(viewer, TravelRecordVisibility.PUBLIC, 2026);
+    TravelRecord shared = record(owner, TravelRecordVisibility.FRIENDS, 2026);
+    member(shared, viewer);
+    member(shared, third);
+    TravelRecord pending = record(owner, TravelRecordVisibility.FRIENDS, 2026);
+    invite(pending, TravelRecordInvitationStatus.PENDING);
+    TravelRecord declined = record(owner, TravelRecordVisibility.FRIENDS, 2026);
+    invite(declined, TravelRecordInvitationStatus.DECLINED);
+    TravelRecord left = record(owner, TravelRecordVisibility.FRIENDS, 2026);
+    invite(left, TravelRecordInvitationStatus.ACCEPTED); // 수락 이력만 있고 현재 참여 행은 없는 경우
+    record(owner, TravelRecordVisibility.PUBLIC, 2026);
+    TravelRecord privateWithStaleMember = record(owner, TravelRecordVisibility.PRIVATE, 2026);
+    member(privateWithStaleMember, viewer);
+    flushAndClear();
+
+    var result = list(null, null, 2026, null, 20);
+    assertThat(result.getItems()).extracting(TravelRecordResDTO.TravelRecordSummary::travelRecordId)
+        .containsExactly(shared.getId(), ownPublic.getId(), ownPrivate.getId());
+    assertThat(result.isHasNext()).isFalse();
+    assertThat(result.getCursorValue()).isNull();
+    assertThat(result.getItems().getFirst().participants())
+        .extracting(TravelRecordResDTO.UserProfile::userId).containsExactly(viewer.getId(), third.getId());
+    assertThat(list(viewer.getId(), null, 2026, null, 20).getItems()).isEqualTo(result.getItems());
+    assertError(() -> service.getTravelRecord(viewer.getId(), pending.getId()), GeneralErrorCode.FORBIDDEN);
+    assertError(() -> service.getTravelRecord(viewer.getId(), declined.getId()), GeneralErrorCode.FORBIDDEN);
+    assertError(() -> service.getTravelRecord(viewer.getId(), left.getId()), GeneralErrorCode.FORBIDDEN);
+    assertError(() -> service.getTravelRecord(viewer.getId(), privateWithStaleMember.getId()), GeneralErrorCode.FORBIDDEN);
+  }
+
+  @Test
+  void otherCollectionContainsOnlyTargetOwnedPublicOrMutuallySharedAlbums() {
+    TravelRecord publicRecord = record(owner, TravelRecordVisibility.PUBLIC, 2026);
+    TravelRecord shared = record(owner, TravelRecordVisibility.FRIENDS, 2026);
+    member(shared, viewer);
+    record(owner, TravelRecordVisibility.PRIVATE, 2026);
+    record(owner, TravelRecordVisibility.FRIENDS, 2026);
+    TravelRecord thirdOwned = record(third, TravelRecordVisibility.FRIENDS, 2026);
+    member(thirdOwned, owner);
+    member(thirdOwned, viewer);
+    TravelRecord viewerOwned = record(viewer, TravelRecordVisibility.FRIENDS, 2026);
+    member(viewerOwned, owner);
+    flushAndClear();
+
+    assertThat(list(owner.getId(), null, 2026, null, 20).getItems())
+        .extracting(TravelRecordResDTO.TravelRecordSummary::travelRecordId)
+        .containsExactly(shared.getId(), publicRecord.getId());
+    assertThat(list(owner.getId(), "PRIVATE", 2026, null, 20).getItems()).isEmpty();
+  }
+
+  @ParameterizedTest
+  @EnumSource(TravelRecordVisibility.class)
+  void visibilityFiltersDoNotExpandReadAccessAndYearsUseIdenticalConditions(TravelRecordVisibility visibility) {
+    record(viewer, TravelRecordVisibility.PRIVATE, 2022);
+    record(viewer, TravelRecordVisibility.PUBLIC, 2023);
+    TravelRecord shared = record(owner, TravelRecordVisibility.FRIENDS, 2024);
+    member(shared, viewer);
+    record(owner, TravelRecordVisibility.PRIVATE, 2020);
+    record(owner, TravelRecordVisibility.FRIENDS, 2021);
+    record(owner, TravelRecordVisibility.PUBLIC, 2025);
+    flushAndClear();
+    int ownYear = switch (visibility) { case PRIVATE -> 2022; case PUBLIC -> 2023; case FRIENDS -> 2024; };
+    assertThat(years(null, visibility.name())).containsExactly(ownYear);
+    assertThat(list(null, visibility.name(), ownYear, null, 10).getItems()).hasSize(1);
+    assertThat(years(owner.getId(), visibility.name())).containsExactlyElementsOf(switch (visibility) {
+      case PRIVATE -> List.of(); case PUBLIC -> List.of(2025); case FRIENDS -> List.of(2024);
+    });
+  }
+
+  @Test
+  void yearsAreDistinctDescendingAndBasedOnEndDate() {
+    TravelRecord crossing = entityManager.persist(TravelRecord.builder().user(viewer).region(region).title("연말 여행")
+        .startDate(LocalDate.of(2025, 12, 31)).endDate(LocalDate.of(2026, 1, 1))
+        .coverImageKey("travel-records/crossing.jpg").build());
+    record(viewer, TravelRecordVisibility.PRIVATE, 2026);
+    record(viewer, TravelRecordVisibility.PRIVATE, 2024);
+    TravelRecord hiddenYear = record(owner, TravelRecordVisibility.FRIENDS, 2020);
+    invite(hiddenYear, TravelRecordInvitationStatus.PENDING);
+    flushAndClear();
+
+    assertThat(years(null, null)).containsExactly(2026, 2024);
+    assertThat(list(null, null, 2025, null, 10).getItems()).isEmpty();
+    assertThat(list(null, null, 2026, null, 10).getItems())
+        .extracting(TravelRecordResDTO.TravelRecordSummary::travelRecordId).contains(crossing.getId());
+    assertThat(years(third.getId(), null)).isEmpty();
+  }
+
+  @Test
+  void cursorPaginationOrdersByEndDateThenIdAcrossDifferentCreators() {
+    TravelRecord first = record(viewer, TravelRecordVisibility.PRIVATE, 2026);
+    TravelRecord second = record(owner, TravelRecordVisibility.FRIENDS, 2026);
+    member(second, viewer);
+    TravelRecord thirdRecord = record(viewer, TravelRecordVisibility.PUBLIC, 2026);
+    flushAndClear();
+
+    List<Long> ids = new ArrayList<>();
+    Long cursor = null;
+    for (int i = 0; i < 3; i++) {
+      var page = list(null, null, 2026, cursor, 1);
+      assertThat(page.getItems()).hasSize(1);
+      assertThat(page.isHasNext()).isEqualTo(i < 2);
+      ids.add(page.getItems().getFirst().travelRecordId());
+      cursor = page.getCursorId();
+    }
+    assertThat(ids).containsExactly(thirdRecord.getId(), second.getId(), first.getId());
+    var empty = list(null, null, 2026, cursor, 1);
+    assertThat(empty.getItems()).isEmpty();
+    assertThat(empty.getCursorId()).isNull();
+    assertThat(empty.isHasNext()).isFalse();
+  }
+
+  @Test
+  void cursorMustBelongToCurrentTargetVisibilityYearAndReadScope() {
+    TravelRecord own = record(viewer, TravelRecordVisibility.PRIVATE, 2026);
+    TravelRecord otherPublic = record(owner, TravelRecordVisibility.PUBLIC, 2026);
+    TravelRecord forbidden = record(owner, TravelRecordVisibility.FRIENDS, 2026);
+    TravelRecord wrongYear = record(viewer, TravelRecordVisibility.PRIVATE, 2025);
+    flushAndClear();
+
+    assertError(() -> list(null, null, 2026, otherPublic.getId(), 10), TravelRecordErrorCode.INVALID_PAGE_REQUEST);
+    assertError(() -> list(owner.getId(), null, 2026, own.getId(), 10), TravelRecordErrorCode.INVALID_PAGE_REQUEST);
+    assertError(() -> list(null, null, 2026, forbidden.getId(), 10), TravelRecordErrorCode.INVALID_PAGE_REQUEST);
+    assertError(() -> list(null, null, 2026, wrongYear.getId(), 10), TravelRecordErrorCode.INVALID_PAGE_REQUEST);
+    assertError(() -> list(null, "PUBLIC", 2026, own.getId(), 10), TravelRecordErrorCode.INVALID_PAGE_REQUEST);
+    assertError(() -> list(null, null, 2026, Long.MAX_VALUE, 10), TravelRecordErrorCode.INVALID_PAGE_REQUEST);
+  }
+
+  @Test
+  void cursorUsesEndDateBeforeIdAndLosingMembershipInvalidatesSharedCursor() {
+    TravelRecord latest = record(owner, TravelRecordVisibility.FRIENDS, 2026);
+    TravelRecordMember joined = entityManager.persist(TravelRecordMember.builder().travelRecord(latest).user(viewer).build());
+    TravelRecord olderWithLargerId = record(viewer, TravelRecordVisibility.PRIVATE, 2026);
+    olderWithLargerId.update(region, "이전 여행", LocalDate.of(2026, 4, 1), LocalDate.of(2026, 4, 3),
+        olderWithLargerId.getCoverImageKey(), FolderTheme.BASIC);
+    flushAndClear();
+
+    var first = list(null, null, 2026, null, 1);
+    assertThat(first.getItems().getFirst().travelRecordId()).isEqualTo(latest.getId());
+    assertThat(list(null, null, 2026, first.getCursorId(), 1).getItems())
+        .extracting(TravelRecordResDTO.TravelRecordSummary::travelRecordId).containsExactly(olderWithLargerId.getId());
+
+    entityManager.remove(entityManager.find(TravelRecordMember.class, joined.getId()));
+    flushAndClear();
+    assertError(() -> list(null, null, 2026, first.getCursorId(), 1), TravelRecordErrorCode.INVALID_PAGE_REQUEST);
+    assertError(() -> service.getTravelRecord(viewer.getId(), latest.getId()), GeneralErrorCode.FORBIDDEN);
+  }
+
+  @Test
+  void privateAlbumAndItsPhotoUrlAreNotResolvedForAnotherUser() {
+    TravelRecord privateRecord = record(owner, TravelRecordVisibility.PRIVATE, 2026);
+    photo(privateRecord, 1);
+    flushAndClear();
+
+    assertError(() -> service.getTravelRecord(viewer.getId(), privateRecord.getId()), GeneralErrorCode.FORBIDDEN);
+    assertThat(list(owner.getId(), "PRIVATE", 2026, null, 10).getItems()).isEmpty();
+    verify(s3Service, never()).getImageUrl(anyString());
+  }
+
+  @Test
+  void detailReturnsCurrentMembersPermissionsAndOrderedPhotosAndStickers() {
+    TravelRecord shared = record(owner, TravelRecordVisibility.FRIENDS, 2026);
+    member(shared, viewer);
+    member(shared, third);
+    User withdrawn = user("탈퇴자");
+    member(shared, withdrawn);
+    withdrawn.withdraw();
+    photo(shared, 3);
+    photo(shared, 1);
+    photo(shared, 2);
+    Sticker sticker = entityManager.persist(Sticker.builder().name("하트").imageKey("stickers/heart.png")
+        .stickerType(StickerType.DEFAULT).category(StickerCategory.values()[0]).build());
+    entityManager.persist(TravelRecordSticker.builder().travelRecord(shared).sticker(sticker)
+        .positionX(1.0).positionY(2.0).rotation(0.0).scale(1.0).zIndex(1).build());
+    flushAndClear();
+
+    var response = service.getTravelRecord(viewer.getId(), shared.getId());
+    assertThat(response.owner().userId()).isEqualTo(owner.getId());
+    assertThat(response.participants()).extracting(TravelRecordResDTO.UserProfile::userId)
+        .containsExactly(viewer.getId(), third.getId());
+    assertThat(response.version()).isZero();
+    assertThat(response.permissions()).isEqualTo(new TravelRecordResDTO.Permissions(true, false, true, true, false));
+    assertThat(service.getTravelRecord(owner.getId(), shared.getId()).permissions())
+        .isEqualTo(new TravelRecordResDTO.Permissions(true, true, false, true, false));
+    assertThat(response.images()).extracting(TravelRecordResDTO.ImageResponse::imageOrder).containsExactly(1, 2, 3);
+    assertThat(response.stickers()).hasSize(1);
+    assertThat(response.stickers().getFirst().imageUrl()).isEqualTo("https://example.com/stickers/heart.png");
+    var summary = list(null, null, 2026, null, 10).getItems().getFirst();
+    assertThat(summary.previewImages()).extracting(TravelRecordResDTO.PreviewImage::imageOrder).containsExactly(1, 2);
+    assertThat(summary.stickers()).isEqualTo(response.stickers());
+  }
+
+  @Test
+  void publicViewerCanOnlyReadAndPrivateOwnerCanEditDelete() {
+    TravelRecord publicRecord = record(owner, TravelRecordVisibility.PUBLIC, 2026);
+    TravelRecord privateRecord = record(viewer, TravelRecordVisibility.PRIVATE, 2026);
+    flushAndClear();
+
+    assertThat(service.getTravelRecord(viewer.getId(), publicRecord.getId()).permissions())
+        .isEqualTo(new TravelRecordResDTO.Permissions(false, false, false, false, true));
+    assertThat(service.getTravelRecord(viewer.getId(), privateRecord.getId()).permissions())
+        .isEqualTo(new TravelRecordResDTO.Permissions(true, true, false, false, false));
+    assertError(() -> service.updateTravelRecord(publicRecord.getId(), viewer.getId(), null), GeneralErrorCode.FORBIDDEN);
+    assertError(() -> service.deleteTravelRecord(publicRecord.getId(), viewer.getId()), GeneralErrorCode.FORBIDDEN);
+  }
+
+  @Test
+  void withdrawnOwnerIsExcludedAndCannotBeUsedAsAnotherUsersCollection() {
+    TravelRecord publicRecord = record(owner, TravelRecordVisibility.PUBLIC, 2026);
+    TravelRecord shared = record(owner, TravelRecordVisibility.FRIENDS, 2026);
+    member(shared, viewer);
+    owner.withdraw();
+    flushAndClear();
+
+    assertThat(list(null, null, 2026, null, 10).getItems()).isEmpty();
+    assertThat(years(null, null)).isEmpty();
+    assertError(() -> list(owner.getId(), null, 2026, null, 10), UserErrorCode.USER_NOT_FOUND);
+    assertError(() -> years(owner.getId(), null), UserErrorCode.USER_NOT_FOUND);
+    assertError(() -> service.getTravelRecord(viewer.getId(), publicRecord.getId()), TravelRecordErrorCode.TRAVEL_RECORD_NOT_FOUND);
+  }
+
+  @Test
+  void nonExistingTargetReturnsUserNotFound() {
+    assertError(() -> list(Long.MAX_VALUE, null, 2026, null, 10), UserErrorCode.USER_NOT_FOUND);
+    assertError(() -> years(Long.MAX_VALUE, null), UserErrorCode.USER_NOT_FOUND);
+  }
+
+  @ParameterizedTest
+  @NullAndEmptySource
+  @ValueSource(strings = {"ALL", "public", " PUBLIC "})
+  void nullFilterMeansAllAndOtherInvalidFiltersAreRejected(String visibility) {
+    if (visibility == null) {
+      assertThat(list(null, null, 2026, null, 10).getItems()).isEmpty();
+      assertThat(years(null, null)).isEmpty();
+    } else {
+      assertError(() -> list(null, visibility, 2026, null, 10), TravelRecordErrorCode.INVALID_VISIBILITY);
+      assertError(() -> years(null, visibility), TravelRecordErrorCode.INVALID_VISIBILITY);
+    }
+  }
+
+  @Test
+  void invalidPageValuesFailBeforeDatabasePagination() {
+    assertError(() -> list(null, null, 2026, -1L, 10), TravelRecordErrorCode.INVALID_PAGE_REQUEST);
+    assertError(() -> list(null, null, 2026, null, 0), TravelRecordErrorCode.INVALID_PAGE_REQUEST);
+    assertError(() -> list(null, null, 2026, null, Integer.MAX_VALUE), TravelRecordErrorCode.INVALID_PAGE_REQUEST);
+    assertError(() -> list(null, null, 10000, null, 10), TravelRecordErrorCode.INVALID_PAGE_REQUEST);
+  }
+
+  @Test
+  void listLoadsProfilesPhotosAndStickersInFourQueriesRegardlessOfAlbumCount() {
+    for (int i = 0; i < 5; i++) {
+      TravelRecord record = record(owner, TravelRecordVisibility.FRIENDS, 2026);
+      member(record, viewer);
+      photo(record, 1);
+    }
+    flushAndClear();
+    var statistics = entityManager.getEntityManager().getEntityManagerFactory().unwrap(SessionFactory.class)
+        .getStatistics();
+    statistics.clear();
+
+    assertThat(list(null, null, 2026, null, 10).getItems()).hasSize(5);
+    assertThat(statistics.getPrepareStatementCount()).isEqualTo(4);
+  }
+
+  @ParameterizedTest
+  @EnumSource(TravelRecordVisibility.class)
+  void ownerCanSaveEveryVisibilityAndReceivesNextVersion(TravelRecordVisibility visibility) {
+    TravelRecord album = record(owner, visibility, 2026);
+    photo(album, 1);
+    flushAndClear();
+
+    var response = service.updateTravelRecord(album.getId(), owner.getId(), editRequest(0L, "수정", null));
+    assertThat(response.version()).isEqualTo(1L);
+    flushAndClear();
+    var detail = service.getTravelRecord(owner.getId(), album.getId());
+    assertThat(detail.version()).isEqualTo(1L);
+    assertThat(detail.title()).isEqualTo("수정");
+    assertThat(detail.visibility()).isEqualTo(visibility);
+    assertThat(detail.owner().userId()).isEqualTo(owner.getId());
+    assertThat(detail.images()).extracting(TravelRecordResDTO.ImageResponse::imageKey)
+        .containsExactly("travel-records/edited.jpg");
+  }
+
+  @Test
+  void acceptedParticipantCanEditPhotosAndKeepsExistingStickersWhenOmitted() {
+    TravelRecord album = record(owner, TravelRecordVisibility.FRIENDS, 2026);
+    member(album, viewer);
+    photo(album, 1);
+    Sticker custom = customSticker(owner);
+    placedSticker(album, custom);
+    flushAndClear();
+
+    service.updateTravelRecord(album.getId(), viewer.getId(), editRequest(0L, "참여자 수정", null));
+    flushAndClear();
+    var detail = service.getTravelRecord(viewer.getId(), album.getId());
+    assertThat(detail.title()).isEqualTo("참여자 수정");
+    assertThat(detail.version()).isEqualTo(1L);
+    assertThat(detail.stickers()).extracting(TravelRecordResDTO.StickerResponse::stickerId)
+        .containsExactly(custom.getId());
+    assertThat(detail.participants()).hasSize(1);
+  }
+
+  @Test
+  void childOnlyAndIdenticalSavesEachAdvanceVersionExactlyOnce() {
+    TravelRecord album = record(owner, TravelRecordVisibility.FRIENDS, 2026);
+    member(album, viewer);
+    photo(album, 1);
+    Sticker custom = customSticker(owner);
+    placedSticker(album, custom);
+    flushAndClear();
+    var initial = editRequest(0L, "여행", List.of(stickerRequest(custom.getId(), 20.0, 0)));
+    service.updateTravelRecord(album.getId(), viewer.getId(), initial);
+    flushAndClear();
+    var moved = editRequest(1L, "여행", List.of(stickerRequest(custom.getId(), 40.0, 0)));
+    assertThat(service.updateTravelRecord(album.getId(), viewer.getId(), moved).version()).isEqualTo(2L);
+    flushAndClear();
+    assertThat(service.getTravelRecord(owner.getId(), album.getId()).stickers().getFirst().positionX()).isEqualTo(40.0);
+    assertThat(service.updateTravelRecord(album.getId(), viewer.getId(),
+        editRequest(2L, "여행", moved.stickers())).version()).isEqualTo(3L);
+    flushAndClear();
+    assertThat(service.getTravelRecord(owner.getId(), album.getId()).version()).isEqualTo(3L);
+  }
+
+  @Test
+  void emptyStickersClearsAlbumWithoutDeletingStickerSource() {
+    TravelRecord album = record(owner, TravelRecordVisibility.FRIENDS, 2026);
+    member(album, viewer);
+    placedSticker(album, customSticker(owner));
+    flushAndClear();
+    service.updateTravelRecord(album.getId(), viewer.getId(), editRequest(0L, "여행", List.of()));
+    flushAndClear();
+    assertThat(service.getTravelRecord(owner.getId(), album.getId()).stickers()).isEmpty();
+    assertThat(entityManager.getEntityManager().createQuery("select count(s) from Sticker s", Long.class)
+        .getSingleResult()).isEqualTo(1L);
+  }
+
+  @ParameterizedTest
+  @EnumSource(value = TravelRecordVisibility.class, names = {"PRIVATE", "PUBLIC"})
+  void membershipDoesNotAllowEditingPrivateOrPublicAlbum(TravelRecordVisibility visibility) {
+    TravelRecord album = record(owner, visibility, 2026);
+    member(album, viewer);
+    flushAndClear();
+    assertError(() -> service.updateTravelRecord(album.getId(), viewer.getId(), editRequest(0L, "불가", null)),
+        GeneralErrorCode.FORBIDDEN);
+    verify(fileService, never()).moveToDirectory(anyString(), any());
+  }
+
+  @ParameterizedTest
+  @EnumSource(value = TravelRecordInvitationStatus.class, names = {"PENDING", "DECLINED"})
+  void invitationAloneDoesNotGrantEditing(TravelRecordInvitationStatus state) {
+    TravelRecord album = record(owner, TravelRecordVisibility.FRIENDS, 2026);
+    invite(album, state);
+    flushAndClear();
+    assertError(() -> service.updateTravelRecord(album.getId(), viewer.getId(), editRequest(0L, "불가", null)),
+        GeneralErrorCode.FORBIDDEN);
+  }
+
+  @Test
+  void removedAndWithdrawnParticipantsCannotEdit() {
+    TravelRecord album = record(owner, TravelRecordVisibility.FRIENDS, 2026);
+    member(album, viewer);
+    flushAndClear();
+    entityManager.getEntityManager().createQuery("delete from TravelRecordMember m where m.user.id = :id")
+        .setParameter("id", viewer.getId()).executeUpdate();
+    entityManager.find(User.class, third.getId()).withdraw();
+    member(album, third);
+    flushAndClear();
+    assertError(() -> service.updateTravelRecord(album.getId(), viewer.getId(), editRequest(0L, "불가", null)),
+        GeneralErrorCode.FORBIDDEN);
+    assertError(() -> service.updateTravelRecord(album.getId(), third.getId(), editRequest(0L, "불가", null)),
+        GeneralErrorCode.FORBIDDEN);
+  }
+
+  @Test
+  void staleVersionFailsBeforeMovingImages() {
+    TravelRecord album = record(owner, TravelRecordVisibility.PRIVATE, 2026);
+    flushAndClear();
+    assertError(() -> service.updateTravelRecord(album.getId(), owner.getId(), editRequest(1L, "불가", null)),
+        TravelRecordErrorCode.VERSION_CONFLICT);
+    verify(fileService, never()).moveToDirectory(anyString(), any());
+  }
+
+  @Test
+  void participantCanRetainDeletedForeignStickerButCannotIncreaseItsCount() {
+    TravelRecord album = record(owner, TravelRecordVisibility.FRIENDS, 2026);
+    member(album, viewer);
+    Sticker custom = customSticker(owner);
+    custom.delete();
+    placedSticker(album, custom);
+    flushAndClear();
+    service.updateTravelRecord(album.getId(), viewer.getId(),
+        editRequest(0L, "여행", List.of(stickerRequest(custom.getId(), 50.0, 0))));
+    flushAndClear();
+    assertThat(service.getTravelRecord(viewer.getId(), album.getId()).stickers()).hasSize(1);
+    assertError(() -> service.updateTravelRecord(album.getId(), viewer.getId(), editRequest(1L, "불가", List.of(
+        stickerRequest(custom.getId(), 50.0, 0), stickerRequest(custom.getId(), 60.0, 1)))),
+        TravelRecordErrorCode.STICKER_NOT_FOUND);
+  }
+
+  @Test
+  void cannotIntroduceAnotherUsersCustomSticker() {
+    TravelRecord album = record(owner, TravelRecordVisibility.FRIENDS, 2026);
+    member(album, viewer);
+    Sticker custom = customSticker(third);
+    flushAndClear();
+    assertError(() -> service.updateTravelRecord(album.getId(), viewer.getId(),
+        editRequest(0L, "불가", List.of(stickerRequest(custom.getId(), 1.0, 0)))), TravelRecordErrorCode.STICKER_NOT_FOUND);
+  }
+
+  private TravelRecordReqDTO.UpdateRequest editRequest(Long version, String title,
+      List<TravelRecordReqDTO.StickerRequest> stickers) {
+    return new TravelRecordReqDTO.UpdateRequest(version, title, region.getId(), LocalDate.of(2026, 5, 1),
+        LocalDate.of(2026, 5, 3), "BASIC",
+        List.of(new TravelRecordReqDTO.ImageRequest("travel-records/edited.jpg", 1)), stickers);
+  }
+
+  private Sticker customSticker(User creator) {
+    return entityManager.persist(Sticker.builder().name("커스텀").imageKey("stickers/custom.png")
+        .user(creator).stickerType(StickerType.CUSTOM).category(StickerCategory.values()[0]).build());
+  }
+
+  private void placedSticker(TravelRecord album, Sticker sticker) {
+    entityManager.persist(TravelRecordSticker.builder().travelRecord(album).sticker(sticker)
+        .positionX(1.0).positionY(2.0).rotation(0.0).scale(1.0).zIndex(0).build());
+  }
+
+  private TravelRecordReqDTO.StickerRequest stickerRequest(Long id, double x, int z) {
+    return new TravelRecordReqDTO.StickerRequest(id, x, 1.0, 0.0, 1.0, z);
+  }
+
+  /** JSON을 통해 생략과 명시적 null을 구분하고 기존 필수 입력을 함께 제공합니다. */
+  private TravelRecordReqDTO.CreateRequest createRequest(String visibilityJson) throws Exception {
+    return mapper.readValue("""
+        {"title":"부산 여행","regionId":%d,"startDate":"2026-05-22","endDate":"2026-05-24",
+         "images":[{"imageKey":"travel-records/test.jpg","imageOrder":1}]%s}
+        """.formatted(region.getId(), visibilityJson == null ? "" : ",\"visibility\":" + visibilityJson),
+        TravelRecordReqDTO.CreateRequest.class);
+  }
+
+  @Test
+  void mapIncludesOwnAlbumsAndCurrentSharedMembershipOnly() {
+    var ownPrivate = record(viewer, TravelRecordVisibility.PRIVATE, 2026);
+    var ownPublic = record(viewer, TravelRecordVisibility.PUBLIC, 2026);
+    var ownShared = record(viewer, TravelRecordVisibility.FRIENDS, 2026);
+    var accepted = record(owner, TravelRecordVisibility.FRIENDS, 2026);
+    member(accepted, viewer);
+    var pending = record(owner, TravelRecordVisibility.FRIENDS, 2026);
+    invite(pending, TravelRecordInvitationStatus.PENDING);
+    var left = record(owner, TravelRecordVisibility.FRIENDS, 2026);
+    invite(left, TravelRecordInvitationStatus.ACCEPTED);
+    var declined = record(owner, TravelRecordVisibility.FRIENDS, 2026);
+    invite(declined, TravelRecordInvitationStatus.DECLINED);
+    var stalePrivate = record(owner, TravelRecordVisibility.PRIVATE, 2026);
+    member(stalePrivate, viewer);
+    record(owner, TravelRecordVisibility.PUBLIC, 2026);
+    var withdrawn = user("탈퇴 생성자");
+    var withdrawnAlbum = record(withdrawn, TravelRecordVisibility.FRIENDS, 2026);
+    member(withdrawnAlbum, viewer);
+    entityManager.getEntityManager().createQuery("update User u set u.status = :status where u.id = :id")
+        .setParameter("status", UserStatus.DELETED).setParameter("id", withdrawn.getId()).executeUpdate();
+    flushAndClear();
+
+    var result = service.getMyTravelMap(viewer.getId(), mapRequest(null, 100, 2026, null));
+    assertThat(result.getItems()).extracting(TravelRecordResDTO.MapItem::travelRecordId)
+        .containsExactly(accepted.getId(), ownShared.getId(), ownPublic.getId(), ownPrivate.getId());
+  }
+
+  /** 여러 앨범의 전체 사진 순서를 보장하면서 조회 쿼리가 두 번으로 유지되는지 검증합니다. */
+  @Test
+  void mapReturnsAllPhotosInOrderAndUsesOnlyTwoQueriesForMultipleAlbums() {
+    var located = entityManager.persist(Region.builder().name("지도 지역").type(RegionType.REGION)
+        .latitude(new java.math.BigDecimal("35.18"))
+        .longitude(new java.math.BigDecimal("129.08")).build());
+    var album = entityManager.persist(TravelRecord.builder().user(viewer).region(located).title("지도 여행")
+        .startDate(LocalDate.of(2026, 5, 1)).endDate(LocalDate.of(2026, 5, 3))
+        .coverImageKey("travel-records/cover.jpg").visibility(TravelRecordVisibility.PRIVATE).build());
+    for (int i = 5; i >= 1; i--) { photo(album, i); }
+    for (int i = 0; i < 4; i++) { photo(record(viewer, TravelRecordVisibility.PUBLIC, 2026), 1); }
+    flushAndClear();
+    var statistics = entityManager.getEntityManager().getEntityManagerFactory()
+        .unwrap(SessionFactory.class).getStatistics();
+    statistics.clear();
+
+    var result = service.getMyTravelMap(viewer.getId(), mapRequest(null, 10, 2026, null));
+    assertThat(statistics.getPrepareStatementCount()).isEqualTo(2);
+    var item = result.getItems().stream().filter(it -> it.travelRecordId().equals(album.getId())).findFirst().orElseThrow();
+    assertThat(item.regionName()).isEqualTo("지도 지역");
+    assertThat(item.latitude()).isEqualByComparingTo("35.18");
+    assertThat(item.longitude()).isEqualByComparingTo("129.08");
+    assertThat(item.images()).extracting(TravelRecordResDTO.ImageResponse::imageOrder).containsExactly(1, 2, 3, 4, 5);
+    assertThat(item.images().getFirst().imageUrl()).isEqualTo("https://example.com/travel-records/1.jpg");
+  }
+
+  @Test
+  void mapPreservesAlbumsWithoutCompleteCoordinatesAndReturnsBothCoordinatesNull() {
+    var missing = record(viewer, TravelRecordVisibility.PRIVATE, 2026);
+    var incompleteRegion = entityManager.persist(Region.builder().name("불완전 좌표").type(RegionType.REGION)
+        .latitude(new java.math.BigDecimal("35.18")).build());
+    var incomplete = entityManager.persist(TravelRecord.builder().user(viewer).region(incompleteRegion).title("여행")
+        .startDate(LocalDate.of(2026, 5, 1)).endDate(LocalDate.of(2026, 5, 3))
+        .coverImageKey("travel-records/cover.jpg").visibility(TravelRecordVisibility.PRIVATE).build());
+    flushAndClear();
+    var result = service.getMyTravelMap(viewer.getId(), mapRequest(null, 10, 2026, null));
+    assertThat(result.getItems()).extracting(TravelRecordResDTO.MapItem::travelRecordId)
+        .containsExactly(incomplete.getId(), missing.getId());
+    assertThat(result.getItems()).allSatisfy(item -> {
+      assertThat(item.latitude()).isNull();
+      assertThat(item.longitude()).isNull();
+      assertThat(item.images()).isEmpty();
+    });
+  }
+
+  @Test
+  void mapPaginatesByEndDateAndIdAndFiltersByEndYearAndVisibility() {
+    var first = record(viewer, TravelRecordVisibility.PUBLIC, 2026);
+    var second = record(viewer, TravelRecordVisibility.PUBLIC, 2026);
+    record(viewer, TravelRecordVisibility.PRIVATE, 2026);
+    record(viewer, TravelRecordVisibility.PUBLIC, 2025);
+    var crossing = entityManager.persist(TravelRecord.builder().user(viewer).region(region).title("연말 여행")
+        .startDate(LocalDate.of(2025, 12, 31)).endDate(LocalDate.of(2026, 1, 1))
+        .coverImageKey("travel-records/cover.jpg").visibility(TravelRecordVisibility.PUBLIC).build());
+    flushAndClear();
+    var page1 = service.getMyTravelMap(viewer.getId(), mapRequest(null, 1, 2026, "PUBLIC"));
+    assertThat(page1.getItems()).extracting(TravelRecordResDTO.MapItem::travelRecordId).containsExactly(second.getId());
+    assertThat(page1.isHasNext()).isTrue();
+    assertThat(page1.getCursorValue()).isNull();
+    var page2 = service.getMyTravelMap(viewer.getId(), mapRequest(page1.getCursorId(), 1, 2026, "PUBLIC"));
+    assertThat(page2.getItems()).extracting(TravelRecordResDTO.MapItem::travelRecordId).containsExactly(first.getId());
+    var page3 = service.getMyTravelMap(viewer.getId(), mapRequest(page2.getCursorId(), 1, 2026, "PUBLIC"));
+    assertThat(page3.getItems()).extracting(TravelRecordResDTO.MapItem::travelRecordId).containsExactly(crossing.getId());
+    assertThat(page3.isHasNext()).isFalse();
+  }
+
+  /** 현재 보관함이나 필터 조건에 맞지 않는 커서를 페이지 오류로 거부하는지 검증합니다. */
+  @Test
+  void mapRejectsCursorOutsideCurrentCollectionYearAndVisibility() {
+    var foreign = record(owner, TravelRecordVisibility.PUBLIC, 2026);
+    var wrongYear = record(viewer, TravelRecordVisibility.PUBLIC, 2025);
+    var wrongVisibility = record(viewer, TravelRecordVisibility.PRIVATE, 2026);
+    flushAndClear();
+    for (Long cursor : List.of(foreign.getId(), wrongYear.getId(), wrongVisibility.getId(), Long.MAX_VALUE, -1L)) {
+      assertError(() -> service.getMyTravelMap(viewer.getId(), mapRequest(cursor, 10, 2026, "PUBLIC")),
+          TravelRecordErrorCode.INVALID_PAGE_REQUEST);
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"ALL", "public", "", " PUBLIC "})
+  void mapRejectsInvalidVisibility(String visibility) {
+    assertError(() -> service.getMyTravelMap(viewer.getId(), mapRequest(null, 10, 2026, visibility)),
+        TravelRecordErrorCode.INVALID_VISIBILITY);
+  }
+
+  /** 페이지 크기와 연도의 경계값, 빈 응답, 현재 연도 기본값을 검증합니다. */
+  @Test
+  void mapValidatesBoundsAndReturnsEmptyCursorResponse() {
+    for (int size : List.of(0, -1, 101)) {
+      assertError(() -> service.getMyTravelMap(viewer.getId(), mapRequest(null, size, 2026, null)),
+          TravelRecordErrorCode.INVALID_PAGE_REQUEST);
+    }
+    for (int year : List.of(0, 10000)) {
+      assertError(() -> service.getMyTravelMap(viewer.getId(), mapRequest(null, 10, year, null)),
+          TravelRecordErrorCode.INVALID_PAGE_REQUEST);
+    }
+    var empty = service.getMyTravelMap(viewer.getId(), mapRequest(null, null, null, null));
+    assertThat(empty.getItems()).isEmpty();
+    assertThat(empty.getCursorId()).isNull();
+    assertThat(empty.isHasNext()).isFalse();
+    var current = record(viewer, TravelRecordVisibility.PRIVATE, LocalDate.now().getYear());
+    flushAndClear();
+    assertThat(service.getMyTravelMap(viewer.getId(), mapRequest(null, null, null, null)).getItems())
+        .extracting(TravelRecordResDTO.MapItem::travelRecordId).containsExactly(current.getId());
+  }
+
+  /** 친구 지도는 대상 사용자가 만든 기록 중 조회자가 열람할 수 있는 것만 보여주며 연도 목록과 일치해야 합니다. */
+  @Test
+  void targetMapShowsOnlyViewableRecordsCreatedByTargetAndMatchesYearList() {
+    var open = record(owner, TravelRecordVisibility.PUBLIC, 2026);
+    var shared = record(owner, TravelRecordVisibility.FRIENDS, 2025);
+    member(shared, viewer);
+    record(owner, TravelRecordVisibility.PRIVATE, 2024);
+    record(owner, TravelRecordVisibility.FRIENDS, 2023);
+    var stalePrivate = record(owner, TravelRecordVisibility.PRIVATE, 2026);
+    member(stalePrivate, viewer);
+    var thirdPartyAlbum = record(user("제3자"), TravelRecordVisibility.FRIENDS, 2026);
+    member(thirdPartyAlbum, owner);
+    member(thirdPartyAlbum, viewer);
+    flushAndClear();
+
+    assertThat(targetMap(2026, null, 10).getItems()).extracting(TravelRecordResDTO.MapItem::travelRecordId)
+        .containsExactly(open.getId());
+    assertThat(targetMap(2025, null, 10).getItems()).extracting(TravelRecordResDTO.MapItem::travelRecordId)
+        .containsExactly(shared.getId());
+    assertThat(targetMap(2024, null, 10).getItems()).isEmpty();
+    assertThat(targetMap(2023, null, 10).getItems()).isEmpty();
+    assertThat(years(owner.getId(), null)).containsExactly(2026, 2025);
+  }
+
+  /** 볼 수 없는 기록의 ID를 커서로 보내면 잘못된 페이지 요청으로 처리되어야 합니다. */
+  @Test
+  void targetMapPaginatesAndRejectsCursorOfHiddenRecord() {
+    var older = record(owner, TravelRecordVisibility.PUBLIC, 2026);
+    var newer = record(owner, TravelRecordVisibility.PUBLIC, 2026);
+    var hidden = record(owner, TravelRecordVisibility.PRIVATE, 2026);
+    flushAndClear();
+
+    var page1 = targetMap(2026, null, 1);
+    assertThat(page1.getItems()).extracting(TravelRecordResDTO.MapItem::travelRecordId).containsExactly(newer.getId());
+    assertThat(page1.isHasNext()).isTrue();
+    var page2 = targetMap(2026, page1.getCursorId(), 1);
+    assertThat(page2.getItems()).extracting(TravelRecordResDTO.MapItem::travelRecordId).containsExactly(older.getId());
+    assertThat(page2.isHasNext()).isFalse();
+
+    assertError(() -> targetMap(2026, hidden.getId(), 1), TravelRecordErrorCode.INVALID_PAGE_REQUEST);
+  }
+
+  private com.yeogido.backend.global.common.response.CursorResponse<TravelRecordResDTO.MapItem> targetMap(
+      int year, Long cursor, int size) {
+    return service.getTravelMap(viewer.getId(), owner.getId(), mapRequest(cursor, size, year, null));
+  }
+
+  private TravelRecordReqDTO.MapRequest mapRequest(Long cursor, Integer size, Integer year, String visibility) {
+    return new TravelRecordReqDTO.MapRequest(cursor, size, year, visibility);
+  }
+
+  private com.yeogido.backend.global.common.response.CursorResponse<TravelRecordResDTO.TravelRecordSummary> list(
+      Long targetId, String visibility, int year, Long cursor, int size) {
+    return service.getMyTravelRecords(viewer.getId(), new TravelRecordReqDTO.ListRequest(cursor, size, year, visibility, targetId));
+  }
+
+  private List<Integer> years(Long targetId, String visibility) {
+    return service.getMyTravelRecordYears(viewer.getId(), new TravelRecordReqDTO.YearListRequest(targetId, visibility)).years();
+  }
+
+  private User user(String nickname) {
+    return entityManager.persist(User.builder().nickname(nickname).email(UUID.randomUUID() + "@test.com")
+        .gender(Gender.FEMALE).birthYear("2000").region(region).role(UserRole.USER).status(UserStatus.ACTIVE).build());
+  }
+
+  /** 같은 종료일로 저장하여 ID를 보조 정렬로 사용하는 페이지 경계를 검증합니다. */
+  private TravelRecord record(User creator, TravelRecordVisibility visibility, int year) {
+    return entityManager.persist(TravelRecord.builder().user(creator).region(region).title("여행")
+        .startDate(LocalDate.of(year, 5, 1)).endDate(LocalDate.of(year, 5, 3))
+        .coverImageKey("travel-records/cover.jpg").folderTheme(FolderTheme.BASIC).visibility(visibility).build());
+  }
+
+  private void member(TravelRecord record, User user) {
+    entityManager.persist(TravelRecordMember.builder().travelRecord(record).user(user).build());
+  }
+
+  private void invite(TravelRecord record, TravelRecordInvitationStatus status) {
+    entityManager.persist(TravelRecordInvitation.builder().travelRecord(record).inviter(owner).invitee(viewer).status(status).build());
+  }
+
+  private void photo(TravelRecord record, int order) {
+    entityManager.persist(TravelRecordPhoto.builder().travelRecord(record).imageKey("travel-records/" + order + ".jpg")
+        .imageOrder(order).build());
+  }
+
+  private void flushAndClear() {
+    entityManager.flush();
+    entityManager.clear();
+  }
+
+  private void assertError(Runnable action, ErrorCode code) {
+    if (code == null) {
+      action.run();
+      return;
+    }
+    assertThatThrownBy(action::run).isInstanceOfSatisfying(GeneralException.class,
+        exception -> assertThat(exception.getErrorCode()).isEqualTo(code));
+  }
+}

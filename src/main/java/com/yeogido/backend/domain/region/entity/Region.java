@@ -49,4 +49,15 @@ public class Region extends BaseEntity {
     private BigDecimal latitude;
 
     private BigDecimal longitude;
+
+    @Column(name = "tour_ldong_regn_cd", length = 2)
+    private String tourLdongRegnCd;
+
+    @Column(name = "tour_ldong_signgu_cd", length = 3)
+    private String tourLdongSignguCd;
+
+    public void updateTourRegionCode(String provinceCode, String districtCode) {
+        this.tourLdongRegnCd = provinceCode;
+        this.tourLdongSignguCd = districtCode;
+    }
 }

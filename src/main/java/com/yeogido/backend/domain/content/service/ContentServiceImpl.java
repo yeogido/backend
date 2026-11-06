@@ -51,7 +51,6 @@ import com.yeogido.backend.domain.user.exception.UserErrorCode;
 import com.yeogido.backend.domain.user.repository.UserRepository;
 import com.yeogido.backend.domain.user.service.AdminAuthorizationService;
 
-import com.yeogido.backend.global.common.response.CursorResponse;
 import com.yeogido.backend.global.exception.GeneralErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
 import org.springframework.transaction.annotation.Transactional;
@@ -92,7 +91,7 @@ public class ContentServiceImpl implements ContentService{
 
 
     @Override
-    public CursorResponse<ContentResDTO.ContentInfo> getContents(ContentReqDTO.ContentListReq request, Long userId){
+    public ContentResDTO.ContentListResponse getContents(ContentReqDTO.ContentListReq request, Long userId){
 
         BooleanBuilder builder = new BooleanBuilder();
         ContentPublicationStatus publicationStatus = request.publicationStatus() == null
@@ -107,7 +106,17 @@ public class ContentServiceImpl implements ContentService{
         }
 
         builder.and(qContent.publicationStatus.eq(publicationStatus));
-        applyStatusFilter(builder, request.statuses(), LocalDate.now());
+        if (!request.isValidDateRange()) {
+            throw new GeneralException(GeneralErrorCode.INVALID_PARAMETER);
+        }
+        if (request.startDate() != null) {
+            builder.and(qContent.startDate.loe(request.endDate())
+                    .and(qContent.endDate.goe(request.startDate())));
+        }
+        // 날짜 조회는 과거 행사도 포함하고, 명시한 상태 필터는 함께 적용합니다.
+        if (request.startDate() == null || (request.statuses() != null && !request.statuses().isEmpty())) {
+            applyStatusFilter(builder, request.statuses(), LocalDate.now());
+        }
 
         int size = request.size() == null ? DEFAULT_PAGE_SIZE : request.size();
 
@@ -303,12 +312,12 @@ public class ContentServiceImpl implements ContentService{
         }
 
 
-        return CursorResponse.of(
-                result,
-                nextCursorValue,
-                nextCursorId,
-                hasNext
-        );
+        long totalCount = queryFactory.select(qContent.id.count())
+                .from(qContent)
+                .where(builder)
+                .fetchOne();
+
+        return new ContentResDTO.ContentListResponse(result, nextCursorValue, nextCursorId, hasNext, totalCount);
     }
 
     private void applyStatusFilter(
@@ -377,8 +386,9 @@ public class ContentServiceImpl implements ContentService{
             LocalDate cursorEndDate
     ) {
 
+        JPAQuery<Content> query = queryFactory.selectFrom(qContent).where(builder);
         if (cursorEndDate != null && cursorId != null) {
-            builder.and(
+            query.where(
                     qContent.endDate.gt(cursorEndDate)
                             .or(
                                     qContent.endDate.eq(cursorEndDate)
@@ -387,9 +397,7 @@ public class ContentServiceImpl implements ContentService{
             );
         }
 
-        return queryFactory
-                .selectFrom(qContent)
-                .where(builder)
+        return query
                 .orderBy(qContent.endDate.asc(), qContent.id.asc())
                 .limit(size+1)
                 .fetch();
@@ -437,8 +445,9 @@ public class ContentServiceImpl implements ContentService{
         NumberExpression<Double> distance =
                 createDistanceExpression(baseLatitude, baseLongitude);
 
+        JPAQuery<Tuple> query = queryFactory.select(qContent, distance).from(qContent).where(builder);
         if (cursorDistance != null && cursorId != null) {
-            builder.and(
+            query.where(
                     distance.gt(cursorDistance)
                             .or(
                                     distance.eq(cursorDistance)
@@ -447,10 +456,7 @@ public class ContentServiceImpl implements ContentService{
             );
         }
 
-        List<Tuple> tuples = queryFactory
-                .select(qContent, distance)
-                .from(qContent)
-                .where(builder)
+        List<Tuple> tuples = query
                 .orderBy(distance.asc(), qContent.id.asc())
                 .limit(size + 1)
                 .fetch();
@@ -924,12 +930,16 @@ public class ContentServiceImpl implements ContentService{
 
             courseItemRepository.delete(courseItem);
 
+            // 다른 일차의 방문 순서 유지를 위한 동일 일차 항목 조회
             List<CourseItem> remainItems =
-                    courseItemRepository.findByCourseIdOrderByOrderNoAsc(courseId);
+                    courseItemRepository.findByCourseIdAndDayOrderByOrderNoAsc(courseId, courseItem.getDay());
 
+            // 삭제 항목과 같은 일차의 후속 방문 순서만 재정렬
             for (CourseItem item : remainItems) {
                 if (item.getOrderNo() > deletedOrder) {
                     item.updateOrderNo(item.getOrderNo() - 1);
+                    // 다음 순서 변경 전 DB 반영으로 반복 행사 삭제 시 방문 순서 중복 방지
+                    courseItemRepository.flush();
                 }
             }
         }

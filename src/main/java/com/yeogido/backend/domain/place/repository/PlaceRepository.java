@@ -5,11 +5,43 @@ import com.yeogido.backend.domain.place.enums.PlaceSource;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.time.LocalDateTime;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import jakarta.persistence.LockModeType;
 
 public interface PlaceRepository extends JpaRepository<Place, Long> {
 
-    Optional<Place> findBySourceAndExternalPlaceId(PlaceSource source, String externalPlaceId);
+  @Lock(LockModeType.PESSIMISTIC_WRITE)
+  @Query("select p from Place p where p.id = :id")
+  Optional<Place> findByIdForOverviewEnrichment(@Param("id") Long id);
 
-    List<Place> findBySourceAndExternalPlaceIdIn(PlaceSource source, Collection<String> externalPlaceIds);
+  @Query("""
+      select p.id from Place p
+      where p.overviewStatus = com.yeogido.backend.domain.place.enums.PlaceOverviewStatus.PENDING
+        and p.overviewAttemptCount < :maxAttempts
+        and (p.overview is null or trim(p.overview) = '')
+      order by p.id
+      """)
+  List<Long> findOverviewPendingCandidates(@Param("maxAttempts") int maxAttempts, Pageable pageable);
+
+  @Query("""
+      select p.id from Place p
+      where ((p.overviewStatus = com.yeogido.backend.domain.place.enums.PlaceOverviewStatus.FAILED
+          and p.overviewAttemptCount < :maxAttempts and p.overviewAttemptedAt <= :retryBefore)
+        or (p.overviewStatus = com.yeogido.backend.domain.place.enums.PlaceOverviewStatus.PROCESSING
+          and p.overviewAttemptedAt <= :staleBefore))
+        and (p.overview is null or trim(p.overview) = '')
+      order by p.overviewAttemptedAt, p.id
+      """)
+  List<Long> findOverviewRetryCandidates(@Param("retryBefore") LocalDateTime retryBefore,
+      @Param("staleBefore") LocalDateTime staleBefore,
+      @Param("maxAttempts") int maxAttempts, Pageable pageable);
+
+  Optional<Place> findBySourceAndExternalPlaceId(PlaceSource source, String externalPlaceId);
+
+  List<Place> findBySourceAndExternalPlaceIdIn(PlaceSource source, Collection<String> externalPlaceIds);
 }

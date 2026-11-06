@@ -8,6 +8,7 @@ import com.yeogido.backend.domain.course.enums.CompanionType;
 import com.yeogido.backend.domain.course.enums.DurationType;
 import com.yeogido.backend.domain.course.enums.TransportType;
 import com.yeogido.backend.domain.place.enums.PlaceSource;
+import com.yeogido.backend.global.common.response.CursorResponse;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -19,6 +20,20 @@ import java.util.Date;
 import java.util.List;
 
 public class ContentResDTO {
+
+    @Getter
+    @Schema(description = "문화콘텐츠 목록 조회 응답")
+    public static class ContentListResponse extends CursorResponse<ContentInfo> {
+
+        @Schema(description = "커서와 페이지 크기를 제외한 조회 조건에 해당하는 전체 콘텐츠 개수")
+        private final long totalCount;
+
+        public ContentListResponse(List<ContentInfo> items, Object cursorValue, Long cursorId, boolean hasNext,
+                                   long totalCount) {
+            super(items, cursorValue, cursorId, hasNext);
+            this.totalCount = totalCount;
+        }
+    }
 
     @Schema(description = "문화콘텐츠 목록 정보")
     public record ContentInfo(
@@ -61,7 +76,7 @@ public class ContentResDTO {
             LocalDate startDate,
       
             @JsonFormat(pattern = "yyyy.MM")
-            @Schema(description = "종료일", example = "2026.07")
+            @Schema(description = "종료일", example = "2026.08")
             LocalDate endDate,
 
             @Schema(description = "게시 상태", example = "PUBLISHED")

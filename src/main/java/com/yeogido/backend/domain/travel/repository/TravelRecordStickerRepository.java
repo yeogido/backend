@@ -20,6 +20,13 @@ public interface TravelRecordStickerRepository extends JpaRepository<TravelRecor
             @Param("travelRecordId") Long travelRecordId
     );
 
+    @Query("""
+            select trs from TravelRecordSticker trs join fetch trs.sticker
+            where trs.travelRecord.id in :recordIds
+            order by trs.travelRecord.id asc, trs.zIndex asc
+            """)
+    List<TravelRecordSticker> findByTravelRecordIds(@Param("recordIds") List<Long> recordIds);
+
     void deleteAllByTravelRecord_Id(Long travelRecordId);
 
     @Modifying(flushAutomatically = true)
