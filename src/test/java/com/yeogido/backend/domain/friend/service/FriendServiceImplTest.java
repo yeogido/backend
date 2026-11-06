@@ -625,6 +625,60 @@ class FriendServiceImplTest {
         )).isSameAs(expected);
     }
 
+    @Test
+    void befriendByAlbumInvitationCreatesAcceptedFriendshipWhenNoRelation() {
+        when(userRepository.findById(ME_ID)).thenReturn(Optional.of(me));
+        when(userRepository.findById(OTHER_ID)).thenReturn(Optional.of(other));
+        when(friendshipRepository.findStatusBetween(ME_ID, OTHER_ID)).thenReturn(Optional.empty());
+        when(friendshipRepository.insertAcceptedIgnore(OTHER_ID, ME_ID, ME_ID, OTHER_ID)).thenReturn(1);
+
+        friendService.befriendByAlbumInvitation(OTHER_ID, ME_ID);
+
+        verify(friendshipRepository, never()).acceptPendingBetween(any(), any());
+    }
+
+    @Test
+    void befriendByAlbumInvitationAcceptsRowCreatedConcurrently() {
+        when(userRepository.findById(ME_ID)).thenReturn(Optional.of(me));
+        when(userRepository.findById(OTHER_ID)).thenReturn(Optional.of(other));
+        when(friendshipRepository.findStatusBetween(ME_ID, OTHER_ID)).thenReturn(Optional.empty());
+        when(friendshipRepository.insertAcceptedIgnore(ME_ID, OTHER_ID, ME_ID, OTHER_ID)).thenReturn(0);
+
+        friendService.befriendByAlbumInvitation(ME_ID, OTHER_ID);
+
+        verify(friendshipRepository).acceptPendingBetween(ME_ID, OTHER_ID);
+    }
+
+    @Test
+    void befriendByAlbumInvitationAcceptsPendingAndKeepsAcceptedWithoutInsert() {
+        when(userRepository.findById(ME_ID)).thenReturn(Optional.of(me));
+        when(userRepository.findById(OTHER_ID)).thenReturn(Optional.of(other));
+
+        when(friendshipRepository.findStatusBetween(ME_ID, OTHER_ID)).thenReturn(Optional.of(FriendshipStatus.PENDING));
+        friendService.befriendByAlbumInvitation(ME_ID, OTHER_ID);
+        verify(friendshipRepository).acceptPendingBetween(ME_ID, OTHER_ID);
+
+        when(friendshipRepository.findStatusBetween(ME_ID, OTHER_ID)).thenReturn(Optional.of(FriendshipStatus.ACCEPTED));
+        friendService.befriendByAlbumInvitation(ME_ID, OTHER_ID);
+        verify(friendshipRepository).acceptPendingBetween(ME_ID, OTHER_ID);
+
+        verify(friendshipRepository, never()).insertAcceptedIgnore(any(), any(), any(), any());
+    }
+
+    @Test
+    void befriendByAlbumInvitationRejectsSameUserAndIgnoresWithdrawnUser() {
+        assertErrorCode(() -> friendService.befriendByAlbumInvitation(ME_ID, ME_ID), GeneralErrorCode.INVALID_PARAMETER);
+        assertErrorCode(() -> friendService.befriendByAlbumInvitation(null, ME_ID), GeneralErrorCode.INVALID_PARAMETER);
+
+        when(userRepository.findById(ME_ID)).thenReturn(Optional.of(me));
+        other.withdraw();
+        when(userRepository.findById(OTHER_ID)).thenReturn(Optional.of(other));
+        friendService.befriendByAlbumInvitation(ME_ID, OTHER_ID);
+
+        verify(friendshipRepository, never()).findStatusBetween(any(), any());
+        verify(friendshipRepository, never()).insertAcceptedIgnore(any(), any(), any(), any());
+    }
+
     private void stubFriend(User friend) {
         when(friendshipRepository.existsByUserLowIdAndUserHighIdAndStatus(ME_ID, OTHER_ID, FriendshipStatus.ACCEPTED))
                 .thenReturn(true);
