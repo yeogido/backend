@@ -127,11 +127,11 @@ public class TourContentSyncServiceImpl implements TourContentSyncService {
                     }
                 } catch (RuntimeException exception) {
                     skippedCount++;
-                    log.warn(
-                            "Tour content synchronization skipped. contentId={}",
-                            text(item, "contentid"),
-                            exception
-                    );
+                    log.atWarn().addKeyValue("event", "content.sync.item.skipped")
+                            .addKeyValue("operation", "synchronizeContent")
+                            .addKeyValue("failureType", "item_processing_error")
+                            .addKeyValue("exceptionType", exception.getClass().getName())
+                            .log("Tour content synchronization item skipped.");
                 }
             }
 
@@ -142,12 +142,11 @@ public class TourContentSyncServiceImpl implements TourContentSyncService {
         }
 
         if (receivedCount > 0 && createdCount == 0 && updatedCount == 0) {
-            log.error(
-                    "Tour content synchronization failed. All received items were skipped. "
-                            + "receivedCount={}, skippedCount={}",
-                    receivedCount,
-                    skippedCount
-            );
+            log.atError().addKeyValue("event", "content.sync.failed")
+                    .addKeyValue("operation", "synchronizeContent")
+                    .addKeyValue("errorCode", ContentErrorCode.TOUR_CONTENT_SYNC_FAILED.getCode())
+                    .addKeyValue("receivedCount", receivedCount).addKeyValue("skippedCount", skippedCount)
+                    .log("Tour content synchronization failed; all received items skipped.");
             throw new GeneralException(
                     ContentErrorCode.TOUR_CONTENT_SYNC_FAILED
             );
@@ -348,11 +347,11 @@ public class TourContentSyncServiceImpl implements TourContentSyncService {
                     links
             );
         } catch (RuntimeException exception) {
-            log.warn(
-                    "Tour content detail synchronization failed. contentId={}",
-                    contentId,
-                    exception
-            );
+            log.atInfo().addKeyValue("event", "external_api.fallback.selected")
+                    .addKeyValue("provider", "tour").addKeyValue("operation", "detailCommon")
+                    .addKeyValue("fallback", "basic_content")
+                    .addKeyValue("exceptionType", exception.getClass().getName())
+                    .log("Tour content detail unavailable; basic content selected.");
             return null;
         }
     }

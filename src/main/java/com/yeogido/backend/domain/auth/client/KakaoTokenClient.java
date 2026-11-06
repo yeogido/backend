@@ -47,23 +47,37 @@ public class KakaoTokenClient {
         .body(KakaoTokenResponse.class);
 
       if (response == null || !StringUtils.hasText(response.accessToken())) {
+        logFailure("invalid_response", null, AuthErrorCode.INVALID_SOCIAL_AUTHORIZATION_CODE.getCode());
         throw new GeneralException(AuthErrorCode.INVALID_SOCIAL_AUTHORIZATION_CODE);
       }
 
       return response.accessToken();
     } catch (RestClientResponseException e) {
       if (e.getStatusCode().is4xxClientError()) {
+        logFailure(SafeLogDetails.httpFailureType(e.getStatusCode().value()), e.getStatusCode().value(), AuthErrorCode.INVALID_SOCIAL_AUTHORIZATION_CODE.getCode());
         throw new GeneralException(AuthErrorCode.INVALID_SOCIAL_AUTHORIZATION_CODE);
       }
 
-      log.warn("Kakao token API returned server error. provider=KAKAO, operation=token, failureType=http_error, httpStatus={}",
-          e.getStatusCode().value());
+      logFailure(SafeLogDetails.httpFailureType(e.getStatusCode().value()), e.getStatusCode().value(), GeneralErrorCode.INTERNAL_SERVER_ERROR.getCode());
       throw new GeneralException(GeneralErrorCode.INTERNAL_SERVER_ERROR);
     } catch (RestClientException e) {
-      log.warn("Kakao token API request failed. provider=KAKAO, operation=token, failureType={}",
-          SafeLogDetails.failureType(e));
+      logFailure(SafeLogDetails.failureType(e), null, GeneralErrorCode.INTERNAL_SERVER_ERROR.getCode());
       throw new GeneralException(GeneralErrorCode.INTERNAL_SERVER_ERROR);
     }
+  }
+
+  private void logFailure(String failureType, Integer status, String errorCode) {
+    var event = log.atWarn()
+        .addKeyValue("event", "external_api.call.failed")
+        .addKeyValue("provider", "kakao")
+        .addKeyValue("operation", "token")
+        .addKeyValue("failureType", failureType)
+        .addKeyValue("errorCode", errorCode)
+        .addKeyValue("retryable", SafeLogDetails.isRetryable(failureType, status));
+    if (status != null) {
+      event.addKeyValue("upstreamHttpStatus", status);
+    }
+    event.log("External API call failed.");
   }
 
   private MultiValueMap<String, String> createTokenRequestBody(String authorizationCode, String redirectUri) {

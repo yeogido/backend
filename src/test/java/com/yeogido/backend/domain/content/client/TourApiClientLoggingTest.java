@@ -5,6 +5,15 @@ import com.yeogido.backend.global.exception.GeneralException;
 import java.io.IOException;
 import java.net.SocketTimeoutException;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import com.yeogido.backend.global.logging.SafeLogDetails;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
+import java.util.Map;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -25,11 +34,24 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 @ExtendWith(OutputCaptureExtension.class)
 class TourApiClientLoggingTest {
 
+    private final Logger logger = (Logger) LoggerFactory.getLogger(TourApiClient.class);
+    private final ListAppender<ILoggingEvent> logs = new ListAppender<>() {
+        @Override
+        protected void append(ILoggingEvent event) {
+            event.prepareForDeferredProcessing();
+            super.append(event);
+        }
+    };
+    private Map<String, String> previousContext;
     private TourApiClient client;
     private MockRestServiceServer server;
 
     @BeforeEach
     void setUp() {
+        previousContext = MDC.getCopyOfContextMap();
+        MDC.put("requestId", "tour-request-id");
+        logs.start();
+        logger.addAppender(logs);
         RestClient.Builder builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
         client = new TourApiClient(builder);
@@ -37,6 +59,13 @@ class TourApiClientLoggingTest {
         ReflectionTestUtils.setField(client, "serviceKey", "secret-service-key");
         ReflectionTestUtils.setField(client, "mobileOs", "ETC");
         ReflectionTestUtils.setField(client, "mobileApp", "Yeogido");
+    }
+
+    @AfterEach
+    void cleanUp() {
+        logger.detachAppender(logs);
+        logs.stop();
+        if (previousContext == null) MDC.clear(); else MDC.setContextMap(previousContext);
     }
 
     @ParameterizedTest
@@ -47,8 +76,9 @@ class TourApiClientLoggingTest {
 
         assertApiError();
 
-        assertThat(output.getAll()).contains("provider=TOUR_API", "path=/detailCommon2",
-                "failureType=http_error", "httpStatus=" + status);
+        assertThat(fields()).containsEntry("failureType", SafeLogDetails.httpFailureType(status))
+                .containsEntry("upstreamHttpStatus", status)
+                .containsEntry("retryable", status == 429 || status == 503);
         assertNoSecrets(output);
         server.verify();
     }
@@ -62,7 +92,7 @@ class TourApiClientLoggingTest {
 
         assertApiError();
 
-        assertThat(output.getAll()).contains("provider=TOUR_API", "path=/detailCommon2", "failureType=timeout");
+        assertThat(fields()).containsEntry("failureType", "timeout").containsEntry("retryable", true);
         assertNoSecrets(output);
         server.verify();
     }
@@ -73,7 +103,7 @@ class TourApiClientLoggingTest {
 
         assertApiError();
 
-        assertThat(output.getAll()).contains("failureType=connection_error");
+        assertThat(fields()).containsEntry("failureType", "connection_error");
         assertNoSecrets(output);
         server.verify();
     }
@@ -90,8 +120,7 @@ class TourApiClientLoggingTest {
 
         String expected = "9999".equals(code) ? "9999"
                 : code.isEmpty() || "null".equals(code) ? "missing" : "invalid";
-        assertThat(output.getAll()).contains("provider=TOUR_API", "path=/detailCommon2",
-                "failureType=invalid_response", "resultCode=" + expected);
+        assertThat(fields()).containsEntry("failureType", "invalid_response").containsEntry("resultCode", expected);
         assertNoSecrets(output);
         server.verify();
     }
@@ -102,7 +131,7 @@ class TourApiClientLoggingTest {
 
         assertApiError();
 
-        assertThat(output.getAll()).contains("failureType=response_parse_error");
+        assertThat(fields()).containsEntry("failureType", "response_parse_error");
         assertNoSecrets(output);
         server.verify();
     }
@@ -118,6 +147,20 @@ class TourApiClientLoggingTest {
         assertThat(output.getAll()).doesNotContain("Tour API");
         assertNoSecrets(output);
         server.verify();
+    }
+
+    private Map<String, Object> fields() {
+        assertThat(logs.list).hasSize(1);
+        ILoggingEvent event = logs.list.getFirst();
+        assertThat(event.getThrowableProxy()).isNull();
+        assertThat(event.getMDCPropertyMap()).containsEntry("requestId", "tour-request-id");
+        Map<String, Object> fields = event.getKeyValuePairs().stream()
+                .collect(Collectors.toMap(pair -> pair.key, pair -> pair.value));
+        assertThat(fields).containsEntry("event", "external_api.call.failed")
+                .containsEntry("provider", "tour").containsEntry("operation", "/detailCommon2")
+                .containsEntry("errorCode", ContentErrorCode.TOUR_API_ERROR.getCode());
+        assertThat(fields.toString()).doesNotContain("secret-", "serviceKey=", "Bearer ", "Cookie:");
+        return fields;
     }
 
     private void assertApiError() {

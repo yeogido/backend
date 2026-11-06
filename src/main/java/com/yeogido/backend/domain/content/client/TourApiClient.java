@@ -161,14 +161,28 @@ public class TourApiClient {
         } catch (GeneralException exception) {
             throw exception;
         } catch (RestClientResponseException exception) {
-            log.warn("Tour API request failed. provider=TOUR_API, path={}, failureType=http_error, httpStatus={}",
-                    path, exception.getStatusCode().value());
+            int status = exception.getStatusCode().value();
+            failureLog(path, SafeLogDetails.httpFailureType(status))
+                    .addKeyValue("upstreamHttpStatus", status)
+                    .addKeyValue("retryable", SafeLogDetails.isRetryable(null, status))
+                    .log("Tour API request failed.");
             throw new GeneralException(ContentErrorCode.TOUR_API_ERROR);
         } catch (RestClientException exception) {
-            log.warn("Tour API request failed. provider=TOUR_API, path={}, failureType={}",
-                    path, SafeLogDetails.failureType(exception));
+            String failureType = SafeLogDetails.failureType(exception);
+            failureLog(path, failureType)
+                    .addKeyValue("retryable", SafeLogDetails.isRetryable(failureType, null))
+                    .log("Tour API request failed.");
             throw new GeneralException(ContentErrorCode.TOUR_API_ERROR);
         }
+    }
+
+    private org.slf4j.spi.LoggingEventBuilder failureLog(String operation, String failureType) {
+        return log.atWarn()
+                .addKeyValue("event", "external_api.call.failed")
+                .addKeyValue("provider", "tour")
+                .addKeyValue("operation", operation)
+                .addKeyValue("failureType", failureType)
+                .addKeyValue("errorCode", ContentErrorCode.TOUR_API_ERROR.getCode());
     }
 
     private org.springframework.web.util.UriBuilder commonQuery(
@@ -190,8 +204,10 @@ public class TourApiClient {
             // 외부 응답 데이터의 로그 유입 방지를 위한 오류 코드 형식 제한
             String safeResultCode = resultCode == null || resultCode.isBlank() ? "missing"
                     : resultCode.matches("[0-9]{4}") ? resultCode : "invalid";
-            log.warn("Tour API returned invalid response. provider=TOUR_API, path={}, failureType=invalid_response, resultCode={}",
-                    path, safeResultCode);
+            failureLog(path, "invalid_response")
+                    .addKeyValue("resultCode", safeResultCode)
+                    .addKeyValue("retryable", false)
+                    .log("Tour API returned invalid response.");
             throw new GeneralException(ContentErrorCode.TOUR_API_ERROR);
         }
     }

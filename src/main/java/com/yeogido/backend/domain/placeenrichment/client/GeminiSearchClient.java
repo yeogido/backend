@@ -2,13 +2,13 @@ package com.yeogido.backend.domain.placeenrichment.client;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
-import java.net.SocketTimeoutException;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
 import com.yeogido.backend.domain.placeenrichment.exception.PlaceEnrichmentErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
+import com.yeogido.backend.global.logging.SafeLogDetails;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
@@ -19,7 +19,6 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
-import org.springframework.web.client.ResourceAccessException;
 import lombok.extern.slf4j.Slf4j;
 
 @Component
@@ -70,35 +69,30 @@ public class GeminiSearchClient {
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(request).retrieve().body(JsonNode.class);
             if (response == null || response.isNull()) {
-                log.warn("Gemini generateContent failed. failureType=response_parse_error");
+                logFailure("response_parse_error", null);
                 throw new GeneralException(PlaceEnrichmentErrorCode.GEMINI_GENERATION_API_ERROR);
             }
             return response;
         } catch (RestClientResponseException exception) {
-            log.warn("Gemini generateContent failed. failureType={}, httpStatus={}",
-                    classifyHttpStatus(exception.getStatusCode().value()), exception.getStatusCode().value());
+            logFailure(SafeLogDetails.httpFailureType(exception.getStatusCode().value()), exception.getStatusCode().value());
             throw new GeneralException(PlaceEnrichmentErrorCode.GEMINI_GENERATION_API_ERROR);
         } catch (RestClientException | HttpMessageConversionException exception) {
-            log.warn("Gemini generateContent failed. failureType={}", classifyClientFailure(exception));
+            logFailure(SafeLogDetails.failureType(exception), null);
             throw new GeneralException(PlaceEnrichmentErrorCode.GEMINI_GENERATION_API_ERROR);
         }
     }
 
-    private String classifyHttpStatus(int status) {
-        if (status == 401) return "authentication_failure";
-        if (status == 403) return "permission_or_access_failure";
-        if (status == 429) return "quota_or_rate_limit";
-        if (status >= 400 && status < 500) return "request_error";
-        if (status >= 500) return "provider_server_error";
-        return "unexpected_http_status";
-    }
-
-    private String classifyClientFailure(RuntimeException exception) {
-        for (Throwable cause = exception; cause != null; cause = cause.getCause()) {
-            if (cause instanceof HttpMessageConversionException) return "response_parse_error";
-            if (cause instanceof SocketTimeoutException) return "timeout";
+    private void logFailure(String failureType, Integer status) {
+        var entry = log.atWarn()
+                .addKeyValue("event", "external_api.call.failed")
+                .addKeyValue("provider", "gemini")
+                .addKeyValue("operation", "generateContent")
+                .addKeyValue("failureType", failureType)
+                .addKeyValue("errorCode", PlaceEnrichmentErrorCode.GEMINI_GENERATION_API_ERROR.getCode())
+                .addKeyValue("retryable", SafeLogDetails.isRetryable(failureType, status));
+        if (status != null) {
+            entry.addKeyValue("upstreamHttpStatus", status);
         }
-        if (exception instanceof ResourceAccessException) return "connection_error";
-        return "client_or_response_error";
+        entry.log("External API call failed");
     }
 }

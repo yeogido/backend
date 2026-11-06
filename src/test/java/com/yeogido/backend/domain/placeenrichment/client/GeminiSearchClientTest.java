@@ -4,6 +4,15 @@ import com.yeogido.backend.domain.placeenrichment.exception.PlaceEnrichmentError
 import com.yeogido.backend.global.exception.GeneralException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
+import java.util.Map;
+import java.util.stream.Collectors;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -16,6 +25,49 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 
 @org.junit.jupiter.api.extension.ExtendWith(org.springframework.boot.test.system.OutputCaptureExtension.class)
 class GeminiSearchClientTest {
+
+    private final Logger logger = (Logger) LoggerFactory.getLogger(GeminiSearchClient.class);
+    private final ListAppender<ILoggingEvent> logs = new ListAppender<>() {
+        @Override
+        protected void append(ILoggingEvent event) {
+            event.prepareForDeferredProcessing();
+            super.append(event);
+        }
+    };
+    private Map<String, String> previousContext;
+
+    @BeforeEach
+    void captureLogs() {
+        previousContext = MDC.getCopyOfContextMap();
+        MDC.put("requestId", "gemini-request");
+        logs.start();
+        logger.addAppender(logs);
+    }
+
+    @AfterEach
+    void restoreLogging() {
+        logger.detachAppender(logs);
+        logs.stop();
+        if (previousContext == null) MDC.clear();
+        else MDC.setContextMap(previousContext);
+    }
+
+    private Map<String, Object> failureFields() {
+        assertThat(logs.list).hasSize(1);
+        var event = logs.list.getFirst();
+        assertThat(event.getThrowableProxy()).isNull();
+        assertThat(event.getMDCPropertyMap()).containsEntry("requestId", "gemini-request");
+        Map<String, Object> fields = event.getKeyValuePairs().stream()
+                .collect(Collectors.toMap(pair -> pair.key, pair -> pair.value));
+        assertThat(fields).containsEntry("event", "external_api.call.failed")
+                .containsEntry("provider", "gemini")
+                .containsEntry("operation", "generateContent")
+                .containsEntry("errorCode", PlaceEnrichmentErrorCode.GEMINI_GENERATION_API_ERROR.getCode());
+        assertThat(fields.toString()).doesNotContain("secret-key", "private-provider-body",
+                "private-instructions", "private-search-query", "secret-timeout-details", "broken-json");
+        return fields;
+    }
+
 
     @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.CsvSource({
@@ -31,8 +83,10 @@ class GeminiSearchClientTest {
         assertThatThrownBy(() -> client.search("private-instructions", "private-search-query"))
                 .isInstanceOfSatisfying(GeneralException.class, e -> assertThat(e.getErrorCode())
                         .isEqualTo(PlaceEnrichmentErrorCode.GEMINI_GENERATION_API_ERROR)).hasNoCause();
-        assertThat(output.getOut()).contains("failureType=" + type, "httpStatus=" + status)
-                .doesNotContain("secret-key", "private-provider-body", "private-instructions", "private-search-query");
+        assertThat(failureFields()).containsEntry("failureType", type)
+                .containsEntry("upstreamHttpStatus", status)
+                .containsEntry("retryable", status == 429 || status >= 500);
+        assertThat(output.getOut()).doesNotContain("secret-key", "private-provider-body", "private-instructions", "private-search-query");
         server.verify();
     }
 
@@ -46,7 +100,9 @@ class GeminiSearchClientTest {
         assertThatThrownBy(() -> new GeminiSearchClient(builder.build(), "secret-key", "model").search("a", "b"))
                 .isInstanceOfSatisfying(GeneralException.class, e -> assertThat(e.getErrorCode())
                         .isEqualTo(PlaceEnrichmentErrorCode.GEMINI_GENERATION_API_ERROR)).hasNoCause();
-        assertThat(output.getOut()).contains("failureType=response_parse_error").doesNotContain("secret-key", "broken-json");
+        assertThat(failureFields()).containsEntry("failureType", "response_parse_error")
+                .containsEntry("retryable", false).doesNotContainKey("upstreamHttpStatus");
+        assertThat(output.getOut()).doesNotContain("secret-key", "broken-json");
         server.verify();
     }
 
@@ -58,7 +114,9 @@ class GeminiSearchClientTest {
         server.expect(anything()).andRespond(withException(new java.net.SocketTimeoutException("secret-timeout-details")));
         assertThatThrownBy(() -> new GeminiSearchClient(builder.build(), "secret-key", "model").search("a", "b"))
                 .isInstanceOf(GeneralException.class).hasNoCause();
-        assertThat(output.getOut()).contains("failureType=timeout").doesNotContain("secret-timeout-details", "secret-key");
+        assertThat(failureFields()).containsEntry("failureType", "timeout")
+                .containsEntry("retryable", true).doesNotContainKey("upstreamHttpStatus");
+        assertThat(output.getOut()).doesNotContain("secret-timeout-details", "secret-key");
         server.verify();
     }
 
@@ -76,6 +134,7 @@ class GeminiSearchClientTest {
                 .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
 
         assertThat(client.search("instructions", "input")).isEqualTo(new ObjectMapper().createObjectNode());
+        assertThat(logs.list).isEmpty();
         server.verify();
     }
 
@@ -100,5 +159,6 @@ class GeminiSearchClientTest {
         assertThatThrownBy(() -> new GeminiSearchClient(client, "key", "../bad").search("a", "b"))
                 .isInstanceOfSatisfying(GeneralException.class,
                         exception -> assertThat(exception.getErrorCode()).isEqualTo(PlaceEnrichmentErrorCode.INVALID_ENRICHMENT_CONFIG));
+        assertThat(logs.list).isEmpty();
     }
 }

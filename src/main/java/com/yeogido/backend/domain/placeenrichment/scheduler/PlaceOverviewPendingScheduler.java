@@ -33,7 +33,9 @@ public class PlaceOverviewPendingScheduler {
         enrichmentService.enrich(placeId);
       } catch (RuntimeException exception) {
         // 실패 상태 기록 이후 기존 FAILED 스케줄러를 통한 재시도
-        log.warn("Pending place overview enrichment failed. placeId={}", placeId);
+        log.atWarn().addKeyValue("event", "place.overview.processing.failed")
+            .addKeyValue("operation", "enrichPendingOverview").addKeyValue("placeId", placeId)
+            .log("Place overview processing failed.");
       }
     }
   }

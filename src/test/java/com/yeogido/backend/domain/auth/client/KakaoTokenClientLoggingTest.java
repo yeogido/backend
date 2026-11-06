@@ -1,5 +1,14 @@
 package com.yeogido.backend.domain.auth.client;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import org.junit.jupiter.api.AfterEach;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
+import java.util.Map;
+import java.util.stream.Collectors;
+
 import com.yeogido.backend.domain.auth.exception.AuthErrorCode;
 import com.yeogido.backend.global.exception.ErrorCode;
 import com.yeogido.backend.global.exception.GeneralErrorCode;
@@ -27,11 +36,44 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 @ExtendWith(OutputCaptureExtension.class)
 class KakaoTokenClientLoggingTest {
 
+    private final Logger logger = (Logger) LoggerFactory.getLogger(KakaoTokenClient.class);
+    private final ListAppender<ILoggingEvent> logs = new ListAppender<>() {
+        @Override
+        protected void append(ILoggingEvent event) {
+            event.prepareForDeferredProcessing();
+            super.append(event);
+        }
+    };
+
+    @AfterEach
+    void detachLogs() {
+        logger.detachAppender(logs);
+        logs.stop();
+        MDC.clear();
+    }
+
+    private Map<String, Object> loggedFields() {
+        assertThat(logs.list).hasSize(1);
+        var event = logs.list.getFirst();
+        assertThat(event.getThrowableProxy()).isNull();
+        assertThat(event.getMDCPropertyMap()).containsEntry("requestId", "request-test");
+        var fields = event.getKeyValuePairs().stream()
+                .collect(Collectors.toMap(pair -> pair.key, pair -> pair.value));
+        assertThat(fields).containsEntry("event", "external_api.call.failed")
+                .containsEntry("provider", "kakao");
+        assertThat(event.getFormattedMessage() + fields).doesNotContain("secret-", "private-", "fake-", "https://");
+        return fields;
+    }
+
+
     private KakaoTokenClient client;
     private MockRestServiceServer server;
 
     @BeforeEach
     void setUp() {
+        logs.start();
+        logger.addAppender(logs);
+        MDC.put("requestId", "request-test");
         RestClient.Builder builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
         client = new KakaoTokenClient(builder);
@@ -47,19 +89,23 @@ class KakaoTokenClientLoggingTest {
 
         assertError(GeneralErrorCode.INTERNAL_SERVER_ERROR);
 
-        assertThat(output.getAll()).contains("provider=KAKAO", "operation=token", "failureType=http_error", "httpStatus=503");
+        assertThat(loggedFields()).containsEntry("operation", "token").containsEntry("failureType", "provider_server_error")
+                .containsEntry("upstreamHttpStatus", 503).containsEntry("retryable", true);
         assertNoSecrets(output);
         server.verify();
     }
 
     @ParameterizedTest
     @ValueSource(ints = {400, 401, 429})
-    void clientFailureKeepsExistingErrorAndDoesNotAddLogs(int status, CapturedOutput output) {
+    void clientFailureKeepsExistingErrorAndLogsOneSafeFailure(int status, CapturedOutput output) {
         server.expect(anything()).andRespond(withStatus(HttpStatus.valueOf(status)).body("secret-provider-body"));
 
         assertError(AuthErrorCode.INVALID_SOCIAL_AUTHORIZATION_CODE);
 
-        assertThat(output.getAll()).doesNotContain("Kakao token API");
+        assertThat(loggedFields()).containsEntry("operation", "token")
+                .containsEntry("upstreamHttpStatus", status)
+                .containsEntry("errorCode", AuthErrorCode.INVALID_SOCIAL_AUTHORIZATION_CODE.getCode())
+                .containsEntry("retryable", status == 429);
         assertNoSecrets(output);
         server.verify();
     }
@@ -73,7 +119,8 @@ class KakaoTokenClientLoggingTest {
 
         assertError(GeneralErrorCode.INTERNAL_SERVER_ERROR);
 
-        assertThat(output.getAll()).contains("provider=KAKAO", "operation=token", "failureType=timeout");
+        assertThat(loggedFields()).containsEntry("operation", "token").containsEntry("failureType", "timeout")
+                .containsEntry("retryable", true).doesNotContainKey("upstreamHttpStatus");
         assertNoSecrets(output);
         server.verify();
     }
@@ -84,7 +131,7 @@ class KakaoTokenClientLoggingTest {
 
         assertError(GeneralErrorCode.INTERNAL_SERVER_ERROR);
 
-        assertThat(output.getAll()).contains("failureType=connection_error");
+        assertThat(loggedFields()).containsEntry("failureType", "connection_error");
         assertNoSecrets(output);
         server.verify();
     }
@@ -95,7 +142,7 @@ class KakaoTokenClientLoggingTest {
 
         assertError(GeneralErrorCode.INTERNAL_SERVER_ERROR);
 
-        assertThat(output.getAll()).contains("failureType=response_parse_error");
+        assertThat(loggedFields()).containsEntry("failureType", "response_parse_error");
         assertNoSecrets(output);
         server.verify();
     }
@@ -106,7 +153,7 @@ class KakaoTokenClientLoggingTest {
 
         assertThat(client.getAccessToken("secret-authorization-code", "https://example.com/secret-redirect"))
                 .isEqualTo("secret-access-token");
-        assertThat(output.getAll()).doesNotContain("Kakao token API");
+        assertThat(logs.list).isEmpty();
         assertNoSecrets(output);
         server.verify();
     }

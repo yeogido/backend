@@ -89,20 +89,14 @@ public class NtsBusinessVerificationClient {
             return response.data().get(0);
 
         } catch (RestClientResponseException exception) {
-            log.error(
-                    "NTS API HTTP 오류: provider=NTS, operation=validate, failureType=http_error, httpStatus={}",
-                    exception.getStatusCode().value()
-            );
+            logFailure("validate", SafeLogDetails.httpFailureType(exception.getStatusCode().value()), exception.getStatusCode().value());
 
             throw new GeneralException(
                     BusinessVerificationErrorCode.BUSINESS_VERIFICATION_API_ERROR
             );
 
         } catch (RestClientException exception) {
-            log.error(
-                    "NTS API 요청 오류: provider=NTS, operation=validate, failureType={}",
-                    SafeLogDetails.failureType(exception)
-            );
+            logFailure("validate", SafeLogDetails.failureType(exception), null);
 
             throw new GeneralException(
                     BusinessVerificationErrorCode.BUSINESS_VERIFICATION_API_ERROR
@@ -152,20 +146,14 @@ public class NtsBusinessVerificationClient {
             return response.data().get(0);
 
         } catch (RestClientResponseException exception) {
-            log.error(
-                    "NTS 상태조회 API HTTP 오류: provider=NTS, operation=status, failureType=http_error, httpStatus={}",
-                    exception.getStatusCode().value()
-            );
+            logFailure("status", SafeLogDetails.httpFailureType(exception.getStatusCode().value()), exception.getStatusCode().value());
 
             throw new GeneralException(
                     BusinessVerificationErrorCode.BUSINESS_VERIFICATION_API_ERROR
             );
 
         } catch (RestClientException exception) {
-            log.error(
-                    "NTS 상태조회 API 요청 오류: provider=NTS, operation=status, failureType={}",
-                    SafeLogDetails.failureType(exception)
-            );
+            logFailure("status", SafeLogDetails.failureType(exception), null);
 
             throw new GeneralException(
                     BusinessVerificationErrorCode.BUSINESS_VERIFICATION_API_ERROR
@@ -183,9 +171,7 @@ public class NtsBusinessVerificationClient {
                         || response.data().isEmpty()
                         || response.data().get(0) == null
         ) {
-            log.error(
-                    "NTS 상태조회 API 비정상 응답: provider=NTS, operation=status, failureType=invalid_response"
-            );
+            logFailure("status", "invalid_response", null);
 
             throw new GeneralException(
                     BusinessVerificationErrorCode.BUSINESS_VERIFICATION_API_ERROR
@@ -220,13 +206,25 @@ public class NtsBusinessVerificationClient {
                         || response.data().isEmpty()
                         || response.data().get(0) == null
         ) {
-            log.error(
-                    "NTS API 비정상 응답: provider=NTS, operation=validate, failureType=invalid_response"
-            );
+            logFailure("validate", "invalid_response", null);
 
             throw new GeneralException(
                     BusinessVerificationErrorCode.BUSINESS_VERIFICATION_API_ERROR
             );
         }
     }
+    private void logFailure(String operation, String failureType, Integer status) {
+        var event = log.atWarn()
+                .addKeyValue("event", "external_api.call.failed")
+                .addKeyValue("provider", "nts")
+                .addKeyValue("operation", operation)
+                .addKeyValue("failureType", failureType)
+                .addKeyValue("errorCode", BusinessVerificationErrorCode.BUSINESS_VERIFICATION_API_ERROR.getCode())
+                .addKeyValue("retryable", SafeLogDetails.isRetryable(failureType, status));
+        if (status != null) {
+            event.addKeyValue("upstreamHttpStatus", status);
+        }
+        event.log("External API call failed.");
+    }
+
 }

@@ -53,6 +53,16 @@ class LoggingProfileTest {
         assertThat(error.path("event").asText()).isNotBlank();
         assertThat(error.path("exceptionType").asText()).isEqualTo("java.lang.IllegalStateException");
         assertThat(error.path("stackFrames").asText()).contains("LoggingProfileTest");
+        JsonNode upstream = logs.stream()
+                .filter(log -> "external_api.call.failed".equals(log.path("event").asText()))
+                .findFirst().orElseThrow(() -> new AssertionError(output));
+        assertThat(upstream.path("provider").asText()).isEqualTo("gemini");
+        assertThat(upstream.path("operation").asText()).isEqualTo("generateContent");
+        assertThat(upstream.path("failureType").asText()).isEqualTo("quota_or_rate_limit");
+        assertThat(upstream.path("upstreamHttpStatus").asInt()).isEqualTo(429);
+        assertThat(upstream.path("retryable").asBoolean()).isTrue();
+        assertThat(upstream.path("errorCode").asText()).isEqualTo("PROBE_ERROR");
+        assertThat(upstream.path("requestId").asText()).isEqualTo(REQUEST_ID);
         assertThat(output).doesNotContain("fake-access-token", "fake-service-key", "fake-cookie");
     }
 
@@ -124,6 +134,15 @@ class LoggingProfileTest {
                             new RuntimeException("https://example.com?serviceKey=fake-service-key"));
                     failure.addSuppressed(new RuntimeException("Cookie: fake-cookie"));
                     new GlobalExceptionHandler().handleException(failure);
+                    LoggerFactory.getLogger(PROBE_MESSAGE).atWarn()
+                            .addKeyValue("event", "external_api.call.failed")
+                            .addKeyValue("provider", "gemini")
+                            .addKeyValue("operation", "generateContent")
+                            .addKeyValue("failureType", "quota_or_rate_limit")
+                            .addKeyValue("upstreamHttpStatus", 429)
+                            .addKeyValue("retryable", true)
+                            .addKeyValue("errorCode", "PROBE_ERROR")
+                            .log("External API call failed");
                 } finally {
                     MDC.clear();
                 }

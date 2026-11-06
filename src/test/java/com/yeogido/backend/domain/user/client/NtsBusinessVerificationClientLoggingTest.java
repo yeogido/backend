@@ -1,5 +1,14 @@
 package com.yeogido.backend.domain.user.client;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import org.junit.jupiter.api.AfterEach;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
+import java.util.Map;
+import java.util.stream.Collectors;
+
 import com.yeogido.backend.domain.user.exception.BusinessVerificationErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
 import java.io.IOException;
@@ -28,6 +37,36 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 @ExtendWith(OutputCaptureExtension.class)
 class NtsBusinessVerificationClientLoggingTest {
 
+    private final Logger logger = (Logger) LoggerFactory.getLogger(NtsBusinessVerificationClient.class);
+    private final ListAppender<ILoggingEvent> logs = new ListAppender<>() {
+        @Override
+        protected void append(ILoggingEvent event) {
+            event.prepareForDeferredProcessing();
+            super.append(event);
+        }
+    };
+
+    @AfterEach
+    void detachLogs() {
+        logger.detachAppender(logs);
+        logs.stop();
+        MDC.clear();
+    }
+
+    private Map<String, Object> loggedFields() {
+        assertThat(logs.list).hasSize(1);
+        var event = logs.list.getFirst();
+        assertThat(event.getThrowableProxy()).isNull();
+        assertThat(event.getMDCPropertyMap()).containsEntry("requestId", "request-test");
+        var fields = event.getKeyValuePairs().stream()
+                .collect(Collectors.toMap(pair -> pair.key, pair -> pair.value));
+        assertThat(fields).containsEntry("event", "external_api.call.failed")
+                .containsEntry("provider", "nts");
+        assertThat(event.getFormattedMessage() + fields).doesNotContain("secret-", "private-", "fake-", "https://");
+        return fields;
+    }
+
+
     private static final String BUSINESS_NUMBER = "9876543210";
     private static final String SECRET = "private-nts-api-key";
     private static final String PRIVATE_RESPONSE = "private-provider-body";
@@ -36,6 +75,9 @@ class NtsBusinessVerificationClientLoggingTest {
 
     @BeforeEach
     void setUp() {
+        logs.start();
+        logger.addAppender(logs);
+        MDC.put("requestId", "request-test");
         RestClient.Builder builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
         client = new NtsBusinessVerificationClient(builder);
@@ -51,8 +93,11 @@ class NtsBusinessVerificationClientLoggingTest {
 
         assertApiError(operation);
 
-        assertThat(output.getAll()).contains("provider=NTS", "operation=" + operation,
-                        "failureType=http_error", "httpStatus=" + status);
+        assertThat(loggedFields()).containsEntry("operation", operation)
+                .containsEntry("failureType", com.yeogido.backend.global.logging.SafeLogDetails.httpFailureType(status))
+                .containsEntry("upstreamHttpStatus", status)
+                .containsEntry("errorCode", BusinessVerificationErrorCode.BUSINESS_VERIFICATION_API_ERROR.getCode())
+                .containsEntry("retryable", status == 429 || status >= 500);
         assertNoPrivateData(output);
         server.verify();
     }
@@ -68,8 +113,9 @@ class NtsBusinessVerificationClientLoggingTest {
 
         assertApiError(operation);
 
-        assertThat(output.getAll()).contains("provider=NTS", "operation=" + operation,
-                "failureType=" + (timeout ? "timeout" : "connection_error"));
+        assertThat(loggedFields()).containsEntry("operation", operation)
+                .containsEntry("failureType", timeout ? "timeout" : "connection_error")
+                .containsEntry("retryable", true).doesNotContainKey("upstreamHttpStatus");
         assertNoPrivateData(output);
         assertThat(output.getAll()).doesNotContain("private-token", "private-cookie", "https://example.com");
         server.verify();
@@ -84,7 +130,7 @@ class NtsBusinessVerificationClientLoggingTest {
 
         assertApiError(operation);
 
-        assertThat(output.getAll()).contains("provider=NTS", "operation=" + operation, "failureType=invalid_response");
+        assertThat(loggedFields()).containsEntry("operation", operation).containsEntry("failureType", "invalid_response");
         assertNoPrivateData(output);
         server.verify();
     }
@@ -96,7 +142,7 @@ class NtsBusinessVerificationClientLoggingTest {
 
         assertApiError(operation);
 
-        assertThat(output.getAll()).contains("provider=NTS", "operation=" + operation, "failureType=invalid_response");
+        assertThat(loggedFields()).containsEntry("operation", operation).containsEntry("failureType", "invalid_response");
         assertNoPrivateData(output);
         server.verify();
     }
@@ -109,8 +155,7 @@ class NtsBusinessVerificationClientLoggingTest {
 
         assertApiError(operation);
 
-        assertThat(output.getAll()).contains("provider=NTS", "operation=" + operation,
-                "failureType=response_parse_error");
+        assertThat(loggedFields()).containsEntry("operation", operation).containsEntry("failureType", "response_parse_error");
         assertNoPrivateData(output);
         server.verify();
     }

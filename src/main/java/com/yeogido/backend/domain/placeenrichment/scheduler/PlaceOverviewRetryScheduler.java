@@ -37,7 +37,9 @@ public class PlaceOverviewRetryScheduler {
         enrichmentService.enrich(placeId);
       } catch (RuntimeException exception) {
         // 외부 API 인증 정보 및 응답 노출 방지를 위한 예외 원문 제외
-        log.warn("Place overview retry failed. placeId={}", placeId);
+        log.atWarn().addKeyValue("event", "place.overview.processing.failed")
+            .addKeyValue("operation", "retryFailedOverview").addKeyValue("placeId", placeId)
+            .log("Place overview processing failed.");
       }
     }
   }
