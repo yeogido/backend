@@ -49,6 +49,7 @@ class LoggingProfileTest {
         JsonNode error = logs.stream().filter(log -> "ERROR".equals(log.path("level").asText()))
                 .findFirst().orElseThrow(() -> new AssertionError(output));
         assertThat(error.path("requestId").asText()).isEqualTo(REQUEST_ID);
+        assertThat(error.path("message").asText()).isEqualTo("Unexpected exception occurred.");
         assertThat(error.path("errorCode").asText()).isEqualTo("COMMON5001");
         assertThat(error.path("event").asText()).isNotBlank();
         assertThat(error.path("exceptionType").asText()).isEqualTo("java.lang.IllegalStateException");
@@ -83,7 +84,14 @@ class LoggingProfileTest {
         String probe = output.lines().filter(line -> line.contains(PROBE_MESSAGE))
                 .findFirst().orElseThrow(() -> new AssertionError(output));
 
-        assertThat(probe).contains("INFO", PROBE_MESSAGE).doesNotStartWith("{");
+        assertThat(probe).contains("INFO", PROBE_MESSAGE, "event=\"logging.profile.probe\"")
+                .doesNotStartWith("{");
+        String error = output.lines().filter(line -> line.contains("Unexpected exception occurred."))
+                .findFirst().orElseThrow(() -> new AssertionError(output));
+        assertThat(error).contains("errorCode=\"COMMON5001\"",
+                "exceptionType=\"java.lang.IllegalStateException\"",
+                "stackFrames=\"", "LoggingProfileTest");
+        assertThat(error.split("stackFrames=", -1)).hasSize(2);
         assertThat(output).doesNotContain("fake-access-token", "fake-service-key", "fake-cookie");
     }
 

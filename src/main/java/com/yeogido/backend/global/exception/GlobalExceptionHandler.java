@@ -176,16 +176,15 @@ public class GlobalExceptionHandler {
     ) {
 
         // 인증 정보와 본문 노출 방지를 위한 원문 제외
+        String stackFrames = SafeLogDetails.stackFrames(e);
         log.atError()
                 .addKeyValue("event", "api.request.failed")
                 .addKeyValue("outcome", "failed")
                 .addKeyValue("httpStatus", 500)
                 .addKeyValue("errorCode", GeneralErrorCode.INTERNAL_SERVER_ERROR.getCode())
                 .addKeyValue("exceptionType", e.getClass().getName())
-                .addKeyValue("stackFrames", SafeLogDetails.stackFrames(e))
-                .log("Unexpected exception occurred. errorCode={}, exceptionType={}, stackFrames={}",
-                GeneralErrorCode.INTERNAL_SERVER_ERROR.getCode(), e.getClass().getName(),
-                SafeLogDetails.stackFrames(e));
+                .addKeyValue("stackFrames", stackFrames)
+                .log("Unexpected exception occurred.");
 
         return ResponseEntity
                 .status(GeneralErrorCode.INTERNAL_SERVER_ERROR.getHttpStatus())
