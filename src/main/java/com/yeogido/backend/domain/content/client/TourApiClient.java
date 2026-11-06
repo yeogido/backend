@@ -3,6 +3,7 @@ package com.yeogido.backend.domain.content.client;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.yeogido.backend.domain.content.exception.ContentErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
+import com.yeogido.backend.global.logging.SafeLogDetails;
 import jakarta.annotation.PostConstruct;
 import java.time.Duration;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 
 import java.util.List;
 import java.time.LocalDate;
@@ -154,12 +156,17 @@ public class TourApiClient {
                     .retrieve()
                     .body(JsonNode.class);
 
-            validateResponse(response);
+            validateResponse(response, path);
             return response;
         } catch (GeneralException exception) {
             throw exception;
+        } catch (RestClientResponseException exception) {
+            log.warn("Tour API request failed. provider=TOUR_API, path={}, failureType=http_error, httpStatus={}",
+                    path, exception.getStatusCode().value());
+            throw new GeneralException(ContentErrorCode.TOUR_API_ERROR);
         } catch (RestClientException exception) {
-            log.warn("Tour API request failed. path={}", path, exception);
+            log.warn("Tour API request failed. provider=TOUR_API, path={}, failureType={}",
+                    path, SafeLogDetails.failureType(exception));
             throw new GeneralException(ContentErrorCode.TOUR_API_ERROR);
         }
     }
@@ -174,13 +181,17 @@ public class TourApiClient {
                 .queryParam("_type", "json");
     }
 
-    private void validateResponse(JsonNode response) {
+    private void validateResponse(JsonNode response, String path) {
         String resultCode = response == null
                 ? null
                 : response.path("response").path("header").path("resultCode").asText();
 
         if (!"0000".equals(resultCode)) {
-            log.warn("Tour API returned invalid response. resultCode={}", resultCode);
+            // 외부 응답 데이터의 로그 유입 방지를 위한 오류 코드 형식 제한
+            String safeResultCode = resultCode == null || resultCode.isBlank() ? "missing"
+                    : resultCode.matches("[0-9]{4}") ? resultCode : "invalid";
+            log.warn("Tour API returned invalid response. provider=TOUR_API, path={}, failureType=invalid_response, resultCode={}",
+                    path, safeResultCode);
             throw new GeneralException(ContentErrorCode.TOUR_API_ERROR);
         }
     }

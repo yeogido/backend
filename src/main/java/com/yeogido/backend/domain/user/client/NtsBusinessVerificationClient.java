@@ -3,6 +3,7 @@ package com.yeogido.backend.domain.user.client;
 import com.yeogido.backend.domain.user.dto.nts.NtsBusinessVerifyDTO;
 import com.yeogido.backend.domain.user.exception.BusinessVerificationErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
+import com.yeogido.backend.global.logging.SafeLogDetails;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -89,11 +90,8 @@ public class NtsBusinessVerificationClient {
 
         } catch (RestClientResponseException exception) {
             log.error(
-                    "NTS API HTTP 오류: status={}, body={}, baseUrl={}, serviceKeyPresent={}",
-                    exception.getStatusCode(),
-                    exception.getResponseBodyAsString(),
-                    baseUrl,
-                    serviceKey != null && !serviceKey.isBlank()
+                    "NTS API HTTP 오류: provider=NTS, operation=validate, failureType=http_error, httpStatus={}",
+                    exception.getStatusCode().value()
             );
 
             throw new GeneralException(
@@ -102,10 +100,8 @@ public class NtsBusinessVerificationClient {
 
         } catch (RestClientException exception) {
             log.error(
-                    "NTS API 연결 오류: baseUrl={}, serviceKeyPresent={}",
-                    baseUrl,
-                    serviceKey != null && !serviceKey.isBlank(),
-                    exception
+                    "NTS API 요청 오류: provider=NTS, operation=validate, failureType={}",
+                    SafeLogDetails.failureType(exception)
             );
 
             throw new GeneralException(
@@ -157,11 +153,8 @@ public class NtsBusinessVerificationClient {
 
         } catch (RestClientResponseException exception) {
             log.error(
-                    "NTS 상태조회 API HTTP 오류: status={}, body={}, baseUrl={}, serviceKeyPresent={}",
-                    exception.getStatusCode(),
-                    exception.getResponseBodyAsString(),
-                    baseUrl,
-                    serviceKey != null && !serviceKey.isBlank()
+                    "NTS 상태조회 API HTTP 오류: provider=NTS, operation=status, failureType=http_error, httpStatus={}",
+                    exception.getStatusCode().value()
             );
 
             throw new GeneralException(
@@ -170,10 +163,8 @@ public class NtsBusinessVerificationClient {
 
         } catch (RestClientException exception) {
             log.error(
-                    "NTS 상태조회 API 연결 오류: baseUrl={}, serviceKeyPresent={}",
-                    baseUrl,
-                    serviceKey != null && !serviceKey.isBlank(),
-                    exception
+                    "NTS 상태조회 API 요청 오류: provider=NTS, operation=status, failureType={}",
+                    SafeLogDetails.failureType(exception)
             );
 
             throw new GeneralException(
@@ -193,8 +184,7 @@ public class NtsBusinessVerificationClient {
                         || response.data().get(0) == null
         ) {
             log.error(
-                    "NTS 상태조회 API 비정상 응답: response={}",
-                    response
+                    "NTS 상태조회 API 비정상 응답: provider=NTS, operation=status, failureType=invalid_response"
             );
 
             throw new GeneralException(
@@ -231,8 +221,7 @@ public class NtsBusinessVerificationClient {
                         || response.data().get(0) == null
         ) {
             log.error(
-                    "NTS API 비정상 응답: response={}",
-                    response
+                    "NTS API 비정상 응답: provider=NTS, operation=validate, failureType=invalid_response"
             );
 
             throw new GeneralException(

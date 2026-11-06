@@ -3,6 +3,7 @@ package com.yeogido.backend.domain.auth.client;
 import com.yeogido.backend.domain.auth.exception.AuthErrorCode;
 import com.yeogido.backend.global.exception.GeneralErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
+import com.yeogido.backend.global.logging.SafeLogDetails;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -55,10 +56,12 @@ public class KakaoTokenClient {
         throw new GeneralException(AuthErrorCode.INVALID_SOCIAL_AUTHORIZATION_CODE);
       }
 
-      log.warn("Kakao token API returned server error. status={}", e.getStatusCode(), e);
+      log.warn("Kakao token API returned server error. provider=KAKAO, operation=token, failureType=http_error, httpStatus={}",
+          e.getStatusCode().value());
       throw new GeneralException(GeneralErrorCode.INTERNAL_SERVER_ERROR);
     } catch (RestClientException e) {
-      log.warn("Kakao token API request failed.", e);
+      log.warn("Kakao token API request failed. provider=KAKAO, operation=token, failureType={}",
+          SafeLogDetails.failureType(e));
       throw new GeneralException(GeneralErrorCode.INTERNAL_SERVER_ERROR);
     }
   }

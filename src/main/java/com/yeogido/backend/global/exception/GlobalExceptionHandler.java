@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import com.yeogido.backend.global.common.response.ApiResponse;
 import com.yeogido.backend.global.common.response.ValidationError;
 import com.yeogido.backend.global.common.response.ValidationErrorResponse;
+import com.yeogido.backend.global.logging.SafeLogDetails;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -164,7 +165,10 @@ public class GlobalExceptionHandler {
             Exception e
     ) {
 
-        log.error("Unexpected exception occurred", e);
+        // 인증 정보와 본문 노출 방지를 위한 원문 제외
+        log.error("Unexpected exception occurred. errorCode={}, exceptionType={}, stackFrames={}",
+                GeneralErrorCode.INTERNAL_SERVER_ERROR.getCode(), e.getClass().getName(),
+                SafeLogDetails.stackFrames(e));
 
         return ResponseEntity
                 .status(GeneralErrorCode.INTERNAL_SERVER_ERROR.getHttpStatus())

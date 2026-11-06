@@ -5,6 +5,7 @@ import com.yeogido.backend.domain.file.enums.ImageDirectory;
 import com.yeogido.backend.domain.file.exception.FileErrorCode;
 import com.yeogido.backend.global.exception.GeneralErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
+import com.yeogido.backend.global.logging.SafeLogDetails;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -198,19 +199,17 @@ public class S3Service {
         } catch (AwsServiceException | SdkClientException e) {
             if (isMissingS3Key(e)) {
                 log.warn(
-                        "Invalid S3 image key requested. sourceKey={}, destinationKey={}",
-                        tempKey,
-                        objectKey
+                        "Invalid S3 image key requested. provider=S3, operation=move, failureType=missing_key, httpStatus={}",
+                        e instanceof AwsServiceException serviceFailure ? serviceFailure.statusCode() : null
                 );
 
                 throw new GeneralException(FileErrorCode.INVALID_IMAGE_KEY);
             }
 
             log.error(
-                    "Failed to move S3 image. sourceKey={}, destinationKey={}",
-                    tempKey,
-                    objectKey,
-                    e
+                    "Failed to move S3 image. provider=S3, operation=move, failureType={}, httpStatus={}",
+                    e instanceof AwsServiceException ? "http_error" : SafeLogDetails.failureType(e),
+                    e instanceof AwsServiceException serviceFailure ? serviceFailure.statusCode() : null
             );
 
             throw new GeneralException(
@@ -234,7 +233,9 @@ public class S3Service {
         try {
             deleteObject(normalizeObjectKey(objectKey));
         } catch (AwsServiceException | SdkClientException e) {
-            log.error("Failed to delete S3 image. objectKey={}", objectKey, e);
+            log.error("Failed to delete S3 image. provider=S3, operation=delete, failureType={}, httpStatus={}",
+                    e instanceof AwsServiceException ? "http_error" : SafeLogDetails.failureType(e),
+                    e instanceof AwsServiceException serviceFailure ? serviceFailure.statusCode() : null);
         }
     }
 
