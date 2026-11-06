@@ -167,6 +167,50 @@ public class TravelRecordServiceImpl implements TravelRecordService {
     }
 
     @Override
+    public CursorResponse<TravelRecordResDTO.UserMapEntry> getUserTravelMap(
+            Long viewerId, Long targetUserId, boolean includeBlurred, Long cursorId, Integer size, Integer year
+    ) {
+        int pageSize = resolveSize(size);
+        validateCursor(cursorId);
+        Integer resolvedYear = year == null ? null : resolveYear(year);
+        LocalDate yearStart = resolvedYear == null ? null : LocalDate.of(resolvedYear, 1, 1);
+        LocalDate yearEnd = resolvedYear == null ? null : LocalDate.of(resolvedYear, 12, 31);
+        TravelRecord cursor = cursorId == null ? null
+                : travelRecordRepository.findUserMapCursor(viewerId, targetUserId, includeBlurred,
+                        cursorId, yearStart, yearEnd)
+                    .orElseThrow(() -> new GeneralException(TravelRecordErrorCode.INVALID_PAGE_REQUEST));
+        List<TravelRecord> records = travelRecordRepository.findUserMapRecords(
+                viewerId, targetUserId, includeBlurred, yearStart, yearEnd, cursor, pageSize + 1);
+        boolean hasNext = records.size() > pageSize;
+        List<TravelRecord> content = hasNext ? records.subList(0, pageSize) : records;
+        if (content.isEmpty()) {
+            return CursorResponse.of(List.of(), null, null, false);
+        }
+
+        List<Long> recordIds = content.stream().map(TravelRecord::getId).toList();
+        Set<Long> visibleIds = includeBlurred
+                ? travelRecordRepository.findVisibleIdsIn(viewerId, targetUserId, recordIds)
+                : Set.copyOf(recordIds);
+        // 블러 항목의 사진은 조회하지 않습니다.
+        Map<Long, List<TravelRecordPhoto>> photos = visibleIds.isEmpty() ? Map.of()
+                : travelRecordPhotoRepository
+                    .findByTravelRecordIdInOrderByTravelRecordIdAscImageOrderAsc(List.copyOf(visibleIds))
+                    .stream().collect(Collectors.groupingBy(photo -> photo.getTravelRecord().getId()));
+        List<TravelRecordResDTO.UserMapEntry> items = content.stream()
+                .map(record -> visibleIds.contains(record.getId())
+                        ? new TravelRecordResDTO.UserMapEntry(false, TravelRecordConverter.toMapItem(record,
+                                photos.getOrDefault(record.getId(), List.of()), s3Service::getImageUrl))
+                        : new TravelRecordResDTO.UserMapEntry(true, TravelRecordConverter.toBlurredMapItem(record)))
+                .toList();
+        return CursorResponse.of(items, null, recordIds.get(recordIds.size() - 1), hasNext);
+    }
+
+    @Override
+    public List<Integer> getUserTravelMapYears(Long viewerId, Long targetUserId, boolean includeBlurred) {
+        return travelRecordRepository.findUserMapYears(viewerId, targetUserId, includeBlurred);
+    }
+
+    @Override
     public TravelRecordResDTO.YearListResponse getMyTravelRecordYears(
             Long userId, TravelRecordReqDTO.YearListRequest request
     ) {

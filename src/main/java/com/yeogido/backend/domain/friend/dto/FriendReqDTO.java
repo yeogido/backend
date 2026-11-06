@@ -26,7 +26,7 @@ public class FriendReqDTO {
             @Positive(message = "size는 양수여야 합니다.")
             Integer size,
 
-            @Schema(description = "여행 종료 연도. 미전달 시 현재 연도", example = "2026")
+            @Schema(description = "여행 종료 연도. 미전달 시 전체 연도", example = "2026")
             @Positive(message = "year는 양수여야 합니다.")
             @Max(value = 9999, message = "year는 9999 이하여야 합니다.")
             Integer year

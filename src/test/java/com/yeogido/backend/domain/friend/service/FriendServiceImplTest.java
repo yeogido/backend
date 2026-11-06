@@ -3,6 +3,7 @@ package com.yeogido.backend.domain.friend.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
@@ -23,7 +24,6 @@ import com.yeogido.backend.domain.friend.exception.FriendErrorCode;
 import com.yeogido.backend.domain.friend.repository.FriendCourseRepository;
 import com.yeogido.backend.domain.friend.repository.FriendshipRepository;
 import com.yeogido.backend.domain.region.entity.Region;
-import com.yeogido.backend.domain.travel.dto.request.TravelRecordReqDTO;
 import com.yeogido.backend.domain.travel.dto.response.TravelRecordResDTO;
 import com.yeogido.backend.domain.travel.repository.TravelRecordMemberRepository;
 import com.yeogido.backend.domain.travel.repository.TravelRecordRepository;
@@ -460,47 +460,88 @@ class FriendServiceImplTest {
     }
 
     @Test
-    void friendOnlyApisRejectNonFriendSelfAndWithdrawnFriend() {
-        assertErrorCode(() -> friendService.getFriendProfile(ME_ID, ME_ID), FriendErrorCode.NOT_FRIEND);
+    void profileApisRejectSelfAndMissingOrWithdrawnUser() {
+        FriendReqDTO.TravelMapRequest request = new FriendReqDTO.TravelMapRequest(null, 10, null);
+        assertErrorCode(() -> friendService.getFriendProfile(ME_ID, ME_ID), GeneralErrorCode.INVALID_PARAMETER);
+        assertErrorCode(() -> friendService.getFriendLocalCourses(ME_ID, ME_ID, null, 10),
+                GeneralErrorCode.INVALID_PARAMETER);
+        assertErrorCode(() -> friendService.getFriendTravelMap(ME_ID, ME_ID, request),
+                GeneralErrorCode.INVALID_PARAMETER);
+        assertErrorCode(() -> friendService.getFriendTravelMapYears(ME_ID, ME_ID), GeneralErrorCode.INVALID_PARAMETER);
 
-        when(friendshipRepository.existsByUserLowIdAndUserHighIdAndStatus(ME_ID, OTHER_ID, FriendshipStatus.ACCEPTED))
-                .thenReturn(false);
-        assertErrorCode(() -> friendService.getFriendProfile(ME_ID, OTHER_ID), FriendErrorCode.NOT_FRIEND);
-        assertErrorCode(() -> friendService.getFriendLocalCourses(ME_ID, OTHER_ID, null, 10),
-                FriendErrorCode.NOT_FRIEND);
+        when(userRepository.findById(OTHER_ID)).thenReturn(Optional.empty());
+        assertErrorCode(() -> friendService.getFriendProfile(ME_ID, OTHER_ID), UserErrorCode.USER_NOT_FOUND);
 
-        when(friendshipRepository.existsByUserLowIdAndUserHighIdAndStatus(ME_ID, OTHER_ID, FriendshipStatus.ACCEPTED))
-                .thenReturn(true);
         other.withdraw();
         when(userRepository.findById(OTHER_ID)).thenReturn(Optional.of(other));
-        assertErrorCode(() -> friendService.getFriendProfile(ME_ID, OTHER_ID), FriendErrorCode.NOT_FRIEND);
+        assertErrorCode(() -> friendService.getFriendProfile(ME_ID, OTHER_ID), UserErrorCode.USER_NOT_FOUND);
+        assertErrorCode(() -> friendService.getFriendLocalCourses(ME_ID, OTHER_ID, null, 10),
+                UserErrorCode.USER_NOT_FOUND);
+        assertErrorCode(() -> friendService.getFriendTravelMap(ME_ID, OTHER_ID, request),
+                UserErrorCode.USER_NOT_FOUND);
+        assertErrorCode(() -> friendService.getFriendTravelMapYears(ME_ID, OTHER_ID), UserErrorCode.USER_NOT_FOUND);
+
+        verify(travelRecordService, never()).getUserTravelMap(any(), any(), anyBoolean(), any(), any(), any());
+        verify(travelRecordService, never()).getUserTravelMapYears(any(), any(), anyBoolean());
     }
 
     @Test
-    void getFriendProfileReturnsBasicInfoWithRegion() {
+    void getFriendProfileReturnsBasicInfoWithRegionAndEmailForFriend() {
         User friend = User.builder()
                 .id(OTHER_ID)
                 .nickname("친구")
                 .email("friend@test.com")
+                .friendCode(OTHER_CODE)
                 .region(Region.builder().id(7L).name("서울").build())
                 .profileImage("profile-key")
                 .status(UserStatus.ACTIVE)
                 .build();
-        stubFriend(friend);
+        when(userRepository.findById(OTHER_ID)).thenReturn(Optional.of(friend));
+        when(friendshipRepository.findByUserLowIdAndUserHighId(ME_ID, OTHER_ID))
+                .thenReturn(Optional.of(friendship(me, friend, FriendshipStatus.ACCEPTED)));
         when(s3Service.getImageUrl("profile-key")).thenReturn("https://cdn/profile");
 
         FriendResDTO.FriendProfile result = friendService.getFriendProfile(ME_ID, OTHER_ID);
 
         assertThat(result.userId()).isEqualTo(OTHER_ID);
+        assertThat(result.friendCode()).isEqualTo(OTHER_CODE);
         assertThat(result.email()).isEqualTo("friend@test.com");
         assertThat(result.profileImageUrl()).isEqualTo("https://cdn/profile");
         assertThat(result.region().regionId()).isEqualTo(7L);
         assertThat(result.region().name()).isEqualTo("서울");
+        assertThat(result.relationStatus()).isEqualTo(RelationStatus.FRIEND);
+        assertThat(result.requestId()).isNull();
     }
 
     @Test
-    void getFriendLocalCoursesMapsTagsLikesAndNextCursor() {
-        stubFriend(other);
+    void getFriendProfileHidesEmailFromNonFriendAndReturnsRelation() {
+        User target = User.builder()
+                .id(OTHER_ID)
+                .email("other@test.com")
+                .friendCode(OTHER_CODE)
+                .region(Region.builder().id(7L).name("서울").build())
+                .status(UserStatus.ACTIVE)
+                .build();
+        when(userRepository.findById(OTHER_ID)).thenReturn(Optional.of(target));
+
+        when(friendshipRepository.findByUserLowIdAndUserHighId(ME_ID, OTHER_ID)).thenReturn(Optional.empty());
+        FriendResDTO.FriendProfile none = friendService.getFriendProfile(ME_ID, OTHER_ID);
+        assertThat(none.email()).isNull();
+        assertThat(none.friendCode()).isEqualTo(OTHER_CODE);
+        assertThat(none.relationStatus()).isEqualTo(RelationStatus.NONE);
+        assertThat(none.requestId()).isNull();
+
+        when(friendshipRepository.findByUserLowIdAndUserHighId(ME_ID, OTHER_ID))
+                .thenReturn(Optional.of(friendship(target, me, FriendshipStatus.PENDING)));
+        FriendResDTO.FriendProfile received = friendService.getFriendProfile(ME_ID, OTHER_ID);
+        assertThat(received.email()).isNull();
+        assertThat(received.relationStatus()).isEqualTo(RelationStatus.RECEIVED);
+        assertThat(received.requestId()).isEqualTo(REQUEST_ID);
+    }
+
+    @Test
+    void getFriendLocalCoursesMapsTagsLikesAndNextCursorForNonFriend() {
+        when(userRepository.findById(OTHER_ID)).thenReturn(Optional.of(other));
         when(userRepository.findById(ME_ID)).thenReturn(Optional.of(me));
         when(friendCourseRepository.findLocalCourses(OTHER_ID, null, PageRequest.of(0, 2)))
                 .thenReturn(List.of(course(20L), course(19L)));
@@ -526,7 +567,7 @@ class FriendServiceImplTest {
     @Test
     void getFriendLocalCoursesAllowsManageForAdminAndHandlesEmptyPage() {
         User admin = User.builder().id(ME_ID).role(UserRole.ADMIN).status(UserStatus.ACTIVE).build();
-        stubFriend(other);
+        when(userRepository.findById(OTHER_ID)).thenReturn(Optional.of(other));
         when(userRepository.findById(ME_ID)).thenReturn(Optional.of(admin));
         when(friendCourseRepository.findLocalCourses(OTHER_ID, 5L, PageRequest.of(0, 11)))
                 .thenReturn(List.of(course(4L)));
@@ -596,33 +637,42 @@ class FriendServiceImplTest {
     }
 
     @Test
-    void getFriendTravelMapRejectsNonFriendWithoutQueryingRecords() {
-        FriendReqDTO.TravelMapRequest request = new FriendReqDTO.TravelMapRequest(null, 10, 2026);
+    void getFriendTravelMapIncludesBlurredOnlyForFriendAndConvertsEntries() {
+        TravelRecordResDTO.MapItem visible = new TravelRecordResDTO.MapItem(20L, "부산", 1L, "부산", null, null,
+                null, null, null, List.of());
+        TravelRecordResDTO.MapItem hidden = new TravelRecordResDTO.MapItem(null, null, 2L, "강릉", null, null,
+                null, null, null, null);
+        when(travelRecordService.getUserTravelMap(ME_ID, OTHER_ID, true, 30L, 5, null))
+                .thenReturn(CursorResponse.of(List.of(
+                        new TravelRecordResDTO.UserMapEntry(false, visible),
+                        new TravelRecordResDTO.UserMapEntry(true, hidden)
+                ), null, 19L, true));
+
+        stubFriend(other);
+        CursorResponse<FriendResDTO.TravelMapItem> result = friendService.getFriendTravelMap(
+                ME_ID, OTHER_ID, new FriendReqDTO.TravelMapRequest(30L, 5, null));
+
+        assertThat(result.getItems()).extracting(FriendResDTO.TravelMapItem::blurred).containsExactly(false, true);
+        assertThat(result.getItems().get(0).travelRecordId()).isEqualTo(20L);
+        assertThat(result.getItems().get(1).travelRecordId()).isNull();
+        assertThat(result.getItems().get(1).regionName()).isEqualTo("강릉");
+        assertThat(result.getCursorId()).isEqualTo(19L);
+        assertThat(result.isHasNext()).isTrue();
 
         when(friendshipRepository.existsByUserLowIdAndUserHighIdAndStatus(ME_ID, OTHER_ID, FriendshipStatus.ACCEPTED))
                 .thenReturn(false);
-        assertErrorCode(() -> friendService.getFriendTravelMap(ME_ID, OTHER_ID, request), FriendErrorCode.NOT_FRIEND);
-        assertErrorCode(() -> friendService.getFriendTravelMap(ME_ID, ME_ID, request), FriendErrorCode.NOT_FRIEND);
-
-        when(friendshipRepository.existsByUserLowIdAndUserHighIdAndStatus(ME_ID, OTHER_ID, FriendshipStatus.ACCEPTED))
-                .thenReturn(true);
-        other.withdraw();
-        when(userRepository.findById(OTHER_ID)).thenReturn(Optional.of(other));
-        assertErrorCode(() -> friendService.getFriendTravelMap(ME_ID, OTHER_ID, request), FriendErrorCode.NOT_FRIEND);
-
-        verify(travelRecordService, never()).getTravelMap(any(), any(), any());
+        when(travelRecordService.getUserTravelMap(ME_ID, OTHER_ID, false, null, 10, 2026))
+                .thenReturn(CursorResponse.of(List.of(), null, null, false));
+        assertThat(friendService.getFriendTravelMap(
+                ME_ID, OTHER_ID, new FriendReqDTO.TravelMapRequest(null, 10, 2026)).getItems()).isEmpty();
     }
 
     @Test
-    void getFriendTravelMapQueriesFriendMapAsViewerWithoutVisibilityFilter() {
+    void getFriendTravelMapYearsUsesSameScopeAsMap() {
         stubFriend(other);
-        CursorResponse<TravelRecordResDTO.MapItem> expected = CursorResponse.of(List.of(), null, null, false);
-        when(travelRecordService.getTravelMap(ME_ID, OTHER_ID, new TravelRecordReqDTO.MapRequest(20L, 5, 2026, null)))
-                .thenReturn(expected);
+        when(travelRecordService.getUserTravelMapYears(ME_ID, OTHER_ID, true)).thenReturn(List.of(2026, 2024));
 
-        assertThat(friendService.getFriendTravelMap(
-                ME_ID, OTHER_ID, new FriendReqDTO.TravelMapRequest(20L, 5, 2026)
-        )).isSameAs(expected);
+        assertThat(friendService.getFriendTravelMapYears(ME_ID, OTHER_ID).years()).containsExactly(2026, 2024);
     }
 
     private void stubFriend(User friend) {

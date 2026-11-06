@@ -35,6 +35,13 @@ public class TravelRecordResDTO {
     ) {
     }
 
+    /**
+     * 다른 사용자 프로필 지도의 항목입니다. 블러 항목의 mapItem에는 지역, 좌표, 기간만 담고
+     * 기록 ID, 제목, 공개범위, 사진은 비워 둡니다. API 응답으로 직접 내보내지 않습니다.
+     */
+    public record UserMapEntry(boolean blurred, MapItem mapItem) {
+    }
+
     @Schema(name = "TravelRecordYearListResponse", description = "내 여행 기록 연도 목록 조회 응답")
     public record YearListResponse(
             @Schema(description = "여행 기록이 존재하는 연도 목록", example = "[2026, 2025, 2024]")

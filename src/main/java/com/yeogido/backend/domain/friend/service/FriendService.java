@@ -50,11 +50,13 @@ public interface FriendService {
 
     void deleteFriend(Long userId, Long friendUserId);
 
-    CursorResponse<TravelRecordResDTO.MapItem> getFriendTravelMap(
+    CursorResponse<FriendResDTO.TravelMapItem> getFriendTravelMap(
             Long userId,
             Long friendUserId,
             FriendReqDTO.TravelMapRequest request
     );
+
+    TravelRecordResDTO.YearListResponse getFriendTravelMapYears(Long userId, Long friendUserId);
 
     // 다른 도메인(공유 앨범 초대 등)에서 친구 관계를 확인할 때 사용
     boolean areFriends(Long userIdA, Long userIdB);
