@@ -33,6 +33,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -54,6 +55,7 @@ public class FriendServiceImpl implements FriendService {
     private final CourseLikeRepository courseLikeRepository;
     private final TravelRecordService travelRecordService;
     private final S3Service s3Service;
+    private final FriendQrTokenService friendQrTokenService;
     private final TravelRecordRepository travelRecordRepository;
     private final TravelRecordMemberRepository travelRecordMemberRepository;
 
@@ -61,29 +63,81 @@ public class FriendServiceImpl implements FriendService {
     @Transactional(readOnly = true)
     public FriendResDTO.MyFriendCode getMyFriendCode(Long userId) {
         User user = getUser(userId);
+        FriendQrTokenService.IssuedToken qrToken = friendQrTokenService.issue(userId);
 
-        return FriendConverter.toMyFriendCode(user);
+        return FriendConverter.toMyFriendCode(user, qrToken.token(), qrToken.expiresAt());
     }
 
     @Override
     @Transactional(readOnly = true)
-    public FriendResDTO.SearchResult searchByFriendCode(Long userId, String friendCode) {
-        User target = getTargetByFriendCode(userId, friendCode);
+    public CursorResponse<FriendResDTO.SearchResult> searchUsers(
+            Long userId,
+            String keyword,
+            Long cursorId,
+            Integer size
+    ) {
+        validateSize(size);
+        if (keyword == null || keyword.isBlank()) {
+            return CursorResponse.of(List.of(), null, null, false);
+        }
 
-        Optional<Friendship> friendship = findFriendship(userId, target.getId());
-        RelationStatus relationStatus = friendship
-                .map(found -> toRelationStatus(found, userId))
-                .orElse(RelationStatus.NONE);
-        Long requestId = friendship
-                .filter(Friendship::isPending)
-                .map(Friendship::getId)
-                .orElse(null);
+        List<User> users = userRepository.findSearchableUsers(
+                userId,
+                keyword.trim(),
+                normalize(keyword),
+                cursorId,
+                PageRequest.of(0, size + 1)
+        );
+        boolean hasNext = users.size() > size;
+        List<User> pageItems = hasNext ? users.subList(0, size) : users;
+        if (pageItems.isEmpty()) {
+            return CursorResponse.of(List.of(), null, null, false);
+        }
 
-        return FriendConverter.toSearchResult(
+        Map<Long, Friendship> friendships = friendshipRepository
+                .findAllBetween(userId, pageItems.stream().map(User::getId).toList())
+                .stream()
+                .collect(Collectors.toMap(
+                        friendship -> friendship.isRequester(userId)
+                                ? friendship.getReceiver().getId()
+                                : friendship.getRequester().getId(),
+                        Function.identity()
+                ));
+
+        List<FriendResDTO.SearchResult> items = pageItems.stream()
+                .map(user -> {
+                    Optional<Friendship> friendship = Optional.ofNullable(friendships.get(user.getId()));
+                    return FriendConverter.toSearchResult(
+                            user,
+                            s3Service.getImageUrl(user.getProfileImage()),
+                            toRelationStatus(friendship, userId),
+                            toRequestId(friendship)
+                    );
+                })
+                .toList();
+
+        return CursorResponse.of(items, null, hasNext ? pageItems.getLast().getId() : null, hasNext);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public FriendResDTO.QrUser getUserByQrToken(Long userId, String qrToken) {
+        Long targetId = friendQrTokenService.findUserId(qrToken)
+                .orElseThrow(() -> new GeneralException(FriendErrorCode.FRIEND_QR_TOKEN_NOT_FOUND));
+        if (targetId.equals(userId)) {
+            throw new GeneralException(FriendErrorCode.SELF_FRIEND_REQUEST);
+        }
+
+        User target = userRepository.findById(targetId)
+                .filter(user -> user.getStatus() == UserStatus.ACTIVE)
+                .orElseThrow(() -> new GeneralException(FriendErrorCode.FRIEND_QR_TOKEN_NOT_FOUND));
+        Optional<Friendship> friendship = findFriendship(userId, targetId);
+
+        return FriendConverter.toQrUser(
                 target,
                 s3Service.getImageUrl(target.getProfileImage()),
-                relationStatus,
-                requestId
+                toRelationStatus(friendship, userId),
+                toRequestId(friendship)
         );
     }
 
@@ -456,6 +510,19 @@ public class FriendServiceImpl implements FriendService {
             throw new GeneralException(FriendErrorCode.FRIEND_REQUEST_ALREADY_PROCESSED);
         }
         return friendship;
+    }
+
+    private RelationStatus toRelationStatus(Optional<Friendship> friendship, Long userId) {
+        return friendship
+                .map(found -> toRelationStatus(found, userId))
+                .orElse(RelationStatus.NONE);
+    }
+
+    private Long toRequestId(Optional<Friendship> friendship) {
+        return friendship
+                .filter(Friendship::isPending)
+                .map(Friendship::getId)
+                .orElse(null);
     }
 
     private RelationStatus toRelationStatus(Friendship friendship, Long userId) {

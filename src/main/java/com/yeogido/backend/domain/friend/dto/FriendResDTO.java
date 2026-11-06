@@ -8,8 +8,14 @@ import java.time.LocalDateTime;
 public class FriendResDTO {
 
     public record MyFriendCode(
-            @Schema(description = "내 친구코드", example = "K7M2QX9A")
-            String friendCode
+            @Schema(description = "내 친구코드 (고정)", example = "K7M2QX9A")
+            String friendCode,
+
+            @Schema(description = "QR에 담을 토큰. 호출할 때마다 새로 발급되고 이전 토큰은 무효가 됨")
+            String qrToken,
+
+            @Schema(description = "QR 토큰 만료 시각 (발급 후 3분)")
+            LocalDateTime qrExpiresAt
     ) {
     }
 
@@ -65,8 +71,32 @@ public class FriendResDTO {
             @Schema(description = "프로필 이미지 URL")
             String profileImageUrl,
 
-            @Schema(description = "이메일", example = "yeogido@example.com")
+            @Schema(description = "친구코드", example = "K7M2QX9A")
+            String friendCode,
+
+            @Schema(description = "이메일 (친구일 때만 값이 있음)", example = "yeogido@example.com")
             String email,
+
+            @Schema(description = "나와의 관계 (NONE, FRIEND, REQUESTED: 내가 보냄, RECEIVED: 상대가 보냄)")
+            RelationStatus relationStatus,
+
+            @Schema(description = "대기 중인 친구 요청 ID (REQUESTED, RECEIVED일 때만 값이 있음)", example = "10")
+            Long requestId
+    ) {
+    }
+
+    public record QrUser(
+            @Schema(description = "사용자 ID", example = "2")
+            Long userId,
+
+            @Schema(description = "닉네임", example = "여기도")
+            String nickname,
+
+            @Schema(description = "프로필 이미지 URL")
+            String profileImageUrl,
+
+            @Schema(description = "친구코드", example = "K7M2QX9A")
+            String friendCode,
 
             @Schema(description = "나와의 관계 (NONE, FRIEND, REQUESTED: 내가 보냄, RECEIVED: 상대가 보냄)")
             RelationStatus relationStatus,

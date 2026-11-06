@@ -45,6 +45,12 @@ public enum FriendErrorCode implements ErrorCode {
             "친구 관계가 아닙니다."
     ),
 
+    FRIEND_QR_TOKEN_NOT_FOUND(
+            HttpStatus.NOT_FOUND,
+            "FRIEND4044",
+            "만료되었거나 존재하지 않는 QR 코드입니다."
+    ),
+
     ALREADY_FRIEND(
             HttpStatus.CONFLICT,
             "FRIEND4091",
