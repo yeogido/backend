@@ -18,6 +18,8 @@ public final class ScheduledExecution implements AutoCloseable {
     private String outcome = "failed";
     private String exceptionType;
     private String errorCode;
+    private String failureType;
+    private String stackFrames;
     private boolean closed;
 
     private ScheduledExecution(String jobName) {
@@ -62,6 +64,12 @@ public final class ScheduledExecution implements AutoCloseable {
     public void failed(Throwable failure) {
         outcome = "failed";
         exceptionType = failure.getClass().getName();
+        try {
+            failureType = SafeLogDetails.failureType(failure);
+            stackFrames = SafeLogDetails.stackFrames(failure);
+        } catch (RuntimeException ignored) {
+            // 진단 정보 생성 실패에 의한 원래 예외 변경 방지
+        }
         if (failure instanceof com.yeogido.backend.global.exception.GeneralException serviceFailure) {
             errorCode = serviceFailure.getErrorCode().getCode();
         }
@@ -83,6 +91,8 @@ public final class ScheduledExecution implements AutoCloseable {
             counts.forEach(event::addKeyValue);
             if (exceptionType != null) event.addKeyValue("exceptionType", exceptionType);
             if (errorCode != null) event.addKeyValue("errorCode", errorCode);
+            if (failureType != null) event.addKeyValue("failureType", failureType);
+            if (stackFrames != null) event.addKeyValue("stackFrames", stackFrames);
             event.log("Scheduled execution completed.");
         } catch (RuntimeException ignored) {
             // 집계 로그 실패에 의한 작업 결과 변경 방지

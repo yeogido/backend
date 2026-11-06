@@ -23,21 +23,27 @@ public class TourContentSyncScheduler {
     @Scheduled(cron = "${app.tour-api.sync-cron:0 0 4 * * *}")
     public void synchronizeTourContents() {
         try (var execution = ScheduledExecution.start("tour.content.sync")) {
-            var report = tourContentSyncService.synchronizeWithReport();
-            if (report != null && report.result() != null) {
-                var result = report.result();
-                execution.counts(result.receivedCount(), result.createdCount() + result.updatedCount(),
-                        report.failedItemCount());
-                // 처리 실패와 중복되지 않는 정상 제외 항목 수 집계
-                execution.count("skippedCount", result.skippedCount() - report.failedItemCount());
-                execution.count("detailFailureCount", report.detailFailureCount());
-                if (report.detailFailureCount() > 0) {
-                    execution.completePartialFailure();
+            try {
+                var report = tourContentSyncService.synchronizeWithReport();
+                if (report != null && report.result() != null) {
+                    var result = report.result();
+                    execution.counts(result.receivedCount(), result.createdCount() + result.updatedCount(),
+                            report.failedItemCount());
+                    // 처리 실패와 중복되지 않는 정상 제외 항목 수 집계
+                    execution.count("skippedCount", result.skippedCount() - report.failedItemCount());
+                    execution.count("detailFailureCount", report.detailFailureCount());
+                    if (report.detailFailureCount() > 0) {
+                        execution.completePartialFailure();
+                    } else {
+                        execution.complete();
+                    }
                 } else {
-                    execution.complete();
+                    execution.completeFailed();
                 }
-            } else {
-                execution.completeFailed();
+
+            } catch (RuntimeException | Error failure) {
+                execution.failed(failure);
+                throw failure;
             }
         }
     }

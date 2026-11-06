@@ -142,6 +142,9 @@ class SchedulerExecutionLoggingTest {
                 .isSameAs(failure);
 
         assertThat(field(summary(), "outcome")).isEqualTo("failed");
+        assertThat(field(summary(), "exceptionType")).isEqualTo(failure.getClass().getName());
+        assertThat(field(summary(), "failureType")).isNotNull();
+        assertThat(field(summary(), "stackFrames")).asString().contains("SchedulerExecutionLoggingTest");
         assertThat(field(summary(), "processedCount")).isNull();
         assertThat(MDC.getCopyOfContextMap()).isEqualTo(outer);
         assertSafe();
@@ -177,6 +180,9 @@ class SchedulerExecutionLoggingTest {
         assertThatThrownBy(run::run).isSameAs(failure);
 
         assertThat(field(summary(), "outcome")).isEqualTo("failed");
+        assertThat(field(summary(), "exceptionType")).isEqualTo(failure.getClass().getName());
+        assertThat(field(summary(), "failureType")).isNotNull();
+        assertThat(field(summary(), "stackFrames")).asString().contains("SchedulerExecutionLoggingTest");
         assertThat(summary().getMDCPropertyMap().get("executionId")).isNotEqualTo(firstId);
         assertThat(summary().getMDCPropertyMap()).containsEntry("jobName",
                 region ? "regionPopularityRanking" : "coursePopularityRanking");

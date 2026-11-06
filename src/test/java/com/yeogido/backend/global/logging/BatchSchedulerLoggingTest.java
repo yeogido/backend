@@ -77,6 +77,9 @@ class BatchSchedulerLoggingTest {
         var tour = mock(TourContentSyncService.class);
         when(tour.synchronizeWithReport()).thenThrow(failure);
         assertThatThrownBy(() -> new TourContentSyncScheduler(tour).synchronizeTourContents()).isSameAs(failure);
+        assertThat(field(summary(), "exceptionType")).isEqualTo(failure.getClass().getName());
+        assertThat(field(summary(), "stackFrames")).asString().contains("BatchSchedulerLoggingTest");
+        assertThat(summary().getMDCPropertyMap().get("executionId")).isNotBlank();
         assertThat(field(summary(), "outcome")).isEqualTo("failed");
         logs.list.clear();
         var index = mock(CourseEmbeddingIndexService.class);

@@ -17,8 +17,13 @@ public class RegionPopularityRankingScheduler {
     @Scheduled(cron = "0 0 * * * *")
     public void refreshPopularityRankings() {
         try (var execution = ScheduledExecution.start("regionPopularityRanking")) {
-            regionPopularityRankingService.refreshPopularityRankings();
-            execution.complete();
+            try {
+                regionPopularityRankingService.refreshPopularityRankings();
+                execution.complete();
+            } catch (RuntimeException | Error failure) {
+                execution.failed(failure);
+                throw failure;
+            }
         }
     }
 }

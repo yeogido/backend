@@ -17,21 +17,27 @@ public class CourseViewCountSyncScheduler {
     @Scheduled(cron = "0 0 * * * *")
     public void syncCourseViewCounts() {
         try (var execution = ScheduledExecution.start("course.view_count.sync")) {
-            // Redis 조회수 배치 동기화
-            var result = courseViewCountSyncService.syncRecentViewCounts();
-            if (result == null) {
-                execution.completeFailed();
-                return;
-            }
-            execution.counts(result.processedCount(), result.successCount(), result.failedCount());
-            execution.count("failedDateCount", result.failedDateCount());
-            execution.count("completedDateCount", result.completedDateCount());
-            if (result.allFailed()) {
-                execution.completeFailed();
-            } else if (result.hasFailures()) {
-                execution.completePartialFailure();
-            } else {
-                execution.complete();
+            try {
+                // Redis 조회수 배치 동기화
+                var result = courseViewCountSyncService.syncRecentViewCounts();
+                if (result == null) {
+                    execution.completeFailed();
+                    return;
+                }
+                execution.counts(result.processedCount(), result.successCount(), result.failedCount());
+                execution.count("failedDateCount", result.failedDateCount());
+                execution.count("completedDateCount", result.completedDateCount());
+                if (result.allFailed()) {
+                    execution.completeFailed();
+                } else if (result.hasFailures()) {
+                    execution.completePartialFailure();
+                } else {
+                    execution.complete();
+                }
+
+            } catch (RuntimeException | Error failure) {
+                execution.failed(failure);
+                throw failure;
             }
         }
     }

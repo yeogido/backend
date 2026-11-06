@@ -17,9 +17,14 @@ public class CoursePopularityRankingScheduler {
     @Scheduled(cron = "0 0 * * * *")
     public void refreshPopularityRankings() {
         try (var execution = ScheduledExecution.start("coursePopularityRanking")) {
-            // 조회용 인기 랭킹 갱신
-            coursePopularityRankingService.refreshPopularityRankings();
-            execution.complete();
+            try {
+                // 조회용 인기 랭킹 갱신
+                coursePopularityRankingService.refreshPopularityRankings();
+                execution.complete();
+            } catch (RuntimeException | Error failure) {
+                execution.failed(failure);
+                throw failure;
+            }
         }
     }
 }
