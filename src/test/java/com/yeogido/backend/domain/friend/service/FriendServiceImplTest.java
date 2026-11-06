@@ -655,6 +655,7 @@ class FriendServiceImplTest {
         when(userRepository.findById(OTHER_ID)).thenReturn(Optional.of(other));
 
         when(friendshipRepository.findStatusBetween(ME_ID, OTHER_ID)).thenReturn(Optional.of(FriendshipStatus.PENDING));
+        when(friendshipRepository.acceptPendingBetween(ME_ID, OTHER_ID)).thenReturn(1);
         friendService.befriendByAlbumInvitation(ME_ID, OTHER_ID);
         verify(friendshipRepository).acceptPendingBetween(ME_ID, OTHER_ID);
 
@@ -663,6 +664,20 @@ class FriendServiceImplTest {
         verify(friendshipRepository).acceptPendingBetween(ME_ID, OTHER_ID);
 
         verify(friendshipRepository, never()).insertAcceptedIgnore(any(), any(), any(), any());
+    }
+
+    @Test
+    void befriendByAlbumInvitationCreatesFriendshipWhenPendingRequestWasRemovedAfterRead() {
+        when(userRepository.findById(ME_ID)).thenReturn(Optional.of(me));
+        when(userRepository.findById(OTHER_ID)).thenReturn(Optional.of(other));
+        when(friendshipRepository.findStatusBetween(ME_ID, OTHER_ID)).thenReturn(Optional.of(FriendshipStatus.PENDING));
+        when(friendshipRepository.acceptPendingBetween(ME_ID, OTHER_ID)).thenReturn(0);
+        when(friendshipRepository.insertAcceptedIgnore(OTHER_ID, ME_ID, ME_ID, OTHER_ID)).thenReturn(1);
+
+        friendService.befriendByAlbumInvitation(OTHER_ID, ME_ID);
+
+        verify(friendshipRepository).insertAcceptedIgnore(OTHER_ID, ME_ID, ME_ID, OTHER_ID);
+        verify(friendshipRepository).acceptPendingBetween(ME_ID, OTHER_ID);
     }
 
     @Test

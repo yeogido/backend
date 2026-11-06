@@ -423,14 +423,15 @@ public class FriendServiceImpl implements FriendService {
         Long userLowId = Math.min(inviterId, inviteeId);
         Long userHighId = Math.max(inviterId, inviteeId);
         Optional<FriendshipStatus> status = friendshipRepository.findStatusBetween(userLowId, userHighId);
-        if (status.isPresent()) {
-            if (status.get() == FriendshipStatus.PENDING) {
-                friendshipRepository.acceptPendingBetween(userLowId, userHighId);
-            }
+        if (status.filter(FriendshipStatus.ACCEPTED::equals).isPresent()) {
+            return;
+        }
+        if (status.isPresent() && friendshipRepository.acceptPendingBetween(userLowId, userHighId) > 0) {
             return;
         }
 
-        // 조회 후 다른 요청이 먼저 행을 만들었으면 그 행이 대기 중일 때만 수락
+        // 관계가 없거나, 읽은 뒤 대기 요청이 거절·취소된 경우 새로 만듦
+        // 그사이 다른 요청이 먼저 행을 만들었으면 그 행이 대기 중일 때만 수락
         if (friendshipRepository.insertAcceptedIgnore(inviterId, inviteeId, userLowId, userHighId) == 0) {
             friendshipRepository.acceptPendingBetween(userLowId, userHighId);
         }
