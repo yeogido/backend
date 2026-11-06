@@ -56,6 +56,14 @@ class CourseViewCountSyncSchedulerLoggingTest {
         else MDC.setContextMap(previousContext);
     }
 
+    @Test
+    void missingReportIsNeverReportedAsSuccess() {
+        var service = mock(CourseViewCountSyncService.class);
+        new CourseViewCountSyncScheduler(service).syncCourseViewCounts();
+        assertThat(field(summary(), "outcome")).isEqualTo("failed");
+        assertThat(field(summary(), "processedCount")).isNull();
+    }
+
     static Stream<Arguments> outcomes() {
         return Stream.of(
                 Arguments.of(new CourseViewCountSyncService.SyncResult(2, 2, 0, 7, 0), "success"),

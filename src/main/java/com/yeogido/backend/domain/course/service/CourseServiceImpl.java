@@ -877,7 +877,10 @@ public class CourseServiceImpl implements CourseService {
         try {
             courseRedisRepository.saveCreatedEvent(courseId, LocalDate.now());
         } catch (RuntimeException exception) {
-            log.warn("Failed to save course created event. courseId={}", courseId, exception);
+            log.atWarn().addKeyValue("event", "course.created_event.failed")
+                    .addKeyValue("courseId", courseId)
+                    .addKeyValue("exceptionType", exception.getClass().getSimpleName())
+                    .log("Failed to save course created event.");
         }
     }
 
@@ -899,7 +902,10 @@ public class CourseServiceImpl implements CourseService {
         try {
             coursePopularityRankingRedisRepository.removeLocalCourseId(courseId);
         } catch (RuntimeException exception) {
-            log.warn("Failed to remove course from local popularity ranking. courseId={}", courseId, exception);
+            log.atWarn().addKeyValue("event", "course.ranking_cleanup.failed")
+                    .addKeyValue("courseId", courseId)
+                    .addKeyValue("exceptionType", exception.getClass().getSimpleName())
+                    .log("Failed to remove course from local popularity ranking.");
         }
     }
 

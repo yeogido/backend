@@ -8,9 +8,7 @@ public interface TourContentSyncService {
 
     TourContentSyncDTO.Result synchronize(Long userId);
 
-    default SyncReport synchronizeWithReport() {
-        return new SyncReport(synchronize(), 0, 0);
-    }
+    SyncReport synchronizeWithReport();
 
     record SyncReport(TourContentSyncDTO.Result result, int failedItemCount, int detailFailureCount) { }
 }

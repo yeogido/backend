@@ -20,7 +20,7 @@ public class CourseViewCountSyncScheduler {
             // Redis 조회수 배치 동기화
             var result = courseViewCountSyncService.syncRecentViewCounts();
             if (result == null) {
-                execution.complete();
+                execution.completeFailed();
                 return;
             }
             execution.counts(result.processedCount(), result.successCount(), result.failedCount());

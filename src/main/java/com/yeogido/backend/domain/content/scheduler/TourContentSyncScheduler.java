@@ -37,7 +37,7 @@ public class TourContentSyncScheduler {
                     execution.complete();
                 }
             } else {
-                execution.complete();
+                execution.completeFailed();
             }
         }
     }

@@ -84,6 +84,8 @@ public final class ScheduledExecution implements AutoCloseable {
             if (exceptionType != null) event.addKeyValue("exceptionType", exceptionType);
             if (errorCode != null) event.addKeyValue("errorCode", errorCode);
             event.log("Scheduled execution completed.");
+        } catch (RuntimeException ignored) {
+            // 집계 로그 실패에 의한 작업 결과 변경 방지
         } finally {
             // 정상 종료와 예외 종료 모두 호출 전 전체 문맥 복원
             if (previousContext == null) MDC.clear();

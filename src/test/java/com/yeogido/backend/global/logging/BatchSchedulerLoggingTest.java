@@ -101,6 +101,17 @@ class BatchSchedulerLoggingTest {
         assertThat(summary().getMDCPropertyMap()).containsEntry("jobName", "course.embedding.index");
     }
 
+    @Test void missingTourReportIsNeverReportedAsSuccess() {
+        var service = mock(TourContentSyncService.class);
+        new TourContentSyncScheduler(service).synchronizeTourContents();
+        assertThat(field(summary(), "outcome")).isEqualTo("failed");
+        assertThat(field(summary(), "processedCount")).isNull();
+        logs.list.clear();
+        when(service.synchronizeWithReport()).thenReturn(new TourContentSyncService.SyncReport(null, 0, 0));
+        new TourContentSyncScheduler(service).synchronizeTourContents();
+        assertThat(field(summary(), "outcome")).isEqualTo("failed");
+    }
+
     private ILoggingEvent summary() {
         var summaries = logs.list.stream().filter(event ->
                 "scheduler.execution.completed".equals(field(event, "event"))).toList();

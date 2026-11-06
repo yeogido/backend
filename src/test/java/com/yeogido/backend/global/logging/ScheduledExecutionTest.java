@@ -145,6 +145,41 @@ class ScheduledExecutionTest {
                 assertThat(event.getMDCPropertyMap()).doesNotContainKey("requestId"));
     }
 
+    @Test
+    void loggingFailureCannotChangeWorkResultOrMaskOriginalFailure() {
+        var filter = new ch.qos.logback.classic.turbo.TurboFilter() {
+            @Override
+            public ch.qos.logback.core.spi.FilterReply decide(org.slf4j.Marker marker, Logger target,
+                    ch.qos.logback.classic.Level level, String format, Object[] params, Throwable failure) {
+                if (target.getName().equals(ScheduledExecution.class.getName())) {
+                    throw new IllegalStateException("fake-private-logging-failure");
+                }
+                return ch.qos.logback.core.spi.FilterReply.NEUTRAL;
+            }
+        };
+        var context = logger.getLoggerContext();
+        filter.start();
+        context.addTurboFilter(filter);
+        MDC.put("existing", "context");
+        try {
+            org.assertj.core.api.Assertions.assertThatCode(() -> {
+                try (var execution = ScheduledExecution.start("successfulWork")) {
+                    execution.complete();
+                }
+            }).doesNotThrowAnyException();
+            var original = new IllegalArgumentException("fake-private-business-failure");
+            assertThatThrownBy(() -> {
+                try (var execution = ScheduledExecution.start("failedWork")) {
+                    throw original;
+                }
+            }).isSameAs(original);
+            assertThat(MDC.getCopyOfContextMap()).isEqualTo(Map.of("existing", "context"));
+        } finally {
+            context.getTurboFilterList().remove(filter);
+            filter.stop();
+        }
+    }
+
     private String concurrentExecution(String job, CyclicBarrier barrier) throws Exception {
         var caller = Map.of("requestId", "caller-" + job, "worker", job);
         MDC.setContextMap(caller);

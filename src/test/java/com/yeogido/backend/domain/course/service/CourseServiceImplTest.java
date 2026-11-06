@@ -76,6 +76,35 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class CourseServiceImplTest {
 
+    @Test
+    void redisMaintenanceFailuresRemainSuppressedWithoutLoggingSecrets() {
+        var logger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(CourseServiceImpl.class);
+        var logs = new ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent>();
+        logs.start();
+        logger.addAppender(logs);
+        var failure = new IllegalStateException("Authorization: fake-private-token",
+                new RuntimeException("redis://fake-private-password@host"));
+        doThrow(failure).when(courseRedisRepository).saveCreatedEvent(eq(10L), any());
+        doThrow(failure).when(coursePopularityRankingRedisRepository).removeLocalCourseId(10L);
+        try {
+            org.assertj.core.api.Assertions.assertThatCode(() -> {
+                ReflectionTestUtils.invokeMethod(courseService, "saveCreatedEvent", 10L);
+                ReflectionTestUtils.invokeMethod(courseService, "removeLocalRanking", 10L);
+            }).doesNotThrowAnyException();
+            assertThat(logs.list).hasSize(2).allSatisfy(event -> {
+                assertThat(event.getThrowableProxy()).isNull();
+                assertThat(event.getFormattedMessage() + event.getKeyValuePairs()).doesNotContain("fake-private");
+                assertThat(event.getKeyValuePairs()).anySatisfy(pair -> {
+                    assertThat(pair.key).isEqualTo("exceptionType");
+                    assertThat(pair.value).isEqualTo("IllegalStateException");
+                });
+            });
+        } finally {
+            logger.detachAppender(logs);
+            logs.stop();
+        }
+    }
+
     @Mock
     private CourseRepository courseRepository;
 
