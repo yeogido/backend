@@ -435,6 +435,41 @@ public class FriendServiceImpl implements FriendService {
         );
     }
 
+    // 없는 행을 잠금 조회하면 REPEATABLE READ에서 갭 잠금이 걸려 이어지는 insert끼리 교착될 수 있어
+    // 잠금 없이 상태를 읽고, 저장은 INSERT IGNORE와 조건부 update로만 처리
+    @Override
+    @Transactional
+    public void befriendByAlbumInvitation(Long inviterId, Long inviteeId) {
+        if (inviterId == null || inviteeId == null || inviterId.equals(inviteeId)) {
+            throw new GeneralException(GeneralErrorCode.INVALID_PARAMETER);
+        }
+        if (!isActiveUser(inviterId) || !isActiveUser(inviteeId)) {
+            return;
+        }
+
+        Long userLowId = Math.min(inviterId, inviteeId);
+        Long userHighId = Math.max(inviterId, inviteeId);
+        Optional<FriendshipStatus> status = friendshipRepository.findStatusBetween(userLowId, userHighId);
+        if (status.filter(FriendshipStatus.ACCEPTED::equals).isPresent()) {
+            return;
+        }
+        if (status.isPresent() && friendshipRepository.acceptPendingBetween(userLowId, userHighId) > 0) {
+            return;
+        }
+
+        // 관계가 없거나, 읽은 뒤 대기 요청이 거절·취소된 경우 새로 만듦
+        // 그사이 다른 요청이 먼저 행을 만들었으면 그 행이 대기 중일 때만 수락
+        if (friendshipRepository.insertAcceptedIgnore(inviterId, inviteeId, userLowId, userHighId) == 0) {
+            friendshipRepository.acceptPendingBetween(userLowId, userHighId);
+        }
+    }
+
+    private boolean isActiveUser(Long userId) {
+        return userRepository.findById(userId)
+                .filter(user -> user.getStatus() == UserStatus.ACTIVE)
+                .isPresent();
+    }
+
     private void lockSharedAlbums(Long userId, Long friendUserId) {
         travelRecordMemberRepository.findSharedAlbums(userId, friendUserId)
                 .forEach(album -> travelRecordRepository.findActiveDetailForUpdate(album.getTravelRecordId()));
