@@ -164,8 +164,9 @@ class TravelRecordVisibilityIntegrationTest {
     assertError(() -> service.getTravelRecord(viewer.getId(), privateWithStaleMember.getId()), GeneralErrorCode.FORBIDDEN);
   }
 
+  /** 다른 사용자 목록에는 대상이 만든 PUBLIC 기록과, 생성자와 관계없이 조회자와 대상이 둘 다 함께한 FRIENDS 앨범이 보입니다. */
   @Test
-  void otherCollectionContainsOnlyTargetOwnedPublicOrMutuallySharedAlbums() {
+  void otherCollectionContainsTargetOwnedPublicAndFriendsAlbumsJoinedByBoth() {
     TravelRecord publicRecord = record(owner, TravelRecordVisibility.PUBLIC, 2026);
     TravelRecord shared = record(owner, TravelRecordVisibility.FRIENDS, 2026);
     member(shared, viewer);
@@ -176,11 +177,19 @@ class TravelRecordVisibilityIntegrationTest {
     member(thirdOwned, viewer);
     TravelRecord viewerOwned = record(viewer, TravelRecordVisibility.FRIENDS, 2026);
     member(viewerOwned, owner);
+    TravelRecord onlyViewerJoined = record(third, TravelRecordVisibility.FRIENDS, 2026);
+    member(onlyViewerJoined, viewer);
+    TravelRecord onlyTargetJoined = record(third, TravelRecordVisibility.FRIENDS, 2026);
+    member(onlyTargetJoined, owner);
+    record(viewer, TravelRecordVisibility.PUBLIC, 2026);
     flushAndClear();
 
     assertThat(list(owner.getId(), null, 2026, null, 20).getItems())
         .extracting(TravelRecordResDTO.TravelRecordSummary::travelRecordId)
-        .containsExactly(shared.getId(), publicRecord.getId());
+        .containsExactly(viewerOwned.getId(), thirdOwned.getId(), shared.getId(), publicRecord.getId());
+    assertThat(list(owner.getId(), "FRIENDS", 2026, null, 20).getItems())
+        .extracting(TravelRecordResDTO.TravelRecordSummary::travelRecordId)
+        .containsExactly(viewerOwned.getId(), thirdOwned.getId(), shared.getId());
     assertThat(list(owner.getId(), "PRIVATE", 2026, null, 20).getItems()).isEmpty();
   }
 
@@ -707,9 +716,9 @@ class TravelRecordVisibilityIntegrationTest {
         .extracting(TravelRecordResDTO.MapItem::travelRecordId).containsExactly(current.getId());
   }
 
-  /** 친구 지도는 대상 사용자가 만든 기록 중 조회자가 열람할 수 있는 것만 보여주며 연도 목록과 일치해야 합니다. */
+  /** 다른 사용자 지도는 조회자가 열람할 수 있는 기록만 보여주며 연도 목록과 일치해야 합니다. */
   @Test
-  void targetMapShowsOnlyViewableRecordsCreatedByTargetAndMatchesYearList() {
+  void targetMapShowsOnlyViewableRecordsAndMatchesYearList() {
     var open = record(owner, TravelRecordVisibility.PUBLIC, 2026);
     var shared = record(owner, TravelRecordVisibility.FRIENDS, 2025);
     member(shared, viewer);
@@ -723,7 +732,7 @@ class TravelRecordVisibilityIntegrationTest {
     flushAndClear();
 
     assertThat(targetMap(2026, null, 10).getItems()).extracting(TravelRecordResDTO.MapItem::travelRecordId)
-        .containsExactly(open.getId());
+        .containsExactly(thirdPartyAlbum.getId(), open.getId());
     assertThat(targetMap(2025, null, 10).getItems()).extracting(TravelRecordResDTO.MapItem::travelRecordId)
         .containsExactly(shared.getId());
     assertThat(targetMap(2024, null, 10).getItems()).isEmpty();
@@ -747,6 +756,77 @@ class TravelRecordVisibilityIntegrationTest {
     assertThat(page2.isHasNext()).isFalse();
 
     assertError(() -> targetMap(2026, hidden.getId(), 1), TravelRecordErrorCode.INVALID_PAGE_REQUEST);
+  }
+
+  /** 친구에게는 열람할 수 없는 대상의 기록이 블러 항목(지역, 좌표, 기간만)으로 보이고, 비친구에게는 보이지 않습니다. */
+  @Test
+  void userMapBlursTargetRecordsOnlyForFriendAndHidesDetails() {
+    var open = record(owner, TravelRecordVisibility.PUBLIC, 2026);
+    photo(open, 1);
+    var hiddenPrivate = record(owner, TravelRecordVisibility.PRIVATE, 2025);
+    photo(hiddenPrivate, 2);
+    var hiddenFriends = record(owner, TravelRecordVisibility.FRIENDS, 2024);
+    var thirdPartyAlbum = record(third, TravelRecordVisibility.FRIENDS, 2023);
+    member(thirdPartyAlbum, owner);
+    member(thirdPartyAlbum, viewer);
+    var onlyTargetJoined = record(third, TravelRecordVisibility.FRIENDS, 2022);
+    member(onlyTargetJoined, owner);
+    flushAndClear();
+
+    var friendMap = service.getUserTravelMap(viewer.getId(), owner.getId(), true, null, 10, null);
+    assertThat(friendMap.getItems()).extracting(TravelRecordResDTO.UserMapEntry::blurred)
+        .containsExactly(false, true, true, false);
+    assertThat(friendMap.getItems()).extracting(entry -> entry.mapItem().travelRecordId())
+        .containsExactly(open.getId(), null, null, thirdPartyAlbum.getId());
+    assertThat(friendMap.getItems().getFirst().mapItem().images()).hasSize(1);
+    TravelRecordResDTO.MapItem blurred = friendMap.getItems().get(1).mapItem();
+    assertThat(blurred.title()).isNull();
+    assertThat(blurred.visibility()).isNull();
+    assertThat(blurred.images()).isNull();
+    assertThat(blurred.regionName()).isEqualTo("부산");
+    assertThat(blurred.startDate()).isEqualTo(hiddenPrivate.getStartDate());
+    assertThat(blurred.endDate()).isEqualTo(hiddenPrivate.getEndDate());
+    assertThat(service.getUserTravelMapYears(viewer.getId(), owner.getId(), true))
+        .containsExactly(2026, 2025, 2024, 2023);
+
+    var nonFriendMap = service.getUserTravelMap(viewer.getId(), owner.getId(), false, null, 10, null);
+    assertThat(nonFriendMap.getItems()).extracting(TravelRecordResDTO.UserMapEntry::blurred)
+        .containsExactly(false, false);
+    assertThat(nonFriendMap.getItems()).extracting(entry -> entry.mapItem().travelRecordId())
+        .containsExactly(open.getId(), thirdPartyAlbum.getId());
+    assertThat(service.getUserTravelMapYears(viewer.getId(), owner.getId(), false)).containsExactly(2026, 2023);
+
+    assertThat(service.getUserTravelMap(viewer.getId(), owner.getId(), true, null, 10, 2025).getItems())
+        .extracting(TravelRecordResDTO.UserMapEntry::blurred).containsExactly(true);
+    assertThat(service.getUserTravelMap(viewer.getId(), owner.getId(), false, null, 10, 2025).getItems()).isEmpty();
+  }
+
+  /** 블러 항목을 포함한 범위에서 커서 페이징이 이어지고, 비친구 범위에서는 블러 기록을 커서로 쓸 수 없습니다. */
+  @Test
+  void userMapPaginatesAcrossBlurredRecordsAndRejectsHiddenCursorForNonFriend() {
+    var open = record(owner, TravelRecordVisibility.PUBLIC, 2026);
+    var hidden = record(owner, TravelRecordVisibility.PRIVATE, 2025);
+    var older = record(owner, TravelRecordVisibility.PUBLIC, 2024);
+    flushAndClear();
+
+    List<Boolean> blurred = new ArrayList<>();
+    Long cursor = null;
+    for (int i = 0; i < 3; i++) {
+      var page = service.getUserTravelMap(viewer.getId(), owner.getId(), true, cursor, 1, null);
+      assertThat(page.getItems()).hasSize(1);
+      assertThat(page.isHasNext()).isEqualTo(i < 2);
+      blurred.add(page.getItems().getFirst().blurred());
+      cursor = page.getCursorId();
+    }
+    assertThat(blurred).containsExactly(false, true, false);
+    assertThat(cursor).isEqualTo(older.getId());
+
+    assertError(() -> service.getUserTravelMap(viewer.getId(), owner.getId(), false, hidden.getId(), 1, null),
+        TravelRecordErrorCode.INVALID_PAGE_REQUEST);
+    assertError(() -> service.getUserTravelMap(viewer.getId(), owner.getId(), true, open.getId(), 1, 2025),
+        TravelRecordErrorCode.INVALID_PAGE_REQUEST);
+    assertError(() -> service.getUserTravelMap(viewer.getId(), owner.getId(), true, null, 101, null),
+        TravelRecordErrorCode.INVALID_PAGE_REQUEST);
   }
 
   private com.yeogido.backend.global.common.response.CursorResponse<TravelRecordResDTO.MapItem> targetMap(

@@ -3,6 +3,7 @@ package com.yeogido.backend.domain.travel.service;
 import com.yeogido.backend.domain.travel.dto.request.TravelRecordReqDTO;
 import com.yeogido.backend.domain.travel.dto.response.TravelRecordResDTO;
 import com.yeogido.backend.global.common.response.CursorResponse;
+import java.util.List;
 
 public interface TravelRecordService {
 
@@ -18,6 +19,16 @@ public interface TravelRecordService {
     CursorResponse<TravelRecordResDTO.MapItem> getTravelMap(
             Long viewerId, Long targetUserId, TravelRecordReqDTO.MapRequest request
     );
+
+    /**
+     * 다른 사용자 프로필의 여행 지도를 조회합니다. includeBlurred면 열람할 수 없는 대상의 기록도 블러 항목으로 포함하며,
+     * year가 null이면 전체 연도를 조회합니다.
+     */
+    CursorResponse<TravelRecordResDTO.UserMapEntry> getUserTravelMap(
+            Long viewerId, Long targetUserId, boolean includeBlurred, Long cursor, Integer size, Integer year
+    );
+
+    List<Integer> getUserTravelMapYears(Long viewerId, Long targetUserId, boolean includeBlurred);
 
     TravelRecordResDTO.YearListResponse getMyTravelRecordYears(
             Long userId, TravelRecordReqDTO.YearListRequest request

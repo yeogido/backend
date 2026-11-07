@@ -116,6 +116,18 @@ public class TravelRecordConverter {
         );
     }
 
+    /** 블러 항목에는 열람 권한이 없는 기록의 지역, 좌표, 기간만 담습니다. */
+    public static TravelRecordResDTO.MapItem toBlurredMapItem(TravelRecord travelRecord) {
+        Region region = travelRecord.getRegion();
+        boolean hasCoordinates = region.getLatitude() != null && region.getLongitude() != null;
+        return new TravelRecordResDTO.MapItem(
+                null, null, region.getId(), region.getName(),
+                hasCoordinates ? region.getLatitude() : null,
+                hasCoordinates ? region.getLongitude() : null,
+                travelRecord.getStartDate(), travelRecord.getEndDate(), null, null
+        );
+    }
+
     public static TravelRecordResDTO.DetailResponse toDetailResponse(
             TravelRecord travelRecord,
             List<TravelRecordPhoto> photos,

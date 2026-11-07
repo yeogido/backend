@@ -304,9 +304,15 @@ public class FriendServiceImpl implements FriendService {
     @Override
     @Transactional(readOnly = true)
     public FriendResDTO.FriendProfile getFriendProfile(Long userId, Long friendUserId) {
-        User friend = getFriend(userId, friendUserId);
+        User target = getTargetUser(userId, friendUserId);
+        Optional<Friendship> friendship = findFriendship(userId, friendUserId);
 
-        return FriendConverter.toFriendProfile(friend, s3Service.getImageUrl(friend.getProfileImage()));
+        return FriendConverter.toFriendProfile(
+                target,
+                s3Service.getImageUrl(target.getProfileImage()),
+                toRelationStatus(friendship, userId),
+                toRequestId(friendship)
+        );
     }
 
     @Override
@@ -318,8 +324,8 @@ public class FriendServiceImpl implements FriendService {
             Integer size
     ) {
         validateSize(size);
-        getFriend(userId, friendUserId);
-        // 작성자는 친구라 본인일 수 없으므로 관리자만 코스를 관리할 수 있음
+        getTargetUser(userId, friendUserId);
+        // 작성자는 본인이 아니므로 관리자만 코스를 관리할 수 있음
         boolean canManage = getUser(userId).getRole() == UserRole.ADMIN;
 
         List<Course> courses = friendCourseRepository.findLocalCourses(
@@ -376,21 +382,42 @@ public class FriendServiceImpl implements FriendService {
         friendshipRepository.flush();
     }
 
+    /** 친구에게는 열람할 수 없는 기록도 블러 항목으로 내려주고, 친구가 아니면 열람할 수 있는 기록만 내려줍니다. */
     @Override
     @Transactional(readOnly = true)
-    public CursorResponse<TravelRecordResDTO.MapItem> getFriendTravelMap(
+    public CursorResponse<FriendResDTO.TravelMapItem> getFriendTravelMap(
             Long userId,
             Long friendUserId,
             FriendReqDTO.TravelMapRequest request
     ) {
-        getFriend(userId, friendUserId);
+        getTargetUser(userId, friendUserId);
 
         // 공개범위 필터를 받지 않아 비공개 기록의 존재를 추측할 수 없도록 함
-        return travelRecordService.getTravelMap(userId, friendUserId, new TravelRecordReqDTO.MapRequest(
+        CursorResponse<TravelRecordResDTO.UserMapEntry> page = travelRecordService.getUserTravelMap(
+                userId,
+                friendUserId,
+                areFriends(userId, friendUserId),
                 request.cursor(),
                 request.size(),
-                request.year(),
-                null
+                request.year()
+        );
+        return CursorResponse.of(
+                page.getItems().stream().map(FriendConverter::toTravelMapItem).toList(),
+                page.getCursorValue(),
+                page.getCursorId(),
+                page.isHasNext()
+        );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public TravelRecordResDTO.YearListResponse getFriendTravelMapYears(Long userId, Long friendUserId) {
+        getTargetUser(userId, friendUserId);
+
+        return new TravelRecordResDTO.YearListResponse(travelRecordService.getUserTravelMapYears(
+                userId,
+                friendUserId,
+                areFriends(userId, friendUserId)
         ));
     }
 
@@ -430,6 +457,17 @@ public class FriendServiceImpl implements FriendService {
 
     private User getUser(Long userId) {
         return userRepository.findById(userId)
+                .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
+    }
+
+    // 친구 여부와 관계없이 프로필을 볼 수 있는 대상. 내 ID는 프로필 API 대상이 아님
+    private User getTargetUser(Long userId, Long targetUserId) {
+        if (userId.equals(targetUserId)) {
+            throw new GeneralException(GeneralErrorCode.INVALID_PARAMETER);
+        }
+
+        return userRepository.findById(targetUserId)
+                .filter(user -> user.getStatus() == UserStatus.ACTIVE)
                 .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
     }
 

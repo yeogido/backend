@@ -48,7 +48,7 @@ public class FriendController {
         return ApiResponse.onSuccess(SuccessCode.OK, response);
     }
 
-    @Operation(summary = "친구 프로필 조회 API", description = "친구의 기본 정보를 조회합니다.")
+    @Operation(summary = "친구 프로필 조회 API", description = "사용자의 기본 정보와 나와의 관계를 조회합니다. 친구가 아니어도 조회할 수 있으며, 이메일은 친구일 때만 내려줍니다. 내 ID는 COMMON4002, 없거나 탈퇴한 사용자는 USER4041을 반환합니다.")
     @GetMapping("/{friendUserId}")
     public ApiResponse<FriendResDTO.FriendProfile> getFriendProfile(
             @PathVariable Long friendUserId,
@@ -58,7 +58,7 @@ public class FriendController {
         return ApiResponse.onSuccess(SuccessCode.OK, response);
     }
 
-    @Operation(summary = "친구의 우리동네 추천 코스 조회 API", description = "친구가 작성한 우리동네 추천 코스를 최신순으로 조회합니다.")
+    @Operation(summary = "친구의 우리동네 추천 코스 조회 API", description = "사용자가 작성한 우리동네 추천 코스를 최신순으로 조회합니다. 친구가 아니어도 조회할 수 있습니다.")
     @GetMapping("/{friendUserId}/courses/local")
     public ApiResponse<CursorResponse<CourseResDTO.CoursePreview>> getFriendLocalCourses(
             @PathVariable Long friendUserId,
@@ -84,15 +84,31 @@ public class FriendController {
         return ApiResponse.onSuccess(SuccessCode.OK);
     }
 
-    @Operation(summary = "친구 여행 지도 조회 API", description = "친구가 만든 PUBLIC 기록과 내가 참여 중인 FRIENDS 기록을 지도 항목으로 조회합니다. 그 외 기록은 내려주지 않습니다.")
+    @Operation(
+            summary = "친구 여행 지도 조회 API",
+            description = "사용자의 여행 지도를 조회합니다. 내가 열람할 수 있는 기록(대상이 만든 PUBLIC, 둘 다 참여한 FRIENDS)은 전체 정보를, "
+                    + "친구에게는 그 밖에 대상이 만든 기록을 blurred=true로 지역, 좌표, 기간만 내려줍니다. 친구가 아니면 열람할 수 있는 기록만 내려줍니다. "
+                    + "year를 보내지 않으면 전체 연도를 여행 종료일 내림차순으로 조회합니다."
+    )
     @GetMapping("/{friendUserId}/travel-map")
-    public ApiResponse<CursorResponse<TravelRecordResDTO.MapItem>> getFriendTravelMap(
+    public ApiResponse<CursorResponse<FriendResDTO.TravelMapItem>> getFriendTravelMap(
             @PathVariable Long friendUserId,
             @Valid @ParameterObject @ModelAttribute FriendReqDTO.TravelMapRequest request,
             @AuthenticationPrincipal AuthUser authUser
     ) {
-        CursorResponse<TravelRecordResDTO.MapItem> response =
+        CursorResponse<FriendResDTO.TravelMapItem> response =
                 friendService.getFriendTravelMap(authUser.userId(), friendUserId, request);
+        return ApiResponse.onSuccess(SuccessCode.OK, response);
+    }
+
+    @Operation(summary = "친구 여행 지도 연도 목록 조회 API", description = "여행 지도 조회 API와 같은 범위(친구에게는 블러 항목 포함)에서 기록이 있는 연도를 최신 연도부터 조회합니다.")
+    @GetMapping("/{friendUserId}/travel-map/years")
+    public ApiResponse<TravelRecordResDTO.YearListResponse> getFriendTravelMapYears(
+            @PathVariable Long friendUserId,
+            @AuthenticationPrincipal AuthUser authUser
+    ) {
+        TravelRecordResDTO.YearListResponse response =
+                friendService.getFriendTravelMapYears(authUser.userId(), friendUserId);
         return ApiResponse.onSuccess(SuccessCode.OK, response);
     }
 
