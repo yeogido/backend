@@ -5,6 +5,7 @@ import com.yeogido.backend.domain.file.enums.ImageDirectory;
 import com.yeogido.backend.domain.file.exception.FileErrorCode;
 import com.yeogido.backend.global.exception.GeneralErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
+import com.yeogido.backend.global.logging.SafeLogDetails;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -124,10 +125,14 @@ public class S3Service {
             return null;
         }
 
+        String provider = "external_image";
+        String operation = "download_image";
         try {
             HttpResponse<byte[]> response = downloadImage(imageUrl);
 
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                logFailure(provider, operation, SafeLogDetails.httpFailureType(response.statusCode()),
+                        response.statusCode(), GeneralErrorCode.INTERNAL_SERVER_ERROR.getCode(), "failed");
                 throw new GeneralException(
                         GeneralErrorCode.INTERNAL_SERVER_ERROR
                 );
@@ -157,6 +162,8 @@ public class S3Service {
                     .contentType(contentType)
                     .build();
 
+            provider = "aws_s3";
+            operation = "put_object";
             s3Client.putObject(
                     putObjectRequest,
                     RequestBody.fromBytes(response.body())
@@ -174,6 +181,15 @@ public class S3Service {
                 Thread.currentThread().interrupt();
             }
 
+            if (!(e instanceof IllegalArgumentException)) {
+                Integer status = upstreamHttpStatus(e);
+                String failureType = status != null ? SafeLogDetails.httpFailureType(status)
+                        : e instanceof InterruptedException ? "interrupted" : SafeLogDetails.failureType(e);
+                if (e instanceof IOException && "client_error".equals(failureType)) {
+                    failureType = "connection_error";
+                }
+                logFailure(provider, operation, failureType, status, null, "ignored");
+            }
             return null;
         }
     }
@@ -197,21 +213,16 @@ public class S3Service {
             deleteObject(tempKey);
         } catch (AwsServiceException | SdkClientException e) {
             if (isMissingS3Key(e)) {
-                log.warn(
-                        "Invalid S3 image key requested. sourceKey={}, destinationKey={}",
-                        tempKey,
-                        objectKey
-                );
+                logFailure("aws_s3", "move", "missing_key",
+                        upstreamHttpStatus(e),
+                        FileErrorCode.INVALID_IMAGE_KEY.getCode(), "failed");
 
                 throw new GeneralException(FileErrorCode.INVALID_IMAGE_KEY);
             }
 
-            log.error(
-                    "Failed to move S3 image. sourceKey={}, destinationKey={}",
-                    tempKey,
-                    objectKey,
-                    e
-            );
+            Integer status = upstreamHttpStatus(e);
+            logFailure("aws_s3", "move", status == null ? SafeLogDetails.failureType(e) : SafeLogDetails.httpFailureType(status),
+                    status, GeneralErrorCode.INTERNAL_SERVER_ERROR.getCode(), "failed");
 
             throw new GeneralException(
                     GeneralErrorCode.INTERNAL_SERVER_ERROR
@@ -234,8 +245,36 @@ public class S3Service {
         try {
             deleteObject(normalizeObjectKey(objectKey));
         } catch (AwsServiceException | SdkClientException e) {
-            log.error("Failed to delete S3 image. objectKey={}", objectKey, e);
+            Integer status = upstreamHttpStatus(e);
+            logFailure("aws_s3", "delete", status == null ? SafeLogDetails.failureType(e) : SafeLogDetails.httpFailureType(status),
+                    status, null, "ignored");
         }
+    }
+
+    private Integer upstreamHttpStatus(Exception failure) {
+        if (failure instanceof AwsServiceException serviceFailure
+                && serviceFailure.statusCode() >= 100 && serviceFailure.statusCode() < 600) {
+            return serviceFailure.statusCode();
+        }
+        return null;
+    }
+
+    private void logFailure(String provider, String operation, String failureType, Integer status,
+                            String errorCode, String outcome) {
+        var event = log.atWarn()
+                .addKeyValue("event", "external_api.call.failed")
+                .addKeyValue("provider", provider)
+                .addKeyValue("operation", operation)
+                .addKeyValue("failureType", failureType)
+                .addKeyValue("outcome", outcome)
+                .addKeyValue("retryable", SafeLogDetails.isRetryable(failureType, status));
+        if (status != null) {
+            event.addKeyValue("upstreamHttpStatus", status);
+        }
+        if (errorCode != null) {
+            event.addKeyValue("errorCode", errorCode);
+        }
+        event.log("External API call failed.");
     }
 
     private String createObjectKey(String fileName) {

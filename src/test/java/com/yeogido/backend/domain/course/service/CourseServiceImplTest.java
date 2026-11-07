@@ -76,6 +76,35 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class CourseServiceImplTest {
 
+    @Test
+    void redisMaintenanceFailuresRemainSuppressedWithoutLoggingSecrets() {
+        var logger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(CourseServiceImpl.class);
+        var logs = new ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent>();
+        logs.start();
+        logger.addAppender(logs);
+        var failure = new IllegalStateException("Authorization: fake-private-token",
+                new RuntimeException("redis://fake-private-password@host"));
+        doThrow(failure).when(courseRedisRepository).saveCreatedEvent(eq(10L), any());
+        doThrow(failure).when(coursePopularityRankingRedisRepository).removeLocalCourseId(10L);
+        try {
+            org.assertj.core.api.Assertions.assertThatCode(() -> {
+                ReflectionTestUtils.invokeMethod(courseService, "saveCreatedEvent", 10L);
+                ReflectionTestUtils.invokeMethod(courseService, "removeLocalRanking", 10L);
+            }).doesNotThrowAnyException();
+            assertThat(logs.list).hasSize(2).allSatisfy(event -> {
+                assertThat(event.getThrowableProxy()).isNull();
+                assertThat(event.getFormattedMessage() + event.getKeyValuePairs()).doesNotContain("fake-private");
+                assertThat(event.getKeyValuePairs()).anySatisfy(pair -> {
+                    assertThat(pair.key).isEqualTo("exceptionType");
+                    assertThat(pair.value).isEqualTo("java.lang.IllegalStateException");
+                });
+            });
+        } finally {
+            logger.detachAppender(logs);
+            logs.stop();
+        }
+    }
+
     @Mock
     private CourseRepository courseRepository;
 
@@ -140,8 +169,16 @@ class CourseServiceImplTest {
     @InjectMocks
     private CourseServiceImpl courseService;
 
+    private ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> outcomeLogs;
+    private final ch.qos.logback.classic.Logger outcomeLogger =
+            (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(CourseServiceImpl.class);
+
     @AfterEach
     void tearDown() {
+        if (outcomeLogs != null) {
+            outcomeLogger.detachAppender(outcomeLogs);
+            outcomeLogs.stop();
+        }
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.clearSynchronization();
         }
@@ -635,6 +672,9 @@ class CourseServiceImplTest {
 
     @Test
     void semanticProviderFailureFallsBackToTermSearchAndKeepsNaturalCursor() {
+        outcomeLogs = new ch.qos.logback.core.read.ListAppender<>();
+        outcomeLogs.start();
+        outcomeLogger.addAppender(outcomeLogs);
         var original = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, "비 오는 날", null,
                 null, null, null, null, CourseSortType.LATEST, null, null, null, null, 1);
         var interpretation = new Interpretation(original, List.of("비 오는 날"));
@@ -651,6 +691,14 @@ class CourseServiceImplTest {
 
         var first = courseService.getCourses(original, null);
 
+        assertThat(outcomeLogs.list).singleElement().satisfies(event -> {
+            assertThat(event.getLevel()).isEqualTo(ch.qos.logback.classic.Level.INFO);
+            assertThat(event.getKeyValuePairs()).anySatisfy(pair -> {
+                assertThat(pair.key).isEqualTo("event");
+                assertThat(pair.value).isEqualTo("external_api.fallback.succeeded");
+            });
+            assertThat(event.getThrowableProxy()).isNull();
+        });
         assertThat(first.getItems()).extracting(CourseResDTO.CoursePreview::courseId).containsExactly(10L);
         assertThat(first.isHasNext()).isTrue();
         assertThat(first.getCursorValue().toString()).startsWith("nl2.");
@@ -669,6 +717,34 @@ class CourseServiceImplTest {
         Mockito.verify(courseSemanticSearchService, never()).restore(any());
         Mockito.verify(courseRepository, never()).findSemanticCoursesByCursor(any(), any(), anyMap(),
                 Mockito.anyInt(), any(), any(), any());
+    }
+
+    @Test
+    void failedFallbackDoesNotEmitSuccessOutcome() {
+        outcomeLogs = new ch.qos.logback.core.read.ListAppender<>();
+        outcomeLogs.start();
+        outcomeLogger.addAppender(outcomeLogs);
+        var original = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, "fake-private-search-query", null,
+                null, null, null, null, CourseSortType.LATEST, null, null, null, null, 1);
+        var interpretation = new Interpretation(original, List.of("fake-private-term"));
+        when(courseSearchService.interpret(original)).thenReturn(interpretation);
+        when(courseSemanticSearchService.isEnabled()).thenReturn(true);
+        when(courseSemanticSearchService.search(interpretation)).thenThrow(
+                new GeneralException(CourseErrorCode.COURSE_SEARCH_API_ERROR));
+        var failure = new IllegalStateException("fake-private-database-failure");
+        when(transactionManager.getTransaction(any())).thenThrow(failure);
+
+        assertThatThrownBy(() -> courseService.getCourses(original, null)).isSameAs(failure);
+
+        assertThat(outcomeLogs.list).singleElement().satisfies(event -> {
+            assertThat(event.getKeyValuePairs()).anySatisfy(pair -> {
+                assertThat(pair.key).isEqualTo("event");
+                assertThat(pair.value).isEqualTo("external_api.fallback.failed");
+            });
+            assertThat(event.getThrowableProxy()).isNull();
+            assertThat(event.getFormattedMessage() + event.getKeyValuePairs())
+                    .doesNotContain("fake-private");
+        });
     }
 
     private CourseQueryRepository.CourseListRow priorityRow(long id) {

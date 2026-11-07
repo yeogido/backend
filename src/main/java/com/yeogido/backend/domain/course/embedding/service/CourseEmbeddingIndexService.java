@@ -59,14 +59,14 @@ public class CourseEmbeddingIndexService {
         this.writeTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
-    // Rotating scans revisit linked place/content updates without coupling their write paths to indexing.
+    // 쓰기 경로 결합 없이 장소와 콘텐츠 변경을 재확인하는 순환 스캔
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public synchronized int reindexNextBatch() {
         if (!client.isEnabled()) return 0;
         List<CourseDocument> pending = readTransaction.execute(status -> nextChangedDocuments());
         if (pending.isEmpty()) return 0;
 
-        // No database transaction is held while the provider embeds the batch.
+        // 외부 임베딩 호출 중 데이터베이스 트랜잭션 미유지
         List<List<Double>> vectors = client.embedDocuments(pending.stream().map(CourseDocument::text).toList());
         if (vectors.size() != pending.size()) {
             throw new IllegalStateException("Embedding provider returned an unexpected batch size");
@@ -77,12 +77,21 @@ public class CourseEmbeddingIndexService {
             for (int index = 0; index < pending.size(); index++) {
                 CourseDocument original = pending.get(index);
                 CourseDocument latest = current.get(original.courseId());
-                // Drop results superseded by an edit or delete while the external request was running.
+                // 외부 요청 중 수정 또는 삭제된 항목의 이전 결과 제외
                 if (latest == null || !latest.sourceHash().equals(original.sourceHash())) continue;
-                List<Double> vector = vectors.get(index);
-                if (!validVector(vector)) throw new IllegalStateException("Invalid embedding vector");
-                embeddings.save(new CourseEmbedding(original.courseId(), client.getModel(), client.getDimensions(),
-                        original.sourceHash(), serialize(vector), LocalDateTime.now()));
+                try {
+                    List<Double> vector = vectors.get(index);
+                    if (!validVector(vector)) throw new IllegalStateException("Invalid embedding vector");
+                    embeddings.save(new CourseEmbedding(original.courseId(), client.getModel(), client.getDimensions(),
+                            original.sourceHash(), serialize(vector), LocalDateTime.now()));
+                } catch (RuntimeException failure) {
+                    log.atWarn().addKeyValue("event", "course.embedding.item.failed")
+                            .addKeyValue("courseId", original.courseId())
+                            .addKeyValue("failureType", "item_processing_error")
+                            .addKeyValue("exceptionType", failure.getClass().getName())
+                            .log("Course embedding item processing failed.");
+                    throw failure;
+                }
                 saved++;
             }
             return saved;
@@ -116,7 +125,7 @@ public class CourseEmbeddingIndexService {
                 .collect(Collectors.toMap(CourseEmbedding::getCourseId, Function.identity()));
         List<CourseDocument> pending = new ArrayList<>();
         for (Long id : ids) {
-            // Advance before calling the provider, so a repeatedly failing batch cannot starve later IDs.
+            // 반복 실패 배치로 인한 후속 항목 기아 방지를 위한 호출 전 커서 갱신
             lastScannedId = id;
             CourseDocument document = source.get(id);
             if (document == null) continue;

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import com.yeogido.backend.global.common.response.ApiResponse;
 import com.yeogido.backend.global.common.response.ValidationError;
 import com.yeogido.backend.global.common.response.ValidationErrorResponse;
+import com.yeogido.backend.global.logging.SafeLogDetails;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -30,6 +31,16 @@ public class GlobalExceptionHandler {
     ) {
 
         ErrorCode errorCode = e.getErrorCode();
+
+        // 외부 호출 실패 상세와 구분되는 최종 서버 오류 응답 기록
+        if (errorCode.getHttpStatus().is5xxServerError()) {
+            log.atError()
+                    .addKeyValue("event", "api.request.failed")
+                    .addKeyValue("outcome", "failed")
+                    .addKeyValue("errorCode", errorCode.getCode())
+                    .addKeyValue("httpStatus", errorCode.getHttpStatus().value())
+                    .log("API request failed.");
+        }
 
         return ResponseEntity
                 .status(errorCode.getHttpStatus())
@@ -164,7 +175,16 @@ public class GlobalExceptionHandler {
             Exception e
     ) {
 
-        log.error("Unexpected exception occurred", e);
+        // 인증 정보와 본문 노출 방지를 위한 원문 제외
+        String stackFrames = SafeLogDetails.stackFrames(e);
+        log.atError()
+                .addKeyValue("event", "api.request.failed")
+                .addKeyValue("outcome", "failed")
+                .addKeyValue("httpStatus", 500)
+                .addKeyValue("errorCode", GeneralErrorCode.INTERNAL_SERVER_ERROR.getCode())
+                .addKeyValue("exceptionType", e.getClass().getName())
+                .addKeyValue("stackFrames", stackFrames)
+                .log("Unexpected exception occurred.");
 
         return ResponseEntity
                 .status(GeneralErrorCode.INTERNAL_SERVER_ERROR.getHttpStatus())

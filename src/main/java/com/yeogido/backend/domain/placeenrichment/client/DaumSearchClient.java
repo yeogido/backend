@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.yeogido.backend.domain.placeenrichment.dto.request.TourPlaceRequest;
 import com.yeogido.backend.domain.placeenrichment.exception.PlaceEnrichmentErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
+import com.yeogido.backend.global.logging.SafeLogDetails;
+import lombok.extern.slf4j.Slf4j;
 import com.yeogido.backend.domain.placeenrichment.dto.response.DaumSearchResponse;
 import com.yeogido.backend.domain.placeenrichment.enums.PlaceEvidenceSourceType;
 
@@ -25,6 +27,7 @@ import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.util.HtmlUtils;
 
 @Component
+@Slf4j
 public class DaumSearchClient {
     private static final String BLOG_SEARCH_TYPE = "blog";
     private static final String WEB_SEARCH_TYPE = "web";
@@ -75,12 +78,16 @@ public class DaumSearchClient {
                                 .queryParam("query", "{query}").queryParam("size", size).build(searchQuery.query()))
                         .header("Authorization", "KakaoAK " + apiKey).retrieve().body(JsonNode.class);
             } catch (RestClientResponseException exception) {
+                logFailure(searchQuery.type(), SafeLogDetails.httpFailureType(exception.getStatusCode().value()),
+                        exception.getStatusCode().value());
                 throw new GeneralException(PlaceEnrichmentErrorCode.DAUM_SEARCH_API_ERROR);
             } catch (RestClientException exception) {
+                logFailure(searchQuery.type(), SafeLogDetails.failureType(exception), null);
                 throw new GeneralException(PlaceEnrichmentErrorCode.DAUM_SEARCH_API_ERROR);
             }
             Instant collectedAt = Instant.now();
             if (response == null || !response.path("documents").isArray()) {
+                logFailure(searchQuery.type(), "response_parse_error", null);
                 throw new GeneralException(PlaceEnrichmentErrorCode.DAUM_SEARCH_API_ERROR);
             }
             for (JsonNode document : response.path("documents")) {
@@ -103,6 +110,20 @@ public class DaumSearchClient {
             }
         }
         return List.copyOf(sources.values());
+    }
+
+    private void logFailure(String searchType, String failureType, Integer status) {
+        var entry = log.atWarn()
+                .addKeyValue("event", "external_api.call.failed")
+                .addKeyValue("provider", "daum")
+                .addKeyValue("operation", BLOG_SEARCH_TYPE.equals(searchType) ? "searchBlog" : "searchWeb")
+                .addKeyValue("failureType", failureType)
+                .addKeyValue("errorCode", PlaceEnrichmentErrorCode.DAUM_SEARCH_API_ERROR.getCode())
+                .addKeyValue("retryable", SafeLogDetails.isRetryable(failureType, status));
+        if (status != null) {
+            entry.addKeyValue("upstreamHttpStatus", status);
+        }
+        entry.log("External API call failed");
     }
 
     private static String activityKeywords(String category) {

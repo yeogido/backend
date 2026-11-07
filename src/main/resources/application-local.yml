@@ -14,6 +14,8 @@ spring:
         use_sql_comments: true
 
 logging:
+  pattern:
+    console: "%clr(%d{${LOG_DATEFORMAT_PATTERN:-yyyy-MM-dd'T'HH:mm:ss.SSSXXX}}){faint} %clr(${LOG_LEVEL_PATTERN:-%5p}){} %clr(${PID:-}){magenta} %clr(--- %esb(){APPLICATION_NAME}%esb{APPLICATION_GROUP}[%15.15t] ${LOG_CORRELATION_PATTERN:-}){faint}%clr(%-40.40logger{39}){cyan} %clr(:){faint} %m %kvp%n${LOG_EXCEPTION_CONVERSION_WORD:-%wEx}"
   level:
     org.hibernate.SQL: debug
     org.hibernate.orm.jdbc.bind: trace
