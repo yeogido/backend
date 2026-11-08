@@ -200,6 +200,7 @@ public class CourseServiceImpl implements CourseService {
                 : pageRequest.cursorId() == null ? courseSearchService.interpret(pageRequest) : null;
 
         List<Long> semanticCourseIds = null;
+        String semanticFailureCode = null;
         if (interpretation != null && interpretation.semanticSessionId() != null) {
             semanticCourseIds = courseSemanticSearchService.restore(interpretation);
         } else if (!decoded.pinned() && pageRequest.cursorId() == null && interpretation != null
@@ -210,8 +211,7 @@ public class CourseServiceImpl implements CourseService {
                 interpretation = new Interpretation(interpretation.request(), interpretation.terms(),
                         interpretation.totalDays(), interpretation.extractedKeywords(), candidates.sessionId());
             } catch (GeneralException exception) {
-                log.warn("의미 기반 검색 실패에 따른 키워드 기반 자연어 검색 적용. code={}",
-                        exception.getErrorCode().getCode());
+                semanticFailureCode = exception.getErrorCode().getCode();
             }
         }
 
@@ -222,8 +222,30 @@ public class CourseServiceImpl implements CourseService {
         List<Long> candidates = semanticCourseIds;
         SearchPhase phase = decoded.phase() != null ? decoded.phase()
                 : !decoded.pinned() && pageRequest.cursorId() == null && search != null ? SearchPhase.TITLE : null;
-        return transaction.execute(status -> getCoursesInTransaction(pageRequest, userId, search,
-                decoded.pinned(), phase, candidates));
+        CourseResDTO.CourseListRes result;
+        try {
+            result = transaction.execute(status -> getCoursesInTransaction(pageRequest, userId, search,
+                    decoded.pinned(), phase, candidates));
+        } catch (RuntimeException failure) {
+            if (semanticFailureCode != null) {
+                log.atWarn().addKeyValue("event", "external_api.fallback.failed")
+                        .addKeyValue("operation", "searchCourses")
+                        .addKeyValue("upstreamErrorCode", semanticFailureCode)
+                        .addKeyValue("failureType", "fallback_processing_error")
+                        .addKeyValue("exceptionType", failure.getClass().getName())
+                        .addKeyValue("fallback", "term_search")
+                        .log("Course search fallback failed.");
+            }
+            throw failure;
+        }
+        if (semanticFailureCode != null) {
+            log.atInfo().addKeyValue("event", "external_api.fallback.succeeded")
+                    .addKeyValue("operation", "searchCourses")
+                    .addKeyValue("errorCode", semanticFailureCode)
+                    .addKeyValue("fallback", "term_search")
+                    .log("Course search completed using term search fallback.");
+        }
+        return result;
     }
 
     private CourseResDTO.CourseListRes getCoursesInTransaction(
@@ -855,7 +877,10 @@ public class CourseServiceImpl implements CourseService {
         try {
             courseRedisRepository.saveCreatedEvent(courseId, LocalDate.now());
         } catch (RuntimeException exception) {
-            log.warn("Failed to save course created event. courseId={}", courseId, exception);
+            log.atWarn().addKeyValue("event", "course.created_event.failed")
+                    .addKeyValue("courseId", courseId)
+                    .addKeyValue("exceptionType", exception.getClass().getName())
+                    .log("Failed to save course created event.");
         }
     }
 
@@ -877,7 +902,10 @@ public class CourseServiceImpl implements CourseService {
         try {
             coursePopularityRankingRedisRepository.removeLocalCourseId(courseId);
         } catch (RuntimeException exception) {
-            log.warn("Failed to remove course from local popularity ranking. courseId={}", courseId, exception);
+            log.atWarn().addKeyValue("event", "course.ranking_cleanup.failed")
+                    .addKeyValue("courseId", courseId)
+                    .addKeyValue("exceptionType", exception.getClass().getName())
+                    .log("Failed to remove course from local popularity ranking.");
         }
     }
 

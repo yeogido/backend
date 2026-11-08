@@ -3,6 +3,7 @@ package com.yeogido.backend.domain.user.client;
 import com.yeogido.backend.domain.user.dto.nts.NtsBusinessVerifyDTO;
 import com.yeogido.backend.domain.user.exception.BusinessVerificationErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
+import com.yeogido.backend.global.logging.SafeLogDetails;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -88,25 +89,14 @@ public class NtsBusinessVerificationClient {
             return response.data().get(0);
 
         } catch (RestClientResponseException exception) {
-            log.error(
-                    "NTS API HTTP 오류: status={}, body={}, baseUrl={}, serviceKeyPresent={}",
-                    exception.getStatusCode(),
-                    exception.getResponseBodyAsString(),
-                    baseUrl,
-                    serviceKey != null && !serviceKey.isBlank()
-            );
+            logFailure("validate", SafeLogDetails.httpFailureType(exception.getStatusCode().value()), exception.getStatusCode().value());
 
             throw new GeneralException(
                     BusinessVerificationErrorCode.BUSINESS_VERIFICATION_API_ERROR
             );
 
         } catch (RestClientException exception) {
-            log.error(
-                    "NTS API 연결 오류: baseUrl={}, serviceKeyPresent={}",
-                    baseUrl,
-                    serviceKey != null && !serviceKey.isBlank(),
-                    exception
-            );
+            logFailure("validate", SafeLogDetails.failureType(exception), null);
 
             throw new GeneralException(
                     BusinessVerificationErrorCode.BUSINESS_VERIFICATION_API_ERROR
@@ -156,25 +146,14 @@ public class NtsBusinessVerificationClient {
             return response.data().get(0);
 
         } catch (RestClientResponseException exception) {
-            log.error(
-                    "NTS 상태조회 API HTTP 오류: status={}, body={}, baseUrl={}, serviceKeyPresent={}",
-                    exception.getStatusCode(),
-                    exception.getResponseBodyAsString(),
-                    baseUrl,
-                    serviceKey != null && !serviceKey.isBlank()
-            );
+            logFailure("status", SafeLogDetails.httpFailureType(exception.getStatusCode().value()), exception.getStatusCode().value());
 
             throw new GeneralException(
                     BusinessVerificationErrorCode.BUSINESS_VERIFICATION_API_ERROR
             );
 
         } catch (RestClientException exception) {
-            log.error(
-                    "NTS 상태조회 API 연결 오류: baseUrl={}, serviceKeyPresent={}",
-                    baseUrl,
-                    serviceKey != null && !serviceKey.isBlank(),
-                    exception
-            );
+            logFailure("status", SafeLogDetails.failureType(exception), null);
 
             throw new GeneralException(
                     BusinessVerificationErrorCode.BUSINESS_VERIFICATION_API_ERROR
@@ -192,10 +171,7 @@ public class NtsBusinessVerificationClient {
                         || response.data().isEmpty()
                         || response.data().get(0) == null
         ) {
-            log.error(
-                    "NTS 상태조회 API 비정상 응답: response={}",
-                    response
-            );
+            logFailure("status", "invalid_response", null);
 
             throw new GeneralException(
                     BusinessVerificationErrorCode.BUSINESS_VERIFICATION_API_ERROR
@@ -230,14 +206,25 @@ public class NtsBusinessVerificationClient {
                         || response.data().isEmpty()
                         || response.data().get(0) == null
         ) {
-            log.error(
-                    "NTS API 비정상 응답: response={}",
-                    response
-            );
+            logFailure("validate", "invalid_response", null);
 
             throw new GeneralException(
                     BusinessVerificationErrorCode.BUSINESS_VERIFICATION_API_ERROR
             );
         }
     }
+    private void logFailure(String operation, String failureType, Integer status) {
+        var event = log.atWarn()
+                .addKeyValue("event", "external_api.call.failed")
+                .addKeyValue("provider", "nts")
+                .addKeyValue("operation", operation)
+                .addKeyValue("failureType", failureType)
+                .addKeyValue("errorCode", BusinessVerificationErrorCode.BUSINESS_VERIFICATION_API_ERROR.getCode())
+                .addKeyValue("retryable", SafeLogDetails.isRetryable(failureType, status));
+        if (status != null) {
+            event.addKeyValue("upstreamHttpStatus", status);
+        }
+        event.log("External API call failed.");
+    }
+
 }
