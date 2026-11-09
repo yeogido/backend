@@ -1,6 +1,8 @@
 package com.yeogido.backend.domain.placeenrichment.client;
 
 import com.yeogido.backend.domain.placeenrichment.exception.PlaceEnrichmentErrorCode;
+import com.yeogido.backend.domain.placeenrichment.exception.ExternalApiFailure;
+import com.yeogido.backend.domain.placeenrichment.exception.ExternalApiFailureKind;
 import com.yeogido.backend.global.exception.GeneralException;
 import com.yeogido.backend.domain.placeenrichment.dto.request.TourPlaceRequest;
 import org.junit.jupiter.api.Test;
@@ -16,6 +18,23 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 class DaumSearchClientTest {
     private final TourPlaceRequest.Input input = new TourPlaceRequest.Input(
             "1", "카페", null, null, "서울 테스트로 1", null, null, null);
+
+    @Test
+    void rateLimitPreservesOperationAndRetryAfterAndStopsRemainingQueries() {
+        RestClient.Builder builder = RestClient.builder().baseUrl("https://example.com");
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(anything()).andRespond(withSuccess("{\"documents\":[]}", MediaType.APPLICATION_JSON));
+        server.expect(anything()).andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS)
+                .header("Retry-After", "30").body("private body secret-key"));
+        assertThatThrownBy(() -> new DaumSearchClient(builder.build(), "secret-key", 5).search(input))
+                .isInstanceOfSatisfying(ExternalApiFailure.class, failure -> {
+                    assertThat(failure.getKind()).isEqualTo(ExternalApiFailureKind.RATE_LIMIT);
+                    assertThat(failure.getOperation()).isEqualTo("searchWeb");
+                    assertThat(failure.getProvider()).isEqualTo("daum");
+                    assertThat(failure.getRetryAfter()).isEqualTo(java.time.Duration.ofSeconds(30));
+                }).hasNoCause().hasMessageNotContaining("secret-key");
+        server.verify();
+    }
 
     @Test
     void searchesWithNameAndAddressStripsMarkupAndDeduplicatesUrls() {

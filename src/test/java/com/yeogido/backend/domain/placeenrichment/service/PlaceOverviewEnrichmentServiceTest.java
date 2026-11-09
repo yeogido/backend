@@ -12,6 +12,11 @@ import com.yeogido.backend.domain.placeenrichment.enums.GeminiPlaceMatchStatus;
 import com.yeogido.backend.domain.placeenrichment.enums.PlaceOverviewSource;
 import com.yeogido.backend.domain.placeenrichment.enums.TourPlaceMatchStatus;
 import com.yeogido.backend.domain.placeenrichment.scheduler.PlaceOverviewRetryScheduler;
+import com.yeogido.backend.domain.placeenrichment.client.PlaceOverviewApiScope;
+import com.yeogido.backend.domain.placeenrichment.exception.ExternalApiDeferredException;
+import com.yeogido.backend.domain.placeenrichment.exception.ExternalApiFailure;
+import com.yeogido.backend.domain.placeenrichment.exception.ExternalApiFailureKind;
+import com.yeogido.backend.domain.placeenrichment.exception.PlaceEnrichmentErrorCode;
 import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.region.enums.RegionType;
 import com.yeogido.backend.domain.region.repository.RegionRepository;
@@ -19,6 +24,7 @@ import com.yeogido.backend.global.config.JpaConfig;
 import com.yeogido.backend.global.exception.GeneralException;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -63,6 +69,7 @@ class PlaceOverviewEnrichmentServiceTest {
   @MockitoBean TourPlaceEnrichmentService tour;
   @MockitoBean GeminiPlaceEnrichmentService gemini;
   @MockitoBean TourApiClient tourApiClient;
+  @MockitoBean PlaceOverviewApiGate apiGate;
 
   private Long placeId;
 
@@ -138,7 +145,7 @@ class PlaceOverviewEnrichmentServiceTest {
     when(tour.enrich(any())).thenThrow(failure);
     assertThatThrownBy(() -> service.enrich(placeId)).isSameAs(failure);
     var failed = places.findById(placeId).orElseThrow();
-    assertThat(failed.getOverviewStatus()).isEqualTo(PlaceOverviewStatus.FAILED);
+    assertThat(failed.getOverviewStatus()).isEqualTo(PlaceOverviewStatus.RETRY_WAIT);
     assertThat(failed.getOverviewAttemptedAt()).isNotNull();
     verifyNoInteractions(gemini);
 
@@ -154,13 +161,109 @@ class PlaceOverviewEnrichmentServiceTest {
   }
 
   @Test
+  void knownSharedQuotaBlocksBeforeClaimWithoutConsumingAttempt() {
+    var retryAt = LocalDateTime.now().plusDays(1);
+    doThrow(new ExternalApiDeferredException("tour", "/searchKeyword2", retryAt))
+        .when(apiGate).check("tour", "/searchKeyword2");
+
+    assertThatThrownBy(() -> service.enrich(placeId)).isInstanceOf(ExternalApiDeferredException.class);
+
+    var saved = places.findById(placeId).orElseThrow();
+    assertThat(saved.getOverviewStatus()).isEqualTo(PlaceOverviewStatus.PENDING);
+    assertThat(saved.getOverviewAttemptCount()).isZero();
+    assertThat(saved.getOverviewAttemptedAt()).isNull();
+    verifyNoInteractions(tour, gemini);
+  }
+
+  @ParameterizedTest
+  @EnumSource(value = ExternalApiFailureKind.class,
+      names = {"DAILY_QUOTA", "RATE_LIMIT", "AUTHENTICATION", "CONFIGURATION"})
+  void sharedExternalFailurePreservesRemainingBudgetAndDoesNotBecomeNoOverview(
+      ExternalApiFailureKind kind) {
+    var retryAt = LocalDateTime.now().plusDays(1).withNano(0);
+    var failure = new ExternalApiFailure(PlaceEnrichmentErrorCode.DAUM_SEARCH_API_ERROR,
+        "daum", "searchWeb", kind, 429, "22", null);
+    when(tour.enrich(any())).thenReturn(tourResult(TourPlaceMatchStatus.UNMATCHED, null));
+    when(gemini.enrich(any())).thenAnswer(invocation ->
+        PlaceOverviewApiScope.call("daum", "searchWeb", () -> { throw failure; }));
+    doNothing().doThrow(new ExternalApiDeferredException("daum", "searchWeb", retryAt))
+        .when(apiGate).check("daum", "searchWeb");
+
+    assertThatThrownBy(() -> service.enrich(placeId)).isSameAs(failure);
+
+    var saved = places.findById(placeId).orElseThrow();
+    assertThat(saved.getOverviewStatus()).isEqualTo(PlaceOverviewStatus.RETRY_WAIT);
+    assertThat(saved.getOverviewAttemptCount()).isZero();
+    assertThat(saved.getOverviewNextRetryAt()).isEqualTo(retryAt);
+    assertThat(saved.getOverview()).isNull();
+    verify(apiGate).recordFailure(failure);
+    service.enrich(placeId);
+    verify(tour, times(1)).enrich(any());
+    verify(gemini, times(1)).enrich(any());
+  }
+
+  @Test
+  void newlyDiscoveredSharedBlockRefundsClaimAndDoesNotReplayLookupBeforeDue() {
+    var retryAt = LocalDateTime.now().plusHours(1).withNano(0);
+    when(tour.enrich(any())).thenThrow(new ExternalApiDeferredException(
+        "tour", "/detailCommon2", retryAt));
+
+    assertThatThrownBy(() -> service.enrich(placeId)).isInstanceOf(ExternalApiDeferredException.class);
+    var saved = places.findById(placeId).orElseThrow();
+    assertThat(saved.getOverviewStatus()).isEqualTo(PlaceOverviewStatus.RETRY_WAIT);
+    assertThat(saved.getOverviewAttemptCount()).isZero();
+    assertThat(saved.getOverviewNextRetryAt()).isEqualTo(retryAt);
+    service.enrich(placeId);
+    verify(tour, times(1)).enrich(any());
+    verifyNoInteractions(gemini);
+  }
+
+  @Test
+  void actualTimeoutHonorsRetryAfterAndBecomesTerminalWhenBudgetIsExhausted() {
+    var failure = new ExternalApiFailure(PlaceEnrichmentErrorCode.GEMINI_GENERATION_API_ERROR,
+        "gemini", "generateContent", ExternalApiFailureKind.TIMEOUT, 408, null,
+        Duration.ofMinutes(10));
+    when(tour.enrich(any())).thenThrow(failure);
+    LocalDateTime before = LocalDateTime.now();
+
+    assertThatThrownBy(() -> service.enrich(placeId)).isSameAs(failure);
+    var waiting = places.findById(placeId).orElseThrow();
+    assertThat(waiting.getOverviewStatus()).isEqualTo(PlaceOverviewStatus.RETRY_WAIT);
+    assertThat(waiting.getOverviewAttemptCount()).isEqualTo(1);
+    assertThat(waiting.getOverviewNextRetryAt()).isAfterOrEqualTo(before.plusMinutes(10));
+    service.enrich(placeId);
+    verify(tour, times(1)).enrich(any());
+
+    makeRetryDue();
+    assertThatThrownBy(() -> service.enrich(placeId)).isSameAs(failure);
+    assertThat(places.findById(placeId).orElseThrow().getOverviewStatus())
+        .isEqualTo(PlaceOverviewStatus.FAILED);
+    service.enrich(placeId);
+    verify(tour, times(2)).enrich(any());
+  }
+
+  @Test
+  void permanentInputFailureStopsImmediatelyInsteadOfRetrying() {
+    when(tour.enrich(any())).thenThrow(new GeneralException(PlaceEnrichmentErrorCode.PLACE_NAME_REQUIRED));
+
+    assertThatThrownBy(() -> service.enrich(placeId)).isInstanceOf(ExternalApiFailure.class);
+
+    var saved = places.findById(placeId).orElseThrow();
+    assertThat(saved.getOverviewStatus()).isEqualTo(PlaceOverviewStatus.FAILED);
+    assertThat(saved.getOverviewAttemptCount()).isEqualTo(1);
+    service.enrich(placeId);
+    verify(tour, times(1)).enrich(any());
+    verifyNoInteractions(gemini);
+  }
+
+  @Test
   void finalCommitFailureIsPersistedAndAllowsRetry() {
     var failure = new org.springframework.dao.DataAccessResourceFailureException("최종 저장 실패");
     when(tour.enrich(any())).thenReturn(tourResult(TourPlaceMatchStatus.MATCHED, "저장할 설명"));
     var commits = new java.util.concurrent.atomic.AtomicInteger();
     // 최종 저장 트랜잭션의 커밋 직전 장애 주입 및 실제 롤백 검증
     doAnswer(invocation -> {
-      if (commits.incrementAndGet() == 2) {
+      if (commits.incrementAndGet() == 3) {
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
           @Override
           public void beforeCommit(boolean readOnly) {
@@ -173,7 +276,7 @@ class PlaceOverviewEnrichmentServiceTest {
 
     assertThatThrownBy(() -> service.enrich(placeId)).isSameAs(failure);
     var failed = places.findById(placeId).orElseThrow();
-    assertThat(failed.getOverviewStatus()).isEqualTo(PlaceOverviewStatus.FAILED);
+    assertThat(failed.getOverviewStatus()).isEqualTo(PlaceOverviewStatus.RETRY_WAIT);
     assertThat(failed.getOverview()).isNull();
     assertThat(failed.getOverviewSource()).isNull();
 
@@ -207,7 +310,7 @@ class PlaceOverviewEnrichmentServiceTest {
     new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
       var place = places.findById(placeId).orElseThrow();
       place.startOverviewEnrichment(LocalDateTime.now().minusMinutes(6));
-      place.failOverviewEnrichment();
+      place.waitForOverviewRetry(LocalDateTime.now().minusSeconds(1), false);
     });
     var entered = new java.util.concurrent.CountDownLatch(1);
     var release = new java.util.concurrent.CountDownLatch(1);
@@ -234,12 +337,12 @@ class PlaceOverviewEnrichmentServiceTest {
   }
 
   @Test
-  void geminiFailureIsPersistedAsFailedInsteadOfNoOverview() {
+  void geminiFailureWaitsForRetryInsteadOfBecomingNoOverview() {
     when(tour.enrich(any())).thenReturn(tourResult(TourPlaceMatchStatus.MATCHED, null));
     when(gemini.enrich(any())).thenThrow(new IllegalStateException("Gemini 실패"));
     assertThatThrownBy(() -> service.enrich(placeId)).isInstanceOf(IllegalStateException.class);
     assertThat(places.findById(placeId).orElseThrow().getOverviewStatus())
-        .isEqualTo(PlaceOverviewStatus.FAILED);
+        .isEqualTo(PlaceOverviewStatus.RETRY_WAIT);
   }
 
   @Test
@@ -418,7 +521,7 @@ class PlaceOverviewEnrichmentServiceTest {
 
   private void makeRetryDue() {
     new TransactionTemplate(transactionManager).executeWithoutResult(status ->
-        entityManager.createQuery("update Place p set p.overviewAttemptedAt = :time where p.id = :id")
+        entityManager.createQuery("update Place p set p.overviewNextRetryAt = :time where p.id = :id")
             .setParameter("time", LocalDateTime.now().minusMinutes(6))
             .setParameter("id", placeId).executeUpdate());
   }

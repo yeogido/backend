@@ -1,8 +1,12 @@
 package com.yeogido.backend.domain.content.client;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.yeogido.backend.domain.content.exception.ContentErrorCode;
-import com.yeogido.backend.global.exception.GeneralException;
+import com.yeogido.backend.domain.placeenrichment.exception.ExternalApiFailure;
+import com.yeogido.backend.domain.placeenrichment.exception.ExternalApiFailureKind;
+import com.yeogido.backend.domain.placeenrichment.client.PlaceOverviewApiScope;
 import com.yeogido.backend.global.logging.SafeLogDetails;
 import jakarta.annotation.PostConstruct;
 import java.time.Duration;
@@ -14,6 +18,11 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
+import org.springframework.http.converter.HttpMessageConversionException;
+import java.io.StringReader;
+import javax.xml.stream.XMLInputFactory;
+import javax.xml.stream.XMLStreamConstants;
+import javax.xml.stream.XMLStreamException;
 
 import java.util.List;
 import java.time.LocalDate;
@@ -26,6 +35,9 @@ public class TourApiClient {
     private static final DateTimeFormatter TOUR_DATE_FORMATTER =
             DateTimeFormatter.BASIC_ISO_DATE;
 
+    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final int MAX_ERROR_BODY_LENGTH = 65536;
+    private static final String DAILY_QUOTA_ERROR_CODE = "22";
     private final RestClient.Builder restClientBuilder;
 
     public TourApiClient(RestClient.Builder restClientBuilder) {
@@ -143,37 +155,74 @@ public class TourApiClient {
             String path,
             java.util.function.Function<org.springframework.web.util.UriBuilder, java.net.URI> uriFunction
     ) {
+        return PlaceOverviewApiScope.call("tour", path, () -> request(path, uriFunction));
+    }
+
+    private JsonNode request(String path,
+            java.util.function.Function<org.springframework.web.util.UriBuilder, java.net.URI> uriFunction) {
         if (!StringUtils.hasText(serviceKey)) {
-            throw new GeneralException(ContentErrorCode.TOUR_API_NOT_CONFIGURED);
+            throw new ExternalApiFailure(ContentErrorCode.TOUR_API_NOT_CONFIGURED,
+                    "tour", path, ExternalApiFailureKind.CONFIGURATION, null, null, null);
         }
-
         try {
-            JsonNode response = restClientBuilder
-                    .baseUrl(baseUrl)
-                    .build()
-                    .get()
-                    .uri(path, uriFunction)
-                    .retrieve()
-                    .body(JsonNode.class);
-
+            String body = restClientBuilder.baseUrl(baseUrl).build().get().uri(path, uriFunction)
+                    .retrieve().body(String.class);
+            // HTTP 정상 응답에 포함된 Tour 일일 한도 오류 코드의 우선 판별
+            String reasonCode = errorReasonCode(body);
+            if (DAILY_QUOTA_ERROR_CODE.equals(reasonCode)) {
+                throw responseFailure(path, reasonCode, ExternalApiFailureKind.DAILY_QUOTA);
+            }
+            JsonNode response;
+            try {
+                response = body == null ? null : JSON.readTree(body);
+            } catch (JsonProcessingException exception) {
+                throw responseFailure(path, reasonCode, ExternalApiFailureKind.INVALID_RESPONSE, "response_parse_error");
+            }
             validateResponse(response, path);
             return response;
-        } catch (GeneralException exception) {
-            throw exception;
         } catch (RestClientResponseException exception) {
             int status = exception.getStatusCode().value();
-            failureLog(path, SafeLogDetails.httpFailureType(status))
+            ExternalApiFailure failure = ExternalApiFailure.http(ContentErrorCode.TOUR_API_ERROR,
+                    "tour", path, exception);
+            String reasonCode = errorReasonCode(exception.getResponseBodyAsString());
+            // 일반 요청 제한과 코드 22로 확인된 일일 한도 소진의 구분
+            if (DAILY_QUOTA_ERROR_CODE.equals(reasonCode) && status == 429) {
+                failure = new ExternalApiFailure(ContentErrorCode.TOUR_API_ERROR, "tour", path,
+                        ExternalApiFailureKind.DAILY_QUOTA, status, reasonCode, failure.getRetryAfter());
+            }
+            var entry = failureLog(path, SafeLogDetails.httpFailureType(status))
                     .addKeyValue("upstreamHttpStatus", status)
-                    .addKeyValue("retryable", SafeLogDetails.isRetryable(null, status))
-                    .log("Tour API request failed.");
-            throw new GeneralException(ContentErrorCode.TOUR_API_ERROR);
-        } catch (RestClientException exception) {
+                    .addKeyValue("failureKind", failure.getKind())
+                    .addKeyValue("retryable", SafeLogDetails.isRetryable(null, status));
+            if (failure.getProviderCode() != null) entry.addKeyValue("providerCode", failure.getProviderCode());
+            entry.log("Tour API request failed.");
+            throw failure;
+        } catch (RestClientException | HttpMessageConversionException exception) {
             String failureType = SafeLogDetails.failureType(exception);
             failureLog(path, failureType)
                     .addKeyValue("retryable", SafeLogDetails.isRetryable(failureType, null))
                     .log("Tour API request failed.");
-            throw new GeneralException(ContentErrorCode.TOUR_API_ERROR);
+            throw ExternalApiFailure.client(ContentErrorCode.TOUR_API_ERROR, "tour", path, exception);
         }
+    }
+
+    private ExternalApiFailure responseFailure(String path, String code, ExternalApiFailureKind kind) {
+        return responseFailure(path, code, kind, "invalid_response");
+    }
+
+    private ExternalApiFailure responseFailure(String path, String code, ExternalApiFailureKind kind,
+            String failureType) {
+        ExternalApiFailure failure = new ExternalApiFailure(ContentErrorCode.TOUR_API_ERROR,
+                "tour", path, kind, 200, code, null);
+        String safeCode = code == null || code.isBlank() ? "missing"
+                : failure.getProviderCode() == null ? "invalid" : failure.getProviderCode();
+        failureLog(path, failureType)
+                .addKeyValue("resultCode", safeCode)
+                .addKeyValue("failureKind", kind)
+                .addKeyValue("upstreamHttpStatus", 200)
+                .addKeyValue("retryable", kind == ExternalApiFailureKind.DAILY_QUOTA)
+                .log("Tour API returned invalid response.");
+        return failure;
     }
 
     private org.slf4j.spi.LoggingEventBuilder failureLog(String operation, String failureType) {
@@ -183,6 +232,58 @@ public class TourApiClient {
                 .addKeyValue("operation", operation)
                 .addKeyValue("failureType", failureType)
                 .addKeyValue("errorCode", ContentErrorCode.TOUR_API_ERROR.getCode());
+    }
+
+    // 크기가 제한된 JSON, XML 오류 응답의 공급자 코드 추출
+    private static String errorReasonCode(String body) {
+        if (body == null || body.length() > MAX_ERROR_BODY_LENGTH) return null;
+        if (body.stripLeading().startsWith("<")) return xmlReasonCode(body);
+        try {
+            JsonNode root = JSON.readTree(body);
+            if (root == null) return null;
+            JsonNode code = root.path("returnReasonCode");
+            if (code.isMissingNode()) code = root.path("cmmMsgHeader").path("returnReasonCode");
+            if (code.isMissingNode()) code = root.path("OpenAPI_ServiceResponse")
+                    .path("cmmMsgHeader").path("returnReasonCode");
+            String value = code.asText("");
+            return value.matches("[0-9]{1,4}") ? value : null;
+        } catch (JsonProcessingException exception) {
+            return null;
+        }
+    }
+
+    private static String xmlReasonCode(String body) {
+        var factory = XMLInputFactory.newFactory();
+        // 외부 자원 접근 및 엔티티 확장 방지를 위한 DTD, 외부 엔티티 비활성화
+        factory.setProperty(XMLInputFactory.SUPPORT_DTD, false);
+        factory.setProperty("javax.xml.stream.isSupportingExternalEntities", false);
+        try {
+            var reader = factory.createXMLStreamReader(new StringReader(body));
+            try {
+                String code = null;
+                java.util.List<String> path = new java.util.ArrayList<>();
+                while (reader.hasNext()) {
+                    int event = reader.next();
+                    if (event == XMLStreamConstants.DTD || event == XMLStreamConstants.ENTITY_REFERENCE) return null;
+                    if (event == XMLStreamConstants.START_ELEMENT) {
+                        path.add(reader.getLocalName());
+                        if (path.equals(List.of("OpenAPI_ServiceResponse", "cmmMsgHeader", "returnReasonCode"))) {
+                            String value = reader.getElementText().trim();
+                            if (code != null || !value.matches("[0-9]{1,4}")) return null;
+                            code = value;
+                            path.removeLast();
+                        }
+                    } else if (event == XMLStreamConstants.END_ELEMENT) {
+                        path.removeLast();
+                    }
+                }
+                return code;
+            } finally {
+                reader.close();
+            }
+        } catch (XMLStreamException exception) {
+            return null;
+        }
     }
 
     private org.springframework.web.util.UriBuilder commonQuery(
@@ -196,19 +297,11 @@ public class TourApiClient {
     }
 
     private void validateResponse(JsonNode response, String path) {
-        String resultCode = response == null
-                ? null
+        String resultCode = response == null ? null
                 : response.path("response").path("header").path("resultCode").asText();
-
         if (!"0000".equals(resultCode)) {
-            // 외부 응답 데이터의 로그 유입 방지를 위한 오류 코드 형식 제한
-            String safeResultCode = resultCode == null || resultCode.isBlank() ? "missing"
-                    : resultCode.matches("[0-9]{4}") ? resultCode : "invalid";
-            failureLog(path, "invalid_response")
-                    .addKeyValue("resultCode", safeResultCode)
-                    .addKeyValue("retryable", false)
-                    .log("Tour API returned invalid response.");
-            throw new GeneralException(ContentErrorCode.TOUR_API_ERROR);
+            throw responseFailure(path, resultCode, DAILY_QUOTA_ERROR_CODE.equals(resultCode)
+                    ? ExternalApiFailureKind.DAILY_QUOTA : ExternalApiFailureKind.INVALID_RESPONSE);
         }
     }
 }

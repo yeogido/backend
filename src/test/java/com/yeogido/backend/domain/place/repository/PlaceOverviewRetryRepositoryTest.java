@@ -45,23 +45,37 @@ class PlaceOverviewRetryRepositoryTest {
   }
 
   @Test
-  void selectsOnlyDueFailedPlacesBelowAttemptLimit() {
-    var retryBefore = LocalDateTime.of(2026, 11, 2, 12, 0)
-        .minusMinutes(Place.OVERVIEW_RETRY_DELAY_MINUTES);
+  void selectsOnlyDueRetryWaitingPlacesBelowAttemptLimit() {
+    var retryBefore = LocalDateTime.of(2026, 11, 2, 12, 0);
     var region = regions.save(Region.builder().name("서울").type(RegionType.REGION).build());
-    var first = save(region, "first", PlaceOverviewStatus.FAILED, 1, retryBefore.minusMinutes(1), null);
-    var second = save(region, "second", PlaceOverviewStatus.FAILED, 1, retryBefore, null);
-    save(region, "future", PlaceOverviewStatus.FAILED, 1, retryBefore.plusSeconds(1), null);
-    save(region, "exhausted", PlaceOverviewStatus.FAILED, 2, retryBefore.minusMinutes(2), null);
-    save(region, "unscheduled", PlaceOverviewStatus.FAILED, 1, null, null);
-    save(region, "existing", PlaceOverviewStatus.FAILED, 1, retryBefore, "기존 설명");
+    var first = saveWaiting(region, "first", 1, retryBefore.minusMinutes(1), null);
+    var second = saveWaiting(region, "second", 1, retryBefore, null);
+    saveWaiting(region, "future", 1, retryBefore.plusSeconds(1), null);
+    saveWaiting(region, "exhausted", 2, retryBefore.minusMinutes(2), null);
+    saveWaiting(region, "unscheduled", 1, null, null);
+    saveWaiting(region, "existing", 1, retryBefore, "기존 설명");
     for (var status : PlaceOverviewStatus.values()) {
-      if (status != PlaceOverviewStatus.FAILED) {
+      if (status != PlaceOverviewStatus.RETRY_WAIT) {
         save(region, status.name(), status, 1, retryBefore.minusMinutes(2), null);
       }
     }
     assertThat(places.findOverviewRetryCandidates(retryBefore, retryBefore.minusMinutes(60), Place.MAX_OVERVIEW_ATTEMPTS, PageRequest.of(0, 20)))
         .containsExactly(first.getId(), second.getId());
+  }
+
+  @Test
+  void selectsDeferredPlaceWithoutAnyAttemptTimestamp() {
+    var now = LocalDateTime.of(2026, 11, 2, 12, 0);
+    var region = regions.save(Region.builder().name("서울").type(RegionType.REGION).build());
+    var deferred = save(region, "deferred", PlaceOverviewStatus.PENDING, 0, null, null);
+    deferred.waitForOverviewRetry(now, false);
+    places.flush();
+
+    assertThat(places.findOverviewRetryCandidates(now, now.minusMinutes(60),
+        Place.MAX_OVERVIEW_ATTEMPTS, PageRequest.of(0, 20)))
+        .containsExactly(deferred.getId());
+    assertThat(deferred.getOverviewAttemptCount()).isZero();
+    assertThat(deferred.getOverviewAttemptedAt()).isNull();
   }
 
   @Test
@@ -88,5 +102,14 @@ class PlaceOverviewRetryRepositoryTest {
         .name(id).latitude(BigDecimal.valueOf(37)).longitude(BigDecimal.valueOf(127))
         .overviewStatus(status).overviewAttemptCount(count).overviewAttemptedAt(attemptedAt).overview(overview)
         .build());
+  }
+
+  private Place saveWaiting(Region region, String id, int count,
+      LocalDateTime retryAt, String overview) {
+    return places.save(Place.builder().region(region).externalPlaceId(id).source(PlaceSource.KAKAO)
+        .name(id).latitude(BigDecimal.valueOf(37)).longitude(BigDecimal.valueOf(127))
+        .overviewStatus(PlaceOverviewStatus.RETRY_WAIT).overviewAttemptCount(count)
+        .overviewAttemptedAt(retryAt == null ? null : retryAt.minusMinutes(1))
+        .overviewNextRetryAt(retryAt).overview(overview).build());
   }
 }

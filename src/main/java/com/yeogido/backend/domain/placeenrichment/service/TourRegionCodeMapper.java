@@ -3,6 +3,8 @@ package com.yeogido.backend.domain.placeenrichment.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.yeogido.backend.domain.content.client.TourApiClient;
 import com.yeogido.backend.domain.content.exception.ContentErrorCode;
+import com.yeogido.backend.domain.placeenrichment.exception.ExternalApiFailure;
+import com.yeogido.backend.domain.placeenrichment.exception.ExternalApiFailureKind;
 import com.yeogido.backend.domain.place.entity.Place;
 import com.yeogido.backend.domain.placeenrichment.dto.TourRegionCode;
 import com.yeogido.backend.domain.region.entity.Region;
@@ -180,7 +182,7 @@ public class TourRegionCodeMapper {
         String code = item.path("code").asText("");
         String name = item.path("name").asText("");
         if (!StringUtils.hasText(code) || !StringUtils.hasText(name)) {
-          throw new GeneralException(ContentErrorCode.TOUR_API_ERROR);
+          throw invalidResponse();
         }
         result.add(new CodeEntry(code, name));
       }
@@ -192,10 +194,15 @@ public class TourRegionCodeMapper {
         return List.of();
       }
       if (items.isEmpty() || total == 0) {
-        throw new GeneralException(ContentErrorCode.TOUR_API_ERROR);
+        throw invalidResponse();
       }
     }
-    throw new GeneralException(ContentErrorCode.TOUR_API_ERROR);
+    throw invalidResponse();
+  }
+
+  private static ExternalApiFailure invalidResponse() {
+    return new ExternalApiFailure(ContentErrorCode.TOUR_API_ERROR, "tour", "/ldongCode2",
+        ExternalApiFailureKind.INVALID_RESPONSE, null, null, null);
   }
 
   private static String normalizeProvince(String name) {

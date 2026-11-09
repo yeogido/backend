@@ -1,6 +1,8 @@
 package com.yeogido.backend.domain.placeenrichment.client;
 
 import com.yeogido.backend.domain.placeenrichment.exception.PlaceEnrichmentErrorCode;
+import com.yeogido.backend.domain.placeenrichment.exception.ExternalApiFailure;
+import com.yeogido.backend.domain.placeenrichment.exception.ExternalApiFailureKind;
 import com.yeogido.backend.global.exception.GeneralException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -25,6 +27,47 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 
 @org.junit.jupiter.api.extension.ExtendWith(org.springframework.boot.test.system.OutputCaptureExtension.class)
 class GeminiSearchClientTest {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({
+        "401,AUTHENTICATION", "403,AUTHENTICATION", "408,TIMEOUT", "429,RATE_LIMIT",
+        "400,REQUEST", "503,SERVER"
+    })
+    void preservesFailureMetadataForRetryDecisions(int status, ExternalApiFailureKind kind) {
+        RestClient.Builder builder = RestClient.builder().baseUrl("https://example.com");
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(anything()).andRespond(withStatus(HttpStatus.valueOf(status))
+                .header("Retry-After", "90").body("private body"));
+        assertThatThrownBy(() -> new GeminiSearchClient(builder.build(), "secret", "model").search("a", "b"))
+                .isInstanceOfSatisfying(ExternalApiFailure.class, failure -> {
+                    assertThat(failure.getProvider()).isEqualTo("gemini");
+                    assertThat(failure.getOperation()).isEqualTo("generateContent");
+                    assertThat(failure.getKind()).isEqualTo(kind);
+                    assertThat(failure.getUpstreamHttpStatus()).isEqualTo(status);
+                    assertThat(failure.getRetryAfter()).isEqualTo(java.time.Duration.ofSeconds(90));
+                }).hasNoCause();
+        server.verify();
+    }
+
+    @Test
+    void retryAfterAcceptsHttpDateAndPreservesLongUpstreamDelays() {
+        var now = java.time.Instant.parse("2026-11-08T00:00:00Z");
+        try (var time = org.mockito.Mockito.mockStatic(java.time.Instant.class, org.mockito.Mockito.CALLS_REAL_METHODS)) {
+            time.when(java.time.Instant::now).thenReturn(now);
+            assertThat(ExternalApiFailure.parseRetryAfter("Sun, 8 Nov 2026 00:02:00 GMT"))
+                    .isEqualTo(java.time.Duration.ofMinutes(2));
+            assertThat(ExternalApiFailure.parseRetryAfter("Sun, 8 Nov 2026 00:00:00 GMT"))
+                    .isEqualTo(java.time.Duration.ZERO);
+        }
+        assertThat(ExternalApiFailure.parseRetryAfter("172800"))
+                .isEqualTo(java.time.Duration.ofHours(48));
+        assertThat(new ExternalApiFailure(PlaceEnrichmentErrorCode.GEMINI_GENERATION_API_ERROR,
+                "gemini", "generateContent", ExternalApiFailureKind.RATE_LIMIT, 429, null,
+                java.time.Duration.ofHours(48)).getRetryAfter()).isEqualTo(java.time.Duration.ofHours(48));
+        assertThat(ExternalApiFailure.parseRetryAfter("-1")).isNull();
+        assertThat(ExternalApiFailure.parseRetryAfter("malformed-secret")).isNull();
+        assertThat(ExternalApiFailure.parseRetryAfter("9".repeat(100))).isNull();
+    }
+
 
     private final Logger logger = (Logger) LoggerFactory.getLogger(GeminiSearchClient.class);
     private final ListAppender<ILoggingEvent> logs = new ListAppender<>() {
@@ -68,6 +111,20 @@ class GeminiSearchClientTest {
         return fields;
     }
 
+
+    @Test
+    void retryTimestampPreservesFortyEightHoursAndSaturatesAtDatabaseMaximum() {
+        var now = java.time.LocalDateTime.of(2026, 11, 8, 0, 0);
+        var maximum = java.time.LocalDateTime.of(9999, 1, 1, 0, 0);
+        assertThat(ExternalApiFailure.retryAt(now, java.time.Duration.ofHours(48)))
+                .isEqualTo(now.plusDays(2));
+        assertThat(ExternalApiFailure.retryAt(now, java.time.Duration.ofDays(4000000)))
+                .isEqualTo(maximum);
+        assertThat(ExternalApiFailure.retryAt(now, java.time.Duration.ofSeconds(Long.MAX_VALUE)))
+                .isEqualTo(maximum);
+        assertThat(ExternalApiFailure.retryAt(maximum.minusSeconds(1), java.time.Duration.ofSeconds(2)))
+                .isEqualTo(maximum);
+    }
 
     @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.CsvSource({

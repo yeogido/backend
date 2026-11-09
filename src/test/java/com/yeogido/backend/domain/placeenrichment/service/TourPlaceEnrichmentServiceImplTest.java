@@ -7,6 +7,8 @@ import com.yeogido.backend.domain.place.entity.Place;
 import com.yeogido.backend.domain.placeenrichment.dto.TourRegionCode;
 import com.yeogido.backend.domain.placeenrichment.dto.response.TourPlaceResponse;
 import com.yeogido.backend.global.exception.GeneralException;
+import com.yeogido.backend.domain.placeenrichment.exception.ExternalApiFailure;
+import com.yeogido.backend.domain.placeenrichment.exception.ExternalApiFailureKind;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -208,7 +210,11 @@ class TourPlaceEnrichmentServiceImplTest {
     void unexpectedEmptyPageIsAnError() throws Exception {
         search(page(2, ""));
         assertThatThrownBy(() -> service.enrich(place("샘플식당 기준점")))
-                .isInstanceOf(GeneralException.class);
+                .isInstanceOfSatisfying(ExternalApiFailure.class, failure -> {
+                    assertThat(failure.getKind()).isEqualTo(ExternalApiFailureKind.INVALID_RESPONSE);
+                    assertThat(failure.getProvider()).isEqualTo("tour");
+                    assertThat(failure.getOperation()).isEqualTo("/searchKeyword2");
+                });
     }
 
     @Test
@@ -224,7 +230,11 @@ class TourPlaceEnrichmentServiceImplTest {
         search(page(1, candidate("1", "샘플식당 기준점", "서울 마포구 가상로 45", "", "")));
         when(client.detailCommon("1")).thenReturn(page(1, "{\"contentid\":\"other\"}"));
         assertThatThrownBy(() -> service.enrich(place("샘플식당 기준점")))
-                .isInstanceOf(GeneralException.class);
+                .isInstanceOfSatisfying(ExternalApiFailure.class, failure -> {
+                    assertThat(failure.getKind()).isEqualTo(ExternalApiFailureKind.INVALID_RESPONSE);
+                    assertThat(failure.getProvider()).isEqualTo("tour");
+                    assertThat(failure.getOperation()).isEqualTo("/detailCommon2");
+                });
     }
 
     @Test

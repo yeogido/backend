@@ -7,6 +7,7 @@ import com.yeogido.backend.domain.course.popularity.scheduler.CoursePopularityRa
 import com.yeogido.backend.domain.course.popularity.service.CoursePopularityRankingService;
 import com.yeogido.backend.domain.place.repository.PlaceRepository;
 import com.yeogido.backend.domain.placeenrichment.service.PlaceOverviewEnrichmentService;
+import com.yeogido.backend.domain.placeenrichment.exception.ExternalApiDeferredException;
 import com.yeogido.backend.domain.region.popularity.scheduler.RegionPopularityRankingScheduler;
 import com.yeogido.backend.domain.region.popularity.service.RegionPopularityRankingService;
 import java.util.List;
@@ -58,6 +59,37 @@ class SchedulerExecutionLoggingTest {
         root.detachAppender(logs);
         logs.stop();
         if (previousContext == null) MDC.clear(); else MDC.setContextMap(previousContext);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void sharedBlockIsCountedAsDeferredWithinTheExistingExecution(boolean retry) {
+        var places = mock(PlaceRepository.class);
+        var enrichment = mock(PlaceOverviewEnrichmentService.class);
+        if (retry) {
+            when(places.findOverviewRetryCandidates(any(), any(), eq(2), any())).thenReturn(List.of(10L));
+        } else {
+            when(places.findOverviewPendingCandidates(eq(2), any())).thenReturn(List.of(10L));
+        }
+        doThrow(new ExternalApiDeferredException("tour", "/searchKeyword2",
+                java.time.LocalDateTime.now().plusDays(1))).when(enrichment).enrich(10L);
+
+        runPlaceJob(retry, places, enrichment);
+
+        assertCount(summary(), "processedCount", 1);
+        assertCount(summary(), "successCount", 0);
+        assertCount(summary(), "failedCount", 0);
+        assertCount(summary(), "deferredCount", 1);
+        var deferred = logs.list.stream().filter(event ->
+                "place.overview.processing.deferred".equals(field(event, "event"))).toList();
+        assertThat(deferred).singleElement().satisfies(event -> {
+            assertThat(field(event, "provider")).isEqualTo("tour");
+            assertThat(field(event, "operation")).isEqualTo("/searchKeyword2");
+            assertThat(event.getMDCPropertyMap().get("executionId"))
+                    .isEqualTo(summary().getMDCPropertyMap().get("executionId"));
+        });
+        assertSafe();
+        assertThat(MDC.getCopyOfContextMap()).isNullOrEmpty();
     }
 
     @ParameterizedTest
