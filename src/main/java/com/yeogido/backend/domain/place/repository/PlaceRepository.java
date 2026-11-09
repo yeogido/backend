@@ -30,13 +30,14 @@ public interface PlaceRepository extends JpaRepository<Place, Long> {
 
   @Query("""
       select p.id from Place p
-      where ((p.overviewStatus = com.yeogido.backend.domain.place.enums.PlaceOverviewStatus.FAILED
-          and p.overviewAttemptCount < :maxAttempts and p.overviewAttemptedAt <= :retryBefore)
+      where ((p.overviewStatus = com.yeogido.backend.domain.place.enums.PlaceOverviewStatus.RETRY_WAIT
+          and p.overviewAttemptCount < :maxAttempts and p.overviewNextRetryAt <= :retryBefore)
         or (p.overviewStatus = com.yeogido.backend.domain.place.enums.PlaceOverviewStatus.PROCESSING
           and p.overviewAttemptedAt <= :staleBefore))
         and (p.overview is null or trim(p.overview) = '')
-      order by p.overviewAttemptedAt, p.id
+      order by coalesce(p.overviewNextRetryAt, p.overviewAttemptedAt), p.id
       """)
+  // 예약 시각이 지난 대기 건 및 횟수 소진 후 상태 정리가 필요한 중단 처리 건 조회
   List<Long> findOverviewRetryCandidates(@Param("retryBefore") LocalDateTime retryBefore,
       @Param("staleBefore") LocalDateTime staleBefore,
       @Param("maxAttempts") int maxAttempts, Pageable pageable);
