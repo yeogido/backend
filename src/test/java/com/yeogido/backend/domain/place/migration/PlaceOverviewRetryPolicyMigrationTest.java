@@ -31,7 +31,8 @@ class PlaceOverviewRetryPolicyMigrationTest {
           """);
       new ResourceDatabasePopulator(
           new ClassPathResource("db/migration/V46__add_place_overview_retry_policy.sql"),
-          new ClassPathResource("db/migration/V47__add_overview_external_api_gate.sql"))
+          new ClassPathResource("db/migration/V47__add_overview_external_api_gate.sql"),
+          new ClassPathResource("db/migration/V49__track_overview_api_wait.sql"))
           .execute(datasource);
 
       assertThat(jdbc.queryForObject("SELECT overview_status FROM place WHERE id=1", String.class))
@@ -42,6 +43,13 @@ class PlaceOverviewRetryPolicyMigrationTest {
           .isEqualTo("기존 설명");
       assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM place WHERE overview_next_retry_at IS NULL",
           Integer.class)).isEqualTo(2);
+      assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM place WHERE overview_blocked_by_operation IS NULL",
+          Integer.class)).isEqualTo(2);
+      jdbc.update("UPDATE place SET overview_blocked_by_operation=? WHERE id=1", "gemini:generateContent");
+      assertThat(jdbc.queryForObject("SELECT overview_blocked_by_operation FROM place WHERE id=1", String.class))
+          .isEqualTo("gemini:generateContent");
+      assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM place_overview_api_operation WHERE manual_release_required = FALSE",
+          Integer.class)).isEqualTo(6);
       assertThat(jdbc.queryForList("SELECT id FROM place_overview_api_operation", String.class))
           .containsExactlyInAnyOrder("tour:/searchKeyword2", "tour:/detailCommon2", "tour:/ldongCode2",
               "daum:searchBlog", "daum:searchWeb", "gemini:generateContent");

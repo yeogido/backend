@@ -1,5 +1,8 @@
 package com.yeogido.backend.domain.placeenrichment.service;
 
+import com.yeogido.backend.domain.place.repository.PlaceRepository;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
 import com.yeogido.backend.domain.placeenrichment.entity.PlaceOverviewApiOperation;
 import com.yeogido.backend.domain.placeenrichment.exception.ExternalApiDeferredException;
 import com.yeogido.backend.domain.placeenrichment.exception.ExternalApiFailure;
@@ -21,28 +24,28 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Service
 @Slf4j
 public class PlaceOverviewApiGate {
-  // 인증, 설정 오류의 자동 재개 방지를 위한 수동 해제 전용 차단 시각
-  public static final LocalDateTime MANUAL_RELEASE_REQUIRED = ExternalApiFailure.MAX_RETRY_AT;
+  public static final Duration RELEASE_RETRY_DELAY = Duration.ofMinutes(5);
   public static final Duration RECHECK_DELAY = Duration.ofMinutes(1);
 
   private final PlaceOverviewApiOperationRepository operations;
   private final TransactionTemplate transaction;
   private final Clock clock;
+  private final PlaceRepository places;
   private final long dailyQuotaCooldownSeconds;
   private final long rateLimitCooldownSeconds;
   private final long transientCooldownSeconds;
 
   @Autowired
-  public PlaceOverviewApiGate(PlaceOverviewApiOperationRepository operations,
+  public PlaceOverviewApiGate(PlaceOverviewApiOperationRepository operations, PlaceRepository places,
       PlatformTransactionManager transactionManager,
       @Value("${app.place-overview.external-api.daily-quota-cooldown-seconds:86400}") long dailyQuotaCooldownSeconds,
       @Value("${app.place-overview.external-api.rate-limit-cooldown-seconds:60}") long rateLimitCooldownSeconds,
       @Value("${app.place-overview.external-api.transient-cooldown-seconds:30}") long transientCooldownSeconds) {
-    this(operations, transactionManager, dailyQuotaCooldownSeconds, rateLimitCooldownSeconds,
+    this(operations, places, transactionManager, dailyQuotaCooldownSeconds, rateLimitCooldownSeconds,
         transientCooldownSeconds, Clock.systemDefaultZone());
   }
 
-  PlaceOverviewApiGate(PlaceOverviewApiOperationRepository operations,
+  PlaceOverviewApiGate(PlaceOverviewApiOperationRepository operations, PlaceRepository places,
       PlatformTransactionManager transactionManager, long dailyQuotaCooldownSeconds,
       long rateLimitCooldownSeconds, long transientCooldownSeconds, Clock clock) {
     if (dailyQuotaCooldownSeconds < 1 || dailyQuotaCooldownSeconds > Duration.ofDays(7).toSeconds()
@@ -51,6 +54,7 @@ public class PlaceOverviewApiGate {
       throw new GeneralException(PlaceEnrichmentErrorCode.INVALID_ENRICHMENT_CONFIG);
     }
     this.operations = operations;
+    this.places = places;
     transaction = new TransactionTemplate(transactionManager);
     transaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     this.clock = clock;
@@ -82,13 +86,16 @@ public class PlaceOverviewApiGate {
     if (Duration.ZERO.equals(delay)) {
       return;
     }
-    LocalDateTime until = delay == null ? MANUAL_RELEASE_REQUIRED
-        : ExternalApiFailure.retryAt(now(), delay);
+    LocalDateTime until = delay == null ? null : ExternalApiFailure.retryAt(now(), delay);
     // 장소 상태 저장과 분리된 트랜잭션 및 행 잠금을 통한 서버 간 공통 차단 갱신
     LocalDateTime blockedUntil = transaction.execute(status -> {
       PlaceOverviewApiOperation state = findForUpdate(failure.getProvider(), failure.getOperation());
-      state.blockUntil(until);
-      return state.getBlockedUntil();
+      if (delay == null) {
+        state.blockManually();
+      } else {
+        state.blockUntil(until);
+      }
+      return state.isManualReleaseRequired() ? null : state.getBlockedUntil();
     });
     log.atWarn().addKeyValue("event", "place.overview.external_api.blocked")
         .addKeyValue("provider", failure.getProvider()).addKeyValue("operation", failure.getOperation())
@@ -99,10 +106,26 @@ public class PlaceOverviewApiGate {
 
   // 설정 수정 또는 한도 회복 확인 후 해당 API 작업의 공통 차단 해제
   public void release(String provider, String operation) {
-    transaction.executeWithoutResult(status -> findForUpdate(provider, operation).release());
+    transaction.executeWithoutResult(status -> {
+      findForUpdate(provider, operation).release();
+      places.resumeManualOverviewWaits(PlaceOverviewApiOperation.key(provider, operation),
+          now().plus(RELEASE_RETRY_DELAY));
+    });
     log.atInfo().addKeyValue("event", "place.overview.external_api.released")
         .addKeyValue("provider", provider).addKeyValue("operation", operation)
         .log("Overview external API operation released.");
+  }
+
+  // 장소 저장과 차단 해제의 작업 행 잠금 순서 일치를 위한 호출자 트랜잭션 참여
+  @Transactional(propagation = Propagation.MANDATORY)
+  public LocalDateTime retryAtForUpdate(String provider, String operation) {
+    var state = operations.findForUpdate(PlaceOverviewApiOperation.key(provider, operation));
+    LocalDateTime now = now();
+    if (state.isPresent() && state.get().isBlocked(now)) {
+      return state.get().isManualReleaseRequired() ? null : state.get().getBlockedUntil();
+    }
+    // 해제가 먼저 끝난 경우에도 동일하게 5분 뒤 재시도
+    return now.plus(RELEASE_RETRY_DELAY);
   }
 
   private Duration retryAfterOr(ExternalApiFailure failure, long fallbackSeconds) {
@@ -116,7 +139,8 @@ public class PlaceOverviewApiGate {
   private void requireAvailable(PlaceOverviewApiOperation state, String provider, String operation,
       LocalDateTime now) {
     if (state.isBlocked(now)) {
-      throw new ExternalApiDeferredException(provider, operation, state.getBlockedUntil());
+      throw new ExternalApiDeferredException(provider, operation,
+          state.isManualReleaseRequired() ? null : state.getBlockedUntil());
     }
   }
 

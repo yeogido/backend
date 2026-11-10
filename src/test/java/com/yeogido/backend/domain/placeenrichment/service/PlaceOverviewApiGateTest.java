@@ -38,6 +38,7 @@ import static org.assertj.core.api.Assertions.*;
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class PlaceOverviewApiGateTest {
   @Autowired PlaceOverviewApiOperationRepository operations;
+  @Autowired com.yeogido.backend.domain.place.repository.PlaceRepository places;
   @Autowired PlatformTransactionManager transactionManager;
   private MutableClock clock;
   private PlaceOverviewApiGate gate;
@@ -60,7 +61,7 @@ class PlaceOverviewApiGateTest {
   })
   void invalidCooldownUsesExistingEnrichmentConfigurationError(
       long dailySeconds, long rateSeconds, long transientSeconds) {
-    assertThatThrownBy(() -> new PlaceOverviewApiGate(operations, transactionManager,
+    assertThatThrownBy(() -> new PlaceOverviewApiGate(operations, places, transactionManager,
         dailySeconds, rateSeconds, transientSeconds, clock))
         .isInstanceOfSatisfying(GeneralException.class,
             failure -> assertThat(failure.getErrorCode())
@@ -114,9 +115,33 @@ class PlaceOverviewApiGateTest {
     gate.recordFailure(failure(ExternalApiFailureKind.AUTHENTICATION, null));
     assertThatThrownBy(() -> gate.check("tour", "/searchKeyword2"))
         .isInstanceOfSatisfying(ExternalApiDeferredException.class,
-            deferred -> assertThat(deferred.getRetryAt()).isEqualTo(PlaceOverviewApiGate.MANUAL_RELEASE_REQUIRED));
+            deferred -> assertThat(deferred.getRetryAt()).isNull());
 
     gate.release("tour", "/searchKeyword2");
+    assertThatCode(() -> gate.check("tour", "/searchKeyword2")).doesNotThrowAnyException();
+  }
+
+  @Test
+  void maximumTimedDelayIsNotAManualBlock() {
+    gate.recordFailure(failure(ExternalApiFailureKind.RATE_LIMIT, Duration.ofSeconds(Long.MAX_VALUE)));
+    var state = operations.findById("tour:/searchKeyword2").orElseThrow();
+    assertThat(state.isManualReleaseRequired()).isFalse();
+    assertThat(state.getBlockedUntil()).isEqualTo(ExternalApiFailure.MAX_RETRY_AT);
+    assertThatThrownBy(() -> gate.check("tour", "/searchKeyword2"))
+        .isInstanceOfSatisfying(ExternalApiDeferredException.class,
+            deferred -> assertThat(deferred.getRetryAt()).isEqualTo(ExternalApiFailure.MAX_RETRY_AT));
+  }
+
+  @Test
+  void timedFailuresCannotOverrideManualBlock() {
+    gate.recordFailure(failure(ExternalApiFailureKind.AUTHENTICATION, null));
+    gate.recordFailure(failure(ExternalApiFailureKind.RATE_LIMIT, Duration.ofMinutes(1)));
+    clock.advance(Duration.ofMinutes(2));
+    assertThatThrownBy(() -> gate.check("tour", "/searchKeyword2"))
+        .isInstanceOfSatisfying(ExternalApiDeferredException.class,
+            deferred -> assertThat(deferred.getRetryAt()).isNull());
+    gate.release("tour", "/searchKeyword2");
+    assertThat(operations.findById("tour:/searchKeyword2").orElseThrow().isManualReleaseRequired()).isFalse();
     assertThatCode(() -> gate.check("tour", "/searchKeyword2")).doesNotThrowAnyException();
   }
 
@@ -160,7 +185,7 @@ class PlaceOverviewApiGateTest {
   }
 
   private PlaceOverviewApiGate newGate() {
-    return new PlaceOverviewApiGate(operations, transactionManager, 86400, 60, 30, clock);
+    return new PlaceOverviewApiGate(operations, places, transactionManager, 86400, 60, 30, clock);
   }
 
   private ExternalApiFailure failure(ExternalApiFailureKind kind, Duration retryAfter) {

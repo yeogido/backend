@@ -6,6 +6,7 @@ import com.yeogido.backend.domain.place.exception.PlaceErrorCode;
 import com.yeogido.backend.domain.place.repository.PlaceRepository;
 import com.yeogido.backend.domain.placeenrichment.dto.request.TourPlaceRequest;
 import com.yeogido.backend.domain.placeenrichment.dto.response.TourPlaceResponse;
+import com.yeogido.backend.domain.placeenrichment.entity.PlaceOverviewApiOperation;
 import com.yeogido.backend.domain.placeenrichment.dto.response.GeminiPlaceResponse;
 import com.yeogido.backend.domain.placeenrichment.enums.PlaceOverviewSource;
 import com.yeogido.backend.domain.placeenrichment.client.PlaceOverviewApiScope;
@@ -116,9 +117,11 @@ public class PlaceOverviewEnrichmentServiceImpl implements PlaceOverviewEnrichme
       // 조회 또는 결과 커밋 실패 후 별도 트랜잭션으로 재시도 가능한 상태 기록
       try {
         Place decision = transactionTemplate.execute(status -> {
+          // API 작업 행 → 장소 행 순서로 잠가 차단 해제와 대기 저장의 경합 방지
+          LocalDateTime sharedRetryAt = sharedRetryAt(failure);
           Place found = findCurrentAttempt(placeId, place.getOverviewAttemptedAt());
           if (found != null) {
-            applyFailure(found, failure);
+            applyFailure(found, failure, sharedRetryAt);
           }
           return found;
         });
@@ -181,11 +184,11 @@ public class PlaceOverviewEnrichmentServiceImpl implements PlaceOverviewEnrichme
     return classified;
   }
 
-  private void applyFailure(Place place, RuntimeException failure) {
+  private void applyFailure(Place place, RuntimeException failure, LocalDateTime sharedRetryAt) {
     LocalDateTime now = LocalDateTime.now();
     // 실제 외부 요청 없이 보류된 현재 시도의 횟수 환급 및 대기 예약
     if (failure instanceof ExternalApiDeferredException deferred) {
-      place.waitForOverviewRetry(deferred.getRetryAt(), true);
+      place.waitForOverviewApi(sharedRetryAt, PlaceOverviewApiOperation.key(deferred.getProvider(), deferred.getOperation()));
       return;
     }
     if (failure instanceof ExternalApiFailure external) {
@@ -197,7 +200,7 @@ public class PlaceOverviewEnrichmentServiceImpl implements PlaceOverviewEnrichme
         }
         case DAILY_QUOTA, RATE_LIMIT, AUTHENTICATION, CONFIGURATION -> {
           // 장소별 실패 횟수 소진 방지를 위한 공통 제한 시도의 횟수 환급
-          place.waitForOverviewRetry(sharedRetryAt(external, now), true);
+          place.waitForOverviewApi(sharedRetryAt, PlaceOverviewApiOperation.key(external.getProvider(), external.getOperation()));
           return;
         }
         default -> { }
@@ -216,14 +219,34 @@ public class PlaceOverviewEnrichmentServiceImpl implements PlaceOverviewEnrichme
     place.waitForOverviewRetry(retryAt, false);
   }
 
-  private LocalDateTime sharedRetryAt(ExternalApiFailure failure, LocalDateTime now) {
-    try {
-      apiGate.check(failure.getProvider(), failure.getOperation());
-    } catch (ExternalApiDeferredException deferred) {
-      return deferred.getRetryAt();
+  private LocalDateTime sharedRetryAt(RuntimeException failure) {
+    if (failure instanceof ExternalApiDeferredException deferred) {
+      LocalDateTime retryAt = apiGate.retryAtForUpdate(deferred.getProvider(), deferred.getOperation());
+      // 수동 차단 해제 여부 재확인 및 공급자 지정 유한 대기 시간 보존
+      if (deferred.getRetryAt() != null
+          && retryAt != null && deferred.getRetryAt().isAfter(retryAt)) {
+        return deferred.getRetryAt();
+      }
+      return retryAt;
     }
-    // 이미 해제된 공통 제한의 다음 스케줄 재확인을 위한 짧은 대기 적용
-    return now.plus(PlaceOverviewApiGate.RECHECK_DELAY);
+    if (failure instanceof ExternalApiFailure external) {
+      return switch (external.getKind()) {
+        case DAILY_QUOTA, RATE_LIMIT -> {
+          LocalDateTime retryAt = apiGate.retryAtForUpdate(external.getProvider(), external.getOperation());
+          if (retryAt != null && external.getRetryAfter() != null) {
+            LocalDateTime providerRetryAt = ExternalApiFailure.retryAt(LocalDateTime.now(), external.getRetryAfter());
+            if (providerRetryAt.isAfter(retryAt)) {
+              retryAt = providerRetryAt;
+            }
+          }
+          yield retryAt;
+        }
+        case AUTHENTICATION, CONFIGURATION ->
+            apiGate.retryAtForUpdate(external.getProvider(), external.getOperation());
+        default -> null;
+      };
+    }
+    return null;
   }
 
   private void logDecision(Place place, RuntimeException failure, String stage) {

@@ -186,8 +186,7 @@ class PlaceOverviewEnrichmentServiceTest {
     when(tour.enrich(any())).thenReturn(tourResult(TourPlaceMatchStatus.UNMATCHED, null));
     when(gemini.enrich(any())).thenAnswer(invocation ->
         PlaceOverviewApiScope.call("daum", "searchWeb", () -> { throw failure; }));
-    doNothing().doThrow(new ExternalApiDeferredException("daum", "searchWeb", retryAt))
-        .when(apiGate).check("daum", "searchWeb");
+    when(apiGate.retryAtForUpdate("daum", "searchWeb")).thenReturn(retryAt);
 
     assertThatThrownBy(() -> service.enrich(placeId)).isSameAs(failure);
 
@@ -205,6 +204,7 @@ class PlaceOverviewEnrichmentServiceTest {
   @Test
   void newlyDiscoveredSharedBlockRefundsClaimAndDoesNotReplayLookupBeforeDue() {
     var retryAt = LocalDateTime.now().plusHours(1).withNano(0);
+    when(apiGate.retryAtForUpdate("tour", "/detailCommon2")).thenReturn(retryAt);
     when(tour.enrich(any())).thenThrow(new ExternalApiDeferredException(
         "tour", "/detailCommon2", retryAt));
 

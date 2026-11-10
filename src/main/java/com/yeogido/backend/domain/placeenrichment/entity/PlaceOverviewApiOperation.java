@@ -22,6 +22,9 @@ public class PlaceOverviewApiOperation extends BaseEntity {
   @Column(name = "blocked_until")
   private LocalDateTime blockedUntil;
 
+  @Column(name = "manual_release_required", nullable = false)
+  private boolean manualReleaseRequired;
+
   public PlaceOverviewApiOperation(String provider, String operation) {
     this.id = key(provider, operation);
   }
@@ -31,7 +34,7 @@ public class PlaceOverviewApiOperation extends BaseEntity {
   }
 
   public boolean isBlocked(LocalDateTime now) {
-    return blockedUntil != null && blockedUntil.isAfter(now);
+    return manualReleaseRequired || blockedUntil != null && blockedUntil.isAfter(now);
   }
 
   // 동시 실패로 기존 차단 시간이 단축되는 상황 방지를 위한 최대 시각 유지
@@ -41,7 +44,12 @@ public class PlaceOverviewApiOperation extends BaseEntity {
     }
   }
 
+  public void blockManually() {
+    manualReleaseRequired = true;
+  }
+
   public void release() {
+    manualReleaseRequired = false;
     blockedUntil = null;
   }
 }

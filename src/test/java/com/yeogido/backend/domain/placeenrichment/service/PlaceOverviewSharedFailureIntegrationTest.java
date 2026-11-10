@@ -48,7 +48,7 @@ class PlaceOverviewSharedFailureIntegrationTest {
   @Autowired PlaceRepository places;
   @Autowired RegionRepository regions;
   @Autowired PlaceOverviewApiOperationRepository operations;
-  @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
+  @Autowired org.springframework.transaction.PlatformTransactionManager transactionManager;
   @MockitoBean TourPlaceEnrichmentService tour;
   @MockitoBean GeminiPlaceEnrichmentService gemini;
 
@@ -89,8 +89,12 @@ class PlaceOverviewSharedFailureIntegrationTest {
       var pending = places.findById(second).orElseThrow();
       assertThat(waiting.getOverviewStatus()).isEqualTo(PlaceOverviewStatus.RETRY_WAIT);
       assertThat(waiting.getOverviewAttemptCount()).isZero();
-      assertThat(waiting.getOverviewNextRetryAt()).isEqualTo(
-          operations.findById("tour:/searchKeyword2").orElseThrow().getBlockedUntil());
+      if (kind == ExternalApiFailureKind.AUTHENTICATION || kind == ExternalApiFailureKind.CONFIGURATION) {
+        assertThat(waiting.getOverviewNextRetryAt()).isNull();
+      } else {
+        assertThat(waiting.getOverviewNextRetryAt()).isEqualTo(
+            operations.findById("tour:/searchKeyword2").orElseThrow().getBlockedUntil());
+      }
       assertThat(pending.getOverviewStatus()).isEqualTo(PlaceOverviewStatus.PENDING);
       assertThat(pending.getOverviewAttemptCount()).isZero();
       assertThat(pending.getOverviewAttemptedAt()).isNull();
@@ -113,9 +117,23 @@ class PlaceOverviewSharedFailureIntegrationTest {
           .isNotBlank().isEqualTo(summary.getMDCPropertyMap().get("executionId"));
       assertThat(decision.getThrowableProxy()).isNull();
 
-      gate.release("tour", "/searchKeyword2");
-      // 명시적 조기 복구 시 확인된 대기 항목만 선택적 재개
-      jdbc.update("UPDATE \"place\" SET \"overview_next_retry_at\"=CURRENT_TIMESTAMP WHERE \"id\"=?", first);
+      if (waiting.getOverviewNextRetryAt() == null) {
+        assertThat(waiting.getOverviewBlockedByOperation()).isEqualTo("tour:/searchKeyword2");
+      } else {
+        assertThat(waiting.getOverviewBlockedByOperation()).isNull();
+      }
+      // 장소 예약 직접 수정 없이 해제 후 5분 경과 상황을 재현하기 위한 고정 시계 사용
+      var releasedAt = java.time.LocalDateTime.now().minusMinutes(10).withNano(0);
+      releaseGateAt(releasedAt).release("tour", "/searchKeyword2");
+      if (kind == ExternalApiFailureKind.DAILY_QUOTA || kind == ExternalApiFailureKind.RATE_LIMIT) {
+        assertThat(places.findById(first).orElseThrow().getOverviewNextRetryAt())
+            .isEqualTo(waiting.getOverviewNextRetryAt());
+        new PlaceOverviewRetryScheduler(places, service).retryFailedOverviews();
+        verify(tour, times(1)).enrich(any());
+        return;
+      }
+      assertThat(places.findById(first).orElseThrow().getOverviewNextRetryAt())
+          .isEqualTo(releasedAt.plusMinutes(5));
       doReturn(new TourPlaceResponse.MatchResult("external", TourPlaceMatchStatus.MATCHED,
           null, null, "복구된 설명", 1, false, List.of())).when(tour).enrich(any());
       new PlaceOverviewRetryScheduler(places, service).retryFailedOverviews();
@@ -124,11 +142,128 @@ class PlaceOverviewSharedFailureIntegrationTest {
         var completed = places.findById(id).orElseThrow();
         assertThat(completed.getOverviewStatus()).isEqualTo(PlaceOverviewStatus.COMPLETED);
         assertThat(completed.getOverviewAttemptCount()).isEqualTo(1);
+        assertThat(completed.getOverviewBlockedByOperation()).isNull();
       }
     } finally {
       root.detachAppender(logs);
       logs.stop();
     }
+  }
+
+  @org.junit.jupiter.api.Test
+  void releaseOnlyReschedulesManualWaitsForItsOwnOperation() {
+    operations.saveAndFlush(new PlaceOverviewApiOperation("tour", "/searchKeyword2"));
+    var region = regions.saveAndFlush(Region.builder().name("서울").type(RegionType.REGION).build());
+    java.time.LocalDateTime manual = null;
+    var later = java.time.LocalDateTime.now().plusHours(2).withNano(0);
+    Long own = waiting(region, "own", manual, "tour:/searchKeyword2");
+    Long otherProvider = waiting(region, "other-provider", manual, "gemini:generateContent");
+    Long otherOperation = waiting(region, "other-operation", manual, "tour:/detailCommon2");
+    Long timed = waiting(region, "timed", later, "tour:/searchKeyword2");
+    Long ordinary = waiting(region, "ordinary", later, null);
+
+    var releasedAt = java.time.LocalDateTime.now().withNano(0);
+    releaseGateAt(releasedAt).release("tour", "/searchKeyword2");
+
+    var resumed = places.findById(own).orElseThrow();
+    assertThat(resumed.getOverviewNextRetryAt()).isEqualTo(releasedAt.plusMinutes(5));
+    assertThat(resumed.canStartOverviewEnrichment(releasedAt.plusMinutes(4))).isFalse();
+    assertThat(resumed.canStartOverviewEnrichment(releasedAt.plusMinutes(5))).isTrue();
+    assertThat(resumed.getOverviewAttemptCount()).isZero();
+    assertThat(resumed.getOverviewBlockedByOperation()).isNull();
+    for (Long id : List.of(otherProvider, otherOperation)) {
+      assertThat(places.findById(id).orElseThrow().getOverviewNextRetryAt()).isEqualTo(manual);
+    }
+    for (Long id : List.of(timed, ordinary)) {
+      assertThat(places.findById(id).orElseThrow().getOverviewNextRetryAt()).isEqualTo(later);
+    }
+  }
+
+  @org.junit.jupiter.api.Test
+  void releaseBeforeFailureIsSavedDoesNotLeaveAnInfiniteWait() {
+    operations.saveAndFlush(new PlaceOverviewApiOperation("tour", "/searchKeyword2"));
+    var region = regions.saveAndFlush(Region.builder().name("서울").type(RegionType.REGION).build());
+    Long id = save(region, "racing-release");
+    var failure = new ExternalApiFailure(PlaceEnrichmentErrorCode.DAUM_SEARCH_API_ERROR,
+        "tour", "/searchKeyword2", ExternalApiFailureKind.AUTHENTICATION, 401, null, null);
+    when(tour.enrich(any())).thenAnswer(invocation -> {
+      gate.recordFailure(failure);
+      gate.release("tour", "/searchKeyword2");
+      throw failure;
+    });
+    org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.enrich(id)).isSameAs(failure);
+    var waiting = places.findById(id).orElseThrow();
+    assertThat(waiting.getOverviewStatus()).isEqualTo(PlaceOverviewStatus.RETRY_WAIT);
+    assertThat(waiting.getOverviewAttemptCount()).isZero();
+    assertThat(waiting.getOverviewNextRetryAt()).isAfter(java.time.LocalDateTime.now())
+        .isBefore(java.time.LocalDateTime.now().plusMinutes(6));
+    assertThat(waiting.getOverviewNextRetryAt()).isAfter(java.time.LocalDateTime.now().plusMinutes(4));
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.EnumSource(value = ExternalApiFailureKind.class,
+      names = {"RATE_LIMIT", "DAILY_QUOTA"})
+  void releaseBeforeQuotaFailureIsSavedPreservesRetryAfter(ExternalApiFailureKind kind) {
+    operations.saveAndFlush(new PlaceOverviewApiOperation("tour", "/searchKeyword2"));
+    var region = regions.saveAndFlush(Region.builder().name("서울").type(RegionType.REGION).build());
+    Long id = save(region, "quota-release-race");
+    var minimumRetryAt = java.time.LocalDateTime.now().plusHours(2);
+    var failure = new ExternalApiFailure(PlaceEnrichmentErrorCode.DAUM_SEARCH_API_ERROR,
+        "tour", "/searchKeyword2", kind, 429, null, java.time.Duration.ofHours(2));
+    when(tour.enrich(any())).thenAnswer(invocation -> {
+      gate.recordFailure(failure);
+      gate.release("tour", "/searchKeyword2");
+      throw failure;
+    });
+    org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.enrich(id)).isSameAs(failure);
+    var waiting = places.findById(id).orElseThrow();
+    assertThat(waiting.getOverviewNextRetryAt()).isAfterOrEqualTo(minimumRetryAt);
+    assertThat(waiting.getOverviewAttemptCount()).isZero();
+    new PlaceOverviewRetryScheduler(places, service).retryFailedOverviews();
+    verify(tour, times(1)).enrich(any());
+  }
+
+  @org.junit.jupiter.api.Test
+  void maximumQuotaDelayRemainsScheduledForBothFailureAndDeferredPlaces() {
+    operations.saveAndFlush(new PlaceOverviewApiOperation("tour", "/searchKeyword2"));
+    operations.saveAndFlush(new PlaceOverviewApiOperation("daum", "searchWeb"));
+    var region = regions.saveAndFlush(Region.builder().name("서울").type(RegionType.REGION).build());
+    Long first = save(region, "maximum-quota");
+    Long second = save(region, "maximum-deferred");
+    var failure = new ExternalApiFailure(PlaceEnrichmentErrorCode.DAUM_SEARCH_API_ERROR,
+        "daum", "searchWeb", ExternalApiFailureKind.RATE_LIMIT, 429, null,
+        java.time.Duration.ofSeconds(Long.MAX_VALUE));
+    when(tour.enrich(any())).thenAnswer(invocation -> PlaceOverviewApiScope.call(
+        "daum", "searchWeb", () -> { throw failure; }));
+    org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.enrich(first)).isSameAs(failure);
+    org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.enrich(second))
+        .isInstanceOf(com.yeogido.backend.domain.placeenrichment.exception.ExternalApiDeferredException.class);
+    for (Long id : List.of(first, second)) {
+      assertThat(places.findById(id).orElseThrow().getOverviewNextRetryAt())
+          .isEqualTo(ExternalApiFailure.MAX_RETRY_AT);
+    }
+    gate.release("daum", "searchWeb");
+    for (Long id : List.of(first, second)) {
+      assertThat(places.findById(id).orElseThrow().getOverviewNextRetryAt())
+          .isEqualTo(ExternalApiFailure.MAX_RETRY_AT);
+    }
+  }
+
+  private PlaceOverviewApiGate releaseGateAt(java.time.LocalDateTime releasedAt) {
+    var zone = java.time.ZoneId.systemDefault();
+    return new PlaceOverviewApiGate(operations, places, transactionManager, 86400, 60, 30,
+        java.time.Clock.fixed(releasedAt.atZone(zone).toInstant(), zone));
+  }
+
+  private Long waiting(Region region, String name, java.time.LocalDateTime at, String operation) {
+    Place place = places.findById(save(region, name)).orElseThrow();
+    place.startOverviewEnrichment(java.time.LocalDateTime.now());
+    if (operation == null) {
+      place.waitForOverviewRetry(at, false);
+    } else {
+      place.waitForOverviewApi(at, operation);
+    }
+    return places.saveAndFlush(place).getId();
   }
 
   private Long save(Region region, String externalId) {

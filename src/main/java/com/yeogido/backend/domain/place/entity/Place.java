@@ -89,6 +89,9 @@ public class Place extends BaseEntity {
   @Column(name = "overview_next_retry_at")
   private LocalDateTime overviewNextRetryAt;
 
+  @Column(name = "overview_blocked_by_operation", length = 100)
+  private String overviewBlockedByOperation;
+
   // 최종 실패의 자동 재시도 제외 및 예약 시각, 중단 복구 기준에 따른 시작 가능 여부 판단
   public boolean canStartOverviewEnrichment(LocalDateTime now) {
     if (overviewAttemptCount >= MAX_OVERVIEW_ATTEMPTS) {
@@ -112,6 +115,7 @@ public class Place extends BaseEntity {
     this.overviewAttemptedAt = attemptedAt;
     this.overviewAttemptCount++;
     this.overviewNextRetryAt = null;
+    this.overviewBlockedByOperation = null;
   }
 
   public void completeOverviewEnrichment(String overview, PlaceOverviewSource source) {
@@ -119,6 +123,7 @@ public class Place extends BaseEntity {
     this.overviewSource = source;
     this.overviewStatus = PlaceOverviewStatus.COMPLETED;
     this.overviewNextRetryAt = null;
+    this.overviewBlockedByOperation = null;
   }
 
   public void markNoOverview() {
@@ -126,15 +131,20 @@ public class Place extends BaseEntity {
     this.overviewSource = null;
     this.overviewStatus = PlaceOverviewStatus.NO_OVERVIEW;
     this.overviewNextRetryAt = null;
+    this.overviewBlockedByOperation = null;
   }
 
   public void failOverviewEnrichment() {
     this.overviewStatus = PlaceOverviewStatus.FAILED;
     this.overviewNextRetryAt = null;
+    this.overviewBlockedByOperation = null;
   }
 
   public void waitForOverviewRetry(LocalDateTime retryAt, boolean refundAttempt) {
-    Objects.requireNonNull(retryAt, "retryAt");
+    setOverviewRetry(Objects.requireNonNull(retryAt, "retryAt"), refundAttempt);
+  }
+
+  private void setOverviewRetry(LocalDateTime retryAt, boolean refundAttempt) {
     // 공통 차단, 호출 보류에 따른 현재 시도 환급 및 음수 방지
     if (refundAttempt) {
       this.overviewAttemptCount = Math.max(0, this.overviewAttemptCount - 1);
@@ -146,6 +156,14 @@ public class Place extends BaseEntity {
     }
     this.overviewStatus = PlaceOverviewStatus.RETRY_WAIT;
     this.overviewNextRetryAt = retryAt;
+    this.overviewBlockedByOperation = null;
+  }
+
+  public void waitForOverviewApi(LocalDateTime retryAt, String operationKey) {
+    setOverviewRetry(retryAt, true);
+    if (overviewStatus == PlaceOverviewStatus.RETRY_WAIT && retryAt == null) {
+      this.overviewBlockedByOperation = Objects.requireNonNull(operationKey, "operationKey");
+    }
   }
 
   public void updateTourData(
@@ -167,6 +185,7 @@ public class Place extends BaseEntity {
       this.overviewAttemptedAt = null;
       this.overviewAttemptCount = 0;
       this.overviewNextRetryAt = null;
+      this.overviewBlockedByOperation = null;
     }
     this.region = region;
     this.name = name;
