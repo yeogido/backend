@@ -65,7 +65,7 @@ public interface CourseQueryRepository {
             Integer totalDays,
             String originalKeyword,
             boolean titlePhase,
-            SearchExclusion exclusion
+            SearchMembership exclusion
     );
 
     List<CourseListRow> findSemanticCoursesByCursor(
@@ -76,16 +76,27 @@ public interface CourseQueryRepository {
             Integer totalDays,
             String originalKeyword,
             List<Long> candidateIds,
-            SearchExclusion exclusion
+            SearchMembership exclusion
     );
 
-    record SearchExclusion(
+    SearchMembership findSearchMembership(
             CourseReqDTO.CourseListReq originalRequest,
             CourseReqDTO.CourseListReq naturalRequest,
             List<String> terms,
             Integer totalDays,
-            List<Long> semanticCandidateIds
-    ) { }
+            List<Long> semanticCandidateIds,
+            CourseLocation location,
+            Map<Long, Long> popularityScores
+    );
+
+    List<CourseListRow> findPinnedSearchRows(List<Long> memberIds);
+
+    record SearchMembership(List<Long> titleIds, List<Long> naturalIds) {
+        public SearchMembership {
+            titleIds = List.copyOf(titleIds);
+            naturalIds = List.copyOf(naturalIds);
+        }
+    }
 
     record CourseLocation(
             Double latitude,

@@ -33,11 +33,37 @@ public class CourseSearchCursorConverter {
   private static final String PREFIX = "nl1.";
   private static final String PRIORITY_PREFIX = "nl2.";
   private static final String SEMANTIC_PREFIX = "nl3.";
+  private static final String SNAPSHOT_PREFIX = "ns1.";
   private static final int MAX_LENGTH = 8192;
   private final ObjectMapper mapper;
 
   public CourseSearchCursorConverter(ObjectMapper mapper) {
     this.mapper = mapper;
+  }
+
+  public UUID decodeSnapshot(CourseListReq request) {
+    String value = request.cursorValue();
+    if (value == null || !value.startsWith(SNAPSHOT_PREFIX)) {
+      return null;
+    }
+    try {
+      require(value.length() <= MAX_LENGTH && request.cursorId() != null);
+      String[] parts = value.substring(SNAPSHOT_PREFIX.length()).split("\\.", -1);
+      require(parts.length == 2 && fingerprint(request).equals(parts[1]));
+      UUID searchId = UUID.fromString(parts[0]);
+      require(searchId.toString().equals(parts[0]));
+      return searchId;
+    } catch (Exception exception) {
+      throw new GeneralException(CourseErrorCode.INVALID_COURSE_SEARCH_CURSOR);
+    }
+  }
+
+  public String encodeSnapshot(CourseListReq request, UUID searchId) {
+    try {
+      return SNAPSHOT_PREFIX + searchId + "." + fingerprint(request);
+    } catch (Exception exception) {
+      throw new GeneralException(CourseErrorCode.COURSE_SEARCH_CURSOR_ENCODING_FAILED);
+    }
   }
 
   public DecodedCursor decode(CourseListReq original) {

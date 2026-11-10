@@ -36,7 +36,8 @@ class CourseRelatedSearchSessionRepositoryTest {
                 null, null, null, null, null, 20);
         var interpretation = new Interpretation(effective, List.of("데이트"), null,
                 List.of("부산", "데이트"), null, new FilterKeywords("부산", null, null, null));
-        var session = new CourseRelatedSearchSessionRepository.Session(1L, original, interpretation, List.of(10L));
+        var session = new CourseRelatedSearchSessionRepository.Session(1L, original, interpretation,
+                new CourseQueryRepository.SearchMembership(List.of(10L), List.of(11L)));
         when(redis.opsForValue()).thenReturn(values);
 
         UUID searchId = sessions.save(session);

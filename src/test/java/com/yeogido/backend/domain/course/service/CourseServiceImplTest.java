@@ -676,6 +676,47 @@ class CourseServiceImplTest {
     }
 
     @Test
+    void firstSearchAndBothListsShareTheOrderedMembership() {
+        var searchId = java.util.UUID.randomUUID();
+        var original = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, "부산", null,
+                null, null, null, null, CourseSortType.LATEST, null, null, null, null, 1);
+        var effective = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, null, null,
+                42L, null, null, null, CourseSortType.LATEST, null, null, null, null, 1);
+        var interpretation = new Interpretation(effective, List.of(), null, List.of("부산"),
+                null, new FilterKeywords("부산", null, null, null));
+        var membership = new CourseQueryRepository.SearchMembership(List.of(10L), List.of(11L, 12L));
+        var session = new CourseRelatedSearchSessionRepository.Session(null, original, interpretation, membership);
+        when(courseSearchService.interpret(original)).thenReturn(interpretation);
+        when(courseRepository.findSearchMembership(eq(original), eq(effective), eq(List.of()),
+                ArgumentMatchers.isNull(), ArgumentMatchers.isNull(), any(), anyMap())).thenReturn(membership);
+        when(relatedSessions.save(session)).thenReturn(searchId);
+        when(relatedSessions.find(searchId)).thenReturn(session);
+        when(courseRepository.findPinnedSearchRows(List.of(10L, 11L)))
+                .thenReturn(List.of(priorityRow(11), priorityRow(10)));
+        when(courseRepository.findPinnedSearchRows(List.of(11L, 12L))).thenReturn(List.of(priorityRow(12)));
+        when(courseRepository.findSearchPhaseByCursor(eq(effective), any(), anyMap(), eq(2), eq(List.of()),
+                ArgumentMatchers.isNull(), ArgumentMatchers.isNull(), eq(false), eq(membership)))
+                .thenReturn(List.of(priorityRow(20)));
+
+        var first = courseService.getCourses(original, null);
+        assertThat(first.getSearchId()).isEqualTo(searchId);
+        assertThat(first.getItems()).extracting(CourseResDTO.CoursePreview::courseId).containsExactly(10L);
+        assertThat(first.isHasNext()).isTrue();
+
+        var related = courseService.getCourses(new CourseReqDTO.CourseListReq(null, null, null, null, null, null,
+                null, null, null, null, null, null, 1, searchId, List.of("부산")), null);
+        assertThat(related.getItems()).extracting(CourseResDTO.CoursePreview::courseId).containsExactly(20L);
+
+        var next = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, "부산", null,
+                null, null, null, null, CourseSortType.LATEST, null, null,
+                first.getCursorValue().toString(), first.getCursorId(), 1);
+        var second = courseService.getCourses(next, null);
+        assertThat(second.getItems()).extracting(CourseResDTO.CoursePreview::courseId).containsExactly(12L);
+        assertThat(second.isHasNext()).isFalse();
+        verify(courseSearchService).interpret(any());
+    }
+
+    @Test
     void relatedSearchReusesSelectedConditionsAndBindsCursorToSelection() {
         var searchId = java.util.UUID.randomUUID();
         var original = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, "부산 비 오는 날 데이트",
@@ -685,12 +726,12 @@ class CourseServiceImplTest {
         var labels = new FilterKeywords("부산", null, null, null);
         var interpretation = new Interpretation(inferred, List.of("비 오는 날", "데이트"), null,
                 List.of("부산", "비 오는 날", "데이트"), null, labels);
+        var membership = new CourseQueryRepository.SearchMembership(List.of(10L), List.of(11L));
         when(relatedSessions.find(searchId)).thenReturn(
-                new CourseRelatedSearchSessionRepository.Session(
-                        null, original, interpretation, List.of(10L)));
+                new CourseRelatedSearchSessionRepository.Session(null, original, interpretation, membership));
         when(courseRepository.findSearchPhaseByCursor(eq(inferred), any(), anyMap(), eq(2), eq(List.of("비 오는 날")),
                 ArgumentMatchers.isNull(), ArgumentMatchers.isNull(), eq(false),
-                eq(new CourseQueryRepository.SearchExclusion(original, inferred, interpretation.terms(), null, List.of(10L)))))
+                eq(membership)))
                 .thenReturn(List.of(priorityRow(20), priorityRow(21)));
 
         var first = courseService.getCourses(new CourseReqDTO.CourseListReq(null, null, null, null, null, null,

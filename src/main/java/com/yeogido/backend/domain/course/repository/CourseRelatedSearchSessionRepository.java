@@ -1,5 +1,6 @@
 package com.yeogido.backend.domain.course.repository;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yeogido.backend.domain.course.dto.CourseSearchDTO.Interpretation;
@@ -7,7 +8,6 @@ import com.yeogido.backend.domain.course.dto.request.CourseReqDTO.CourseListReq;
 import com.yeogido.backend.domain.course.exception.CourseErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
 import java.time.Duration;
-import java.util.List;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataAccessException;
@@ -49,12 +49,17 @@ public class CourseRelatedSearchSessionRepository {
             if (json == null) {
                 throw new GeneralException(CourseErrorCode.COURSE_SEARCH_SESSION_EXPIRED);
             }
-            return mapper.readValue(json, Session.class);
+            Session session = mapper.readValue(json, Session.class);
+            if (session.membership() == null) {
+                throw new GeneralException(CourseErrorCode.COURSE_SEARCH_SESSION_EXPIRED);
+            }
+            return session;
         } catch (JsonProcessingException | DataAccessException exception) {
             throw new GeneralException(CourseErrorCode.COURSE_SEARCH_API_ERROR);
         }
     }
 
+    @JsonIgnoreProperties("semanticCandidateIds")
     public record Session(Long userId, CourseListReq original, Interpretation interpretation,
-                          List<Long> semanticCandidateIds) { }
+                          CourseQueryRepository.SearchMembership membership) { }
 }
