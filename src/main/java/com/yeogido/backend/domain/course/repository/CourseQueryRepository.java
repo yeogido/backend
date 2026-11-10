@@ -56,6 +56,37 @@ public interface CourseQueryRepository {
             List<Long> candidateIds
     );
 
+    List<CourseListRow> findSearchPhaseByCursor(
+            CourseReqDTO.CourseListReq request,
+            CourseLocation location,
+            Map<Long, Long> popularityScores,
+            int limit,
+            List<String> searchTerms,
+            Integer totalDays,
+            String originalKeyword,
+            boolean titlePhase,
+            SearchExclusion exclusion
+    );
+
+    List<CourseListRow> findSemanticCoursesByCursor(
+            CourseReqDTO.CourseListReq request,
+            CourseLocation location,
+            Map<Long, Long> popularityScores,
+            int limit,
+            Integer totalDays,
+            String originalKeyword,
+            List<Long> candidateIds,
+            SearchExclusion exclusion
+    );
+
+    record SearchExclusion(
+            CourseReqDTO.CourseListReq originalRequest,
+            CourseReqDTO.CourseListReq naturalRequest,
+            List<String> terms,
+            Integer totalDays,
+            List<Long> semanticCandidateIds
+    ) { }
+
     record CourseLocation(
             Double latitude,
             Double longitude

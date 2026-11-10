@@ -552,6 +552,41 @@ class CourseQueryRepositoryImplTest {
         assertThat(actual).extracting(CourseQueryRepository.CourseListRow::courseId).containsExactly(matching.getId());
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {true, false})
+    void relatedSearchExcludesBothOriginalPhasesBeforeLimitingRows(boolean semantic) {
+        Region busan = persistRegion("Busan", "35.1796", "129.0756");
+        Region seoul = persistRegion("Seoul", "37.5665", "126.9780");
+        Course originalTitle = persistCourse(seoul, "부산 바다 산책", 1);
+        Course originalNatural = persistCourse(busan, "해변 산책", 2);
+        Course otherRegion = persistCourse(seoul, "바다 산책", 3);
+        Course relatedOnly = persistCourse(busan, "바다 박물관", 4);
+        persistPlaceItem(originalNatural, persistPlace(busan, "바다", "산책"), 1);
+        flushAndClear();
+
+        var original = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, "부산 바다 산책", null,
+                null, null, null, null, CourseSortType.RECOMMEND, null, null, null, null, 1);
+        var interpreted = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, null, null,
+                busan.getId(), null, null, null, CourseSortType.RECOMMEND, null, null, null, null, 1);
+        var exclusion = new CourseQueryRepository.SearchExclusion(original, interpreted, List.of("바다", "산책"),
+                null, semantic ? List.of(originalNatural.getId(), otherRegion.getId()) : null);
+        var location = new CourseQueryRepository.CourseLocation(null, null);
+        var related = courseListRequest(CourseSortType.RECOMMEND);
+        var firstPage = semantic
+                ? courseRepository.findSemanticCoursesByCursor(related, location, Map.of(), 1, null, null,
+                        List.of(originalTitle.getId(), originalNatural.getId(), otherRegion.getId(), relatedOnly.getId()),
+                        exclusion)
+                : courseRepository.findSearchPhaseByCursor(related, location, Map.of(), 1, List.of("바다"),
+                        null, null, false, exclusion);
+        assertThat(firstPage).extracting(CourseQueryRepository.CourseListRow::courseId)
+                .containsExactly(otherRegion.getId());
+
+        var next = courseListRequest(CourseSortType.RECOMMEND, "3", otherRegion.getId());
+        assertThat(courseRepository.findSearchPhaseByCursor(next, location, Map.of(), 2,
+                List.of("바다"), null, null, false, exclusion))
+                .extracting(CourseQueryRepository.CourseListRow::courseId).containsExactly(relatedOnly.getId());
+    }
+
     private Place persistPlace(Region region, String name, String overview) {
         return entityManager.persist(Place.builder().region(region).source(PlaceSource.KAKAO)
                 .externalPlaceId(java.util.UUID.randomUUID().toString()).name(name).overview(overview)

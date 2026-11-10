@@ -87,8 +87,18 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
             String originalKeyword,
             boolean titlePhase
     ) {
+        return findSearchPhaseByCursor(request, location, popularityScores, limit, searchTerms,
+                totalDays, originalKeyword, titlePhase, null);
+    }
+
+    @Override
+    public List<CourseListRow> findSearchPhaseByCursor(
+            CourseReqDTO.CourseListReq request, CourseLocation location, Map<Long, Long> popularityScores,
+            int limit, List<String> searchTerms, Integer totalDays, String originalKeyword,
+            boolean titlePhase, SearchExclusion exclusion
+    ) {
         return findSearchPhase(request, location, popularityScores, limit, searchTerms, totalDays,
-                originalKeyword, titlePhase, null);
+                originalKeyword, titlePhase, null, exclusion);
     }
 
     @Override
@@ -96,17 +106,26 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
             CourseReqDTO.CourseListReq request, CourseLocation location, Map<Long, Long> popularityScores,
             int limit, Integer totalDays, String originalKeyword, List<Long> candidateIds
     ) {
+        return findSemanticCoursesByCursor(request, location, popularityScores, limit, totalDays,
+                originalKeyword, candidateIds, null);
+    }
+
+    @Override
+    public List<CourseListRow> findSemanticCoursesByCursor(
+            CourseReqDTO.CourseListReq request, CourseLocation location, Map<Long, Long> popularityScores,
+            int limit, Integer totalDays, String originalKeyword, List<Long> candidateIds, SearchExclusion exclusion
+    ) {
         if (candidateIds.isEmpty()) {
             return List.of();
         }
         return findSearchPhase(request, location, popularityScores, limit, List.of(), totalDays,
-                originalKeyword, false, candidateIds);
+                originalKeyword, false, candidateIds, exclusion);
     }
 
     private List<CourseListRow> findSearchPhase(
             CourseReqDTO.CourseListReq request, CourseLocation location, Map<Long, Long> popularityScores,
             int limit, List<String> searchTerms, Integer totalDays, String originalKeyword,
-            boolean titlePhase, List<Long> candidateIds
+            boolean titlePhase, List<Long> candidateIds, SearchExclusion exclusion
     ) {
         CourseSortType sort = CourseSortType.resolve(request.sort());
         boolean savedSort = sort == CourseSortType.SAVED;
@@ -173,15 +192,8 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
             );
         }
 
-        BooleanBuilder condition = courseListCondition(request, searchTerms, totalDays);
-        if (candidateIds != null) {
-            condition.and(course.id.in(candidateIds));
-        }
-        if (hasKeyword(originalKeyword)) {
-            BooleanExpression titleMatches = course.title.containsIgnoreCase(originalKeyword.trim());
-            condition.and(titlePhase ? titleMatches : titleMatches.not());
-        }
-        query.where(condition)
+        query.where(searchPhaseCondition(course, region, request, searchTerms, totalDays,
+                        originalKeyword, titlePhase, candidateIds), excludeOriginalSearch(exclusion))
                 .orderBy(orderSpecifiers(sort, savedCount, reviewCount, distance, popularityScore))
                 .limit(limit);
 
@@ -205,36 +217,64 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
         return query.fetch();
     }
 
-    private BooleanBuilder courseListCondition(CourseReqDTO.CourseListReq request, List<String> searchTerms, Integer totalDays) {
+    private BooleanExpression excludeOriginalSearch(SearchExclusion exclusion) {
+        if (exclusion == null) {
+            return null;
+        }
+
+        QCourse originalCourse = new QCourse("originalCourse");
+        QRegion originalRegion = new QRegion("originalRegion");
+        String keyword = exclusion.originalRequest().keyword();
+        BooleanBuilder originalMatches = searchPhaseCondition(originalCourse, originalRegion,
+                exclusion.originalRequest(), List.of(), null, keyword, true, null);
+        List<Long> candidateIds = exclusion.semanticCandidateIds();
+        if (candidateIds == null || !candidateIds.isEmpty()) {
+            List<String> terms = candidateIds == null ? exclusion.terms() : List.of();
+            originalMatches.or(searchPhaseCondition(originalCourse, originalRegion,
+                    exclusion.naturalRequest(), terms, exclusion.totalDays(), keyword, false, candidateIds));
+        }
+        return course.id.notIn(JPAExpressions.select(originalCourse.id)
+                .from(originalCourse)
+                .join(originalCourse.region, originalRegion)
+                .where(originalMatches));
+    }
+
+    private BooleanBuilder searchPhaseCondition(
+            QCourse course, QRegion region, CourseReqDTO.CourseListReq request, List<String> searchTerms,
+            Integer totalDays, String originalKeyword, boolean titlePhase, List<Long> candidateIds
+    ) {
         BooleanBuilder builder = new BooleanBuilder();
 
-        builder.and(courseTypeEq(request));
+        builder.and(request.courseType() == null ? null : course.courseType.eq(request.courseType()));
         builder.and(course.deletedAt.isNull());
-        builder.and(contentItemExists(request.contentId()));
-        builder.and(regionIdEq(request.regionId()));
-        builder.and(transportTypeEq(request));
-        builder.and(durationTypeEq(request));
+        builder.and(contentItemExists(course, request.contentId()));
+        builder.and(regionIdEq(region, request.regionId()));
+        builder.and(request.transportType() == null ? null : course.transportType.eq(request.transportType()));
+        builder.and(request.durationType() == null ? null : course.durationType.eq(request.durationType()));
         builder.and(totalDays == null ? null : course.totalDays.eq(totalDays));
-        builder.and(companionTypeEq(request));
+        builder.and(request.companionType() == null ? null : course.companionType.eq(request.companionType()));
         if (searchTerms == null) {
-            builder.and(keywordSearchCondition(request.keyword()));
+            builder.and(keywordSearchCondition(course, region, request.keyword()));
         } else {
             for (String term : searchTerms) {
-                builder.and(placeSearchCondition(term));
+                builder.and(placeSearchCondition(course, region, term));
             }
         }
-        builder.and(distanceSortRegionCoordinateExists(request));
+        if (CourseSortType.resolve(request.sort()) == CourseSortType.DISTANCE) {
+            builder.and(region.latitude.isNotNull().and(region.longitude.isNotNull()));
+        }
+        if (candidateIds != null) {
+            builder.and(course.id.in(candidateIds));
+        }
+        if (hasKeyword(originalKeyword)) {
+            BooleanExpression titleMatches = course.title.containsIgnoreCase(originalKeyword.trim());
+            builder.and(titlePhase ? titleMatches : titleMatches.not());
+        }
 
         return builder;
     }
 
-    private BooleanExpression courseTypeEq(CourseReqDTO.CourseListReq request) {
-        return request.courseType() == null
-                ? null
-                : course.courseType.eq(request.courseType());
-    }
-
-    private BooleanExpression contentItemExists(Long contentId) {
+    private BooleanExpression contentItemExists(QCourse course, Long contentId) {
         if (contentId == null) {
             return null;
         }
@@ -248,32 +288,14 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
                 .exists();
     }
 
-    private BooleanExpression regionIdEq(Long regionId) {
+    private BooleanExpression regionIdEq(QRegion region, Long regionId) {
         return regionId == null
                 ? null
                 : region.id.eq(regionId)
                         .or(region.parent.id.eq(regionId));
     }
 
-    private BooleanExpression transportTypeEq(CourseReqDTO.CourseListReq request) {
-        return request.transportType() == null
-                ? null
-                : course.transportType.eq(request.transportType());
-    }
-
-    private BooleanExpression durationTypeEq(CourseReqDTO.CourseListReq request) {
-        return request.durationType() == null
-                ? null
-                : course.durationType.eq(request.durationType());
-    }
-
-    private BooleanExpression companionTypeEq(CourseReqDTO.CourseListReq request) {
-        return request.companionType() == null
-                ? null
-                : course.companionType.eq(request.companionType());
-    }
-
-    private BooleanExpression keywordSearchCondition(String keyword) {
+    private BooleanExpression keywordSearchCondition(QCourse course, QRegion region, String keyword) {
         if (!hasKeyword(keyword)) {
             return null;
         }
@@ -285,7 +307,7 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
                 .or(region.fullName.containsIgnoreCase(normalizedKeyword));
     }
 
-    private BooleanExpression placeSearchCondition(String term) {
+    private BooleanExpression placeSearchCondition(QCourse course, QRegion region, String term) {
         QPlace place = QPlace.place;
         QContent content = QContent.content;
         QPlace contentPlace = new QPlace("searchContentPlace");
@@ -302,22 +324,13 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
                                 .or(contentPlace.name.containsIgnoreCase(term))
                                 .or(contentPlace.overview.containsIgnoreCase(term))))
                 .exists();
-        return keywordSearchCondition(term)
+        return keywordSearchCondition(course, region, term)
                 .or(course.description.containsIgnoreCase(term))
                 .or(itemMatches);
     }
 
     private boolean hasKeyword(String keyword) {
         return StringUtils.hasText(keyword);
-    }
-
-    private BooleanExpression distanceSortRegionCoordinateExists(CourseReqDTO.CourseListReq request) {
-        if (CourseSortType.resolve(request.sort()) != CourseSortType.DISTANCE) {
-            return null;
-        }
-
-        return region.latitude.isNotNull()
-                .and(region.longitude.isNotNull());
     }
 
     private OrderSpecifier<?>[] orderSpecifiers(
