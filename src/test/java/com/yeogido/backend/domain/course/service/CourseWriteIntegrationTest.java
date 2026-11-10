@@ -2,6 +2,7 @@ package com.yeogido.backend.domain.course.service;
 
 import com.yeogido.backend.domain.course.converter.CourseSearchCursorConverter;
 import com.yeogido.backend.domain.course.embedding.CourseSemanticSearchService;
+import com.yeogido.backend.domain.course.repository.CourseRelatedSearchSessionRepository;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -85,6 +86,7 @@ class CourseWriteIntegrationTest {
 
     @MockitoBean private CourseSearchService courseSearchService;
     @MockitoBean private CourseSemanticSearchService courseSemanticSearchService;
+    @MockitoBean private CourseRelatedSearchSessionRepository relatedSearchSessionRepository;
     @MockitoBean private CourseSearchCursorConverter courseSearchCursorConverter;
     @MockitoBean private PlaceService placeService;
     @MockitoBean private FileService fileService;

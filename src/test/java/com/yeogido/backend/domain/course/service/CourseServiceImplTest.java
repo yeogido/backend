@@ -5,6 +5,8 @@ import com.yeogido.backend.domain.course.embedding.CourseSemanticSearchService;
 import com.yeogido.backend.domain.content.repository.ContentRepository;
 import com.yeogido.backend.domain.course.converter.CourseSearchCursorConverter;
 import com.yeogido.backend.domain.course.dto.CourseSearchDTO.Interpretation;
+import com.yeogido.backend.domain.course.dto.CourseSearchDTO.FilterKeywords;
+import com.yeogido.backend.domain.course.repository.CourseRelatedSearchSessionRepository;
 import com.yeogido.backend.domain.course.enums.SearchPhase;
 import com.yeogido.backend.domain.course.dto.request.CourseReqDTO;
 import com.yeogido.backend.domain.course.dto.response.CourseResDTO;
@@ -165,6 +167,9 @@ class CourseServiceImplTest {
 
     @Mock
     private PlatformTransactionManager transactionManager;
+
+    @Mock
+    private CourseRelatedSearchSessionRepository relatedSessions;
 
     @InjectMocks
     private CourseServiceImpl courseService;
@@ -668,6 +673,36 @@ class CourseServiceImplTest {
                 ArgumentMatchers.argThat(value -> session.equals(value.semanticSessionId())));
         Mockito.verify(courseRepository, never()).findSearchPhaseByCursor(any(), any(), anyMap(),
                 Mockito.anyInt(), eq(List.of("조용한")), any(), any(), eq(false));
+    }
+
+    @Test
+    void relatedSearchReusesSelectedConditionsAndBindsCursorToSelection() {
+        var searchId = java.util.UUID.randomUUID();
+        var original = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, "부산 비 오는 날 데이트",
+                null, null, TransportType.CAR, null, null, CourseSortType.LATEST, null, null, null, null, 1);
+        var inferred = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, null,
+                null, 42L, TransportType.CAR, null, null, CourseSortType.LATEST, null, null, null, null, 1);
+        var labels = new FilterKeywords("부산", null, null, null);
+        var interpretation = new Interpretation(inferred, List.of("비 오는 날", "데이트"), null,
+                List.of("부산", "비 오는 날", "데이트"), null, labels);
+        when(relatedSessions.find(searchId)).thenReturn(
+                new CourseRelatedSearchSessionRepository.Session(
+                        null, original, interpretation, List.of(10L)));
+        when(courseRepository.findSearchPhaseByCursor(eq(inferred), any(), anyMap(), eq(2), eq(List.of("비 오는 날")),
+                ArgumentMatchers.isNull(), ArgumentMatchers.isNull(), eq(false),
+                eq(new CourseQueryRepository.SearchExclusion(original, inferred, interpretation.terms(), null, List.of(10L)))))
+                .thenReturn(List.of(priorityRow(20), priorityRow(21)));
+
+        var first = courseService.getCourses(new CourseReqDTO.CourseListReq(null, null, null, null, null, null,
+                null, null, null, null, null, null, 1, searchId, List.of("비 오는 날", "부산")), null);
+
+        assertThat(first.getItems()).extracting(CourseResDTO.CoursePreview::courseId).containsExactly(20L);
+        assertThat(first.isHasNext()).isTrue();
+        var changedSelection = new CourseReqDTO.CourseListReq(null, null, null, null, null, null, null, null,
+                null, null, first.getCursorValue().toString(), first.getCursorId(), 1, searchId, List.of("부산"));
+        assertThatThrownBy(() -> courseService.getCourses(changedSelection, null))
+                .isInstanceOfSatisfying(GeneralException.class,
+                        exception -> assertThat(exception.getErrorCode()).isEqualTo(CourseErrorCode.INVALID_COURSE_SEARCH_CURSOR));
     }
 
     @Test

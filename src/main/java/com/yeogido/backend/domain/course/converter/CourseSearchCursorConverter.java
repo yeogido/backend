@@ -168,8 +168,11 @@ public class CourseSearchCursorConverter {
     CourseListReq canonical = new CourseListReq(request.courseType(), request.keyword(), request.contentId(),
         request.regionId(), request.transportType(), request.durationType(), request.companionType(),
         request.sort(), request.latitude(), request.longitude(), null, null, 20);
-    byte[] digest = MessageDigest.getInstance("SHA-256").digest(
-        mapper.writeValueAsString(canonical).getBytes(StandardCharsets.UTF_8));
+    String conditions = mapper.writeValueAsString(canonical);
+    if (request.searchId() != null) {
+      conditions += mapper.writeValueAsString(List.of(request.searchId(), request.keywords()));
+    }
+    byte[] digest = MessageDigest.getInstance("SHA-256").digest(conditions.getBytes(StandardCharsets.UTF_8));
     return Base64.getUrlEncoder().withoutPadding().encodeToString(digest);
   }
 

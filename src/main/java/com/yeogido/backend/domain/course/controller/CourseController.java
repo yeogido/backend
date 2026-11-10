@@ -14,11 +14,14 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import java.beans.PropertyEditorSupport;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.WebDataBinder;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.InitBinder;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -36,6 +39,22 @@ import org.springdoc.core.annotations.ParameterObject;
 public class CourseController {
 
     private final CourseService courseService;
+
+    @InitBinder("courseListReq")
+    void preserveKeywordValues(WebDataBinder binder) {
+        binder.registerCustomEditor(List.class, "keywords", new PropertyEditorSupport() {
+            @Override
+            public void setValue(Object value) {
+                super.setValue(value instanceof String[] values ? List.of(values) : value);
+            }
+
+            @Override
+            public void setAsText(String text) {
+                // A single query value is one extracted keyword, even if it contains a comma.
+                setValue(List.of(text));
+            }
+        });
+    }
 
     @io.swagger.v3.oas.annotations.parameters.RequestBody(
             required = true,

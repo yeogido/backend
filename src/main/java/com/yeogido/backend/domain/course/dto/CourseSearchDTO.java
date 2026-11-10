@@ -28,11 +28,17 @@ public class CourseSearchDTO {
             List<String> terms,
             Integer totalDays,
             List<String> extractedKeywords,
-            String semanticSessionId
+            String semanticSessionId,
+            FilterKeywords filterKeywords
     ) {
         public Interpretation {
             terms = List.copyOf(terms);
             extractedKeywords = List.copyOf(extractedKeywords);
+        }
+
+        public Interpretation(CourseListReq request, List<String> terms, Integer totalDays,
+                List<String> extractedKeywords, String semanticSessionId) {
+            this(request, terms, totalDays, extractedKeywords, semanticSessionId, null);
         }
 
         public Interpretation(CourseListReq request, List<String> terms, Integer totalDays,
@@ -48,6 +54,8 @@ public class CourseSearchDTO {
             this(request, terms, null);
         }
     }
+
+    public record FilterKeywords(String region, String duration, String transport, String companion) { }
 
     // 커서에서 복원한 요청, 해석 결과와 현재 검색 단계
     public record DecodedCursor(

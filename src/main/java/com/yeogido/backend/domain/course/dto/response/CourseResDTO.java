@@ -21,6 +21,7 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 public class CourseResDTO {
 
@@ -31,10 +32,21 @@ public class CourseResDTO {
                 example = "[\"서울\", \"당일치기\", \"바다\"]")
         private final List<String> extractedKeywords;
 
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        @Schema(description = "첫 자연어 검색에서 발급하는 추가 조회용 검색 ID. 기본 설정에서 발급 후 1시간 동안 사용할 수 있습니다.",
+                example = "57c50c31-2966-4ea3-98a8-de63b979c2f3")
+        private final UUID searchId;
+
         public CourseListRes(List<CoursePreview> items, Object cursorValue, Long cursorId,
                 boolean hasNext, List<String> extractedKeywords) {
+            this(items, cursorValue, cursorId, hasNext, extractedKeywords, null);
+        }
+
+        public CourseListRes(List<CoursePreview> items, Object cursorValue, Long cursorId,
+                boolean hasNext, List<String> extractedKeywords, UUID searchId) {
             super(items, cursorValue, cursorId, hasNext);
             this.extractedKeywords = List.copyOf(extractedKeywords);
+            this.searchId = searchId;
         }
     }
 

@@ -1,5 +1,6 @@
 package com.yeogido.backend.domain.course.dto.request;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.yeogido.backend.domain.business.enums.DayOfWeek;
 import com.yeogido.backend.domain.course.enums.CompanionType;
 import com.yeogido.backend.domain.course.enums.CourseItemType;
@@ -21,6 +22,7 @@ import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.UUID;
 
 public class CourseReqDTO {
 
@@ -444,8 +446,26 @@ public class CourseReqDTO {
             Long cursorId,
 
             @Schema(description = "조회 개수", example = "20", defaultValue = "20")
-            Integer size
+            Integer size,
+
+            @Schema(description = "추가 조회에 사용할 첫 자연어 검색의 ID",
+                    example = "57c50c31-2966-4ea3-98a8-de63b979c2f3")
+            @JsonInclude(JsonInclude.Include.NON_NULL)
+            UUID searchId,
+
+            @Schema(description = "첫 검색의 extractedKeywords에서 선택한 키워드 목록",
+                    example = "[\"부산\", \"비 오는 날\"]")
+            @JsonInclude(JsonInclude.Include.NON_NULL)
+            List<String> keywords
     ) {
+        public CourseListReq(CourseType courseType, String keyword, Long contentId, Long regionId,
+                TransportType transportType, DurationType durationType, CompanionType companionType,
+                CourseSortType sort, BigDecimal latitude, BigDecimal longitude, String cursorValue,
+                Long cursorId, Integer size) {
+            this(courseType, keyword, contentId, regionId, transportType, durationType, companionType,
+                    sort, latitude, longitude, cursorValue, cursorId, size, null, null);
+        }
+
         public CourseListReq {
             if (size == null) {
                 size = 20;
