@@ -33,7 +33,7 @@ public class ExternalApiFailure extends GeneralException {
     this.operation = operation;
     this.kind = kind;
     this.upstreamHttpStatus = upstreamHttpStatus;
-    this.providerCode = providerCode != null && providerCode.matches("[0-9]{1,4}") ? providerCode : null;
+    this.providerCode = providerCode != null && providerCode.matches("-?[0-9]{1,4}") ? providerCode : null;
     this.retryAfter = retryAfter == null || retryAfter.isNegative() ? null : retryAfter;
   }
 

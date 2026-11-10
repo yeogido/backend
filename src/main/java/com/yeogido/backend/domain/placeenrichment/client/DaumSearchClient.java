@@ -1,6 +1,8 @@
 package com.yeogido.backend.domain.placeenrichment.client;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.IOException;
 import com.yeogido.backend.domain.placeenrichment.dto.request.TourPlaceRequest;
 import com.yeogido.backend.domain.placeenrichment.exception.PlaceEnrichmentErrorCode;
 import com.yeogido.backend.domain.placeenrichment.exception.ExternalApiFailure;
@@ -31,6 +33,8 @@ import org.springframework.web.util.HtmlUtils;
 @Component
 @Slf4j
 public class DaumSearchClient {
+    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final int MAX_ERROR_BODY_LENGTH = 65536;
     private static final String BLOG_SEARCH_TYPE = "blog";
     private static final String WEB_SEARCH_TYPE = "web";
     private static final String SETTING_SEARCH_KEYWORDS = " 공간 좌석 실내 야외 분위기";
@@ -110,14 +114,30 @@ public class DaumSearchClient {
             }
             return response;
         } catch (RestClientResponseException exception) {
-            logFailure(query.type(), SafeLogDetails.httpFailureType(exception.getStatusCode().value()),
-                    exception.getStatusCode().value());
-            throw ExternalApiFailure.http(PlaceEnrichmentErrorCode.DAUM_SEARCH_API_ERROR,
+            ExternalApiFailure failure = ExternalApiFailure.http(PlaceEnrichmentErrorCode.DAUM_SEARCH_API_ERROR,
                     "daum", operation, exception);
+            if (exception.getStatusCode().value() == 400 && isQuotaExceeded(exception)) {
+                failure = new ExternalApiFailure(PlaceEnrichmentErrorCode.DAUM_SEARCH_API_ERROR,
+                        "daum", operation, ExternalApiFailureKind.DAILY_QUOTA, 400, "-10", failure.getRetryAfter());
+            }
+            logFailure(query.type(), failure.failureType(), exception.getStatusCode().value());
+            throw failure;
         } catch (RestClientException | HttpMessageConversionException exception) {
             logFailure(query.type(), SafeLogDetails.failureType(exception), null);
             throw ExternalApiFailure.client(PlaceEnrichmentErrorCode.DAUM_SEARCH_API_ERROR,
                     "daum", operation, exception);
+        }
+    }
+
+    private static boolean isQuotaExceeded(RestClientResponseException exception) {
+        byte[] body = exception.getResponseBodyAsByteArray();
+        if (body.length == 0 || body.length > MAX_ERROR_BODY_LENGTH) return false;
+        try {
+            JsonNode root = JSON.readTree(body);
+            JsonNode code = root == null ? null : root.get("code");
+            return code != null && code.isIntegralNumber() && code.canConvertToInt() && code.intValue() == -10;
+        } catch (IOException ignored) {
+            return false;
         }
     }
 
