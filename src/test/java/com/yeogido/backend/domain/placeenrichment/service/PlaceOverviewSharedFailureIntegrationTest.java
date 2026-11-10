@@ -23,7 +23,6 @@ import com.yeogido.backend.domain.region.repository.RegionRepository;
 import com.yeogido.backend.global.config.JpaConfig;
 import java.math.BigDecimal;
 import java.util.List;
-import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
@@ -53,14 +52,25 @@ class PlaceOverviewSharedFailureIntegrationTest {
   @MockitoBean TourPlaceEnrichmentService tour;
   @MockitoBean GeminiPlaceEnrichmentService gemini;
 
-  @Test
-  void quotaStopsFollowingPlacesWithoutSpendingBudgetAndResumesAfterRecovery() {
+  @org.junit.jupiter.api.AfterEach
+  void cleanUp() {
+    places.deleteAll();
+    regions.deleteAll();
+    operations.deleteAll();
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.CsvSource({
+      "DAILY_QUOTA,429,22", "RATE_LIMIT,200,23", "AUTHENTICATION,200,30", "CONFIGURATION,402,"
+  })
+  void sharedFailuresStopFollowingPlacesWithoutSpendingBudgetAndResumeAfterRecovery(
+      ExternalApiFailureKind kind, int httpStatus, String providerCode) {
     operations.saveAndFlush(new PlaceOverviewApiOperation("tour", "/searchKeyword2"));
     var region = regions.saveAndFlush(Region.builder().name("서울").type(RegionType.REGION).build());
     Long first = save(region, "first");
     Long second = save(region, "second");
     var failure = new ExternalApiFailure(PlaceEnrichmentErrorCode.DAUM_SEARCH_API_ERROR,
-        "tour", "/searchKeyword2", ExternalApiFailureKind.DAILY_QUOTA, 429, "22", null);
+        "tour", "/searchKeyword2", kind, httpStatus, providerCode, null);
     when(tour.enrich(any())).thenAnswer(invocation -> PlaceOverviewApiScope.call(
         "tour", "/searchKeyword2", () -> { throw failure; }));
     Logger root = (Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
@@ -96,8 +106,8 @@ class PlaceOverviewSharedFailureIntegrationTest {
       assertThat(field(decision, "stage")).isEqualTo("lookup");
       assertThat(field(decision, "provider")).isEqualTo("tour");
       assertThat(field(decision, "operation")).isEqualTo("/searchKeyword2");
-      assertThat(field(decision, "upstreamHttpStatus")).isEqualTo(429);
-      assertThat(field(decision, "providerCode")).isEqualTo("22");
+      assertThat(field(decision, "upstreamHttpStatus")).isEqualTo(httpStatus);
+      assertThat(field(decision, "providerCode")).isEqualTo(providerCode);
       assertThat(field(decision, "retryDecision")).isEqualTo("wait");
       assertThat(decision.getMDCPropertyMap().get("executionId"))
           .isNotBlank().isEqualTo(summary.getMDCPropertyMap().get("executionId"));
@@ -130,6 +140,6 @@ class PlaceOverviewSharedFailureIntegrationTest {
   private Object field(ILoggingEvent event, String name) {
     if (event.getKeyValuePairs() == null) return null;
     return event.getKeyValuePairs().stream().filter(pair -> pair.key.equals(name))
-        .map(pair -> pair.value).findFirst().orElse(null);
+        .findFirst().map(pair -> pair.value).orElse(null);
   }
 }

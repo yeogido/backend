@@ -18,6 +18,52 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 @org.junit.jupiter.api.extension.ExtendWith(org.springframework.boot.test.system.OutputCaptureExtension.class)
 class TourApiPlaceSearchTest {
     @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({
+            "01,SERVER", "05,TIMEOUT", "20,AUTHENTICATION", "22,DAILY_QUOTA",
+            "23,RATE_LIMIT", "30,AUTHENTICATION", "31,AUTHENTICATION", "99,INVALID_RESPONSE"
+    })
+    void classifiesDocumentedProviderErrorsAcrossResponseFormats(String code, ExternalApiFailureKind kind) {
+        for (String body : java.util.List.of(
+                "<OpenAPI_ServiceResponse><cmmMsgHeader><returnReasonCode>" + code
+                        + "</returnReasonCode></cmmMsgHeader></OpenAPI_ServiceResponse>",
+                "{\"response\":{\"header\":{\"resultCode\":\"" + code + "\"}}}",
+                "{\"OpenAPI_ServiceResponse\":{\"cmmMsgHeader\":{\"returnReasonCode\":\"" + code + "\"}}}")) {
+            RestClient.Builder builder = RestClient.builder();
+            var server = MockRestServiceServer.bindTo(builder).build();
+            var client = configuredClient(builder);
+            server.expect(anything()).andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
+            assertThatThrownBy(() -> client.searchPlaces("query", null, null, 1, 20))
+                    .isInstanceOfSatisfying(ExternalApiFailure.class, failure -> {
+                        assertThat(failure.getKind()).isEqualTo(kind);
+                        assertThat(failure.getProviderCode()).isEqualTo(code);
+                        assertThat(failure.getUpstreamHttpStatus()).isEqualTo(200);
+                    });
+            server.verify();
+        }
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({
+            "400,22,DAILY_QUOTA", "429,23,RATE_LIMIT", "400,30,AUTHENTICATION", "503,05,TIMEOUT"
+    })
+    void providerErrorCodeOverridesGenericHttpClassification(int status, String code, ExternalApiFailureKind kind) {
+        var builder = RestClient.builder();
+        var server = MockRestServiceServer.bindTo(builder).build();
+        var client = configuredClient(builder);
+        server.expect(anything()).andRespond(withStatus(HttpStatus.valueOf(status))
+                .header("Retry-After", "90")
+                .body("{\"response\":{\"header\":{\"resultCode\":\"" + code + "\"}}}"));
+        assertThatThrownBy(() -> client.detailCommon("123"))
+                .isInstanceOfSatisfying(ExternalApiFailure.class, failure -> {
+                    assertThat(failure.getKind()).isEqualTo(kind);
+                    assertThat(failure.getProviderCode()).isEqualTo(code);
+                    assertThat(failure.getRetryAfter()).isEqualTo(Duration.ofSeconds(90));
+                    assertThat(failure.getUpstreamHttpStatus()).isEqualTo(status);
+                });
+        server.verify();
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.ValueSource(strings = {
             "{\"returnReasonCode\":\"22\",\"errMsg\":\"private-provider-body\"}",
             "<OpenAPI_ServiceResponse><cmmMsgHeader><errMsg>private-provider-body</errMsg><returnReasonCode>22</returnReasonCode></cmmMsgHeader></OpenAPI_ServiceResponse>"

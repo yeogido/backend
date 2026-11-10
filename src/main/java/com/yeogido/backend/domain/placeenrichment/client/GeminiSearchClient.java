@@ -1,6 +1,8 @@
 package com.yeogido.backend.domain.placeenrichment.client;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.JsonProcessingException;
 
 import java.time.Duration;
 import java.util.List;
@@ -25,6 +27,9 @@ import lombok.extern.slf4j.Slf4j;
 @Component
 @Slf4j
 public class GeminiSearchClient {
+
+    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final int MAX_ERROR_BODY_LENGTH = 65536;
 
     private final RestClient client;
     private final String apiKey;
@@ -80,14 +85,46 @@ public class GeminiSearchClient {
             }
             return response;
         } catch (RestClientResponseException exception) {
-            logFailure(SafeLogDetails.httpFailureType(exception.getStatusCode().value()), exception.getStatusCode().value());
-            throw ExternalApiFailure.http(PlaceEnrichmentErrorCode.GEMINI_GENERATION_API_ERROR,
-                    "gemini", "generateContent", exception);
+            ExternalApiFailure failure = httpFailure(exception);
+            logFailure(failure.failureType(), exception.getStatusCode().value());
+            throw failure;
         } catch (RestClientException | HttpMessageConversionException exception) {
             logFailure(SafeLogDetails.failureType(exception), null);
             throw ExternalApiFailure.client(PlaceEnrichmentErrorCode.GEMINI_GENERATION_API_ERROR,
                     "gemini", "generateContent", exception);
         }
+    }
+
+    private static ExternalApiFailure httpFailure(RestClientResponseException exception) {
+        ExternalApiFailure fallback = ExternalApiFailure.http(PlaceEnrichmentErrorCode.GEMINI_GENERATION_API_ERROR,
+                "gemini", "generateContent", exception);
+        int status = exception.getStatusCode().value();
+        ExternalApiFailureKind kind = status == 402 ? ExternalApiFailureKind.CONFIGURATION : fallback.getKind();
+        if (status == 400) {
+            String body = exception.getResponseBodyAsString();
+            if (body.length() <= MAX_ERROR_BODY_LENGTH) {
+                try {
+                    JsonNode root = JSON.readTree(body);
+                    JsonNode error = root == null ? null : root.path("error");
+                    if (error != null) {
+                        if ("FAILED_PRECONDITION".equals(error.path("status").asText())) {
+                            kind = ExternalApiFailureKind.CONFIGURATION;
+                        }
+                        for (JsonNode detail : error.path("details")) {
+                            if ("type.googleapis.com/google.rpc.ErrorInfo".equals(detail.path("@type").asText())
+                                    && "API_KEY_INVALID".equals(detail.path("reason").asText())) {
+                                kind = ExternalApiFailureKind.AUTHENTICATION;
+                                break;
+                            }
+                        }
+                    }
+                } catch (JsonProcessingException ignored) {
+                    // 잘못된 오류 본문은 저장하지 않고 HTTP 상태 분류 유지
+                }
+            }
+        }
+        return new ExternalApiFailure(fallback.getErrorCode(), "gemini", "generateContent", kind,
+                status, null, fallback.getRetryAfter());
     }
 
     private static ExternalApiFailure configurationFailure() {

@@ -28,6 +28,46 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 @org.junit.jupiter.api.extension.ExtendWith(org.springframework.boot.test.system.OutputCaptureExtension.class)
 class GeminiSearchClientTest {
     @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource(delimiter = '|', value = {
+        "400|{\"error\":{\"status\":\"INVALID_ARGUMENT\",\"details\":[{\"@type\":\"type.googleapis.com/google.rpc.ErrorInfo\",\"reason\":\"API_KEY_INVALID\"}]}}|AUTHENTICATION",
+        "400|{\"error\":{\"status\":\"FAILED_PRECONDITION\"}}|CONFIGURATION",
+        "402|{\"error\":{\"status\":\"RESOURCE_EXHAUSTED\"}}|CONFIGURATION",
+        "400|{\"error\":{\"status\":\"INVALID_ARGUMENT\"}}|REQUEST",
+        "400|{\"error\":{\"details\":[{\"reason\":\"API_KEY_INVALID\"}]}}|REQUEST",
+        "400|{broken-json|REQUEST",
+        "503|{\"error\":{\"status\":\"FAILED_PRECONDITION\"}}|SERVER"
+    })
+    void classifiesStructuredAccountFailuresWithoutRetainingProviderBody(int status, String body,
+            ExternalApiFailureKind kind, org.springframework.boot.test.system.CapturedOutput output) {
+        RestClient.Builder builder = RestClient.builder().baseUrl("https://example.com");
+        var server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(anything()).andRespond(withStatus(HttpStatus.valueOf(status))
+                .header("Retry-After", "90").body(body));
+        assertThatThrownBy(() -> new GeminiSearchClient(builder.build(), "secret-key", "model").search("a", "b"))
+                .isInstanceOfSatisfying(ExternalApiFailure.class, failure -> {
+                    assertThat(failure.getKind()).isEqualTo(kind);
+                    assertThat(failure.getUpstreamHttpStatus()).isEqualTo(status);
+                    assertThat(failure.getRetryAfter()).isEqualTo(java.time.Duration.ofSeconds(90));
+                    assertThat(failure.getProvider()).isEqualTo("gemini");
+                    assertThat(failure.getOperation()).isEqualTo("generateContent");
+                }).hasNoCause().hasMessageNotContaining(body);
+        assertThat(output.getOut()).doesNotContain(body, "secret-key");
+        server.verify();
+    }
+
+    @Test
+    void oversizedErrorBodyKeepsHttpClassification() {
+        RestClient.Builder builder = RestClient.builder().baseUrl("https://example.com");
+        var server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(anything()).andRespond(withStatus(HttpStatus.BAD_REQUEST)
+                .body("{\"error\":{\"status\":\"FAILED_PRECONDITION\"},\"padding\":\"" + "x".repeat(65536) + "\"}"));
+        assertThatThrownBy(() -> new GeminiSearchClient(builder.build(), "secret", "model").search("a", "b"))
+                .isInstanceOfSatisfying(ExternalApiFailure.class,
+                        failure -> assertThat(failure.getKind()).isEqualTo(ExternalApiFailureKind.REQUEST));
+        server.verify();
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.CsvSource({
         "401,AUTHENTICATION", "403,AUTHENTICATION", "408,TIMEOUT", "429,RATE_LIMIT",
         "400,REQUEST", "503,SERVER"

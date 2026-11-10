@@ -37,7 +37,6 @@ public class TourApiClient {
 
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final int MAX_ERROR_BODY_LENGTH = 65536;
-    private static final String DAILY_QUOTA_ERROR_CODE = "22";
     private final RestClient.Builder restClientBuilder;
 
     public TourApiClient(RestClient.Builder restClientBuilder) {
@@ -167,10 +166,10 @@ public class TourApiClient {
         try {
             String body = restClientBuilder.baseUrl(baseUrl).build().get().uri(path, uriFunction)
                     .retrieve().body(String.class);
-            // HTTP 정상 응답에 포함된 Tour 일일 한도 오류 코드의 우선 판별
+            // HTTP 상태보다 공급자의 명시적인 오류 코드 우선 적용 (JSON/XML 공통)
             String reasonCode = errorReasonCode(body);
-            if (DAILY_QUOTA_ERROR_CODE.equals(reasonCode)) {
-                throw responseFailure(path, reasonCode, ExternalApiFailureKind.DAILY_QUOTA);
+            if (reasonCode != null) {
+                throw responseFailure(path, reasonCode, providerFailureKind(reasonCode));
             }
             JsonNode response;
             try {
@@ -185,15 +184,18 @@ public class TourApiClient {
             ExternalApiFailure failure = ExternalApiFailure.http(ContentErrorCode.TOUR_API_ERROR,
                     "tour", path, exception);
             String reasonCode = errorReasonCode(exception.getResponseBodyAsString());
-            // 일반 요청 제한과 코드 22로 확인된 일일 한도 소진의 구분
-            if (DAILY_QUOTA_ERROR_CODE.equals(reasonCode) && status == 429) {
+            ExternalApiFailureKind providerKind = providerFailureKind(reasonCode);
+            // 알 수 없는 본문 코드는 신뢰 가능한 HTTP 상태 분류를 유지
+            if (providerKind != ExternalApiFailureKind.INVALID_RESPONSE) {
                 failure = new ExternalApiFailure(ContentErrorCode.TOUR_API_ERROR, "tour", path,
-                        ExternalApiFailureKind.DAILY_QUOTA, status, reasonCode, failure.getRetryAfter());
+                        providerKind, status, reasonCode, failure.getRetryAfter());
             }
-            var entry = failureLog(path, SafeLogDetails.httpFailureType(status))
+            var entry = failureLog(path, providerKind == ExternalApiFailureKind.INVALID_RESPONSE
+                    ? SafeLogDetails.httpFailureType(status) : failure.failureType())
                     .addKeyValue("upstreamHttpStatus", status)
                     .addKeyValue("failureKind", failure.getKind())
-                    .addKeyValue("retryable", SafeLogDetails.isRetryable(null, status));
+                    .addKeyValue("retryable", providerKind == ExternalApiFailureKind.INVALID_RESPONSE
+                            ? SafeLogDetails.isRetryable(null, status) : isTransientFailure(providerKind));
             if (failure.getProviderCode() != null) entry.addKeyValue("providerCode", failure.getProviderCode());
             entry.log("Tour API request failed.");
             throw failure;
@@ -206,8 +208,28 @@ public class TourApiClient {
         }
     }
 
+    // TourAPI 공식 서비스 오류 코드
+    private static ExternalApiFailureKind providerFailureKind(String code) {
+        if (code == null) return ExternalApiFailureKind.INVALID_RESPONSE;
+        return switch (code) {
+            case "01" -> ExternalApiFailureKind.SERVER;
+            case "05" -> ExternalApiFailureKind.TIMEOUT;
+            case "20", "30", "31" -> ExternalApiFailureKind.AUTHENTICATION;
+            case "22" -> ExternalApiFailureKind.DAILY_QUOTA;
+            case "23" -> ExternalApiFailureKind.RATE_LIMIT;
+            default -> ExternalApiFailureKind.INVALID_RESPONSE;
+        };
+    }
+
     private ExternalApiFailure responseFailure(String path, String code, ExternalApiFailureKind kind) {
-        return responseFailure(path, code, kind, "invalid_response");
+        return responseFailure(path, code, kind, null);
+    }
+
+    private static boolean isTransientFailure(ExternalApiFailureKind kind) {
+        return switch (kind) {
+            case DAILY_QUOTA, RATE_LIMIT, TIMEOUT, CONNECTION, SERVER -> true;
+            default -> false;
+        };
     }
 
     private ExternalApiFailure responseFailure(String path, String code, ExternalApiFailureKind kind,
@@ -216,11 +238,11 @@ public class TourApiClient {
                 "tour", path, kind, 200, code, null);
         String safeCode = code == null || code.isBlank() ? "missing"
                 : failure.getProviderCode() == null ? "invalid" : failure.getProviderCode();
-        failureLog(path, failureType)
+        failureLog(path, failureType == null ? failure.failureType() : failureType)
                 .addKeyValue("resultCode", safeCode)
                 .addKeyValue("failureKind", kind)
                 .addKeyValue("upstreamHttpStatus", 200)
-                .addKeyValue("retryable", kind == ExternalApiFailureKind.DAILY_QUOTA)
+                .addKeyValue("retryable", isTransientFailure(kind))
                 .log("Tour API returned invalid response.");
         return failure;
     }
@@ -245,8 +267,9 @@ public class TourApiClient {
             if (code.isMissingNode()) code = root.path("cmmMsgHeader").path("returnReasonCode");
             if (code.isMissingNode()) code = root.path("OpenAPI_ServiceResponse")
                     .path("cmmMsgHeader").path("returnReasonCode");
+            if (code.isMissingNode()) code = root.path("response").path("header").path("resultCode");
             String value = code.asText("");
-            return value.matches("[0-9]{1,4}") ? value : null;
+            return value.matches("[0-9]{1,4}") && !"0000".equals(value) ? value : null;
         } catch (JsonProcessingException exception) {
             return null;
         }
@@ -300,8 +323,7 @@ public class TourApiClient {
         String resultCode = response == null ? null
                 : response.path("response").path("header").path("resultCode").asText();
         if (!"0000".equals(resultCode)) {
-            throw responseFailure(path, resultCode, DAILY_QUOTA_ERROR_CODE.equals(resultCode)
-                    ? ExternalApiFailureKind.DAILY_QUOTA : ExternalApiFailureKind.INVALID_RESPONSE);
+            throw responseFailure(path, resultCode, providerFailureKind(resultCode));
         }
     }
 }
