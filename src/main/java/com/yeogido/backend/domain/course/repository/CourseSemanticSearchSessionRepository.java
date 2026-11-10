@@ -19,7 +19,7 @@ public class CourseSemanticSearchSessionRepository {
     private final Duration ttl;
 
     public CourseSemanticSearchSessionRepository(StringRedisTemplate redis, ObjectMapper mapper,
-            @Value("${app.course-search.embedding.session-ttl-seconds:900}") long ttlSeconds) {
+            @Value("${app.course-search.embedding.session-ttl-seconds:3600}") long ttlSeconds) {
         if (ttlSeconds < 1 || ttlSeconds > 86400) {
             throw new GeneralException(CourseErrorCode.INVALID_COURSE_SEARCH_CONFIG);
         }
@@ -47,7 +47,7 @@ public class CourseSemanticSearchSessionRepository {
             throw new GeneralException(CourseErrorCode.COURSE_SEARCH_API_ERROR);
         }
         if (json == null) {
-            throw new GeneralException(CourseErrorCode.INVALID_COURSE_SEARCH_CURSOR);
+            throw new GeneralException(CourseErrorCode.COURSE_SEARCH_SESSION_EXPIRED);
         }
         try {
             Snapshot snapshot = mapper.readValue(json, Snapshot.class);
