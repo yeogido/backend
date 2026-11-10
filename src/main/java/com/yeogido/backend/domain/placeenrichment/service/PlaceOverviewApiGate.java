@@ -48,7 +48,7 @@ public class PlaceOverviewApiGate {
   PlaceOverviewApiGate(PlaceOverviewApiOperationRepository operations, PlaceRepository places,
       PlatformTransactionManager transactionManager, long dailyQuotaCooldownSeconds,
       long rateLimitCooldownSeconds, long transientCooldownSeconds, Clock clock) {
-    if (dailyQuotaCooldownSeconds < 1 || dailyQuotaCooldownSeconds > Duration.ofDays(7).toSeconds()
+    if (dailyQuotaCooldownSeconds < 1 || dailyQuotaCooldownSeconds > ExternalApiFailure.MAX_COOLDOWN.toSeconds()
         || rateLimitCooldownSeconds < 1 || rateLimitCooldownSeconds > Duration.ofDays(1).toSeconds()
         || transientCooldownSeconds < 1 || transientCooldownSeconds > Duration.ofDays(1).toSeconds()) {
       throw new GeneralException(PlaceEnrichmentErrorCode.INVALID_ENRICHMENT_CONFIG);
@@ -133,7 +133,7 @@ public class PlaceOverviewApiGate {
     if (retryAfter == null || retryAfter.isNegative() || retryAfter.isZero()) {
       return Duration.ofSeconds(fallbackSeconds);
     }
-    return retryAfter;
+    return ExternalApiFailure.capRetryAfter(retryAfter);
   }
 
   private void requireAvailable(PlaceOverviewApiOperation state, String provider, String operation,

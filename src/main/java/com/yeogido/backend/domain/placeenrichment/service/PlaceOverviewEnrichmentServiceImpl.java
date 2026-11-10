@@ -211,7 +211,8 @@ public class PlaceOverviewEnrichmentServiceImpl implements PlaceOverviewEnrichme
     LocalDateTime retryAt = now.plusSeconds(backoffSeconds + ThreadLocalRandom.current().nextLong(31));
     // 기본 대기 시간보다 긴 공급자 지정 Retry-After 우선 적용
     if (failure instanceof ExternalApiFailure external && external.getRetryAfter() != null) {
-      LocalDateTime upstreamRetryAt = ExternalApiFailure.retryAt(now, external.getRetryAfter());
+      LocalDateTime upstreamRetryAt = ExternalApiFailure.retryAt(now,
+          ExternalApiFailure.capRetryAfter(external.getRetryAfter()));
       if (upstreamRetryAt.isAfter(retryAt)) {
         retryAt = upstreamRetryAt;
       }
@@ -234,7 +235,8 @@ public class PlaceOverviewEnrichmentServiceImpl implements PlaceOverviewEnrichme
         case DAILY_QUOTA, RATE_LIMIT -> {
           LocalDateTime retryAt = apiGate.retryAtForUpdate(external.getProvider(), external.getOperation());
           if (retryAt != null && external.getRetryAfter() != null) {
-            LocalDateTime providerRetryAt = ExternalApiFailure.retryAt(LocalDateTime.now(), external.getRetryAfter());
+            LocalDateTime providerRetryAt = ExternalApiFailure.retryAt(LocalDateTime.now(),
+                ExternalApiFailure.capRetryAfter(external.getRetryAfter()));
             if (providerRetryAt.isAfter(retryAt)) {
               retryAt = providerRetryAt;
             }

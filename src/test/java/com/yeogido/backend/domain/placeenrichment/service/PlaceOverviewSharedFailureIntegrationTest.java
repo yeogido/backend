@@ -224,12 +224,13 @@ class PlaceOverviewSharedFailureIntegrationTest {
   }
 
   @org.junit.jupiter.api.Test
-  void maximumQuotaDelayRemainsScheduledForBothFailureAndDeferredPlaces() {
+  void excessiveQuotaDelayIsCappedForBothFailureAndDeferredPlaces() {
     operations.saveAndFlush(new PlaceOverviewApiOperation("tour", "/searchKeyword2"));
     operations.saveAndFlush(new PlaceOverviewApiOperation("daum", "searchWeb"));
     var region = regions.saveAndFlush(Region.builder().name("서울").type(RegionType.REGION).build());
     Long first = save(region, "maximum-quota");
     Long second = save(region, "maximum-deferred");
+    var earliestRetryAt = java.time.LocalDateTime.now().plusDays(7);
     var failure = new ExternalApiFailure(PlaceEnrichmentErrorCode.DAUM_SEARCH_API_ERROR,
         "daum", "searchWeb", ExternalApiFailureKind.RATE_LIMIT, 429, null,
         java.time.Duration.ofSeconds(Long.MAX_VALUE));
@@ -240,12 +241,12 @@ class PlaceOverviewSharedFailureIntegrationTest {
         .isInstanceOf(com.yeogido.backend.domain.placeenrichment.exception.ExternalApiDeferredException.class);
     for (Long id : List.of(first, second)) {
       assertThat(places.findById(id).orElseThrow().getOverviewNextRetryAt())
-          .isEqualTo(ExternalApiFailure.MAX_RETRY_AT);
+          .isBetween(earliestRetryAt, java.time.LocalDateTime.now().plusDays(7));
     }
     gate.release("daum", "searchWeb");
     for (Long id : List.of(first, second)) {
       assertThat(places.findById(id).orElseThrow().getOverviewNextRetryAt())
-          .isEqualTo(ExternalApiFailure.MAX_RETRY_AT);
+          .isBetween(earliestRetryAt, java.time.LocalDateTime.now().plusDays(7));
     }
   }
 

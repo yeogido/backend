@@ -121,15 +121,23 @@ class PlaceOverviewApiGateTest {
     assertThatCode(() -> gate.check("tour", "/searchKeyword2")).doesNotThrowAnyException();
   }
 
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(longs = {0, -1})
+  void nonPositiveProviderDelayUsesConfiguredCooldown(long seconds) {
+    gate.recordFailure(failure(ExternalApiFailureKind.RATE_LIMIT, Duration.ofSeconds(seconds)));
+    assertThat(operations.findById("tour:/searchKeyword2").orElseThrow().getBlockedUntil())
+        .isEqualTo(clock.now().plusSeconds(60));
+  }
+
   @Test
-  void maximumTimedDelayIsNotAManualBlock() {
+  void excessiveTimedDelayIsCappedAtSevenDays() {
     gate.recordFailure(failure(ExternalApiFailureKind.RATE_LIMIT, Duration.ofSeconds(Long.MAX_VALUE)));
     var state = operations.findById("tour:/searchKeyword2").orElseThrow();
     assertThat(state.isManualReleaseRequired()).isFalse();
-    assertThat(state.getBlockedUntil()).isEqualTo(ExternalApiFailure.MAX_RETRY_AT);
+    assertThat(state.getBlockedUntil()).isEqualTo(clock.now().plusDays(7));
     assertThatThrownBy(() -> gate.check("tour", "/searchKeyword2"))
         .isInstanceOfSatisfying(ExternalApiDeferredException.class,
-            deferred -> assertThat(deferred.getRetryAt()).isEqualTo(ExternalApiFailure.MAX_RETRY_AT));
+            deferred -> assertThat(deferred.getRetryAt()).isEqualTo(clock.now().plusDays(7)));
   }
 
   @Test

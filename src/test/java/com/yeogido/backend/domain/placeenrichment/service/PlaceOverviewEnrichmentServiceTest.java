@@ -84,6 +84,22 @@ class PlaceOverviewEnrichmentServiceTest {
         .longitude(new BigDecimal("129.0000000")).build()).getId();
   }
 
+  @ParameterizedTest
+  @EnumSource(value = ExternalApiFailureKind.class, names = {"SERVER", "RATE_LIMIT", "DAILY_QUOTA"})
+  void excessiveProviderDelayIsCappedForPlaceRetry(ExternalApiFailureKind kind) {
+    var failure = new ExternalApiFailure(PlaceEnrichmentErrorCode.DAUM_SEARCH_API_ERROR,
+        "tour", "/searchKeyword2", kind, 429, null, Duration.ofSeconds(Long.MAX_VALUE));
+    when(tour.enrich(any())).thenThrow(failure);
+    when(apiGate.retryAtForUpdate("tour", "/searchKeyword2"))
+        .thenReturn(LocalDateTime.now().plusMinutes(5));
+    var earliest = LocalDateTime.now().plusDays(7);
+
+    assertThatThrownBy(() -> service.enrich(placeId)).isSameAs(failure);
+
+    assertThat(places.findById(placeId).orElseThrow().getOverviewNextRetryAt())
+        .isBetween(earliest, LocalDateTime.now().plusDays(7));
+  }
+
   @Test
   void savesTourOverviewOutsideCallerTransactionAndSkipsRepeatedRequests() {
     when(tour.enrich(any())).thenAnswer(invocation -> {

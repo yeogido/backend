@@ -14,9 +14,9 @@ import lombok.Getter;
 import org.springframework.http.HttpHeaders;
 import org.springframework.web.client.RestClientResponseException;
 
-/** 응답 본문·인증정보·원본 예외를 제외한 외부 오류 분류 정보 */
 @Getter
 public class ExternalApiFailure extends GeneralException {
+  public static final Duration MAX_COOLDOWN = Duration.ofDays(7);
   public static final LocalDateTime MAX_RETRY_AT = LocalDateTime.of(9999, 1, 1, 0, 0);
 
   private final String provider;
@@ -88,6 +88,11 @@ public class ExternalApiFailure extends GeneralException {
     } catch (DateTimeParseException | ArithmeticException | NumberFormatException ignored) {
       return null;
     }
+  }
+
+  // 공급자 지정 대기 시간의 최대 쿨다운 상한 적용
+  public static Duration capRetryAfter(Duration delay) {
+    return delay.compareTo(MAX_COOLDOWN) > 0 ? MAX_COOLDOWN : delay;
   }
 
   // 긴 외부 대기 시간으로 인한 시각 범위 초과 방지를 위한 DB 저장 가능 상한 적용
