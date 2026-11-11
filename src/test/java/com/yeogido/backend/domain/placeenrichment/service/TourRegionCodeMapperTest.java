@@ -8,6 +8,8 @@ import com.yeogido.backend.domain.placeenrichment.dto.TourRegionCode;
 import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.region.repository.RegionRepository;
 import com.yeogido.backend.global.exception.GeneralException;
+import com.yeogido.backend.domain.placeenrichment.exception.ExternalApiFailure;
+import com.yeogido.backend.domain.placeenrichment.exception.ExternalApiFailureKind;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -137,7 +139,7 @@ class TourRegionCodeMapperTest {
         .thenReturn(page(2, "11", "서울특별시"), page(1, "11", "서울특별시"));
     when(client.legalDistrictCodes(null, 2, 100)).thenReturn(page(2));
 
-    assertApiError(() -> mapper.resolve("서울"));
+    assertInvalidResponse(() -> mapper.resolve("서울"));
     assertThat(mapper.resolve("서울")).contains(new TourRegionCode("11", null));
     verify(client, times(2)).legalDistrictCodes(null, 1, 100);
   }
@@ -162,7 +164,7 @@ class TourRegionCodeMapperTest {
         .thenReturn(page(2, "440", "마포구"), page(1, "440", "마포구"));
     when(client.legalDistrictCodes("11", 2, 100)).thenReturn(page(2));
 
-    assertApiError(() -> mapper.resolve("서울 마포구"));
+    assertInvalidResponse(() -> mapper.resolve("서울 마포구"));
     assertThat(mapper.resolve("서울 마포구")).contains(new TourRegionCode("11", "440"));
     verify(client).legalDistrictCodes(null, 1, 100);
     verify(client, times(2)).legalDistrictCodes("11", 1, 100);
@@ -178,6 +180,15 @@ class TourRegionCodeMapperTest {
         .thenReturn(page(2, "11", "서울특별시", "26", "부산광역시"));
     when(client.legalDistrictCodes("11", 1, 100)).thenReturn(page(1, "440", "마포구"));
     when(client.legalDistrictCodes("26", 1, 100)).thenReturn(page(1, "110", "중구"));
+  }
+
+  private void assertInvalidResponse(org.assertj.core.api.ThrowableAssert.ThrowingCallable action) {
+    assertThatThrownBy(action).isInstanceOfSatisfying(ExternalApiFailure.class, failure -> {
+      assertThat(failure.getErrorCode()).isEqualTo(ContentErrorCode.TOUR_API_ERROR);
+      assertThat(failure.getKind()).isEqualTo(ExternalApiFailureKind.INVALID_RESPONSE);
+      assertThat(failure.getProvider()).isEqualTo("tour");
+      assertThat(failure.getOperation()).isEqualTo("/ldongCode2");
+    });
   }
 
   private void assertApiError(org.assertj.core.api.ThrowableAssert.ThrowingCallable action) {
