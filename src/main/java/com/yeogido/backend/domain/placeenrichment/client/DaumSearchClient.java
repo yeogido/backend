@@ -1,9 +1,15 @@
 package com.yeogido.backend.domain.placeenrichment.client;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.IOException;
 import com.yeogido.backend.domain.placeenrichment.dto.request.TourPlaceRequest;
 import com.yeogido.backend.domain.placeenrichment.exception.PlaceEnrichmentErrorCode;
-import com.yeogido.backend.global.exception.GeneralException;
+import com.yeogido.backend.domain.placeenrichment.exception.ExternalApiFailure;
+import com.yeogido.backend.domain.placeenrichment.exception.ExternalApiFailureKind;
+import org.springframework.http.converter.HttpMessageConversionException;
+import com.yeogido.backend.global.logging.SafeLogDetails;
+import lombok.extern.slf4j.Slf4j;
 import com.yeogido.backend.domain.placeenrichment.dto.response.DaumSearchResponse;
 import com.yeogido.backend.domain.placeenrichment.enums.PlaceEvidenceSourceType;
 
@@ -25,7 +31,10 @@ import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.util.HtmlUtils;
 
 @Component
+@Slf4j
 public class DaumSearchClient {
+    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final int MAX_ERROR_BODY_LENGTH = 65536;
     private static final String BLOG_SEARCH_TYPE = "blog";
     private static final String WEB_SEARCH_TYPE = "web";
     private static final String SETTING_SEARCH_KEYWORDS = " 공간 좌석 실내 야외 분위기";
@@ -40,7 +49,7 @@ public class DaumSearchClient {
                             @Value("${app.daum.timeout-seconds:15}") int timeoutSeconds,
                             @Value("${app.daum.search-size:5}") int size) {
         if (timeoutSeconds < 1 || timeoutSeconds > 120 || size < 1 || size > 10) {
-            throw new GeneralException(PlaceEnrichmentErrorCode.INVALID_ENRICHMENT_CONFIG);
+            throw configurationFailure();
         }
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(Duration.ofSeconds(Math.min(timeoutSeconds, 10)));
@@ -57,9 +66,6 @@ public class DaumSearchClient {
     }
 
     public List<DaumSearchResponse.SearchSource> search(TourPlaceRequest.Input input) {
-        if (!StringUtils.hasText(apiKey)) {
-            throw new GeneralException(PlaceEnrichmentErrorCode.INVALID_ENRICHMENT_CONFIG);
-        }
         String address = StringUtils.hasText(input.roadAddress()) ? input.roadAddress() : input.lotAddress();
         String query = input.name() + " " + address;
         Map<String, DaumSearchResponse.SearchSource> sources = new LinkedHashMap<>();
@@ -69,20 +75,10 @@ public class DaumSearchClient {
                 new SearchQuery(BLOG_SEARCH_TYPE, query + activityKeywords(input.categoryGroupCode())),
                 new SearchQuery(BLOG_SEARCH_TYPE, query + SETTING_SEARCH_KEYWORDS));
         for (SearchQuery searchQuery : queries) {
-            JsonNode response;
-            try {
-                response = client.get().uri(builder -> builder.path("/v2/search/" + searchQuery.type())
-                                .queryParam("query", "{query}").queryParam("size", size).build(searchQuery.query()))
-                        .header("Authorization", "KakaoAK " + apiKey).retrieve().body(JsonNode.class);
-            } catch (RestClientResponseException exception) {
-                throw new GeneralException(PlaceEnrichmentErrorCode.DAUM_SEARCH_API_ERROR);
-            } catch (RestClientException exception) {
-                throw new GeneralException(PlaceEnrichmentErrorCode.DAUM_SEARCH_API_ERROR);
-            }
+            String operation = BLOG_SEARCH_TYPE.equals(searchQuery.type()) ? "searchBlog" : "searchWeb";
+            JsonNode response = PlaceOverviewApiScope.call("daum", operation,
+                    () -> request(searchQuery, operation));
             Instant collectedAt = Instant.now();
-            if (response == null || !response.path("documents").isArray()) {
-                throw new GeneralException(PlaceEnrichmentErrorCode.DAUM_SEARCH_API_ERROR);
-            }
             for (JsonNode document : response.path("documents")) {
                 String url = document.path("url").asText();
                 String title = plainText(document.path("title").asText());
@@ -103,6 +99,65 @@ public class DaumSearchClient {
             }
         }
         return List.copyOf(sources.values());
+    }
+
+    private JsonNode request(SearchQuery query, String operation) {
+        if (!StringUtils.hasText(apiKey)) throw configurationFailure();
+        try {
+            JsonNode response = client.get().uri(builder -> builder.path("/v2/search/" + query.type())
+                            .queryParam("query", "{query}").queryParam("size", size).build(query.query()))
+                    .header("Authorization", "KakaoAK " + apiKey).retrieve().body(JsonNode.class);
+            if (response == null || !response.path("documents").isArray()) {
+                logFailure(query.type(), "response_parse_error", null);
+                throw new ExternalApiFailure(PlaceEnrichmentErrorCode.DAUM_SEARCH_API_ERROR,
+                        "daum", operation, ExternalApiFailureKind.INVALID_RESPONSE, null, null, null);
+            }
+            return response;
+        } catch (RestClientResponseException exception) {
+            ExternalApiFailure failure = ExternalApiFailure.http(PlaceEnrichmentErrorCode.DAUM_SEARCH_API_ERROR,
+                    "daum", operation, exception);
+            if (exception.getStatusCode().value() == 400 && isQuotaExceeded(exception)) {
+                failure = new ExternalApiFailure(PlaceEnrichmentErrorCode.DAUM_SEARCH_API_ERROR,
+                        "daum", operation, ExternalApiFailureKind.DAILY_QUOTA, 400, "-10", failure.getRetryAfter());
+            }
+            logFailure(query.type(), failure.failureType(), exception.getStatusCode().value());
+            throw failure;
+        } catch (RestClientException | HttpMessageConversionException exception) {
+            logFailure(query.type(), SafeLogDetails.failureType(exception), null);
+            throw ExternalApiFailure.client(PlaceEnrichmentErrorCode.DAUM_SEARCH_API_ERROR,
+                    "daum", operation, exception);
+        }
+    }
+
+    private static boolean isQuotaExceeded(RestClientResponseException exception) {
+        byte[] body = exception.getResponseBodyAsByteArray();
+        if (body.length == 0 || body.length > MAX_ERROR_BODY_LENGTH) return false;
+        try {
+            JsonNode root = JSON.readTree(body);
+            JsonNode code = root == null ? null : root.get("code");
+            return code != null && code.isIntegralNumber() && code.canConvertToInt() && code.intValue() == -10;
+        } catch (IOException ignored) {
+            return false;
+        }
+    }
+
+    private static ExternalApiFailure configurationFailure() {
+        return new ExternalApiFailure(PlaceEnrichmentErrorCode.INVALID_ENRICHMENT_CONFIG,
+                "daum", "searchBlog", ExternalApiFailureKind.CONFIGURATION, null, null, null);
+    }
+
+    private void logFailure(String searchType, String failureType, Integer status) {
+        var entry = log.atWarn()
+                .addKeyValue("event", "external_api.call.failed")
+                .addKeyValue("provider", "daum")
+                .addKeyValue("operation", BLOG_SEARCH_TYPE.equals(searchType) ? "searchBlog" : "searchWeb")
+                .addKeyValue("failureType", failureType)
+                .addKeyValue("errorCode", PlaceEnrichmentErrorCode.DAUM_SEARCH_API_ERROR.getCode())
+                .addKeyValue("retryable", SafeLogDetails.isRetryable(failureType, status));
+        if (status != null) {
+            entry.addKeyValue("upstreamHttpStatus", status);
+        }
+        entry.log("External API call failed");
     }
 
     private static String activityKeywords(String category) {

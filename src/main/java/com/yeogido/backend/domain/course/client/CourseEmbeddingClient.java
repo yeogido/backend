@@ -3,6 +3,8 @@ package com.yeogido.backend.domain.course.client;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.yeogido.backend.domain.course.exception.CourseErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
+import com.yeogido.backend.global.logging.SafeLogDetails;
+import lombok.extern.slf4j.Slf4j;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -15,8 +17,10 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 
 @Component
+@Slf4j
 public class CourseEmbeddingClient {
 
   private static final int BATCH_SIZE = 20;
@@ -82,10 +86,10 @@ public class CourseEmbeddingClient {
       JsonNode response = post("batchEmbedContents", Map.of("requests", requests));
       JsonNode embeddings = response == null ? null : response.get("embeddings");
       if (embeddings == null || !embeddings.isArray() || embeddings.size() != batch.size()) {
-        throw invalidResponse();
+        throw invalidResponse("batchEmbedContents");
       }
       for (JsonNode embedding : embeddings) {
-        result.add(normalize(embedding));
+        result.add(normalize(embedding, "batchEmbedContents"));
       }
     }
     return List.copyOf(result);
@@ -97,7 +101,7 @@ public class CourseEmbeddingClient {
       throw new GeneralException(CourseErrorCode.INVALID_COURSE_SEARCH_CONFIG);
     }
     JsonNode response = post("embedContent", request(query, "RETRIEVAL_QUERY"));
-    return normalize(response == null ? null : response.get("embedding"));
+    return normalize(response == null ? null : response.get("embedding"), "embedContent");
   }
 
   private Map<String, Object> request(String text, String taskType) {
@@ -111,29 +115,34 @@ public class CourseEmbeddingClient {
       return client.post().uri("/models/{model}:{operation}", model, operation)
           .header("x-goog-api-key", apiKey).contentType(MediaType.APPLICATION_JSON)
           .body(request).retrieve().body(JsonNode.class);
+    } catch (RestClientResponseException exception) {
+      logFailure(operation, SafeLogDetails.httpFailureType(exception.getStatusCode().value()),
+          exception.getStatusCode().value(), CourseErrorCode.COURSE_SEARCH_API_ERROR);
+      throw new GeneralException(CourseErrorCode.COURSE_SEARCH_API_ERROR);
     } catch (RestClientException exception) {
-      // Provider exceptions may contain credentials or response bodies; do not retain causes.
+      logFailure(operation, SafeLogDetails.failureType(exception), null, CourseErrorCode.COURSE_SEARCH_API_ERROR);
+      // 인증 정보와 응답 본문 노출 방지를 위한 원인 예외 제외
       throw new GeneralException(CourseErrorCode.COURSE_SEARCH_API_ERROR);
     }
   }
 
-  private List<Double> normalize(JsonNode embedding) {
+  private List<Double> normalize(JsonNode embedding, String operation) {
     JsonNode values = embedding == null ? null : embedding.get("values");
     if (values == null || !values.isArray() || values.size() != dimensions) {
-      throw invalidResponse();
+      throw invalidResponse(operation);
     }
     double norm = 0;
     List<Double> vector = new ArrayList<>(dimensions);
     for (JsonNode value : values) {
       if (!value.isNumber() || !Double.isFinite(value.doubleValue())) {
-        throw invalidResponse();
+        throw invalidResponse(operation);
       }
       double number = value.doubleValue();
       vector.add(number);
       norm = Math.hypot(norm, number);
     }
     if (!Double.isFinite(norm) || norm == 0) {
-      throw invalidResponse();
+      throw invalidResponse(operation);
     }
     double length = norm;
     return vector.stream().map(value -> value / length).toList();
@@ -145,7 +154,22 @@ public class CourseEmbeddingClient {
     }
   }
 
-  private GeneralException invalidResponse() {
+  private void logFailure(String operation, String failureType, Integer status, CourseErrorCode errorCode) {
+    var entry = log.atWarn()
+        .addKeyValue("event", "external_api.call.failed")
+        .addKeyValue("provider", "google_embedding")
+        .addKeyValue("operation", operation)
+        .addKeyValue("failureType", failureType)
+        .addKeyValue("errorCode", errorCode.getCode())
+        .addKeyValue("retryable", SafeLogDetails.isRetryable(failureType, status));
+    if (status != null) {
+      entry.addKeyValue("upstreamHttpStatus", status);
+    }
+    entry.log("External API call failed");
+  }
+
+  private GeneralException invalidResponse(String operation) {
+    logFailure(operation, "response_parse_error", null, CourseErrorCode.INVALID_COURSE_SEARCH_RESPONSE);
     return new GeneralException(CourseErrorCode.INVALID_COURSE_SEARCH_RESPONSE);
   }
 }

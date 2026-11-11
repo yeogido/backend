@@ -5,6 +5,8 @@ import com.yeogido.backend.domain.course.embedding.CourseSemanticSearchService;
 import com.yeogido.backend.domain.content.repository.ContentRepository;
 import com.yeogido.backend.domain.course.converter.CourseSearchCursorConverter;
 import com.yeogido.backend.domain.course.dto.CourseSearchDTO.Interpretation;
+import com.yeogido.backend.domain.course.dto.CourseSearchDTO.FilterKeywords;
+import com.yeogido.backend.domain.course.repository.CourseRelatedSearchSessionRepository;
 import com.yeogido.backend.domain.course.enums.SearchPhase;
 import com.yeogido.backend.domain.course.dto.request.CourseReqDTO;
 import com.yeogido.backend.domain.course.dto.response.CourseResDTO;
@@ -76,6 +78,35 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class CourseServiceImplTest {
 
+    @Test
+    void redisMaintenanceFailuresRemainSuppressedWithoutLoggingSecrets() {
+        var logger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(CourseServiceImpl.class);
+        var logs = new ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent>();
+        logs.start();
+        logger.addAppender(logs);
+        var failure = new IllegalStateException("Authorization: fake-private-token",
+                new RuntimeException("redis://fake-private-password@host"));
+        doThrow(failure).when(courseRedisRepository).saveCreatedEvent(eq(10L), any());
+        doThrow(failure).when(coursePopularityRankingRedisRepository).removeLocalCourseId(10L);
+        try {
+            org.assertj.core.api.Assertions.assertThatCode(() -> {
+                ReflectionTestUtils.invokeMethod(courseService, "saveCreatedEvent", 10L);
+                ReflectionTestUtils.invokeMethod(courseService, "removeLocalRanking", 10L);
+            }).doesNotThrowAnyException();
+            assertThat(logs.list).hasSize(2).allSatisfy(event -> {
+                assertThat(event.getThrowableProxy()).isNull();
+                assertThat(event.getFormattedMessage() + event.getKeyValuePairs()).doesNotContain("fake-private");
+                assertThat(event.getKeyValuePairs()).anySatisfy(pair -> {
+                    assertThat(pair.key).isEqualTo("exceptionType");
+                    assertThat(pair.value).isEqualTo("java.lang.IllegalStateException");
+                });
+            });
+        } finally {
+            logger.detachAppender(logs);
+            logs.stop();
+        }
+    }
+
     @Mock
     private CourseRepository courseRepository;
 
@@ -137,11 +168,22 @@ class CourseServiceImplTest {
     @Mock
     private PlatformTransactionManager transactionManager;
 
+    @Mock
+    private CourseRelatedSearchSessionRepository relatedSessions;
+
     @InjectMocks
     private CourseServiceImpl courseService;
 
+    private ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> outcomeLogs;
+    private final ch.qos.logback.classic.Logger outcomeLogger =
+            (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(CourseServiceImpl.class);
+
     @AfterEach
     void tearDown() {
+        if (outcomeLogs != null) {
+            outcomeLogger.detachAppender(outcomeLogs);
+            outcomeLogs.stop();
+        }
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.clearSynchronization();
         }
@@ -634,7 +676,81 @@ class CourseServiceImplTest {
     }
 
     @Test
+    void firstSearchAndBothListsShareTheOrderedMembership() {
+        var searchId = java.util.UUID.randomUUID();
+        var original = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, "부산", null,
+                null, null, null, null, CourseSortType.LATEST, null, null, null, null, 1);
+        var effective = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, null, null,
+                42L, null, null, null, CourseSortType.LATEST, null, null, null, null, 1);
+        var interpretation = new Interpretation(effective, List.of(), null, List.of("부산"),
+                null, new FilterKeywords("부산", null, null, null));
+        var membership = new CourseQueryRepository.SearchMembership(List.of(10L), List.of(11L, 12L));
+        var session = new CourseRelatedSearchSessionRepository.Session(null, original, interpretation, membership);
+        when(courseSearchService.interpret(original)).thenReturn(interpretation);
+        when(courseRepository.findSearchMembership(eq(original), eq(effective), eq(List.of()),
+                ArgumentMatchers.isNull(), ArgumentMatchers.isNull(), any(), anyMap())).thenReturn(membership);
+        when(relatedSessions.save(session)).thenReturn(searchId);
+        when(relatedSessions.find(searchId)).thenReturn(session);
+        when(courseRepository.findPinnedSearchRows(List.of(10L, 11L)))
+                .thenReturn(List.of(priorityRow(11), priorityRow(10)));
+        when(courseRepository.findPinnedSearchRows(List.of(11L, 12L))).thenReturn(List.of(priorityRow(12)));
+        when(courseRepository.findSearchPhaseByCursor(eq(effective), any(), anyMap(), eq(2), eq(List.of()),
+                ArgumentMatchers.isNull(), ArgumentMatchers.isNull(), eq(false), eq(membership)))
+                .thenReturn(List.of(priorityRow(20)));
+
+        var first = courseService.getCourses(original, null);
+        assertThat(first.getSearchId()).isEqualTo(searchId);
+        assertThat(first.getItems()).extracting(CourseResDTO.CoursePreview::courseId).containsExactly(10L);
+        assertThat(first.isHasNext()).isTrue();
+
+        var related = courseService.getCourses(new CourseReqDTO.CourseListReq(null, null, null, null, null, null,
+                null, null, null, null, null, null, 1, searchId, List.of("부산")), null);
+        assertThat(related.getItems()).extracting(CourseResDTO.CoursePreview::courseId).containsExactly(20L);
+
+        var next = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, "부산", null,
+                null, null, null, null, CourseSortType.LATEST, null, null,
+                first.getCursorValue().toString(), first.getCursorId(), 1);
+        var second = courseService.getCourses(next, null);
+        assertThat(second.getItems()).extracting(CourseResDTO.CoursePreview::courseId).containsExactly(12L);
+        assertThat(second.isHasNext()).isFalse();
+        verify(courseSearchService).interpret(any());
+    }
+
+    @Test
+    void relatedSearchReusesSelectedConditionsAndBindsCursorToSelection() {
+        var searchId = java.util.UUID.randomUUID();
+        var original = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, "부산 비 오는 날 데이트",
+                null, null, TransportType.CAR, null, null, CourseSortType.LATEST, null, null, null, null, 1);
+        var inferred = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, null,
+                null, 42L, TransportType.CAR, null, null, CourseSortType.LATEST, null, null, null, null, 1);
+        var labels = new FilterKeywords("부산", null, null, null);
+        var interpretation = new Interpretation(inferred, List.of("비 오는 날", "데이트"), null,
+                List.of("부산", "비 오는 날", "데이트"), null, labels);
+        var membership = new CourseQueryRepository.SearchMembership(List.of(10L), List.of(11L));
+        when(relatedSessions.find(searchId)).thenReturn(
+                new CourseRelatedSearchSessionRepository.Session(null, original, interpretation, membership));
+        when(courseRepository.findSearchPhaseByCursor(eq(inferred), any(), anyMap(), eq(2), eq(List.of("비 오는 날")),
+                ArgumentMatchers.isNull(), ArgumentMatchers.isNull(), eq(false),
+                eq(membership)))
+                .thenReturn(List.of(priorityRow(20), priorityRow(21)));
+
+        var first = courseService.getCourses(new CourseReqDTO.CourseListReq(null, null, null, null, null, null,
+                null, null, null, null, null, null, 1, searchId, List.of("비 오는 날", "부산")), null);
+
+        assertThat(first.getItems()).extracting(CourseResDTO.CoursePreview::courseId).containsExactly(20L);
+        assertThat(first.isHasNext()).isTrue();
+        var changedSelection = new CourseReqDTO.CourseListReq(null, null, null, null, null, null, null, null,
+                null, null, first.getCursorValue().toString(), first.getCursorId(), 1, searchId, List.of("부산"));
+        assertThatThrownBy(() -> courseService.getCourses(changedSelection, null))
+                .isInstanceOfSatisfying(GeneralException.class,
+                        exception -> assertThat(exception.getErrorCode()).isEqualTo(CourseErrorCode.INVALID_COURSE_SEARCH_CURSOR));
+    }
+
+    @Test
     void semanticProviderFailureFallsBackToTermSearchAndKeepsNaturalCursor() {
+        outcomeLogs = new ch.qos.logback.core.read.ListAppender<>();
+        outcomeLogs.start();
+        outcomeLogger.addAppender(outcomeLogs);
         var original = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, "비 오는 날", null,
                 null, null, null, null, CourseSortType.LATEST, null, null, null, null, 1);
         var interpretation = new Interpretation(original, List.of("비 오는 날"));
@@ -651,6 +767,14 @@ class CourseServiceImplTest {
 
         var first = courseService.getCourses(original, null);
 
+        assertThat(outcomeLogs.list).singleElement().satisfies(event -> {
+            assertThat(event.getLevel()).isEqualTo(ch.qos.logback.classic.Level.INFO);
+            assertThat(event.getKeyValuePairs()).anySatisfy(pair -> {
+                assertThat(pair.key).isEqualTo("event");
+                assertThat(pair.value).isEqualTo("external_api.fallback.succeeded");
+            });
+            assertThat(event.getThrowableProxy()).isNull();
+        });
         assertThat(first.getItems()).extracting(CourseResDTO.CoursePreview::courseId).containsExactly(10L);
         assertThat(first.isHasNext()).isTrue();
         assertThat(first.getCursorValue().toString()).startsWith("nl2.");
@@ -669,6 +793,34 @@ class CourseServiceImplTest {
         Mockito.verify(courseSemanticSearchService, never()).restore(any());
         Mockito.verify(courseRepository, never()).findSemanticCoursesByCursor(any(), any(), anyMap(),
                 Mockito.anyInt(), any(), any(), any());
+    }
+
+    @Test
+    void failedFallbackDoesNotEmitSuccessOutcome() {
+        outcomeLogs = new ch.qos.logback.core.read.ListAppender<>();
+        outcomeLogs.start();
+        outcomeLogger.addAppender(outcomeLogs);
+        var original = new CourseReqDTO.CourseListReq(CourseType.OFFICIAL, "fake-private-search-query", null,
+                null, null, null, null, CourseSortType.LATEST, null, null, null, null, 1);
+        var interpretation = new Interpretation(original, List.of("fake-private-term"));
+        when(courseSearchService.interpret(original)).thenReturn(interpretation);
+        when(courseSemanticSearchService.isEnabled()).thenReturn(true);
+        when(courseSemanticSearchService.search(interpretation)).thenThrow(
+                new GeneralException(CourseErrorCode.COURSE_SEARCH_API_ERROR));
+        var failure = new IllegalStateException("fake-private-database-failure");
+        when(transactionManager.getTransaction(any())).thenThrow(failure);
+
+        assertThatThrownBy(() -> courseService.getCourses(original, null)).isSameAs(failure);
+
+        assertThat(outcomeLogs.list).singleElement().satisfies(event -> {
+            assertThat(event.getKeyValuePairs()).anySatisfy(pair -> {
+                assertThat(pair.key).isEqualTo("event");
+                assertThat(pair.value).isEqualTo("external_api.fallback.failed");
+            });
+            assertThat(event.getThrowableProxy()).isNull();
+            assertThat(event.getFormattedMessage() + event.getKeyValuePairs())
+                    .doesNotContain("fake-private");
+        });
     }
 
     private CourseQueryRepository.CourseListRow priorityRow(long id) {

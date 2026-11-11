@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.yeogido.backend.domain.course.exception.CourseErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
 import java.time.Duration;
 import java.util.List;
@@ -18,7 +19,7 @@ class CourseSemanticSearchSessionRepositoryTest {
     private final StringRedisTemplate redis = mock(StringRedisTemplate.class);
     private final ValueOperations<String, String> values = mock(ValueOperations.class);
     private final CourseSemanticSearchSessionRepository sessions =
-            new CourseSemanticSearchSessionRepository(redis, new ObjectMapper(), 900);
+            new CourseSemanticSearchSessionRepository(redis, new ObjectMapper(), 3600);
 
     @Test
     void storesAnImmutableCandidateSnapshotWithTtlIncludingEmptyResults() {
@@ -26,20 +27,29 @@ class CourseSemanticSearchSessionRepositoryTest {
         String id = sessions.save("한적한", List.of());
         assertThat(UUID.fromString(id).toString()).isEqualTo(id);
         ArgumentCaptor<String> json = ArgumentCaptor.forClass(String.class);
-        verify(values).set(eq("course:semantic-search:" + id), json.capture(), eq(Duration.ofMinutes(15)));
+        verify(values).set(eq("course:semantic-search:" + id), json.capture(), eq(Duration.ofHours(1)));
         when(values.get("course:semantic-search:" + id)).thenReturn(json.getValue());
         assertThat(sessions.find(id, "한적한")).isEmpty();
     }
 
     @Test
-    void expiredCorruptOrOtherQuerySnapshotsAreRejectedInsteadOfRecomputed() {
+    void corruptOrOtherQuerySnapshotsAreRejectedInsteadOfRecomputed() {
         when(redis.opsForValue()).thenReturn(values);
-        for (String json : new String[] {null, "bad", "{\"query\":\"다른 말\",\"courseIds\":[1]}",
+        for (String json : new String[] {"bad", "{\"query\":\"다른 말\",\"courseIds\":[1]}",
                 "{\"query\":\"비 오는 날\",\"courseIds\":[-1]}"}) {
             when(values.get("course:semantic-search:id")).thenReturn(json);
             assertThatThrownBy(() -> sessions.find("id", "비 오는 날"))
-                    .isInstanceOf(GeneralException.class);
+                    .isInstanceOfSatisfying(GeneralException.class,
+                            error -> assertThat(error.getErrorCode()).isEqualTo(CourseErrorCode.INVALID_COURSE_SEARCH_CURSOR));
         }
+    }
+
+    @Test
+    void missingSnapshotReturnsSessionExpired() {
+        when(redis.opsForValue()).thenReturn(values);
+        assertThatThrownBy(() -> sessions.find("id", "비 오는 날"))
+                .isInstanceOfSatisfying(GeneralException.class,
+                        error -> assertThat(error.getErrorCode()).isEqualTo(CourseErrorCode.COURSE_SEARCH_SESSION_EXPIRED));
     }
 
     @Test

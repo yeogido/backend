@@ -8,6 +8,7 @@ import com.yeogido.backend.domain.content.entity.Content;
 import com.yeogido.backend.domain.content.enums.ContentSource;
 import com.yeogido.backend.domain.course.converter.CourseSearchCursorConverter;
 import com.yeogido.backend.domain.course.embedding.CourseSemanticSearchService;
+import com.yeogido.backend.domain.course.repository.CourseRelatedSearchSessionRepository;
 import com.yeogido.backend.domain.course.dto.CourseSearchDTO.DecodedCursor;
 import com.yeogido.backend.domain.course.dto.request.CourseReqDTO.CourseListReq;
 import com.yeogido.backend.domain.course.dto.response.CourseResDTO;
@@ -71,6 +72,7 @@ class CourseDetailIntegrationTest {
 
     @MockitoBean private CourseSearchService courseSearchService;
     @MockitoBean private CourseSemanticSearchService courseSemanticSearchService;
+    @MockitoBean private CourseRelatedSearchSessionRepository relatedSearchSessionRepository;
     @MockitoBean private CourseSearchCursorConverter courseSearchCursorConverter;
     @MockitoBean private PlaceService placeService;
     @MockitoBean private FileService fileService;

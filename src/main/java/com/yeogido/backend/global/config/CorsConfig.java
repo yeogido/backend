@@ -25,7 +25,7 @@ public class CorsConfig {
 
         configuration.setAllowedMethods(List.of("*"));
         configuration.setAllowedHeaders(List.of("*"));
-        configuration.setExposedHeaders(List.of("ETag"));
+        configuration.setExposedHeaders(List.of("ETag", "X-Request-ID"));
         configuration.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source =

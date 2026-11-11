@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yeogido.backend.domain.course.client.CourseSearchClient;
 import com.yeogido.backend.domain.course.dto.CourseSearchDTO.Extraction;
 import com.yeogido.backend.domain.course.dto.CourseSearchDTO.Interpretation;
+import com.yeogido.backend.domain.course.dto.CourseSearchDTO.FilterKeywords;
 import com.yeogido.backend.domain.course.dto.request.CourseReqDTO.CourseListReq;
 import com.yeogido.backend.domain.course.enums.CompanionType;
 import com.yeogido.backend.domain.course.enums.DurationType;
@@ -20,6 +21,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import java.util.stream.Stream;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ClassPathResource;
@@ -62,12 +65,19 @@ public class CourseSearchServiceImpl implements CourseSearchService {
       // 검색 문장과 인증 정보 및 제공자 응답의 로그 노출 방지
       String failureType = exception.getErrorCode() == CourseErrorCode.INVALID_COURSE_SEARCH_RESPONSE
           ? "response_validation_error" : "generation_api_error";
-      log.warn("자연어 검색 해석 실패에 따른 기존 문자열 검색 적용. failureType={}, code={}",
-          failureType, exception.getErrorCode().getCode());
+      log.atInfo().addKeyValue("event", "external_api.fallback.selected")
+          .addKeyValue("provider", "gemini").addKeyValue("operation", "interpretCourseSearch")
+          .addKeyValue("failureType", failureType).addKeyValue("errorCode", exception.getErrorCode().getCode())
+          .addKeyValue("fallback", "literal_search")
+          .log("Course search interpretation unavailable; literal search selected.");
       return null;
     } catch (JsonProcessingException | IllegalArgumentException exception) {
-      log.warn("자연어 검색 응답 검증 실패에 따른 기존 문자열 검색 적용. failureType=response_parse_error, code={}",
-          CourseErrorCode.INVALID_COURSE_SEARCH_RESPONSE.getCode());
+      log.atInfo().addKeyValue("event", "external_api.fallback.selected")
+          .addKeyValue("provider", "gemini").addKeyValue("operation", "interpretCourseSearch")
+          .addKeyValue("failureType", "response_parse_error")
+          .addKeyValue("errorCode", CourseErrorCode.INVALID_COURSE_SEARCH_RESPONSE.getCode())
+          .addKeyValue("fallback", "literal_search")
+          .log("Course search response unusable; literal search selected.");
       return null;
     }
   }
@@ -144,38 +154,35 @@ public class CourseSearchServiceImpl implements CourseSearchService {
         duration,
         request.companionType() != null ? request.companionType() : extraction.companionType(),
         request.sort(), request.latitude(), request.longitude(), request.cursorValue(), request.cursorId(), request.size());
-    return new Interpretation(effective, extraction.terms(), totalDays, displayKeywords(extraction, regionName));
+    FilterKeywords filters = filterKeywords(extraction, regionName);
+    List<String> keywords = new ArrayList<>();
+    Stream.of(filters.region(), filters.duration(), filters.transport(), filters.companion())
+        .filter(Objects::nonNull).forEach(keywords::add);
+    keywords.addAll(extraction.terms());
+    return new Interpretation(effective, extraction.terms(), totalDays,
+        keywords.stream().distinct().toList(), null, filters);
   }
 
-  private static List<String> displayKeywords(Extraction extraction, String regionName) {
-    List<String> keywords = new ArrayList<>();
-    if (regionName != null) {
-      keywords.add(regionName);
-    }
+  private static FilterKeywords filterKeywords(Extraction extraction, String regionName) {
+    String duration = extraction.durationType() == null ? null : extraction.durationType().getDisplayName();
     if (extraction.totalDays() != null) {
-      keywords.add(switch (extraction.totalDays()) {
+      duration = switch (extraction.totalDays()) {
         case 1 -> "당일치기";
         case 2 -> "1박2일";
         case 3 -> "2박3일";
         default -> extraction.totalDays() + "일";
-      });
-    } else if (extraction.durationType() != null) {
-      keywords.add(extraction.durationType().getDisplayName());
+      };
     }
-    if (extraction.transportType() != null) {
-      keywords.add(extraction.transportType() == TransportType.WALK ? "도보·대중교통" : "자동차");
-    }
-    if (extraction.companionType() != null) {
-      keywords.add(switch (extraction.companionType()) {
-        case SOLO -> "혼자";
-        case FRIEND -> "친구";
-        case COUPLE -> "커플";
-        case FAMILY -> "가족";
-        case PET -> "반려동물";
-      });
-    }
-    keywords.addAll(extraction.terms());
-    return keywords.stream().distinct().toList();
+    String transport = extraction.transportType() == null ? null
+        : extraction.transportType() == TransportType.WALK ? "도보·대중교통" : "자동차";
+    String companion = extraction.companionType() == null ? null : switch (extraction.companionType()) {
+      case SOLO -> "혼자";
+      case FRIEND -> "친구";
+      case COUPLE -> "커플";
+      case FAMILY -> "가족";
+      case PET -> "반려동물";
+    };
+    return new FilterKeywords(regionName, duration, transport, companion);
   }
 
   private static Integer nullablePositiveInteger(JsonNode value) {

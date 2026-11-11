@@ -69,6 +69,12 @@ public enum CourseErrorCode implements ErrorCode {
             "자연어 검색 커서가 올바르지 않습니다."
     ),
 
+    COURSE_SEARCH_SESSION_EXPIRED(
+            HttpStatus.BAD_REQUEST,
+            "COURSE4011",
+            "검색 세션이 만료되었습니다. 첫 페이지부터 다시 검색해 주세요."
+    ),
+
     INVALID_COURSE_SEARCH_RESPONSE(
             HttpStatus.BAD_GATEWAY,
             "COURSE5021",

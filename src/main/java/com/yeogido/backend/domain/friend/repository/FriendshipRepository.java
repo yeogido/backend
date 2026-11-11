@@ -31,10 +31,58 @@ public interface FriendshipRepository extends JpaRepository<Friendship, Long> {
         """)
     int deleteAllByUserId(@Param("userId") Long userId);
 
+    // 공유앨범 자동 친구에서 행을 잠그지 않고 현재 관계만 확인
+    @Query("""
+        select friendship.status
+        from Friendship friendship
+        where friendship.userLowId = :userLowId and friendship.userHighId = :userHighId
+        """)
+    Optional<FriendshipStatus> findStatusBetween(
+            @Param("userLowId") Long userLowId,
+            @Param("userHighId") Long userHighId
+    );
+
+    // 공유앨범 자동 친구. 같은 두 사람의 행이 이미 있으면 오류 대신 0을 반환해 호출한 트랜잭션이 롤백되지 않도록 함
+    @Modifying(flushAutomatically = true)
+    @Query(value = """
+        INSERT IGNORE INTO friendship
+            (requester_id, receiver_id, user_low_id, user_high_id, status, created_at, updated_at)
+        VALUES (:requesterId, :receiverId, :userLowId, :userHighId, 'ACCEPTED', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        """, nativeQuery = true)
+    int insertAcceptedIgnore(
+            @Param("requesterId") Long requesterId,
+            @Param("receiverId") Long receiverId,
+            @Param("userLowId") Long userLowId,
+            @Param("userHighId") Long userHighId
+    );
+
+    // 대기 중인 요청만 수락. 호출한 쪽 영속성 컨텍스트를 비우지 않도록 clearAutomatically는 쓰지 않음
+    @Modifying(flushAutomatically = true)
+    @Query("""
+        update Friendship friendship
+        set friendship.status = com.yeogido.backend.domain.friend.enums.FriendshipStatus.ACCEPTED,
+            friendship.updatedAt = CURRENT_TIMESTAMP
+        where friendship.userLowId = :userLowId and friendship.userHighId = :userHighId
+          and friendship.status = com.yeogido.backend.domain.friend.enums.FriendshipStatus.PENDING
+        """)
+    int acceptPendingBetween(@Param("userLowId") Long userLowId, @Param("userHighId") Long userHighId);
+
     boolean existsByUserLowIdAndUserHighIdAndStatus(
             Long userLowId,
             Long userHighId,
             FriendshipStatus status
+    );
+
+    // 검색 결과 행마다 조회하지 않도록 나와 대상들 사이의 관계를 한 번에 조회
+    @Query("""
+        select friendship
+        from Friendship friendship
+        where (friendship.requester.id = :userId and friendship.receiver.id in :otherUserIds)
+           or (friendship.receiver.id = :userId and friendship.requester.id in :otherUserIds)
+        """)
+    List<Friendship> findAllBetween(
+            @Param("userId") Long userId,
+            @Param("otherUserIds") List<Long> otherUserIds
     );
 
     // 탈퇴·비활성 사용자가 보낸 요청은 제외

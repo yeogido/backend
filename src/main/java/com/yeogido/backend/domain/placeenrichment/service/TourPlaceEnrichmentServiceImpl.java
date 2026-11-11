@@ -9,6 +9,8 @@ import com.yeogido.backend.domain.placeenrichment.dto.response.TourPlaceResponse
 import com.yeogido.backend.domain.placeenrichment.enums.TourPlaceMatchReason;
 import com.yeogido.backend.domain.placeenrichment.enums.TourPlaceMatchStatus;
 import com.yeogido.backend.domain.placeenrichment.exception.PlaceEnrichmentErrorCode;
+import com.yeogido.backend.domain.placeenrichment.exception.ExternalApiFailure;
+import com.yeogido.backend.domain.placeenrichment.exception.ExternalApiFailureKind;
 import com.yeogido.backend.domain.placeenrichment.util.AddressNormalizer;
 import com.yeogido.backend.global.exception.GeneralException;
 import lombok.RequiredArgsConstructor;
@@ -33,7 +35,7 @@ import static com.yeogido.backend.domain.placeenrichment.enums.TourPlaceMatchSta
 public class TourPlaceEnrichmentServiceImpl implements TourPlaceEnrichmentService {
 
     private static final int PAGE_SIZE = 20;
-    // 이름 일치 판단에서 생략을 허용하는 접미사는 공백으로 구분된 '본점'뿐
+    // 이름 비교 시 생략 가능한 접미사를 공백으로 구분된 '본점'으로 제한
     private static final Pattern OPTIONAL_MAIN_BRANCH_SUFFIX = Pattern.compile("\\s+본점$");
     private static final Pattern BUILDING_ADDRESS = Pattern.compile("^(.+?(?:로|길|동|읍|면|리))\\s+(\\d+(?:-\\d+)?)(?=\\s|$|[,(])");
     private final TourApiClient tourApiClient;
@@ -92,7 +94,7 @@ public class TourPlaceEnrichmentServiceImpl implements TourPlaceEnrichmentServic
                     }
                     // 전체 건수와 빈 페이지 응답의 불일치 감지
                     if (items.isEmpty()) {
-                        throw new GeneralException(ContentErrorCode.TOUR_API_ERROR);
+                        throw invalidResponse("/searchKeyword2");
                     }
                 }
                 // 누적 후보 중 이름과 위치가 모두 일치하는 확정 후보 선별
@@ -109,7 +111,7 @@ public class TourPlaceEnrichmentServiceImpl implements TourPlaceEnrichmentServic
                     List<JsonNode> details = tourApiClient.items(tourApiClient.detailCommon(contentId));
                     JsonNode detail = details.stream()
                             .filter(item -> contentId.equals(item.path("contentid").asText()))
-                            .findFirst().orElseThrow(() -> new GeneralException(ContentErrorCode.TOUR_API_ERROR));
+                            .findFirst().orElseThrow(() -> invalidResponse("/detailCommon2"));
                     String overview = plainText(detail.path("overview").asText(""));
                     return result(place, MATCHED, overview == null ? MATCHED_WITHOUT_OVERVIEW : NAME_AND_LOCATION_MATCHED,
                             contentId, overview, requests, false, candidates);
@@ -125,12 +127,17 @@ public class TourPlaceEnrichmentServiceImpl implements TourPlaceEnrichmentServic
                 null, null, requests, false, candidates);
     }
 
+    private static ExternalApiFailure invalidResponse(String operation) {
+        return new ExternalApiFailure(ContentErrorCode.TOUR_API_ERROR, "tour", operation,
+                ExternalApiFailureKind.INVALID_RESPONSE, null, null, null);
+    }
+
     private TourPlaceResponse.Candidate evaluate(Place place, JsonNode item) {
         String name = item.path("title").asText("");
         String address = item.path("addr1").asText("");
         String original = normalizeName(place.getName());
         String candidateName = normalizeName(name);
-        // 전체 이름을 비교하되, 입력 이름 끝에 공백으로 구분된 '본점'은 생략을 허용
+        // 전체 이름 비교 및 입력 이름 끝의 공백으로 구분된 '본점' 생략 허용
         boolean nameMatched = !candidateName.isEmpty() && (original.equals(candidateName)
                 || normalizeName(OPTIONAL_MAIN_BRANCH_SUFFIX.matcher(place.getName().strip()).replaceFirst(""))
                         .equals(candidateName));
@@ -155,7 +162,7 @@ public class TourPlaceEnrichmentServiceImpl implements TourPlaceEnrichmentServic
         return result.stream().filter(StringUtils::hasText).toList();
     }
 
-    // 검색어 확장용으로 본점, 지점명을 제거하며, 일반 지점명 생략은 이름 일치로 인정하지 않음
+    // 검색어 확장용 본점·지점명 제거 및 이름 비교 시 일반 지점명 생략 불인정
     private static String withoutBranch(String name) {
         return name.strip().replaceFirst("\\s+(?:본점|[^\\s]+점)$", "");
     }

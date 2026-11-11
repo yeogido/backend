@@ -2,6 +2,7 @@ package com.yeogido.backend.domain.course.repository;
 
 import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.types.dsl.CaseBuilder;
+import com.querydsl.core.types.Expression;
 import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.Projections;
 import com.querydsl.core.types.dsl.BooleanExpression;
@@ -22,6 +23,7 @@ import com.yeogido.backend.domain.course.enums.CourseSortType;
 import com.yeogido.backend.domain.region.entity.QRegion;
 import jakarta.persistence.EntityManager;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.springframework.stereotype.Repository;
@@ -87,8 +89,18 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
             String originalKeyword,
             boolean titlePhase
     ) {
+        return findSearchPhaseByCursor(request, location, popularityScores, limit, searchTerms,
+                totalDays, originalKeyword, titlePhase, null);
+    }
+
+    @Override
+    public List<CourseListRow> findSearchPhaseByCursor(
+            CourseReqDTO.CourseListReq request, CourseLocation location, Map<Long, Long> popularityScores,
+            int limit, List<String> searchTerms, Integer totalDays, String originalKeyword,
+            boolean titlePhase, SearchMembership exclusion
+    ) {
         return findSearchPhase(request, location, popularityScores, limit, searchTerms, totalDays,
-                originalKeyword, titlePhase, null);
+                originalKeyword, titlePhase, null, exclusion);
     }
 
     @Override
@@ -96,106 +108,79 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
             CourseReqDTO.CourseListReq request, CourseLocation location, Map<Long, Long> popularityScores,
             int limit, Integer totalDays, String originalKeyword, List<Long> candidateIds
     ) {
+        return findSemanticCoursesByCursor(request, location, popularityScores, limit, totalDays,
+                originalKeyword, candidateIds, null);
+    }
+
+    @Override
+    public List<CourseListRow> findSemanticCoursesByCursor(
+            CourseReqDTO.CourseListReq request, CourseLocation location, Map<Long, Long> popularityScores,
+            int limit, Integer totalDays, String originalKeyword, List<Long> candidateIds, SearchMembership exclusion
+    ) {
         if (candidateIds.isEmpty()) {
             return List.of();
         }
         return findSearchPhase(request, location, popularityScores, limit, List.of(), totalDays,
-                originalKeyword, false, candidateIds);
+                originalKeyword, false, candidateIds, exclusion);
+    }
+
+    @Override
+    public SearchMembership findSearchMembership(
+            CourseReqDTO.CourseListReq originalRequest, CourseReqDTO.CourseListReq naturalRequest,
+            List<String> terms, Integer totalDays, List<Long> semanticCandidateIds,
+            CourseLocation location, Map<Long, Long> popularityScores
+    ) {
+        var ordering = listOrdering(originalRequest.sort(), location, popularityScores);
+        String keyword = originalRequest.keyword();
+        var membership = searchPhaseCondition(course, region, originalRequest, List.of(), null, keyword, true, null);
+        if (semanticCandidateIds == null || !semanticCandidateIds.isEmpty()) {
+            membership.or(searchPhaseCondition(course, region, naturalRequest,
+                    semanticCandidateIds == null ? terms : List.of(), totalDays, keyword, false, semanticCandidateIds));
+        }
+        NumberExpression<Integer> titleMatch = hasKeyword(keyword)
+                ? new CaseBuilder().when(titleMatchesKeyword(course, keyword)).then(1).otherwise(0)
+                : Expressions.asNumber(1);
+        var rows = listQuery(Projections.tuple(course.id, titleMatch), ordering)
+                .where(membership)
+                .orderBy(ordering.specifiers())
+                .fetch();
+        List<Long> titleIds = new ArrayList<>();
+        List<Long> naturalIds = new ArrayList<>();
+        for (var row : rows) {
+            (Integer.valueOf(1).equals(row.get(titleMatch)) ? titleIds : naturalIds).add(row.get(course.id));
+        }
+        return new SearchMembership(titleIds, naturalIds);
+    }
+
+    @Override
+    public List<CourseListRow> findPinnedSearchRows(List<Long> memberIds) {
+        if (memberIds.isEmpty()) {
+            return List.of();
+        }
+        var ordering = listOrdering(CourseSortType.LATEST, new CourseLocation(null, null), Map.of());
+        return listQuery(listProjection(ordering), ordering)
+                .where(course.deletedAt.isNull(), course.id.in(memberIds))
+                .fetch();
     }
 
     private List<CourseListRow> findSearchPhase(
             CourseReqDTO.CourseListReq request, CourseLocation location, Map<Long, Long> popularityScores,
             int limit, List<String> searchTerms, Integer totalDays, String originalKeyword,
-            boolean titlePhase, List<Long> candidateIds
+            boolean titlePhase, List<Long> candidateIds, SearchMembership exclusion
     ) {
-        CourseSortType sort = CourseSortType.resolve(request.sort());
-        boolean savedSort = sort == CourseSortType.SAVED;
-        boolean reviewSort = sort == CourseSortType.REVIEW;
-        boolean aggregateSort = savedSort || reviewSort;
-
-        NumberExpression<Long> savedCount = savedSort
-                ? courseLike.id.count()
-                : Expressions.numberTemplate(Long.class, "0");
-        NumberExpression<Long> reviewCount = reviewSort
-                ? courseReview.id.count()
-                : Expressions.numberTemplate(Long.class, "0");
-        NumberExpression<Double> distance = distanceExpression(location);
-        NumberExpression<Integer> recommendOrderSortGroup = recommendOrderSortGroupExpression();
-        NumberExpression<Long> popularityScore = popularityScoreExpression(popularityScores);
-
-        JPAQuery<CourseListRow> query = queryFactory
-                .select(Projections.constructor(
-                        CourseListRow.class,
-                        course.id,
-                        course.courseType,
-                        course.user.id,
-                        course.thumbnailKey,
-                        course.routeImageKey,
-                        course.title,
-                        region.name,
-                        course.durationType,
-                        course.transportType,
-                        course.companionType,
-                        course.createdAt,
-                        course.recommendOrder,
-                        savedCount,
-                        reviewCount,
-                        distance,
-                        popularityScore
-                ))
-                .from(course)
-                .join(course.region, region);
-
-        if (savedSort) {
-            query.leftJoin(courseLike).on(courseLike.course.eq(course));
-        }
-
-        if (reviewSort) {
-            query.leftJoin(courseReview).on(courseReview.course.eq(course));
-        }
-
-        if (aggregateSort) {
-            query.groupBy(
-                    course.id,
-                    course.courseType,
-                    course.user.id,
-                    course.thumbnailKey,
-                    course.routeImageKey,
-                    course.title,
-                    region.name,
-                    course.durationType,
-                    course.transportType,
-                    course.companionType,
-                    course.createdAt,
-                    course.recommendOrder,
-                    region.latitude,
-                    region.longitude
-            );
-        }
-
-        BooleanBuilder condition = courseListCondition(request, searchTerms, totalDays);
-        if (candidateIds != null) {
-            condition.and(course.id.in(candidateIds));
-        }
-        if (hasKeyword(originalKeyword)) {
-            BooleanExpression titleMatches = course.title.containsIgnoreCase(originalKeyword.trim());
-            condition.and(titlePhase ? titleMatches : titleMatches.not());
-        }
-        query.where(condition)
-                .orderBy(orderSpecifiers(sort, savedCount, reviewCount, distance, popularityScore))
+        var ordering = listOrdering(request.sort(), location, popularityScores);
+        JPAQuery<CourseListRow> query = listQuery(listProjection(ordering), ordering)
+                .where(searchPhaseCondition(course, region, request, searchTerms, totalDays,
+                                originalKeyword, titlePhase, candidateIds),
+                        exclusion == null ? null : excludeIds(exclusion.titleIds()),
+                        exclusion == null ? null : excludeIds(exclusion.naturalIds()))
+                .orderBy(ordering.specifiers())
                 .limit(limit);
 
-        BooleanExpression cursorHavingCondition = cursorHavingCondition(
-                request,
-                recommendOrderSortGroup,
-                savedCount,
-                reviewCount,
-                distance,
-                popularityScore
-        );
-
+        BooleanExpression cursorHavingCondition = cursorHavingCondition(request, recommendOrderSortGroupExpression(),
+                ordering.savedCount(), ordering.reviewCount(), ordering.distance(), ordering.popularityScore());
         if (cursorHavingCondition != null) {
-            if (aggregateSort) {
+            if (ordering.aggregateSort()) {
                 query.having(cursorHavingCondition);
             } else {
                 query.where(cursorHavingCondition);
@@ -205,36 +190,96 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
         return query.fetch();
     }
 
-    private BooleanBuilder courseListCondition(CourseReqDTO.CourseListReq request, List<String> searchTerms, Integer totalDays) {
+    private BooleanExpression excludeIds(List<Long> ids) {
+        return ids.isEmpty() ? null : course.id.notIn(ids);
+    }
+
+    private CourseListOrdering listOrdering(
+            CourseSortType requestedSort, CourseLocation location, Map<Long, Long> popularityScores
+    ) {
+        CourseSortType sort = CourseSortType.resolve(requestedSort);
+        NumberExpression<Long> savedCount = sort == CourseSortType.SAVED
+                ? courseLike.id.count() : Expressions.numberTemplate(Long.class, "0");
+        NumberExpression<Long> reviewCount = sort == CourseSortType.REVIEW
+                ? courseReview.id.count() : Expressions.numberTemplate(Long.class, "0");
+        NumberExpression<Double> distance = distanceExpression(location);
+        NumberExpression<Long> popularityScore = popularityScoreExpression(popularityScores);
+        return new CourseListOrdering(sort, savedCount, reviewCount, distance, popularityScore,
+                orderSpecifiers(sort, savedCount, reviewCount, distance, popularityScore));
+    }
+
+    private Expression<CourseListRow> listProjection(CourseListOrdering ordering) {
+        return Projections.constructor(CourseListRow.class, course.id, course.courseType, course.user.id,
+                course.thumbnailKey, course.routeImageKey, course.title, region.name, course.durationType,
+                course.transportType, course.companionType, course.createdAt, course.recommendOrder,
+                ordering.savedCount(), ordering.reviewCount(), ordering.distance(), ordering.popularityScore());
+    }
+
+    private <T> JPAQuery<T> listQuery(Expression<T> projection, CourseListOrdering ordering) {
+        JPAQuery<T> query = queryFactory.select(projection).from(course).join(course.region, region);
+        if (ordering.sort() == CourseSortType.SAVED) {
+            query.leftJoin(courseLike).on(courseLike.course.eq(course));
+        }
+        if (ordering.sort() == CourseSortType.REVIEW) {
+            query.leftJoin(courseReview).on(courseReview.course.eq(course));
+        }
+        if (ordering.aggregateSort()) {
+            query.groupBy(course.id, course.courseType, course.user.id, course.thumbnailKey,
+                    course.routeImageKey, course.title, region.name, course.durationType, course.transportType,
+                    course.companionType, course.createdAt, course.recommendOrder, region.latitude, region.longitude);
+        }
+        return query;
+    }
+
+    private record CourseListOrdering(
+            CourseSortType sort,
+            NumberExpression<Long> savedCount,
+            NumberExpression<Long> reviewCount,
+            NumberExpression<Double> distance,
+            NumberExpression<Long> popularityScore,
+            OrderSpecifier<?>[] specifiers
+    ) {
+        boolean aggregateSort() {
+            return sort == CourseSortType.SAVED || sort == CourseSortType.REVIEW;
+        }
+    }
+
+    private BooleanBuilder searchPhaseCondition(
+            QCourse course, QRegion region, CourseReqDTO.CourseListReq request, List<String> searchTerms,
+            Integer totalDays, String originalKeyword, boolean titlePhase, List<Long> candidateIds
+    ) {
         BooleanBuilder builder = new BooleanBuilder();
 
-        builder.and(courseTypeEq(request));
+        builder.and(request.courseType() == null ? null : course.courseType.eq(request.courseType()));
         builder.and(course.deletedAt.isNull());
-        builder.and(contentItemExists(request.contentId()));
-        builder.and(regionIdEq(request.regionId()));
-        builder.and(transportTypeEq(request));
-        builder.and(durationTypeEq(request));
+        builder.and(contentItemExists(course, request.contentId()));
+        builder.and(regionIdEq(region, request.regionId()));
+        builder.and(request.transportType() == null ? null : course.transportType.eq(request.transportType()));
+        builder.and(request.durationType() == null ? null : course.durationType.eq(request.durationType()));
         builder.and(totalDays == null ? null : course.totalDays.eq(totalDays));
-        builder.and(companionTypeEq(request));
+        builder.and(request.companionType() == null ? null : course.companionType.eq(request.companionType()));
         if (searchTerms == null) {
-            builder.and(keywordSearchCondition(request.keyword()));
+            builder.and(keywordSearchCondition(course, region, request.keyword()));
         } else {
             for (String term : searchTerms) {
-                builder.and(placeSearchCondition(term));
+                builder.and(placeSearchCondition(course, region, term));
             }
         }
-        builder.and(distanceSortRegionCoordinateExists(request));
+        if (CourseSortType.resolve(request.sort()) == CourseSortType.DISTANCE) {
+            builder.and(region.latitude.isNotNull().and(region.longitude.isNotNull()));
+        }
+        if (candidateIds != null) {
+            builder.and(course.id.in(candidateIds));
+        }
+        if (hasKeyword(originalKeyword)) {
+            BooleanExpression titleMatches = titleMatchesKeyword(course, originalKeyword);
+            builder.and(titlePhase ? titleMatches : titleMatches.not());
+        }
 
         return builder;
     }
 
-    private BooleanExpression courseTypeEq(CourseReqDTO.CourseListReq request) {
-        return request.courseType() == null
-                ? null
-                : course.courseType.eq(request.courseType());
-    }
-
-    private BooleanExpression contentItemExists(Long contentId) {
+    private BooleanExpression contentItemExists(QCourse course, Long contentId) {
         if (contentId == null) {
             return null;
         }
@@ -248,32 +293,14 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
                 .exists();
     }
 
-    private BooleanExpression regionIdEq(Long regionId) {
+    private BooleanExpression regionIdEq(QRegion region, Long regionId) {
         return regionId == null
                 ? null
                 : region.id.eq(regionId)
                         .or(region.parent.id.eq(regionId));
     }
 
-    private BooleanExpression transportTypeEq(CourseReqDTO.CourseListReq request) {
-        return request.transportType() == null
-                ? null
-                : course.transportType.eq(request.transportType());
-    }
-
-    private BooleanExpression durationTypeEq(CourseReqDTO.CourseListReq request) {
-        return request.durationType() == null
-                ? null
-                : course.durationType.eq(request.durationType());
-    }
-
-    private BooleanExpression companionTypeEq(CourseReqDTO.CourseListReq request) {
-        return request.companionType() == null
-                ? null
-                : course.companionType.eq(request.companionType());
-    }
-
-    private BooleanExpression keywordSearchCondition(String keyword) {
+    private BooleanExpression keywordSearchCondition(QCourse course, QRegion region, String keyword) {
         if (!hasKeyword(keyword)) {
             return null;
         }
@@ -285,7 +312,7 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
                 .or(region.fullName.containsIgnoreCase(normalizedKeyword));
     }
 
-    private BooleanExpression placeSearchCondition(String term) {
+    private BooleanExpression placeSearchCondition(QCourse course, QRegion region, String term) {
         QPlace place = QPlace.place;
         QContent content = QContent.content;
         QPlace contentPlace = new QPlace("searchContentPlace");
@@ -302,22 +329,17 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
                                 .or(contentPlace.name.containsIgnoreCase(term))
                                 .or(contentPlace.overview.containsIgnoreCase(term))))
                 .exists();
-        return keywordSearchCondition(term)
+        return keywordSearchCondition(course, region, term)
                 .or(course.description.containsIgnoreCase(term))
                 .or(itemMatches);
     }
 
-    private boolean hasKeyword(String keyword) {
-        return StringUtils.hasText(keyword);
+    private BooleanExpression titleMatchesKeyword(QCourse course, String keyword) {
+        return course.title.containsIgnoreCase(keyword.trim());
     }
 
-    private BooleanExpression distanceSortRegionCoordinateExists(CourseReqDTO.CourseListReq request) {
-        if (CourseSortType.resolve(request.sort()) != CourseSortType.DISTANCE) {
-            return null;
-        }
-
-        return region.latitude.isNotNull()
-                .and(region.longitude.isNotNull());
+    private boolean hasKeyword(String keyword) {
+        return StringUtils.hasText(keyword);
     }
 
     private OrderSpecifier<?>[] orderSpecifiers(

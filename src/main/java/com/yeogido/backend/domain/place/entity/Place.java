@@ -11,6 +11,7 @@ import lombok.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Objects;
+import org.springframework.util.StringUtils;
 
 @Entity
 @Getter
@@ -85,15 +86,22 @@ public class Place extends BaseEntity {
   @Column(name = "overview_attempt_count", nullable = false)
   private int overviewAttemptCount = 0;
 
+  @Column(name = "overview_next_retry_at")
+  private LocalDateTime overviewNextRetryAt;
+
+  @Column(name = "overview_blocked_by_operation", length = 100)
+  private String overviewBlockedByOperation;
+
+  // 최종 실패의 자동 재시도 제외 및 예약 시각, 중단 복구 기준에 따른 시작 가능 여부 판단
   public boolean canStartOverviewEnrichment(LocalDateTime now) {
     if (overviewAttemptCount >= MAX_OVERVIEW_ATTEMPTS) {
       return false;
     }
     return isOverviewProcessingStale(now)
         || overviewStatus == PlaceOverviewStatus.PENDING
-        || overviewStatus == PlaceOverviewStatus.FAILED
-        && overviewAttemptedAt != null
-        && !overviewAttemptedAt.isAfter(now.minusMinutes(OVERVIEW_RETRY_DELAY_MINUTES));
+        || overviewStatus == PlaceOverviewStatus.RETRY_WAIT
+        && overviewNextRetryAt != null
+        && !overviewNextRetryAt.isAfter(now);
   }
 
   public boolean isOverviewProcessingStale(LocalDateTime now) {
@@ -106,22 +114,56 @@ public class Place extends BaseEntity {
     this.overviewStatus = PlaceOverviewStatus.PROCESSING;
     this.overviewAttemptedAt = attemptedAt;
     this.overviewAttemptCount++;
+    this.overviewNextRetryAt = null;
+    this.overviewBlockedByOperation = null;
   }
 
   public void completeOverviewEnrichment(String overview, PlaceOverviewSource source) {
     this.overview = overview;
     this.overviewSource = source;
     this.overviewStatus = PlaceOverviewStatus.COMPLETED;
+    this.overviewNextRetryAt = null;
+    this.overviewBlockedByOperation = null;
   }
 
   public void markNoOverview() {
     this.overview = null;
     this.overviewSource = null;
     this.overviewStatus = PlaceOverviewStatus.NO_OVERVIEW;
+    this.overviewNextRetryAt = null;
+    this.overviewBlockedByOperation = null;
   }
 
   public void failOverviewEnrichment() {
     this.overviewStatus = PlaceOverviewStatus.FAILED;
+    this.overviewNextRetryAt = null;
+    this.overviewBlockedByOperation = null;
+  }
+
+  public void waitForOverviewRetry(LocalDateTime retryAt, boolean refundAttempt) {
+    setOverviewRetry(Objects.requireNonNull(retryAt, "retryAt"), refundAttempt);
+  }
+
+  private void setOverviewRetry(LocalDateTime retryAt, boolean refundAttempt) {
+    // 공통 차단, 호출 보류에 따른 현재 시도 환급 및 음수 방지
+    if (refundAttempt) {
+      this.overviewAttemptCount = Math.max(0, this.overviewAttemptCount - 1);
+    }
+    // 실제 실패 횟수 소진 시 대기 예약 대신 최종 실패 확정
+    if (this.overviewAttemptCount >= MAX_OVERVIEW_ATTEMPTS) {
+      failOverviewEnrichment();
+      return;
+    }
+    this.overviewStatus = PlaceOverviewStatus.RETRY_WAIT;
+    this.overviewNextRetryAt = retryAt;
+    this.overviewBlockedByOperation = null;
+  }
+
+  public void waitForOverviewApi(LocalDateTime retryAt, String operationKey) {
+    setOverviewRetry(retryAt, true);
+    if (overviewStatus == PlaceOverviewStatus.RETRY_WAIT && retryAt == null) {
+      this.overviewBlockedByOperation = Objects.requireNonNull(operationKey, "operationKey");
+    }
   }
 
   public void updateTourData(
@@ -142,6 +184,8 @@ public class Place extends BaseEntity {
       this.overviewStatus = PlaceOverviewStatus.PENDING;
       this.overviewAttemptedAt = null;
       this.overviewAttemptCount = 0;
+      this.overviewNextRetryAt = null;
+      this.overviewBlockedByOperation = null;
     }
     this.region = region;
     this.name = name;

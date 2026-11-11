@@ -3,6 +3,7 @@ package com.yeogido.backend.domain.friend.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
@@ -23,7 +24,6 @@ import com.yeogido.backend.domain.friend.exception.FriendErrorCode;
 import com.yeogido.backend.domain.friend.repository.FriendCourseRepository;
 import com.yeogido.backend.domain.friend.repository.FriendshipRepository;
 import com.yeogido.backend.domain.region.entity.Region;
-import com.yeogido.backend.domain.travel.dto.request.TravelRecordReqDTO;
 import com.yeogido.backend.domain.travel.dto.response.TravelRecordResDTO;
 import com.yeogido.backend.domain.travel.repository.TravelRecordMemberRepository;
 import com.yeogido.backend.domain.travel.repository.TravelRecordRepository;
@@ -37,6 +37,7 @@ import com.yeogido.backend.global.common.response.CursorResponse;
 import com.yeogido.backend.global.exception.ErrorCode;
 import com.yeogido.backend.global.exception.GeneralErrorCode;
 import com.yeogido.backend.global.exception.GeneralException;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
@@ -80,6 +81,9 @@ class FriendServiceImplTest {
     private S3Service s3Service;
 
     @Mock
+    private FriendQrTokenService friendQrTokenService;
+
+    @Mock
     private TravelRecordRepository travelRecordRepository;
 
     @Mock
@@ -95,7 +99,14 @@ class FriendServiceImplTest {
     void getMyFriendCodeReturnsCode() {
         when(userRepository.findById(ME_ID)).thenReturn(Optional.of(user(ME_ID, "K7M2QX9A")));
 
+        LocalDateTime expiresAt = LocalDateTime.of(2026, 11, 6, 12, 3);
+        when(friendQrTokenService.issue(ME_ID))
+                .thenReturn(new FriendQrTokenService.IssuedToken("qr-token", expiresAt));
+
         FriendResDTO.MyFriendCode result = friendService.getMyFriendCode(ME_ID);
+
+        assertThat(result.qrToken()).isEqualTo("qr-token");
+        assertThat(result.qrExpiresAt()).isEqualTo(expiresAt);
 
         assertThat(result.friendCode()).isEqualTo("K7M2QX9A");
     }
@@ -108,55 +119,117 @@ class FriendServiceImplTest {
     }
 
     @Test
-    void searchNormalizesCodeAndReturnsNoneWithoutRelation() {
-        givenOtherFoundByCode();
-        when(friendshipRepository.findByUserLowIdAndUserHighId(ME_ID, OTHER_ID)).thenReturn(Optional.empty());
+    void searchNormalizesKeywordAndReturnsNoneWithoutRelation() {
+        when(userRepository.findSearchableUsers(eq(ME_ID), eq("k7m2qx9a"), eq(OTHER_CODE), eq(null), any()))
+                .thenReturn(List.of(other));
+        when(friendshipRepository.findAllBetween(ME_ID, List.of(OTHER_ID))).thenReturn(List.of());
 
-        FriendResDTO.SearchResult result = friendService.searchByFriendCode(ME_ID, "  k7m2qx9a ");
+        CursorResponse<FriendResDTO.SearchResult> result = friendService.searchUsers(ME_ID, "  k7m2qx9a ", null, 10);
 
-        assertThat(result.userId()).isEqualTo(OTHER_ID);
-        assertThat(result.email()).isEqualTo(other.getEmail());
-        assertThat(result.relationStatus()).isEqualTo(RelationStatus.NONE);
-        assertThat(result.requestId()).isNull();
+        FriendResDTO.SearchResult item = result.getItems().getFirst();
+        assertThat(item.userId()).isEqualTo(OTHER_ID);
+        assertThat(item.friendCode()).isEqualTo(OTHER_CODE);
+        assertThat(item.email()).isNull();
+        assertThat(item.relationStatus()).isEqualTo(RelationStatus.NONE);
+        assertThat(item.requestId()).isNull();
+        assertThat(result.isHasNext()).isFalse();
     }
 
     @Test
-    void searchReturnsRelationStatusAndRequestIdByFriendship() {
-        givenOtherFoundByCode();
+    void searchReturnsRelationStatusRequestIdAndEmailOnlyForFriend() {
+        when(userRepository.findSearchableUsers(eq(ME_ID), eq(OTHER_CODE), eq(OTHER_CODE), eq(null), any()))
+                .thenReturn(List.of(other));
 
-        when(friendshipRepository.findByUserLowIdAndUserHighId(ME_ID, OTHER_ID))
-                .thenReturn(Optional.of(friendship(me, other, FriendshipStatus.PENDING)));
-        FriendResDTO.SearchResult requested = friendService.searchByFriendCode(ME_ID, OTHER_CODE);
+        when(friendshipRepository.findAllBetween(ME_ID, List.of(OTHER_ID)))
+                .thenReturn(List.of(friendship(me, other, FriendshipStatus.PENDING)));
+        FriendResDTO.SearchResult requested = searchOne();
         assertThat(requested.relationStatus()).isEqualTo(RelationStatus.REQUESTED);
         assertThat(requested.requestId()).isEqualTo(REQUEST_ID);
+        assertThat(requested.email()).isNull();
 
-        when(friendshipRepository.findByUserLowIdAndUserHighId(ME_ID, OTHER_ID))
-                .thenReturn(Optional.of(friendship(other, me, FriendshipStatus.PENDING)));
-        FriendResDTO.SearchResult received = friendService.searchByFriendCode(ME_ID, OTHER_CODE);
+        when(friendshipRepository.findAllBetween(ME_ID, List.of(OTHER_ID)))
+                .thenReturn(List.of(friendship(other, me, FriendshipStatus.PENDING)));
+        FriendResDTO.SearchResult received = searchOne();
         assertThat(received.relationStatus()).isEqualTo(RelationStatus.RECEIVED);
         assertThat(received.requestId()).isEqualTo(REQUEST_ID);
+        assertThat(received.email()).isNull();
 
-        when(friendshipRepository.findByUserLowIdAndUserHighId(ME_ID, OTHER_ID))
-                .thenReturn(Optional.of(friendship(other, me, FriendshipStatus.ACCEPTED)));
-        FriendResDTO.SearchResult friend = friendService.searchByFriendCode(ME_ID, OTHER_CODE);
+        when(friendshipRepository.findAllBetween(ME_ID, List.of(OTHER_ID)))
+                .thenReturn(List.of(friendship(other, me, FriendshipStatus.ACCEPTED)));
+        FriendResDTO.SearchResult friend = searchOne();
         assertThat(friend.relationStatus()).isEqualTo(RelationStatus.FRIEND);
         assertThat(friend.requestId()).isNull();
+        assertThat(friend.email()).isEqualTo(other.getEmail());
+    }
+
+    private FriendResDTO.SearchResult searchOne() {
+        return friendService.searchUsers(ME_ID, OTHER_CODE, null, 10).getItems().getFirst();
     }
 
     @Test
-    void searchFailsWithOwnCode() {
-        when(userRepository.findByFriendCodeAndStatus("AAAA2222", UserStatus.ACTIVE)).thenReturn(Optional.of(me));
+    void searchReturnsEmptyWithoutQueryWhenKeywordBlank() {
+        for (String keyword : new String[] {null, "", "   "}) {
+            CursorResponse<FriendResDTO.SearchResult> result = friendService.searchUsers(ME_ID, keyword, null, 10);
 
-        assertErrorCode(() -> friendService.searchByFriendCode(ME_ID, "AAAA2222"),
-                FriendErrorCode.SELF_FRIEND_REQUEST);
+            assertThat(result.getItems()).isEmpty();
+            assertThat(result.isHasNext()).isFalse();
+        }
+        verify(userRepository, never()).findSearchableUsers(any(), any(), any(), any(), any());
     }
 
     @Test
-    void searchFailsWhenCodeNotFoundOrUserInactive() {
-        when(userRepository.findByFriendCodeAndStatus(OTHER_CODE, UserStatus.ACTIVE)).thenReturn(Optional.empty());
+    void searchReturnsEmptyWhenNoUserMatches() {
+        when(userRepository.findSearchableUsers(eq(ME_ID), eq("없음"), eq("없음"), eq(null), any()))
+                .thenReturn(List.of());
 
-        assertErrorCode(() -> friendService.searchByFriendCode(ME_ID, OTHER_CODE),
-                FriendErrorCode.FRIEND_CODE_NOT_FOUND);
+        assertThat(friendService.searchUsers(ME_ID, "없음", null, 10).getItems()).isEmpty();
+        verify(friendshipRepository, never()).findAllBetween(any(), any());
+    }
+
+    @Test
+    void searchRejectsInvalidSize() {
+        assertErrorCode(() -> friendService.searchUsers(ME_ID, "이름", null, 0), GeneralErrorCode.INVALID_PARAMETER);
+        assertErrorCode(() -> friendService.searchUsers(ME_ID, "이름", null, 101), GeneralErrorCode.INVALID_PARAMETER);
+    }
+
+    @Test
+    void getUserByQrTokenReturnsOwnerWithRelation() {
+        when(friendQrTokenService.findUserId("token")).thenReturn(Optional.of(OTHER_ID));
+        when(userRepository.findById(OTHER_ID)).thenReturn(Optional.of(other));
+        when(friendshipRepository.findByUserLowIdAndUserHighId(ME_ID, OTHER_ID))
+                .thenReturn(Optional.of(friendship(me, other, FriendshipStatus.PENDING)));
+
+        FriendResDTO.QrUser result = friendService.getUserByQrToken(ME_ID, "token");
+
+        assertThat(result.userId()).isEqualTo(OTHER_ID);
+        assertThat(result.friendCode()).isEqualTo(OTHER_CODE);
+        assertThat(result.relationStatus()).isEqualTo(RelationStatus.REQUESTED);
+        assertThat(result.requestId()).isEqualTo(REQUEST_ID);
+    }
+
+    @Test
+    void getUserByQrTokenFailsWhenExpired() {
+        when(friendQrTokenService.findUserId("expired")).thenReturn(Optional.empty());
+
+        assertErrorCode(() -> friendService.getUserByQrToken(ME_ID, "expired"),
+                FriendErrorCode.FRIEND_QR_TOKEN_NOT_FOUND);
+    }
+
+    @Test
+    void getUserByQrTokenFailsWithOwnToken() {
+        when(friendQrTokenService.findUserId("mine")).thenReturn(Optional.of(ME_ID));
+
+        assertErrorCode(() -> friendService.getUserByQrToken(ME_ID, "mine"), FriendErrorCode.SELF_FRIEND_REQUEST);
+    }
+
+    @Test
+    void getUserByQrTokenFailsWhenOwnerWithdrew() {
+        when(friendQrTokenService.findUserId("token")).thenReturn(Optional.of(OTHER_ID));
+        other.withdraw();
+        when(userRepository.findById(OTHER_ID)).thenReturn(Optional.of(other));
+
+        assertErrorCode(() -> friendService.getUserByQrToken(ME_ID, "token"),
+                FriendErrorCode.FRIEND_QR_TOKEN_NOT_FOUND);
     }
 
     @Test
@@ -387,47 +460,88 @@ class FriendServiceImplTest {
     }
 
     @Test
-    void friendOnlyApisRejectNonFriendSelfAndWithdrawnFriend() {
-        assertErrorCode(() -> friendService.getFriendProfile(ME_ID, ME_ID), FriendErrorCode.NOT_FRIEND);
+    void profileApisRejectSelfAndMissingOrWithdrawnUser() {
+        FriendReqDTO.TravelMapRequest request = new FriendReqDTO.TravelMapRequest(null, 10, null);
+        assertErrorCode(() -> friendService.getFriendProfile(ME_ID, ME_ID), GeneralErrorCode.INVALID_PARAMETER);
+        assertErrorCode(() -> friendService.getFriendLocalCourses(ME_ID, ME_ID, null, 10),
+                GeneralErrorCode.INVALID_PARAMETER);
+        assertErrorCode(() -> friendService.getFriendTravelMap(ME_ID, ME_ID, request),
+                GeneralErrorCode.INVALID_PARAMETER);
+        assertErrorCode(() -> friendService.getFriendTravelMapYears(ME_ID, ME_ID), GeneralErrorCode.INVALID_PARAMETER);
 
-        when(friendshipRepository.existsByUserLowIdAndUserHighIdAndStatus(ME_ID, OTHER_ID, FriendshipStatus.ACCEPTED))
-                .thenReturn(false);
-        assertErrorCode(() -> friendService.getFriendProfile(ME_ID, OTHER_ID), FriendErrorCode.NOT_FRIEND);
-        assertErrorCode(() -> friendService.getFriendLocalCourses(ME_ID, OTHER_ID, null, 10),
-                FriendErrorCode.NOT_FRIEND);
+        when(userRepository.findById(OTHER_ID)).thenReturn(Optional.empty());
+        assertErrorCode(() -> friendService.getFriendProfile(ME_ID, OTHER_ID), UserErrorCode.USER_NOT_FOUND);
 
-        when(friendshipRepository.existsByUserLowIdAndUserHighIdAndStatus(ME_ID, OTHER_ID, FriendshipStatus.ACCEPTED))
-                .thenReturn(true);
         other.withdraw();
         when(userRepository.findById(OTHER_ID)).thenReturn(Optional.of(other));
-        assertErrorCode(() -> friendService.getFriendProfile(ME_ID, OTHER_ID), FriendErrorCode.NOT_FRIEND);
+        assertErrorCode(() -> friendService.getFriendProfile(ME_ID, OTHER_ID), UserErrorCode.USER_NOT_FOUND);
+        assertErrorCode(() -> friendService.getFriendLocalCourses(ME_ID, OTHER_ID, null, 10),
+                UserErrorCode.USER_NOT_FOUND);
+        assertErrorCode(() -> friendService.getFriendTravelMap(ME_ID, OTHER_ID, request),
+                UserErrorCode.USER_NOT_FOUND);
+        assertErrorCode(() -> friendService.getFriendTravelMapYears(ME_ID, OTHER_ID), UserErrorCode.USER_NOT_FOUND);
+
+        verify(travelRecordService, never()).getUserTravelMap(any(), any(), anyBoolean(), any(), any(), any());
+        verify(travelRecordService, never()).getUserTravelMapYears(any(), any(), anyBoolean());
     }
 
     @Test
-    void getFriendProfileReturnsBasicInfoWithRegion() {
+    void getFriendProfileReturnsBasicInfoWithRegionAndEmailForFriend() {
         User friend = User.builder()
                 .id(OTHER_ID)
                 .nickname("친구")
                 .email("friend@test.com")
+                .friendCode(OTHER_CODE)
                 .region(Region.builder().id(7L).name("서울").build())
                 .profileImage("profile-key")
                 .status(UserStatus.ACTIVE)
                 .build();
-        stubFriend(friend);
+        when(userRepository.findById(OTHER_ID)).thenReturn(Optional.of(friend));
+        when(friendshipRepository.findByUserLowIdAndUserHighId(ME_ID, OTHER_ID))
+                .thenReturn(Optional.of(friendship(me, friend, FriendshipStatus.ACCEPTED)));
         when(s3Service.getImageUrl("profile-key")).thenReturn("https://cdn/profile");
 
         FriendResDTO.FriendProfile result = friendService.getFriendProfile(ME_ID, OTHER_ID);
 
         assertThat(result.userId()).isEqualTo(OTHER_ID);
+        assertThat(result.friendCode()).isEqualTo(OTHER_CODE);
         assertThat(result.email()).isEqualTo("friend@test.com");
         assertThat(result.profileImageUrl()).isEqualTo("https://cdn/profile");
         assertThat(result.region().regionId()).isEqualTo(7L);
         assertThat(result.region().name()).isEqualTo("서울");
+        assertThat(result.relationStatus()).isEqualTo(RelationStatus.FRIEND);
+        assertThat(result.requestId()).isNull();
     }
 
     @Test
-    void getFriendLocalCoursesMapsTagsLikesAndNextCursor() {
-        stubFriend(other);
+    void getFriendProfileHidesEmailFromNonFriendAndReturnsRelation() {
+        User target = User.builder()
+                .id(OTHER_ID)
+                .email("other@test.com")
+                .friendCode(OTHER_CODE)
+                .region(Region.builder().id(7L).name("서울").build())
+                .status(UserStatus.ACTIVE)
+                .build();
+        when(userRepository.findById(OTHER_ID)).thenReturn(Optional.of(target));
+
+        when(friendshipRepository.findByUserLowIdAndUserHighId(ME_ID, OTHER_ID)).thenReturn(Optional.empty());
+        FriendResDTO.FriendProfile none = friendService.getFriendProfile(ME_ID, OTHER_ID);
+        assertThat(none.email()).isNull();
+        assertThat(none.friendCode()).isEqualTo(OTHER_CODE);
+        assertThat(none.relationStatus()).isEqualTo(RelationStatus.NONE);
+        assertThat(none.requestId()).isNull();
+
+        when(friendshipRepository.findByUserLowIdAndUserHighId(ME_ID, OTHER_ID))
+                .thenReturn(Optional.of(friendship(target, me, FriendshipStatus.PENDING)));
+        FriendResDTO.FriendProfile received = friendService.getFriendProfile(ME_ID, OTHER_ID);
+        assertThat(received.email()).isNull();
+        assertThat(received.relationStatus()).isEqualTo(RelationStatus.RECEIVED);
+        assertThat(received.requestId()).isEqualTo(REQUEST_ID);
+    }
+
+    @Test
+    void getFriendLocalCoursesMapsTagsLikesAndNextCursorForNonFriend() {
+        when(userRepository.findById(OTHER_ID)).thenReturn(Optional.of(other));
         when(userRepository.findById(ME_ID)).thenReturn(Optional.of(me));
         when(friendCourseRepository.findLocalCourses(OTHER_ID, null, PageRequest.of(0, 2)))
                 .thenReturn(List.of(course(20L), course(19L)));
@@ -453,7 +567,7 @@ class FriendServiceImplTest {
     @Test
     void getFriendLocalCoursesAllowsManageForAdminAndHandlesEmptyPage() {
         User admin = User.builder().id(ME_ID).role(UserRole.ADMIN).status(UserStatus.ACTIVE).build();
-        stubFriend(other);
+        when(userRepository.findById(OTHER_ID)).thenReturn(Optional.of(other));
         when(userRepository.findById(ME_ID)).thenReturn(Optional.of(admin));
         when(friendCourseRepository.findLocalCourses(OTHER_ID, 5L, PageRequest.of(0, 11)))
                 .thenReturn(List.of(course(4L)));
@@ -523,33 +637,111 @@ class FriendServiceImplTest {
     }
 
     @Test
-    void getFriendTravelMapRejectsNonFriendWithoutQueryingRecords() {
-        FriendReqDTO.TravelMapRequest request = new FriendReqDTO.TravelMapRequest(null, 10, 2026);
+    void getFriendTravelMapIncludesBlurredOnlyForFriendAndConvertsEntries() {
+        TravelRecordResDTO.MapItem visible = new TravelRecordResDTO.MapItem(20L, "부산", 1L, "부산", null, null,
+                null, null, null, List.of());
+        TravelRecordResDTO.MapItem hidden = new TravelRecordResDTO.MapItem(null, null, 2L, "강릉", null, null,
+                null, null, null, null);
+        when(travelRecordService.getUserTravelMap(ME_ID, OTHER_ID, true, 30L, 5, null))
+                .thenReturn(CursorResponse.of(List.of(
+                        new TravelRecordResDTO.UserMapEntry(false, visible),
+                        new TravelRecordResDTO.UserMapEntry(true, hidden)
+                ), null, 19L, true));
+
+        stubFriend(other);
+        CursorResponse<FriendResDTO.TravelMapItem> result = friendService.getFriendTravelMap(
+                ME_ID, OTHER_ID, new FriendReqDTO.TravelMapRequest(30L, 5, null));
+
+        assertThat(result.getItems()).extracting(FriendResDTO.TravelMapItem::blurred).containsExactly(false, true);
+        assertThat(result.getItems().get(0).travelRecordId()).isEqualTo(20L);
+        assertThat(result.getItems().get(1).travelRecordId()).isNull();
+        assertThat(result.getItems().get(1).regionName()).isEqualTo("강릉");
+        assertThat(result.getCursorId()).isEqualTo(19L);
+        assertThat(result.isHasNext()).isTrue();
 
         when(friendshipRepository.existsByUserLowIdAndUserHighIdAndStatus(ME_ID, OTHER_ID, FriendshipStatus.ACCEPTED))
                 .thenReturn(false);
-        assertErrorCode(() -> friendService.getFriendTravelMap(ME_ID, OTHER_ID, request), FriendErrorCode.NOT_FRIEND);
-        assertErrorCode(() -> friendService.getFriendTravelMap(ME_ID, ME_ID, request), FriendErrorCode.NOT_FRIEND);
-
-        when(friendshipRepository.existsByUserLowIdAndUserHighIdAndStatus(ME_ID, OTHER_ID, FriendshipStatus.ACCEPTED))
-                .thenReturn(true);
-        other.withdraw();
-        when(userRepository.findById(OTHER_ID)).thenReturn(Optional.of(other));
-        assertErrorCode(() -> friendService.getFriendTravelMap(ME_ID, OTHER_ID, request), FriendErrorCode.NOT_FRIEND);
-
-        verify(travelRecordService, never()).getTravelMap(any(), any(), any());
+        when(travelRecordService.getUserTravelMap(ME_ID, OTHER_ID, false, null, 10, 2026))
+                .thenReturn(CursorResponse.of(List.of(), null, null, false));
+        assertThat(friendService.getFriendTravelMap(
+                ME_ID, OTHER_ID, new FriendReqDTO.TravelMapRequest(null, 10, 2026)).getItems()).isEmpty();
     }
 
     @Test
-    void getFriendTravelMapQueriesFriendMapAsViewerWithoutVisibilityFilter() {
+    void getFriendTravelMapYearsUsesSameScopeAsMap() {
         stubFriend(other);
-        CursorResponse<TravelRecordResDTO.MapItem> expected = CursorResponse.of(List.of(), null, null, false);
-        when(travelRecordService.getTravelMap(ME_ID, OTHER_ID, new TravelRecordReqDTO.MapRequest(20L, 5, 2026, null)))
-                .thenReturn(expected);
+        when(travelRecordService.getUserTravelMapYears(ME_ID, OTHER_ID, true)).thenReturn(List.of(2026, 2024));
 
-        assertThat(friendService.getFriendTravelMap(
-                ME_ID, OTHER_ID, new FriendReqDTO.TravelMapRequest(20L, 5, 2026)
-        )).isSameAs(expected);
+        assertThat(friendService.getFriendTravelMapYears(ME_ID, OTHER_ID).years()).containsExactly(2026, 2024);
+    }
+
+    @Test
+    void befriendByAlbumInvitationCreatesAcceptedFriendshipWhenNoRelation() {
+        when(userRepository.findById(ME_ID)).thenReturn(Optional.of(me));
+        when(userRepository.findById(OTHER_ID)).thenReturn(Optional.of(other));
+        when(friendshipRepository.findStatusBetween(ME_ID, OTHER_ID)).thenReturn(Optional.empty());
+        when(friendshipRepository.insertAcceptedIgnore(OTHER_ID, ME_ID, ME_ID, OTHER_ID)).thenReturn(1);
+
+        friendService.befriendByAlbumInvitation(OTHER_ID, ME_ID);
+
+        verify(friendshipRepository, never()).acceptPendingBetween(any(), any());
+    }
+
+    @Test
+    void befriendByAlbumInvitationAcceptsRowCreatedConcurrently() {
+        when(userRepository.findById(ME_ID)).thenReturn(Optional.of(me));
+        when(userRepository.findById(OTHER_ID)).thenReturn(Optional.of(other));
+        when(friendshipRepository.findStatusBetween(ME_ID, OTHER_ID)).thenReturn(Optional.empty());
+        when(friendshipRepository.insertAcceptedIgnore(ME_ID, OTHER_ID, ME_ID, OTHER_ID)).thenReturn(0);
+
+        friendService.befriendByAlbumInvitation(ME_ID, OTHER_ID);
+
+        verify(friendshipRepository).acceptPendingBetween(ME_ID, OTHER_ID);
+    }
+
+    @Test
+    void befriendByAlbumInvitationAcceptsPendingAndKeepsAcceptedWithoutInsert() {
+        when(userRepository.findById(ME_ID)).thenReturn(Optional.of(me));
+        when(userRepository.findById(OTHER_ID)).thenReturn(Optional.of(other));
+
+        when(friendshipRepository.findStatusBetween(ME_ID, OTHER_ID)).thenReturn(Optional.of(FriendshipStatus.PENDING));
+        when(friendshipRepository.acceptPendingBetween(ME_ID, OTHER_ID)).thenReturn(1);
+        friendService.befriendByAlbumInvitation(ME_ID, OTHER_ID);
+        verify(friendshipRepository).acceptPendingBetween(ME_ID, OTHER_ID);
+
+        when(friendshipRepository.findStatusBetween(ME_ID, OTHER_ID)).thenReturn(Optional.of(FriendshipStatus.ACCEPTED));
+        friendService.befriendByAlbumInvitation(ME_ID, OTHER_ID);
+        verify(friendshipRepository).acceptPendingBetween(ME_ID, OTHER_ID);
+
+        verify(friendshipRepository, never()).insertAcceptedIgnore(any(), any(), any(), any());
+    }
+
+    @Test
+    void befriendByAlbumInvitationCreatesFriendshipWhenPendingRequestWasRemovedAfterRead() {
+        when(userRepository.findById(ME_ID)).thenReturn(Optional.of(me));
+        when(userRepository.findById(OTHER_ID)).thenReturn(Optional.of(other));
+        when(friendshipRepository.findStatusBetween(ME_ID, OTHER_ID)).thenReturn(Optional.of(FriendshipStatus.PENDING));
+        when(friendshipRepository.acceptPendingBetween(ME_ID, OTHER_ID)).thenReturn(0);
+        when(friendshipRepository.insertAcceptedIgnore(OTHER_ID, ME_ID, ME_ID, OTHER_ID)).thenReturn(1);
+
+        friendService.befriendByAlbumInvitation(OTHER_ID, ME_ID);
+
+        verify(friendshipRepository).insertAcceptedIgnore(OTHER_ID, ME_ID, ME_ID, OTHER_ID);
+        verify(friendshipRepository).acceptPendingBetween(ME_ID, OTHER_ID);
+    }
+
+    @Test
+    void befriendByAlbumInvitationRejectsSameUserAndIgnoresWithdrawnUser() {
+        assertErrorCode(() -> friendService.befriendByAlbumInvitation(ME_ID, ME_ID), GeneralErrorCode.INVALID_PARAMETER);
+        assertErrorCode(() -> friendService.befriendByAlbumInvitation(null, ME_ID), GeneralErrorCode.INVALID_PARAMETER);
+
+        when(userRepository.findById(ME_ID)).thenReturn(Optional.of(me));
+        other.withdraw();
+        when(userRepository.findById(OTHER_ID)).thenReturn(Optional.of(other));
+        friendService.befriendByAlbumInvitation(ME_ID, OTHER_ID);
+
+        verify(friendshipRepository, never()).findStatusBetween(any(), any());
+        verify(friendshipRepository, never()).insertAcceptedIgnore(any(), any(), any(), any());
     }
 
     private void stubFriend(User friend) {

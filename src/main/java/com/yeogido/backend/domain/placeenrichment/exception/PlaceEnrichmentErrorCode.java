@@ -9,6 +9,11 @@ import org.springframework.http.HttpStatus;
 @RequiredArgsConstructor
 public enum PlaceEnrichmentErrorCode implements ErrorCode {
 
+    API_OPERATION_NOT_FOUND(
+            HttpStatus.NOT_FOUND,
+            "PLACE_ENRICHMENT4041",
+            "등록된 장소 설명 외부 API 작업을 찾을 수 없습니다."
+    ),
     PLACE_NAME_REQUIRED(
             HttpStatus.BAD_REQUEST,
             "PLACE_ENRICHMENT4001",

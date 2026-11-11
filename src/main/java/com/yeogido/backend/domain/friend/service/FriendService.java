@@ -10,7 +10,14 @@ public interface FriendService {
 
     FriendResDTO.MyFriendCode getMyFriendCode(Long userId);
 
-    FriendResDTO.SearchResult searchByFriendCode(Long userId, String friendCode);
+    CursorResponse<FriendResDTO.SearchResult> searchUsers(
+            Long userId,
+            String keyword,
+            Long cursorId,
+            Integer size
+    );
+
+    FriendResDTO.QrUser getUserByQrToken(Long userId, String qrToken);
 
     FriendResDTO.SentRequest sendRequest(Long userId, FriendReqDTO.SendRequest request);
 
@@ -43,12 +50,21 @@ public interface FriendService {
 
     void deleteFriend(Long userId, Long friendUserId);
 
-    CursorResponse<TravelRecordResDTO.MapItem> getFriendTravelMap(
+    CursorResponse<FriendResDTO.TravelMapItem> getFriendTravelMap(
             Long userId,
             Long friendUserId,
             FriendReqDTO.TravelMapRequest request
     );
 
+    TravelRecordResDTO.YearListResponse getFriendTravelMapYears(Long userId, Long friendUserId);
+
     // 다른 도메인(공유 앨범 초대 등)에서 친구 관계를 확인할 때 사용
     boolean areFriends(Long userIdA, Long userIdB);
+
+    /**
+     * 공유앨범 초대 수락 시 초대한 사람과 초대받은 사람을 친구로 만듭니다. 이미 친구면 변경하지 않고,
+     * 대기 중인 요청이 있으면 수락하며, 관계가 없으면 초대한 사람을 요청자로 친구 관계를 만듭니다.
+     * 호출한 쪽 트랜잭션에 합류하며 동시에 호출되어도 중복 저장 오류로 롤백되지 않습니다. 탈퇴·비활성 사용자면 변경하지 않습니다.
+     */
+    void befriendByAlbumInvitation(Long inviterId, Long inviteeId);
 }

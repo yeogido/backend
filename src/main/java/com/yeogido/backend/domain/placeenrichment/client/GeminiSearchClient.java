@@ -1,14 +1,17 @@
 package com.yeogido.backend.domain.placeenrichment.client;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.JsonProcessingException;
 
-import java.net.SocketTimeoutException;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
 import com.yeogido.backend.domain.placeenrichment.exception.PlaceEnrichmentErrorCode;
-import com.yeogido.backend.global.exception.GeneralException;
+import com.yeogido.backend.domain.placeenrichment.exception.ExternalApiFailure;
+import com.yeogido.backend.domain.placeenrichment.exception.ExternalApiFailureKind;
+import com.yeogido.backend.global.logging.SafeLogDetails;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
@@ -19,12 +22,14 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
-import org.springframework.web.client.ResourceAccessException;
 import lombok.extern.slf4j.Slf4j;
 
 @Component
 @Slf4j
 public class GeminiSearchClient {
+
+    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final int MAX_ERROR_BODY_LENGTH = 65536;
 
     private final RestClient client;
     private final String apiKey;
@@ -37,7 +42,7 @@ public class GeminiSearchClient {
                               @Value("${app.gemini.model:gemini-3.5-flash-lite}") String model,
                               @Value("${app.gemini.timeout-seconds:60}") int timeoutSeconds) {
         if (timeoutSeconds < 1 || timeoutSeconds > 600) {
-            throw new GeneralException(PlaceEnrichmentErrorCode.INVALID_ENRICHMENT_CONFIG);
+            throw configurationFailure();
         }
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(Duration.ofSeconds(Math.min(timeoutSeconds, 10)));
@@ -54,11 +59,15 @@ public class GeminiSearchClient {
     }
 
     public JsonNode search(String instructions, String inputJson) {
+        return PlaceOverviewApiScope.call("gemini", "generateContent", () -> searchContent(instructions, inputJson));
+    }
+
+    private JsonNode searchContent(String instructions, String inputJson) {
         if (!StringUtils.hasText(apiKey)) {
-            throw new GeneralException(PlaceEnrichmentErrorCode.INVALID_ENRICHMENT_CONFIG);
+            throw configurationFailure();
         }
         if (model == null || !model.matches("[a-zA-Z0-9._-]+")) {
-            throw new GeneralException(PlaceEnrichmentErrorCode.INVALID_ENRICHMENT_CONFIG);
+            throw configurationFailure();
         }
         Map<String, Object> request = Map.of(
                 "systemInstruction", Map.of("parts", List.of(Map.of("text", instructions))),
@@ -70,35 +79,70 @@ public class GeminiSearchClient {
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(request).retrieve().body(JsonNode.class);
             if (response == null || response.isNull()) {
-                log.warn("Gemini generateContent failed. failureType=response_parse_error");
-                throw new GeneralException(PlaceEnrichmentErrorCode.GEMINI_GENERATION_API_ERROR);
+                logFailure("response_parse_error", null);
+                throw new ExternalApiFailure(PlaceEnrichmentErrorCode.GEMINI_GENERATION_API_ERROR,
+                        "gemini", "generateContent", ExternalApiFailureKind.INVALID_RESPONSE, null, null, null);
             }
             return response;
         } catch (RestClientResponseException exception) {
-            log.warn("Gemini generateContent failed. failureType={}, httpStatus={}",
-                    classifyHttpStatus(exception.getStatusCode().value()), exception.getStatusCode().value());
-            throw new GeneralException(PlaceEnrichmentErrorCode.GEMINI_GENERATION_API_ERROR);
+            ExternalApiFailure failure = httpFailure(exception);
+            logFailure(failure.failureType(), exception.getStatusCode().value());
+            throw failure;
         } catch (RestClientException | HttpMessageConversionException exception) {
-            log.warn("Gemini generateContent failed. failureType={}", classifyClientFailure(exception));
-            throw new GeneralException(PlaceEnrichmentErrorCode.GEMINI_GENERATION_API_ERROR);
+            logFailure(SafeLogDetails.failureType(exception), null);
+            throw ExternalApiFailure.client(PlaceEnrichmentErrorCode.GEMINI_GENERATION_API_ERROR,
+                    "gemini", "generateContent", exception);
         }
     }
 
-    private String classifyHttpStatus(int status) {
-        if (status == 401) return "authentication_failure";
-        if (status == 403) return "permission_or_access_failure";
-        if (status == 429) return "quota_or_rate_limit";
-        if (status >= 400 && status < 500) return "request_error";
-        if (status >= 500) return "provider_server_error";
-        return "unexpected_http_status";
+    private static ExternalApiFailure httpFailure(RestClientResponseException exception) {
+        ExternalApiFailure fallback = ExternalApiFailure.http(PlaceEnrichmentErrorCode.GEMINI_GENERATION_API_ERROR,
+                "gemini", "generateContent", exception);
+        int status = exception.getStatusCode().value();
+        ExternalApiFailureKind kind = status == 402 ? ExternalApiFailureKind.CONFIGURATION : fallback.getKind();
+        if (status == 400) {
+            String body = exception.getResponseBodyAsString();
+            if (body.length() <= MAX_ERROR_BODY_LENGTH) {
+                try {
+                    JsonNode root = JSON.readTree(body);
+                    JsonNode error = root == null ? null : root.path("error");
+                    if (error != null) {
+                        if ("FAILED_PRECONDITION".equals(error.path("status").asText())) {
+                            kind = ExternalApiFailureKind.CONFIGURATION;
+                        }
+                        for (JsonNode detail : error.path("details")) {
+                            if ("type.googleapis.com/google.rpc.ErrorInfo".equals(detail.path("@type").asText())
+                                    && "API_KEY_INVALID".equals(detail.path("reason").asText())) {
+                                kind = ExternalApiFailureKind.AUTHENTICATION;
+                                break;
+                            }
+                        }
+                    }
+                } catch (JsonProcessingException ignored) {
+                    // 잘못된 오류 본문은 저장하지 않고 HTTP 상태 분류 유지
+                }
+            }
+        }
+        return new ExternalApiFailure(fallback.getErrorCode(), "gemini", "generateContent", kind,
+                status, null, fallback.getRetryAfter());
     }
 
-    private String classifyClientFailure(RuntimeException exception) {
-        for (Throwable cause = exception; cause != null; cause = cause.getCause()) {
-            if (cause instanceof HttpMessageConversionException) return "response_parse_error";
-            if (cause instanceof SocketTimeoutException) return "timeout";
+    private static ExternalApiFailure configurationFailure() {
+        return new ExternalApiFailure(PlaceEnrichmentErrorCode.INVALID_ENRICHMENT_CONFIG,
+                "gemini", "generateContent", ExternalApiFailureKind.CONFIGURATION, null, null, null);
+    }
+
+    private void logFailure(String failureType, Integer status) {
+        var entry = log.atWarn()
+                .addKeyValue("event", "external_api.call.failed")
+                .addKeyValue("provider", "gemini")
+                .addKeyValue("operation", "generateContent")
+                .addKeyValue("failureType", failureType)
+                .addKeyValue("errorCode", PlaceEnrichmentErrorCode.GEMINI_GENERATION_API_ERROR.getCode())
+                .addKeyValue("retryable", SafeLogDetails.isRetryable(failureType, status));
+        if (status != null) {
+            entry.addKeyValue("upstreamHttpStatus", status);
         }
-        if (exception instanceof ResourceAccessException) return "connection_error";
-        return "client_or_response_error";
+        entry.log("External API call failed");
     }
 }
