@@ -60,6 +60,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 import com.yeogido.backend.domain.course.dto.CourseSearchDTO.Interpretation;
 import com.yeogido.backend.domain.course.enums.SearchPhase;
@@ -89,6 +90,7 @@ public class CourseServiceImpl implements CourseService {
     private final PlatformTransactionManager transactionManager;
     private final CourseSearchService courseSearchService;
     private final CourseSemanticSearchService courseSemanticSearchService;
+    private final CourseRelatedSearchSessionRepository courseRelatedSearchSessionRepository;
     private final CourseSearchCursorConverter courseSearchCursorConverter;
     private final CourseRepository courseRepository;
     private final CourseLikeRepository courseLikeRepository;
@@ -192,6 +194,21 @@ public class CourseServiceImpl implements CourseService {
             CourseReqDTO.CourseListReq request,
             Long userId
     ) {
+        if (request.searchId() != null || request.keywords() != null) {
+            return getRelatedCourses(request, userId);
+        }
+
+        UUID snapshotId = courseSearchCursorConverter.decodeSnapshot(request);
+        if (snapshotId != null) {
+            var session = courseRelatedSearchSessionRepository.find(snapshotId);
+            if (!Objects.equals(userId, session.userId())
+                    || !request.cursorValue().equals(courseSearchCursorConverter.encodeSnapshot(session.original(), snapshotId))) {
+                throw new GeneralException(CourseErrorCode.INVALID_COURSE_SEARCH_CURSOR);
+            }
+            return courseReadTransaction().execute(status -> getSnapshotPage(request, userId,
+                    userId == null ? null : getCurrentUser(userId), snapshotId, session, false));
+        }
+
         var decoded = courseSearchCursorConverter.decode(request);
         var pageRequest = decoded.request();
         validateCourseListRequest(pageRequest);
@@ -209,23 +226,28 @@ public class CourseServiceImpl implements CourseService {
                 var candidates = courseSemanticSearchService.search(interpretation);
                 semanticCourseIds = candidates.courseIds();
                 interpretation = new Interpretation(interpretation.request(), interpretation.terms(),
-                        interpretation.totalDays(), interpretation.extractedKeywords(), candidates.sessionId());
+                        interpretation.totalDays(), interpretation.extractedKeywords(), candidates.sessionId(),
+                        interpretation.filterKeywords());
             } catch (GeneralException exception) {
                 semanticFailureCode = exception.getErrorCode().getCode();
             }
         }
 
         // 외부 AI 호출 종료 후 코스 조회 구간에만 읽기 트랜잭션 적용
-        TransactionTemplate transaction = new TransactionTemplate(transactionManager);
-        transaction.setReadOnly(true);
+        var transaction = courseReadTransaction();
         Interpretation search = interpretation;
         List<Long> candidates = semanticCourseIds;
         SearchPhase phase = decoded.phase() != null ? decoded.phase()
                 : !decoded.pinned() && pageRequest.cursorId() == null && search != null ? SearchPhase.TITLE : null;
+        boolean captureMembership = !decoded.pinned() && phase == SearchPhase.TITLE
+                && !search.extractedKeywords().isEmpty();
+        if (captureMembership) {
+            transaction.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
+        }
         CourseResDTO.CourseListRes result;
         try {
             result = transaction.execute(status -> getCoursesInTransaction(pageRequest, userId, search,
-                    decoded.pinned(), phase, candidates));
+                    decoded.pinned(), phase, candidates, captureMembership));
         } catch (RuntimeException failure) {
             if (semanticFailureCode != null) {
                 log.atWarn().addKeyValue("event", "external_api.fallback.failed")
@@ -248,13 +270,133 @@ public class CourseServiceImpl implements CourseService {
         return result;
     }
 
+    private TransactionTemplate courseReadTransaction() {
+        var transaction = new TransactionTemplate(transactionManager);
+        transaction.setReadOnly(true);
+        return transaction;
+    }
+
+    private CourseResDTO.CourseListRes getSnapshotPage(CourseReqDTO.CourseListReq request, Long userId,
+            User currentUser, UUID snapshotId, CourseRelatedSearchSessionRepository.Session session,
+            boolean firstPage) {
+        if (request.size() <= 0) {
+            throw new GeneralException(GeneralErrorCode.INVALID_PARAMETER);
+        }
+        var membership = session.membership();
+        List<Long> ids = new ArrayList<>(membership.titleIds());
+        ids.addAll(membership.naturalIds());
+        int start = 0;
+        if (!firstPage) {
+            int cursorIndex = ids.indexOf(request.cursorId());
+            if (cursorIndex < 0) {
+                throw new GeneralException(CourseErrorCode.INVALID_COURSE_SEARCH_CURSOR);
+            }
+            start = cursorIndex + 1;
+        }
+
+        List<CourseQueryRepository.CourseListRow> rows = new ArrayList<>();
+        // 삭제된 코스를 건너뛰기 위한 다음 활성 코스까지의 조회
+        while (start < ids.size() && rows.size() <= request.size()) {
+            int end = start + (int) Math.min(ids.size() - start,
+                    Math.min(500L, (long) request.size() + 1 - rows.size()));
+            List<Long> batch = ids.subList(start, end);
+            var rowsById = courseRepository.findPinnedSearchRows(batch).stream()
+                    .collect(Collectors.toMap(CourseQueryRepository.CourseListRow::courseId, Function.identity()));
+            batch.stream().map(rowsById::get).filter(Objects::nonNull).forEach(rows::add);
+            start = end;
+        }
+
+        var page = toCourseListResponse(request, userId, currentUser, null, false, null, rows, 0);
+        String cursor = page.getCursorId() == null ? null : courseSearchCursorConverter.encodeSnapshot(request, snapshotId);
+        return new CourseResDTO.CourseListRes(page.getItems(), cursor, page.getCursorId(), page.isHasNext(),
+                session.interpretation().extractedKeywords(), firstPage ? snapshotId : null);
+    }
+
+    private CourseResDTO.CourseListRes getRelatedCourses(CourseReqDTO.CourseListReq request, Long userId) {
+        if (request.searchId() == null || request.keywords() == null || request.keywords().isEmpty()
+                || request.keyword() != null || request.courseType() != null || request.contentId() != null
+                || request.regionId() != null || request.transportType() != null || request.durationType() != null
+                || request.companionType() != null || request.latitude() != null || request.longitude() != null
+                || request.sort() != null) {
+            throw new GeneralException(GeneralErrorCode.INVALID_PARAMETER);
+        }
+
+        var session = courseRelatedSearchSessionRepository.find(request.searchId());
+        var original = session.original();
+        var search = session.interpretation();
+        if (!Objects.equals(userId, session.userId()) || request.keywords().size() > 12
+                || request.keywords().stream().anyMatch(keyword -> keyword == null
+                        || !search.extractedKeywords().contains(keyword))) {
+            throw new GeneralException(CourseErrorCode.INVALID_COURSE_SEARCH_CURSOR);
+        }
+
+        // 동일한 칩 조합의 검색어와 커서 일관성을 위한 최초 추출 순서 유지
+        List<String> selected = search.extractedKeywords().stream().filter(request.keywords()::contains).toList();
+        var cursorRequest = new CourseReqDTO.CourseListReq(original.courseType(), null, original.contentId(),
+                original.regionId(), original.transportType(), original.durationType(), original.companionType(),
+                original.sort(), original.latitude(), original.longitude(), request.cursorValue(), request.cursorId(),
+                request.size(), request.searchId(), selected);
+        var decoded = courseSearchCursorConverter.decode(cursorRequest);
+        boolean firstPage = request.cursorId() == null && request.cursorValue() == null;
+        if (!firstPage && decoded.phase() != SearchPhase.NATURAL) {
+            throw new GeneralException(CourseErrorCode.INVALID_COURSE_SEARCH_CURSOR);
+        }
+        validateCourseListRequest(decoded.request());
+
+        var labels = search.filterKeywords();
+        var inferred = search.request();
+        boolean durationSelected = labels != null && selected.contains(labels.duration());
+        var effective = new CourseReqDTO.CourseListReq(original.courseType(), null, original.contentId(),
+                labels != null && selected.contains(labels.region()) ? inferred.regionId() : original.regionId(),
+                labels != null && selected.contains(labels.transport()) ? inferred.transportType() : original.transportType(),
+                durationSelected ? inferred.durationType() : original.durationType(),
+                labels != null && selected.contains(labels.companion()) ? inferred.companionType() : original.companionType(),
+                original.sort(), original.latitude(), original.longitude(), decoded.request().cursorValue(),
+                request.cursorId(), request.size());
+        List<String> terms = search.terms().stream().filter(selected::contains).toList();
+        String semanticSessionId = firstPage ? null : decoded.interpretation().semanticSessionId();
+        var interpretation = new Interpretation(effective, terms, durationSelected ? search.totalDays() : null,
+                List.of(), semanticSessionId);
+
+        List<Long> candidates = null;
+        if (semanticSessionId != null) {
+            candidates = courseSemanticSearchService.restore(interpretation);
+        } else if (firstPage && !terms.isEmpty() && courseSemanticSearchService.isEnabled()) {
+            try {
+                var semantic = courseSemanticSearchService.search(interpretation);
+                candidates = semantic.courseIds();
+                interpretation = new Interpretation(effective, terms, interpretation.totalDays(), List.of(),
+                        semantic.sessionId());
+            } catch (GeneralException exception) {
+                log.warn("Related course semantic search failed, using term search");
+            }
+        }
+
+        var exclusion = session.membership();
+        var transaction = courseReadTransaction();
+        Interpretation related = interpretation;
+        List<Long> semanticIds = candidates;
+        return transaction.execute(status -> {
+            User currentUser = userId == null ? null : getCurrentUser(userId);
+            var location = resolveCourseLocation(effective, currentUser);
+            var popularity = getPopularityScores(effective);
+            var rows = semanticIds == null
+                    ? courseRepository.findSearchPhaseByCursor(effective, location, popularity, request.size() + 1,
+                            terms, related.totalDays(), null, false, exclusion)
+                    : courseRepository.findSemanticCoursesByCursor(effective, location, popularity, request.size() + 1,
+                            related.totalDays(), null, semanticIds, exclusion);
+            return toCourseListResponse(cursorRequest, userId, currentUser, related, false, SearchPhase.NATURAL, rows, 0);
+        });
+    }
+
     private CourseResDTO.CourseListRes getCoursesInTransaction(
             CourseReqDTO.CourseListReq request,
             Long userId,
             Interpretation interpretation,
             boolean pinned,
             SearchPhase phase,
-            List<Long> semanticCourseIds
+            List<Long> semanticCourseIds,
+            boolean captureMembership
     ) {
         int size = request.size();
         User currentUser = userId == null
@@ -262,6 +404,21 @@ public class CourseServiceImpl implements CourseService {
                 : getCurrentUser(userId);
         CourseQueryRepository.CourseLocation location = resolveCourseLocation(request, currentUser);
         Map<Long, Long> popularityScores = getPopularityScores(request);
+        if (captureMembership) {
+            var membership = courseRepository.findSearchMembership(request, interpretation.request(),
+                    interpretation.terms(), interpretation.totalDays(), semanticCourseIds, location, popularityScores);
+            var session = new CourseRelatedSearchSessionRepository.Session(userId, request, interpretation, membership);
+            UUID snapshotId = null;
+            try {
+                snapshotId = courseRelatedSearchSessionRepository.save(session);
+            } catch (GeneralException exception) {
+                log.warn("Failed to save related course search session");
+            }
+            if (snapshotId != null) {
+                return getSnapshotPage(request, userId, currentUser, snapshotId, session, true);
+            }
+        }
+
         List<CourseQueryRepository.CourseListRow> rows;
         int titleCount = 0;
         if (phase == null) {
@@ -290,6 +447,14 @@ public class CourseServiceImpl implements CourseService {
             }
         }
 
+        return toCourseListResponse(request, userId, currentUser, interpretation, pinned, phase, rows, titleCount);
+    }
+
+    private CourseResDTO.CourseListRes toCourseListResponse(
+            CourseReqDTO.CourseListReq request, Long userId, User currentUser, Interpretation interpretation,
+            boolean pinned, SearchPhase phase, List<CourseQueryRepository.CourseListRow> rows, int titleCount
+    ) {
+        int size = request.size();
         boolean hasNext = rows.size() > size;
         if (hasNext) {
             rows = new ArrayList<>(rows.subList(0, size));
