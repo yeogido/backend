@@ -233,6 +233,90 @@ class FriendServiceImplTest {
     }
 
     @Test
+    void befriendByQrTokenCreatesAcceptedFriendshipWithScannerAsRequester() {
+        when(friendQrTokenService.findUserId("token")).thenReturn(Optional.of(OTHER_ID));
+        when(userRepository.findById(ME_ID)).thenReturn(Optional.of(me));
+        when(userRepository.findById(OTHER_ID)).thenReturn(Optional.of(other));
+        when(friendshipRepository.findStatusBetween(ME_ID, OTHER_ID)).thenReturn(Optional.empty());
+        when(friendshipRepository.insertAcceptedIgnore(ME_ID, OTHER_ID, ME_ID, OTHER_ID)).thenReturn(1);
+        when(friendshipRepository.findByUserLowIdAndUserHighId(ME_ID, OTHER_ID))
+                .thenReturn(Optional.of(friendship(me, other, FriendshipStatus.ACCEPTED)));
+
+        FriendResDTO.AcceptResult result = friendService.befriendByQrToken(ME_ID, "token");
+
+        assertThat(result.requestId()).isEqualTo(REQUEST_ID);
+        assertThat(result.status()).isEqualTo(FriendshipStatus.ACCEPTED);
+        assertThat(result.friend().userId()).isEqualTo(OTHER_ID);
+        assertThat(result.friend().friendCode()).isEqualTo(OTHER_CODE);
+        verify(friendshipRepository, never()).acceptPendingBetween(any(), any());
+    }
+
+    @Test
+    void befriendByQrTokenAcceptsPendingRequestInEitherDirection() {
+        when(friendQrTokenService.findUserId("token")).thenReturn(Optional.of(OTHER_ID));
+        when(userRepository.findById(ME_ID)).thenReturn(Optional.of(me));
+        when(userRepository.findById(OTHER_ID)).thenReturn(Optional.of(other));
+        when(friendshipRepository.findStatusBetween(ME_ID, OTHER_ID)).thenReturn(Optional.of(FriendshipStatus.PENDING));
+        when(friendshipRepository.acceptPendingBetween(ME_ID, OTHER_ID)).thenReturn(1);
+        when(friendshipRepository.findByUserLowIdAndUserHighId(ME_ID, OTHER_ID))
+                .thenReturn(Optional.of(friendship(other, me, FriendshipStatus.ACCEPTED)));
+
+        FriendResDTO.AcceptResult result = friendService.befriendByQrToken(ME_ID, "token");
+
+        assertThat(result.status()).isEqualTo(FriendshipStatus.ACCEPTED);
+        assertThat(result.friend().userId()).isEqualTo(OTHER_ID);
+        verify(friendshipRepository, never()).insertAcceptedIgnore(any(), any(), any(), any());
+    }
+
+    @Test
+    void befriendByQrTokenRetriesOnceWhenFriendshipRemovedRightAfterSaving() {
+        when(friendQrTokenService.findUserId("token")).thenReturn(Optional.of(OTHER_ID));
+        when(userRepository.findById(ME_ID)).thenReturn(Optional.of(me));
+        when(userRepository.findById(OTHER_ID)).thenReturn(Optional.of(other));
+        when(friendshipRepository.findStatusBetween(ME_ID, OTHER_ID)).thenReturn(Optional.empty());
+        when(friendshipRepository.insertAcceptedIgnore(ME_ID, OTHER_ID, ME_ID, OTHER_ID)).thenReturn(1);
+        when(friendshipRepository.findByUserLowIdAndUserHighId(ME_ID, OTHER_ID))
+                .thenReturn(Optional.empty())
+                .thenReturn(Optional.of(friendship(me, other, FriendshipStatus.ACCEPTED)));
+
+        FriendResDTO.AcceptResult result = friendService.befriendByQrToken(ME_ID, "token");
+
+        assertThat(result.status()).isEqualTo(FriendshipStatus.ACCEPTED);
+        verify(friendshipRepository, org.mockito.Mockito.times(2))
+                .insertAcceptedIgnore(ME_ID, OTHER_ID, ME_ID, OTHER_ID);
+    }
+
+    @Test
+    void befriendByQrTokenFailsWhenAlreadyFriend() {
+        when(friendQrTokenService.findUserId("token")).thenReturn(Optional.of(OTHER_ID));
+        when(userRepository.findById(ME_ID)).thenReturn(Optional.of(me));
+        when(userRepository.findById(OTHER_ID)).thenReturn(Optional.of(other));
+        when(friendshipRepository.findStatusBetween(ME_ID, OTHER_ID))
+                .thenReturn(Optional.of(FriendshipStatus.ACCEPTED));
+
+        assertErrorCode(() -> friendService.befriendByQrToken(ME_ID, "token"), FriendErrorCode.ALREADY_FRIEND);
+        verify(friendshipRepository, never()).insertAcceptedIgnore(any(), any(), any(), any());
+    }
+
+    @Test
+    void befriendByQrTokenFailsWhenExpiredOrOwnOrWithdrawn() {
+        when(friendQrTokenService.findUserId("expired")).thenReturn(Optional.empty());
+        assertErrorCode(() -> friendService.befriendByQrToken(ME_ID, "expired"),
+                FriendErrorCode.FRIEND_QR_TOKEN_NOT_FOUND);
+
+        when(friendQrTokenService.findUserId("mine")).thenReturn(Optional.of(ME_ID));
+        assertErrorCode(() -> friendService.befriendByQrToken(ME_ID, "mine"), FriendErrorCode.SELF_FRIEND_REQUEST);
+
+        when(friendQrTokenService.findUserId("withdrawn")).thenReturn(Optional.of(OTHER_ID));
+        when(userRepository.findById(ME_ID)).thenReturn(Optional.of(me));
+        other.withdraw();
+        when(userRepository.findById(OTHER_ID)).thenReturn(Optional.of(other));
+        assertErrorCode(() -> friendService.befriendByQrToken(ME_ID, "withdrawn"),
+                FriendErrorCode.FRIEND_QR_TOKEN_NOT_FOUND);
+        verify(friendshipRepository, never()).findStatusBetween(any(), any());
+    }
+
+    @Test
     void sendRequestSavesPendingFriendship() {
         when(userRepository.findById(ME_ID)).thenReturn(Optional.of(me));
         givenOtherFoundByCode();

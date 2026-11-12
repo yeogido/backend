@@ -150,6 +150,20 @@ public class FriendController {
         return ApiResponse.onSuccess(SuccessCode.OK, response);
     }
 
+    @Operation(
+            summary = "QR로 친구 맺기 API",
+            description = "QR 토큰의 주인과 수락 없이 바로 친구가 됩니다. 둘 사이에 대기 중인 요청이 있으면 그 요청을 수락합니다. "
+                    + "만료되었거나 없는 토큰은 FRIEND4044, 내 QR은 FRIEND4001, 이미 친구면 FRIEND4091을 반환합니다."
+    )
+    @PostMapping("/qr/{qrToken}")
+    public ApiResponse<FriendResDTO.AcceptResult> befriendByQrToken(
+            @PathVariable String qrToken,
+            @AuthenticationPrincipal AuthUser authUser
+    ) {
+        FriendResDTO.AcceptResult response = friendService.befriendByQrToken(authUser.userId(), qrToken);
+        return ApiResponse.onSuccess(SuccessCode.CREATED, response);
+    }
+
     @Operation(summary = "친구 요청 보내기 API", description = "친구코드에 해당하는 사용자에게 친구 요청을 보냅니다.")
     @PostMapping("/requests")
     public ApiResponse<FriendResDTO.SentRequest> sendRequest(
