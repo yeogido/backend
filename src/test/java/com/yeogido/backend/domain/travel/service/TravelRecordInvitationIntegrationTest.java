@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -157,13 +158,50 @@ class TravelRecordInvitationIntegrationTest {
     assertError(outsiderId, request(firstId), GeneralErrorCode.FORBIDDEN);
   }
 
-  @ParameterizedTest
-  @EnumSource(value = TravelRecordVisibility.class, names = {"PRIVATE", "PUBLIC"})
-  void onlyFriendsAlbumsCanReceiveInvitations(TravelRecordVisibility visibility) {
-    tx(() -> { em.createQuery("update TravelRecord r set r.visibility = :visibility where r.id = :id")
-        .setParameter("visibility", visibility).setParameter("id", albumId).executeUpdate(); return null; });
+  @Test
+  void privateAlbumCannotReceiveInvitations() {
+    setVisibility(TravelRecordVisibility.PRIVATE);
+    assertThat(recordService.getTravelRecord(ownerId, albumId).permissions().canInvite()).isFalse();
     assertError(ownerId, request(firstId), TravelRecordErrorCode.INVALID_INVITATION_STATE);
     assertError(participantId, request(firstId), GeneralErrorCode.FORBIDDEN);
+    assertThat(countInvitations()).isZero();
+  }
+
+  @Test
+  void successfulPublicInvitationConvertsAlbumAndRevokesPublicDetailAccess() throws Exception {
+    setVisibility(TravelRecordVisibility.PUBLIC);
+    var before = recordService.getTravelRecord(ownerId, albumId);
+    assertThat(before.permissions().canInvite()).isTrue();
+    assertThat(recordService.getTravelRecord(outsiderId, albumId).permissions().canInvite()).isFalse();
+    String detailPath = "/api/v1/travel-records/" + albumId;
+    mvc.perform(get(detailPath).with(login(outsiderId))).andExpect(status().isOk());
+
+    mvc.perform(post(path()).with(login(ownerId)).contentType(MediaType.APPLICATION_JSON)
+            .content(mapper.writeValueAsString(request(firstId))))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.result.invitations[0].status").value("PENDING"));
+
+    var after = recordService.getTravelRecord(ownerId, albumId);
+    assertThat(after.visibility()).isEqualTo(TravelRecordVisibility.FRIENDS);
+    assertThat(after.version()).isEqualTo(before.version() + 1);
+    assertThat(after.permissions().canInvite()).isTrue();
+    assertThat(after.permissions().canLinkShare()).isFalse();
+    mvc.perform(get(detailPath).with(login(outsiderId))).andExpect(status().isForbidden());
+    mvc.perform(get(detailPath).with(login(firstId))).andExpect(status().isForbidden());
+  }
+
+  @Test
+  void invalidPublicInvitationKeepsVisibilityAndDoesNotPersistPartialInvitations() {
+    setVisibility(TravelRecordVisibility.PUBLIC);
+    var before = recordService.getTravelRecord(ownerId, albumId);
+
+    assertError(participantId, request(firstId), GeneralErrorCode.FORBIDDEN);
+    assertError(ownerId, request(firstId, outsiderId), TravelRecordErrorCode.INVALID_INVITATION_TARGET);
+
+    assertThat(countInvitations()).isZero();
+    var after = recordService.getTravelRecord(ownerId, albumId);
+    assertThat(after.visibility()).isEqualTo(TravelRecordVisibility.PUBLIC);
+    assertThat(after.version()).isEqualTo(before.version());
   }
 
   /** 서비스 호출도 HTTP 검증에 의존하지 않고 잘못된 대상 목록 전체를 거부합니다. */
@@ -292,6 +330,13 @@ class TravelRecordInvitationIntegrationTest {
           .inviter(em.getReference(User.class, ownerId)).invitee(em.getReference(User.class, target)).status(status).build();
       em.persist(invitation);
       return invitation.getId();
+    });
+  }
+
+  private void setVisibility(TravelRecordVisibility visibility) {
+    tx(() -> {
+      em.find(TravelRecord.class, albumId).updateVisibility(visibility);
+      return null;
     });
   }
 

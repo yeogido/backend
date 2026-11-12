@@ -53,8 +53,8 @@ public class TravelRecordInvitationController {
                 invitationService.getReceivedInvitations(authUser.userId(), request));
     }
 
-    @Operation(summary = "공유 앨범 초대", description = "FRIENDS 앨범의 생성자와 현재 참여자가 실제 친구에게 참여 초대를 보냅니다. "
-            + "전체 대상 검증 후 함께 저장하며 초대만으로 조회나 수정 권한을 부여하지 않습니다.")
+    @Operation(summary = "공유 앨범 초대", description = "PUBLIC 앨범의 생성자와 FRIENDS 앨범의 생성자 및 현재 참여자가 친구에게 초대를 보냅니다. "
+            + "PUBLIC 앨범은 초대가 저장될 때 FRIENDS로 전환됩니다. 수락한 친구에게 조회 및 수정 권한이 부여됩니다.")
     @PostMapping("/{travelRecordId}/invitations")
     public ApiResponse<TravelRecordInvitationResDTO.CreateResponse> createInvitations(
             @PathVariable Long travelRecordId,
