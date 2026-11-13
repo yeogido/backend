@@ -141,6 +141,43 @@ public class FriendServiceImpl implements FriendService {
         );
     }
 
+    // 결과 행을 읽어 응답해야 하므로 READ_COMMITTED 사용. REPEATABLE READ면 첫 조회 시점 스냅샷에 묶여
+    // 동시에 상대가 먼저 만든 행을 마지막 조회에서 보지 못함
+    @Override
+    @Transactional(isolation = Isolation.READ_COMMITTED)
+    public FriendResDTO.AcceptResult befriendByQrToken(Long userId, String qrToken) {
+        Long targetId = friendQrTokenService.findUserId(qrToken)
+                .orElseThrow(() -> new GeneralException(FriendErrorCode.FRIEND_QR_TOKEN_NOT_FOUND));
+        if (targetId.equals(userId)) {
+            throw new GeneralException(FriendErrorCode.SELF_FRIEND_REQUEST);
+        }
+        getUser(userId);
+        User target = userRepository.findById(targetId)
+                .filter(user -> user.getStatus() == UserStatus.ACTIVE)
+                .orElseThrow(() -> new GeneralException(FriendErrorCode.FRIEND_QR_TOKEN_NOT_FOUND));
+
+        Long userLowId = Math.min(userId, targetId);
+        Long userHighId = Math.max(userId, targetId);
+        Optional<FriendshipStatus> status = friendshipRepository.findStatusBetween(userLowId, userHighId);
+        if (status.filter(FriendshipStatus.ACCEPTED::equals).isPresent()) {
+            throw new GeneralException(FriendErrorCode.ALREADY_FRIEND);
+        }
+
+        // QR을 찍은 사람이 요청자. 저장 직후 상대가 친구를 삭제한 경우만 다시 한 번 시도
+        Friendship friendship = null;
+        for (int attempt = 0; attempt < 2 && friendship == null; attempt++) {
+            acceptPendingOrCreateAccepted(userId, targetId, status.isPresent());
+            friendship = friendshipRepository.findByUserLowIdAndUserHighId(userLowId, userHighId)
+                    .filter(found -> found.getStatus() == FriendshipStatus.ACCEPTED)
+                    .orElse(null);
+        }
+        if (friendship == null) {
+            throw new GeneralException(GeneralErrorCode.INTERNAL_SERVER_ERROR);
+        }
+
+        return FriendConverter.toAcceptResult(friendship, toUserSummary(target));
+    }
+
     @Override
     @Transactional
     public FriendResDTO.SentRequest sendRequest(Long userId, FriendReqDTO.SendRequest request) {
@@ -447,19 +484,26 @@ public class FriendServiceImpl implements FriendService {
             return;
         }
 
-        Long userLowId = Math.min(inviterId, inviteeId);
-        Long userHighId = Math.max(inviterId, inviteeId);
-        Optional<FriendshipStatus> status = friendshipRepository.findStatusBetween(userLowId, userHighId);
+        Optional<FriendshipStatus> status = friendshipRepository.findStatusBetween(
+                Math.min(inviterId, inviteeId), Math.max(inviterId, inviteeId));
         if (status.filter(FriendshipStatus.ACCEPTED::equals).isPresent()) {
             return;
         }
-        if (status.isPresent() && friendshipRepository.acceptPendingBetween(userLowId, userHighId) > 0) {
+        acceptPendingOrCreateAccepted(inviterId, inviteeId, status.isPresent());
+    }
+
+    // 공유앨범 자동 친구와 QR 즉시 친구가 함께 쓰는 저장 로직. 대기 요청이 있으면 방향을 유지한 채 수락하고,
+    // 없으면 requesterId를 요청자로 ACCEPTED 행을 만듦
+    private void acceptPendingOrCreateAccepted(Long requesterId, Long receiverId, boolean relationExists) {
+        Long userLowId = Math.min(requesterId, receiverId);
+        Long userHighId = Math.max(requesterId, receiverId);
+        if (relationExists && friendshipRepository.acceptPendingBetween(userLowId, userHighId) > 0) {
             return;
         }
 
         // 관계가 없거나, 읽은 뒤 대기 요청이 거절·취소된 경우 새로 만듦
         // 그사이 다른 요청이 먼저 행을 만들었으면 그 행이 대기 중일 때만 수락
-        if (friendshipRepository.insertAcceptedIgnore(inviterId, inviteeId, userLowId, userHighId) == 0) {
+        if (friendshipRepository.insertAcceptedIgnore(requesterId, receiverId, userLowId, userHighId) == 0) {
             friendshipRepository.acceptPendingBetween(userLowId, userHighId);
         }
     }
