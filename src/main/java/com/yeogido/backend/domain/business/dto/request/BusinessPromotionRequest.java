@@ -167,7 +167,7 @@ public class BusinessPromotionRequest {
     public record Image(
 
             @NotBlank(message = "이미지 key는 필수입니다")
-            @Schema(description = "이미지 key", example = "example = \"temp/8e1f1d4c-1d2f-4f2d-a7b2-9c3d4e5f6a7b.jpg\"")
+            @Schema(description = "이미지 key", example = "temp/8e1f1d4c-1d2f-4f2d-a7b2-9c3d4e5f6a7b.jpg")
             String imageKey,
 
             @NotNull(message = "이미지 정렬 순서는 필수입니다")
