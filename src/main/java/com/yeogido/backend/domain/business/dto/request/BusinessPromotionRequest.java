@@ -10,6 +10,38 @@ import java.time.LocalTime;
 import java.util.List;
 
 public class BusinessPromotionRequest {
+
+    /** DB 컬럼 길이(business_promotion.short_description VARCHAR(255)) */
+    public static final int SHORT_DESCRIPTION_MAX_LENGTH = 255;
+
+    /** DB 컬럼 길이(business_promotion.phone_number VARCHAR(20)) */
+    public static final int PHONE_NUMBER_MAX_LENGTH = 20;
+
+    /** DB 컬럼 길이(business_promotion.sns_account VARCHAR(100)) */
+    public static final int SNS_ACCOUNT_MAX_LENGTH = 100;
+
+    /** 숫자, 하이픈, 공백, +만 허용하고 숫자는 8자리 이상 */
+    public static final String PHONE_NUMBER_PATTERN =
+            "^(?=(?:\\D*\\d){8})[0-9+\\- ]+$";
+
+    /** http:// 또는 https://로 시작하는 공백 없는 주소 */
+    public static final String SNS_ACCOUNT_PATTERN = "^https?://\\S+$";
+
+    private static final String SHORT_DESCRIPTION_LENGTH_MESSAGE =
+            "짧은 소개글은 최대 255자까지 입력할 수 있습니다";
+
+    private static final String PHONE_NUMBER_LENGTH_MESSAGE =
+            "전화번호는 최대 20자까지 입력할 수 있습니다";
+
+    private static final String PHONE_NUMBER_PATTERN_MESSAGE =
+            "전화번호는 숫자, 하이픈, 공백, +만 사용할 수 있고 숫자가 8자리 이상이어야 합니다";
+
+    private static final String SNS_ACCOUNT_LENGTH_MESSAGE =
+            "SNS 계정은 최대 100자까지 입력할 수 있습니다";
+
+    private static final String SNS_ACCOUNT_PATTERN_MESSAGE =
+            "SNS 계정은 http:// 또는 https://로 시작하는 주소여야 합니다";
+
     @Builder
     @Schema(name = "BusinessRegisterReqDTO", description = "소상공인 홍보 등록 요청")
     public record Register(
@@ -22,7 +54,8 @@ public class BusinessPromotionRequest {
             Long businessInfoId,
 
             @NotBlank(message = "짧은 소개글은 필수입니다")
-            @Schema(description = "짧은 소개글", example = "바다 뷰 완전 잘 보이는 카페!")
+            @Size(max = SHORT_DESCRIPTION_MAX_LENGTH, message = SHORT_DESCRIPTION_LENGTH_MESSAGE)
+            @Schema(description = "짧은 소개글 (최대 255자)", example = "바다 뷰 완전 잘 보이는 카페!")
             String shortDescription,
 
             @Valid
@@ -31,11 +64,21 @@ public class BusinessPromotionRequest {
             @Size(min = 1, message = "영업시간은 최소 1개 이상 입력해야 합니다")
             List<BusinessHour> businessHours,
 
-            @Schema(description = "SNS 계정", example = "https://instagram.com/waveoncoffee")
+            @Size(max = SNS_ACCOUNT_MAX_LENGTH, message = SNS_ACCOUNT_LENGTH_MESSAGE)
+            @Pattern(regexp = SNS_ACCOUNT_PATTERN, message = SNS_ACCOUNT_PATTERN_MESSAGE)
+            @Schema(
+                    description = "SNS 계정 (최대 100자, http:// 또는 https://로 시작)",
+                    example = "https://instagram.com/waveoncoffee"
+            )
             String snsAccount,
 
             @NotBlank(message = "전화번호는 필수입니다")
-            @Schema(description = "전화번호", example = "051-727-1660")
+            @Size(max = PHONE_NUMBER_MAX_LENGTH, message = PHONE_NUMBER_LENGTH_MESSAGE)
+            @Pattern(regexp = PHONE_NUMBER_PATTERN, message = PHONE_NUMBER_PATTERN_MESSAGE)
+            @Schema(
+                    description = "전화번호 (최대 20자, 숫자·하이픈·공백·+만 허용, 숫자 8자리 이상)",
+                    example = "051-727-1660"
+            )
             String phoneNumber,
 
             @Schema(description = "해시태그 ID 목록", example = "[1, 2, 3]")
@@ -57,8 +100,9 @@ public class BusinessPromotionRequest {
     @Schema(name = "BusinessUpdateReqDTO", description = "소상공인 홍보 수정 요청")
     public record Update(
 
+            @Size(max = SHORT_DESCRIPTION_MAX_LENGTH, message = SHORT_DESCRIPTION_LENGTH_MESSAGE)
             @Schema(
-                    description = "짧은 소개글",
+                    description = "짧은 소개글 (최대 255자)",
                     example = "바다를 바라보며 즐기는 향긋한 커피와 디저트")
             String shortDescription,
 
@@ -67,8 +111,10 @@ public class BusinessPromotionRequest {
             @Schema(description = "요일별 영업시간")
             List<BusinessHour> businessHours,
 
+            @Size(max = SNS_ACCOUNT_MAX_LENGTH, message = SNS_ACCOUNT_LENGTH_MESSAGE)
+            @Pattern(regexp = SNS_ACCOUNT_PATTERN, message = SNS_ACCOUNT_PATTERN_MESSAGE)
             @Schema(
-                    description = "SNS 계정",
+                    description = "SNS 계정 (최대 100자, http:// 또는 https://로 시작)",
                     example = "https://instagram.com/waveoncoffee")
             String snsAccount,
 
@@ -78,7 +124,12 @@ public class BusinessPromotionRequest {
             )
             Boolean clearSnsAccount,
 
-            @Schema(description = "전화번호", example = "051-727-1660")
+            @Size(max = PHONE_NUMBER_MAX_LENGTH, message = PHONE_NUMBER_LENGTH_MESSAGE)
+            @Pattern(regexp = PHONE_NUMBER_PATTERN, message = PHONE_NUMBER_PATTERN_MESSAGE)
+            @Schema(
+                    description = "전화번호 (최대 20자, 숫자·하이픈·공백·+만 허용, 숫자 8자리 이상)",
+                    example = "051-727-1660"
+            )
             String phoneNumber,
 
             @Schema(description = "해시태그 ID 목록", example = "[1, 2, 3]")
@@ -116,7 +167,7 @@ public class BusinessPromotionRequest {
     public record Image(
 
             @NotBlank(message = "이미지 key는 필수입니다")
-            @Schema(description = "이미지 key", example = "example = \"temp/8e1f1d4c-1d2f-4f2d-a7b2-9c3d4e5f6a7b.jpg\"")
+            @Schema(description = "이미지 key", example = "temp/8e1f1d4c-1d2f-4f2d-a7b2-9c3d4e5f6a7b.jpg")
             String imageKey,
 
             @NotNull(message = "이미지 정렬 순서는 필수입니다")
