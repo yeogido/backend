@@ -161,7 +161,7 @@ class TravelRecordCoeditingTransactionTest {
     assertThat(detail.title()).isEqualTo("저장된 사진");
     assertThat(detail.participants()).isEmpty();
     assertThat(detail.images().getFirst().imageKey()).isEqualTo("travel-records/저장된 사진.jpg");
-    assertThatThrownBy(() -> service.getTravelRecord(participantId, albumId)).isInstanceOf(GeneralException.class);
+    assertThat(service.getTravelRecord(participantId, albumId).visibility()).isEqualTo(TravelRecordVisibility.PUBLIC);
   }
 
   /** 편집 중 전체 삭제가 요청되어도 새 사진을 포함해 해당 앨범 데이터가 전부 정리됩니다. */

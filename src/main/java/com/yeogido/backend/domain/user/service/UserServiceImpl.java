@@ -42,6 +42,8 @@ import com.yeogido.backend.domain.region.repository.RegionRepository;
 import com.yeogido.backend.domain.travel.repository.StickerRepository;
 import com.yeogido.backend.domain.travel.repository.TravelRecordPhotoRepository;
 import com.yeogido.backend.domain.travel.repository.TravelRecordRepository;
+import com.yeogido.backend.domain.travel.service.TravelRecordService;
+import com.yeogido.backend.domain.travel.service.TravelRecordParticipationLockService;
 import com.yeogido.backend.domain.travel.repository.TravelRecordStickerRepository;
 import com.yeogido.backend.domain.user.converter.UserConverter;
 import com.yeogido.backend.domain.user.dto.UserReqDTO;
@@ -85,6 +87,8 @@ public class UserServiceImpl implements UserService{
     private final CourseReviewRepository courseReviewRepository;
     private final CourseReviewImageRepository courseReviewImageRepository;
     private final TravelRecordRepository travelRecordRepository;
+    private final TravelRecordService travelRecordService;
+    private final TravelRecordParticipationLockService participationLockService;
     private final TravelRecordPhotoRepository travelRecordPhotoRepository;
     private final TravelRecordStickerRepository travelRecordStickerRepository;
     private final StickerRepository stickerRepository;
@@ -734,10 +738,12 @@ public class UserServiceImpl implements UserService{
     @Override
     @Transactional
     public void withdraw(Long userId) {
+        participationLockService.acquire(userId);
         User user = userRepository.findById(userId)
                 .filter(foundUser -> foundUser.getStatus() == UserStatus.ACTIVE)
                 .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
 
+        travelRecordService.removeMembershipsForWithdrawal(userId);
         cleanupUserOwnedData(userId);
         user.withdraw();
         refreshTokenService.delete(userId);

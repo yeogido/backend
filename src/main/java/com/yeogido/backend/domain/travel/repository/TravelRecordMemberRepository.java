@@ -16,6 +16,13 @@ public interface TravelRecordMemberRepository extends JpaRepository<TravelRecord
   @Query("select m from TravelRecordMember m where m.travelRecord.id = :recordId and m.user.id = :userId")
   Optional<TravelRecordMember> findCurrentForUpdate(@Param("recordId") Long recordId, @Param("userId") Long userId);
 
+  @Lock(LockModeType.PESSIMISTIC_WRITE)
+  @Query("select m from TravelRecordMember m where m.travelRecord.id = :recordId")
+  List<TravelRecordMember> findMembersForUpdate(@Param("recordId") Long recordId);
+
+  @Query("select m.travelRecord.id from TravelRecordMember m where m.user.id = :userId order by m.travelRecord.id")
+  List<Long> findJoinedRecordIds(@Param("userId") Long userId);
+
   /** 로그인 사용자의 현재 참여 관계만 제거하고 다른 참여자·콘텐츠는 유지합니다. */
   @Modifying(flushAutomatically = true)
   @Query("""
