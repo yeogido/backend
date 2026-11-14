@@ -305,7 +305,7 @@ class BusinessVerificationServiceImplTest {
     }
 
     @Test
-    void verifyBusiness_WhenBusinessNumberDoesNotExist_ThrowsBusinessNotActive() {
+    void verifyBusiness_WhenBusinessNumberDoesNotExist_ThrowsBusinessNotRegistered() {
 
         // given
         User user = User.builder()
@@ -382,7 +382,7 @@ class BusinessVerificationServiceImplTest {
         // then
         assertThat(exception.getErrorCode())
                 .isEqualTo(
-                        BusinessVerificationErrorCode.BUSINESS_NOT_ACTIVE
+                        BusinessVerificationErrorCode.BUSINESS_NOT_REGISTERED
                 );
 
         verify(ntsBusinessVerificationClient).verify(
@@ -490,5 +490,263 @@ class BusinessVerificationServiceImplTest {
         );
 
         verifyNoInteractions(fileService);
+    }
+
+    @Test
+    void verifyBusiness_WhenAuthenticAndStatusIsSuspended_ThrowsBusinessSuspended() {
+        assertRejectedByStatusAfterValidAuthenticity(
+                "02",
+                BusinessVerificationErrorCode.BUSINESS_SUSPENDED
+        );
+    }
+
+    @Test
+    void verifyBusiness_WhenAuthenticAndStatusIsClosed_ThrowsBusinessClosed() {
+        assertRejectedByStatusAfterValidAuthenticity(
+                "03",
+                BusinessVerificationErrorCode.BUSINESS_CLOSED
+        );
+    }
+
+    @Test
+    void verifyBusiness_WhenNotAuthenticAndStatusIsSuspended_ThrowsBusinessSuspended() {
+        assertRejectedByStatusAfterFailedAuthenticity(
+                "02",
+                BusinessVerificationErrorCode.BUSINESS_SUSPENDED
+        );
+    }
+
+    @Test
+    void verifyBusiness_WhenNotAuthenticAndStatusIsClosed_ThrowsBusinessClosed() {
+        assertRejectedByStatusAfterFailedAuthenticity(
+                "03",
+                BusinessVerificationErrorCode.BUSINESS_CLOSED
+        );
+    }
+
+    /**
+     * 진위확인은 성공(valid "01")했지만 영업 상태 코드가 계속사업자가 아닌 경우.
+     * 상태 조회 API를 따로 호출하지 않고, 이미지 이동과 저장이 일어나지 않아야 한다.
+     */
+    private void assertRejectedByStatusAfterValidAuthenticity(
+            String statusCode,
+            BusinessVerificationErrorCode expectedErrorCode
+    ) {
+        // given
+        User user = User.builder()
+                .id(USER_ID)
+                .role(UserRole.USER)
+                .build();
+
+        BusinessVerifyReqDTO request = verifyRequest();
+
+        NtsBusinessVerifyDTO.Result verificationResult =
+                new NtsBusinessVerifyDTO.Result(
+                        BUSINESS_NUMBER,
+                        "01",
+                        "확인되었습니다.",
+                        ntsStatus(statusCode)
+                );
+
+        when(userRepository.findById(USER_ID))
+                .thenReturn(Optional.of(user));
+
+        when(businessInfoRepository.findByBusinessNumber(BUSINESS_NUMBER))
+                .thenReturn(Optional.empty());
+
+        when(ntsBusinessVerificationClient.verify(
+                BUSINESS_NUMBER,
+                OPENING_DATE,
+                REPRESENTATIVE_NAME
+        )).thenReturn(verificationResult);
+
+        // when
+        GeneralException exception = assertThrows(
+                GeneralException.class,
+                () -> businessVerificationService.verifyBusiness(
+                        USER_ID,
+                        request
+                )
+        );
+
+        // then
+        assertThat(exception.getErrorCode()).isEqualTo(expectedErrorCode);
+
+        verify(ntsBusinessVerificationClient, never())
+                .getBusinessStatus(anyString());
+        verify(businessInfoRepository, never()).saveAndFlush(any());
+        verifyNoInteractions(fileService);
+        assertThat(user.getRole()).isEqualTo(UserRole.USER);
+    }
+
+    /**
+     * 진위확인이 실패(valid "02")해서 상태 조회를 한 경우.
+     * 계속사업자가 아니면 정보 불일치(4002)보다 영업 상태 안내가 우선한다.
+     */
+    private void assertRejectedByStatusAfterFailedAuthenticity(
+            String statusCode,
+            BusinessVerificationErrorCode expectedErrorCode
+    ) {
+        // given
+        User user = User.builder()
+                .id(USER_ID)
+                .role(UserRole.USER)
+                .build();
+
+        BusinessVerifyReqDTO request = verifyRequest();
+
+        NtsBusinessVerifyDTO.Result verificationResult =
+                new NtsBusinessVerifyDTO.Result(
+                        BUSINESS_NUMBER,
+                        "02",
+                        "확인할 수 없습니다.",
+                        null
+                );
+
+        when(userRepository.findById(USER_ID))
+                .thenReturn(Optional.of(user));
+
+        when(businessInfoRepository.findByBusinessNumber(BUSINESS_NUMBER))
+                .thenReturn(Optional.empty());
+
+        when(ntsBusinessVerificationClient.verify(
+                BUSINESS_NUMBER,
+                OPENING_DATE,
+                REPRESENTATIVE_NAME
+        )).thenReturn(verificationResult);
+
+        when(ntsBusinessVerificationClient.getBusinessStatus(BUSINESS_NUMBER))
+                .thenReturn(ntsStatus(statusCode));
+
+        // when
+        GeneralException exception = assertThrows(
+                GeneralException.class,
+                () -> businessVerificationService.verifyBusiness(
+                        USER_ID,
+                        request
+                )
+        );
+
+        // then
+        assertThat(exception.getErrorCode()).isEqualTo(expectedErrorCode);
+
+        verify(businessInfoRepository, never()).saveAndFlush(any());
+        verifyNoInteractions(fileService);
+        assertThat(user.getRole()).isEqualTo(UserRole.USER);
+    }
+
+    private static BusinessVerifyReqDTO verifyRequest() {
+        PlaceRequest placeRequest = new PlaceRequest(
+                "123456789",
+                "KAKAO",
+                "테스트 사업장",
+                "CE7",
+                "서울특별시 강남구 테헤란로 123",
+                "서울특별시 강남구 역삼동 123",
+                BigDecimal.valueOf(37.4979),
+                BigDecimal.valueOf(127.0276),
+                1L
+        );
+
+        return new BusinessVerifyReqDTO(
+                BUSINESS_NUMBER,
+                OPENING_DATE,
+                REPRESENTATIVE_NAME,
+                "temp/test.jpg",
+                "테스트 사업장",
+                "서울특별시 강남구 테헤란로 123",
+                placeRequest
+        );
+    }
+
+    private static NtsBusinessVerifyDTO.Status ntsStatus(String statusCode) {
+        return new NtsBusinessVerifyDTO.Status(
+                BUSINESS_NUMBER,
+                switch (statusCode) {
+                    case "01" -> "계속사업자";
+                    case "02" -> "휴업자";
+                    case "03" -> "폐업자";
+                    default -> "";
+                },
+                statusCode,
+                "부가가치세 일반과세자",
+                "01",
+                ""
+        );
+    }
+
+    @Test
+    void verifyBusiness_WhenPlaceAlreadyLinkedToOtherBusiness_ThrowsPlaceAlreadyLinked() {
+
+        // given
+        User user = User.builder()
+                .id(USER_ID)
+                .role(UserRole.USER)
+                .build();
+
+        PlaceRequest placeRequest = new PlaceRequest(
+                "123456789",
+                "KAKAO",
+                "여기도 카페",
+                "CE7",
+                "서울특별시 강남구 테헤란로 123",
+                "서울특별시 강남구 역삼동 123",
+                BigDecimal.valueOf(37.4979),
+                BigDecimal.valueOf(127.0276),
+                1L
+        );
+
+        BusinessVerifyReqDTO request = new BusinessVerifyReqDTO(
+                BUSINESS_NUMBER,
+                OPENING_DATE,
+                REPRESENTATIVE_NAME,
+                "temp/certificate.jpg",
+                "여기도 카페",
+                "서울특별시 강남구 테헤란로 123",
+                placeRequest
+        );
+
+        Place linkedPlace = Place.builder()
+                .externalPlaceId("123456789")
+                .source(PlaceSource.KAKAO)
+                .name("여기도 카페")
+                .build();
+        ReflectionTestUtils.setField(linkedPlace, "id", 100L);
+
+        when(userRepository.findById(USER_ID))
+                .thenReturn(Optional.of(user));
+
+        when(businessInfoRepository.findByBusinessNumber(
+                BUSINESS_NUMBER
+        )).thenReturn(Optional.empty());
+
+        when(placeRepository.findBySourceAndExternalPlaceId(
+                PlaceSource.KAKAO,
+                "123456789"
+        )).thenReturn(Optional.of(linkedPlace));
+
+        when(businessInfoRepository.existsByPlace_Id(100L))
+                .thenReturn(true);
+
+        // when
+        GeneralException exception = assertThrows(
+                GeneralException.class,
+                () -> businessVerificationService.verifyBusiness(
+                        USER_ID,
+                        request
+                )
+        );
+
+        // then
+        assertThat(exception.getErrorCode())
+                .isEqualTo(
+                        BusinessVerificationErrorCode
+                                .BUSINESS_PLACE_ALREADY_LINKED
+                );
+
+        // 국세청 호출과 이미지 이동 전에 막혀야 다시 시도할 때 이미지를 재업로드하지 않는다.
+        verifyNoInteractions(ntsBusinessVerificationClient, fileService);
+        verify(businessInfoRepository, never()).saveAndFlush(any());
+        assertThat(user.getRole()).isEqualTo(UserRole.USER);
     }
 }

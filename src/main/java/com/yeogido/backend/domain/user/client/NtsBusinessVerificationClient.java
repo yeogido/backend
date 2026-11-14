@@ -42,22 +42,7 @@ public class NtsBusinessVerificationClient {
             String representativeName
     ) {
         if (mockEnabled) {
-            NtsBusinessVerifyDTO.Status status =
-                    new NtsBusinessVerifyDTO.Status(
-                            businessNumber,
-                            "계속사업자",
-                            "01",
-                            "부가가치세 일반과세자",
-                            "01",
-                            ""
-                    );
-
-            return new NtsBusinessVerifyDTO.Result(
-                    businessNumber,
-                    "01",
-                    "로컬 Mock 인증 성공",
-                    status
-            );
+            return mockVerifyResult(businessNumber);
         }
 
         NtsBusinessVerifyDTO.Request request = createRequest(
@@ -108,14 +93,7 @@ public class NtsBusinessVerificationClient {
             String businessNumber
     ) {
         if (mockEnabled) {
-            return new NtsBusinessVerifyDTO.Status(
-                    businessNumber,
-                    "계속사업자",
-                    "01",
-                    "부가가치세 일반과세자",
-                    "01",
-                    ""
-            );
+            return mockStatus(businessNumber);
         }
 
         NtsBusinessVerifyDTO.StatusRequest request =
@@ -177,6 +155,87 @@ public class NtsBusinessVerificationClient {
                     BusinessVerificationErrorCode.BUSINESS_VERIFICATION_API_ERROR
             );
         }
+    }
+
+    /**
+     * 로컬 Mock 진위확인 응답. 사업자번호 끝자리로 상황을 고른다.
+     * <ul>
+     *   <li>끝자리 8, 9: 진위확인 실패(valid "02"). 이어지는 상태 조회에서 9는 미등록, 8은 계속사업자(정보 불일치)</li>
+     *   <li>그 외: 진위확인 성공(valid "01"), 영업 상태는 {@link #mockStatus(String)} 규칙</li>
+     * </ul>
+     */
+    private NtsBusinessVerifyDTO.Result mockVerifyResult(String businessNumber) {
+        char lastDigit = lastDigitOf(businessNumber);
+
+        if (lastDigit == '8' || lastDigit == '9') {
+            return new NtsBusinessVerifyDTO.Result(
+                    businessNumber,
+                    "02",
+                    "확인할 수 없습니다.",
+                    null
+            );
+        }
+
+        return new NtsBusinessVerifyDTO.Result(
+                businessNumber,
+                "01",
+                "로컬 Mock 인증 성공",
+                mockStatus(businessNumber)
+        );
+    }
+
+    /**
+     * 로컬 Mock 영업 상태 응답. 사업자번호 끝자리로 상황을 고른다.
+     * <ul>
+     *   <li>끝자리 2: 휴업(02)</li>
+     *   <li>끝자리 3: 폐업(03)</li>
+     *   <li>끝자리 9: 국세청 미등록(빈 상태 코드)</li>
+     *   <li>그 외: 계속사업자(01)</li>
+     * </ul>
+     */
+    private NtsBusinessVerifyDTO.Status mockStatus(String businessNumber) {
+        return switch (lastDigitOf(businessNumber)) {
+            case '2' -> new NtsBusinessVerifyDTO.Status(
+                    businessNumber,
+                    "휴업자",
+                    "02",
+                    "부가가치세 일반과세자",
+                    "01",
+                    ""
+            );
+            case '3' -> new NtsBusinessVerifyDTO.Status(
+                    businessNumber,
+                    "폐업자",
+                    "03",
+                    "부가가치세 일반과세자",
+                    "01",
+                    "20240101"
+            );
+            case '9' -> new NtsBusinessVerifyDTO.Status(
+                    businessNumber,
+                    "",
+                    "",
+                    "국세청에 등록되지 않은 사업자등록번호입니다.",
+                    "",
+                    ""
+            );
+            default -> new NtsBusinessVerifyDTO.Status(
+                    businessNumber,
+                    "계속사업자",
+                    "01",
+                    "부가가치세 일반과세자",
+                    "01",
+                    ""
+            );
+        };
+    }
+
+    private char lastDigitOf(String businessNumber) {
+        if (businessNumber == null || businessNumber.isEmpty()) {
+            return '0';
+        }
+
+        return businessNumber.charAt(businessNumber.length() - 1);
     }
 
     private NtsBusinessVerifyDTO.Request createRequest(
