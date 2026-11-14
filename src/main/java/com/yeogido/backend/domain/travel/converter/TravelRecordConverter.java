@@ -228,8 +228,9 @@ public class TravelRecordConverter {
         boolean owner = record.getUser().getId().equals(viewerId);
         boolean shared = record.getVisibility() == TravelRecordVisibility.FRIENDS;
         boolean participant = shared && members.stream().anyMatch(member -> member.getUser().getId().equals(viewerId));
+        boolean publicRecord = record.getVisibility() == TravelRecordVisibility.PUBLIC;
         return new TravelRecordResDTO.Permissions(owner || participant, owner, participant && !owner,
-                shared && (owner || participant), record.getVisibility() == TravelRecordVisibility.PUBLIC);
+                participant || (owner && (shared || publicRecord)), publicRecord);
     }
 
     public static TravelRecordResDTO.VisibilityUpdateResponse toVisibilityUpdateResponse(TravelRecord record) {
