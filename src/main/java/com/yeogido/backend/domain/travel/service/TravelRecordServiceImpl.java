@@ -19,6 +19,7 @@ import com.yeogido.backend.domain.travel.enums.StickerType;
 import com.yeogido.backend.domain.travel.enums.TravelRecordVisibility;
 import com.yeogido.backend.domain.travel.exception.TravelRecordErrorCode;
 import com.yeogido.backend.domain.travel.repository.StickerRepository;
+import com.yeogido.backend.domain.travel.repository.TravelRecordInvitationRepository;
 import com.yeogido.backend.domain.travel.repository.TravelRecordMemberRepository;
 import com.yeogido.backend.domain.travel.repository.TravelRecordPhotoRepository;
 import com.yeogido.backend.domain.travel.repository.TravelRecordRepository;
@@ -57,6 +58,7 @@ public class TravelRecordServiceImpl implements TravelRecordService {
 
     private final TravelRecordRepository travelRecordRepository;
     private final TravelRecordMemberRepository travelRecordMemberRepository;
+    private final TravelRecordInvitationRepository travelRecordInvitationRepository;
     private final TravelRecordPhotoRepository travelRecordPhotoRepository;
     private final TravelRecordStickerRepository travelRecordStickerRepository;
     private final StickerRepository stickerRepository;
@@ -416,10 +418,7 @@ public class TravelRecordServiceImpl implements TravelRecordService {
             throw new GeneralException(GeneralErrorCode.FORBIDDEN);
         }
         // 앨범 행 잠금을 유지한 채 버전을 변경하므로 먼저 권한을 확인한 수정도 덮어쓰지 못합니다.
-        if (travelRecordRepository.reserveVersion(travelRecordId, travelRecord.getVersion()) == 0) {
-            throw new GeneralException(TravelRecordErrorCode.VERSION_CONFLICT);
-        }
-        entityManager.refresh(travelRecord, LockModeType.PESSIMISTIC_WRITE);
+        updateAfterMemberRemoval(travelRecord);
     }
 
     /** 나가기와 같은 순서로 대상의 참여 관계만 제거하며 대상이 올린 사진과 스티커는 유지합니다. */
@@ -433,10 +432,41 @@ public class TravelRecordServiceImpl implements TravelRecordService {
                 || travelRecordMemberRepository.deleteCurrentMembership(travelRecordId, memberUserId) == 0) {
             throw new GeneralException(GeneralErrorCode.FORBIDDEN);
         }
-        if (travelRecordRepository.reserveVersion(travelRecordId, travelRecord.getVersion()) == 0) {
+        updateAfterMemberRemoval(travelRecord);
+    }
+
+    /** 회원 탈퇴 전에 참여 중인 앨범을 ID 순서로 잠그고 참여 관계를 제거합니다. */
+    @Override
+    @Transactional
+    public void removeMembershipsForWithdrawal(Long userId) {
+        for (Long recordId : travelRecordMemberRepository.findJoinedRecordIds(userId)) {
+            TravelRecord record = travelRecordRepository.findActiveDetailForUpdate(recordId).orElse(null);
+            if (record == null) {
+                continue;
+            }
+            entityManager.refresh(record, LockModeType.PESSIMISTIC_WRITE);
+            if (travelRecordMemberRepository.deleteCurrentMembership(recordId, userId) > 0
+                    && record.getVisibility() == TravelRecordVisibility.FRIENDS
+                    && !record.getUser().getId().equals(userId)) {
+                updateAfterMemberRemoval(record);
+            }
+        }
+    }
+
+    /** 앨범 잠금 아래 최신 참여 관계를 읽고, 생성자만 남으면 대기 초대와 공개범위를 함께 정리합니다. */
+    private void updateAfterMemberRemoval(TravelRecord record) {
+        boolean hasParticipant = travelRecordMemberRepository.findMembersForUpdate(record.getId()).stream()
+                .anyMatch(member -> !member.getUser().getId().equals(record.getUser().getId()));
+        if (!hasParticipant) {
+            travelRecordInvitationRepository.deletePendingByRecordId(record.getId());
+            record.updateVisibility(TravelRecordVisibility.PUBLIC);
+            travelRecordRepository.flush();
+            return;
+        }
+        if (travelRecordRepository.reserveVersion(record.getId(), record.getVersion()) == 0) {
             throw new GeneralException(TravelRecordErrorCode.VERSION_CONFLICT);
         }
-        entityManager.refresh(travelRecord, LockModeType.PESSIMISTIC_WRITE);
+        entityManager.refresh(record, LockModeType.PESSIMISTIC_WRITE);
     }
 
     /** 탈퇴한 사용자는 남아 있는 참여 행이 있더라도 변경 API를 사용할 수 없습니다. */

@@ -220,10 +220,10 @@ class TravelRecordInvitationResponseIntegrationTest {
     }
 
     @Test
-    void inviterLeavingDoesNotInvalidateInvitationWhileFriendshipRemains() {
+    void lastParticipantLeavingRemovesPendingInvitation() {
         recordService.leaveTravelRecord(albumId, inviterId);
-        respond("ACCEPTED");
-        assertThat(memberCount()).isEqualTo(1);
+        assertError(receiverId, "ACCEPTED", TravelRecordErrorCode.INVITATION_NOT_FOUND);
+        assertThat(memberCount()).isZero();
     }
 
     @Test

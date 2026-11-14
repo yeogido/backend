@@ -143,7 +143,7 @@ public class TravelRecordController {
 
     @Operation(
             summary = "공유 앨범 나가기",
-            description = "현재 FRIENDS 참여자가 본인의 참여 관계만 삭제합니다. 앨범·사진·스티커·다른 참여자는 유지하며 이후 조회·수정 권한은 제거됩니다. 생성자는 409로 거부됩니다."
+            description = "현재 FRIENDS 참여자가 앨범에서 나갑니다. 마지막 참여자가 나가면 PUBLIC으로 전환하고 수락 대기 초대를 해제합니다. 전체공개 전환 후에는 로그인한 사용자가 조회할 수 있으며, 편집은 생성자만 가능합니다. 생성자의 나가기는 409로 거부됩니다."
     )
     @DeleteMapping("/{travelRecordId}/members/me")
     public ApiResponse<Void> leaveTravelRecord(

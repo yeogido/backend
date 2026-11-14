@@ -262,7 +262,7 @@ class TravelRecordVisibilityApiTest {
   }
 
   @Test
-  void sharedParticipantCannotDeleteButCanLeaveAndLosesReadAndEditAccess() throws Exception {
+  void lastParticipantLeavingMakesAlbumPublicAndRemovesEditAccess() throws Exception {
     TravelRecord shared = sharedAlbum();
     mockMvc.perform(delete("/api/v1/travel-records/" + shared.getId()).with(login()))
         .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("COMMON4031"));
@@ -270,7 +270,8 @@ class TravelRecordVisibilityApiTest {
         .andExpect(status().isOk()).andExpect(jsonPath("$.code").value("COMMON200"))
         .andExpect(jsonPath("$.result").doesNotExist());
     mockMvc.perform(get("/api/v1/travel-records/" + shared.getId()).with(login()))
-        .andExpect(status().isForbidden());
+        .andExpect(status().isOk()).andExpect(jsonPath("$.result.visibility").value("PUBLIC"))
+        .andExpect(jsonPath("$.result.permissions.canEdit").value(false));
     mockMvc.perform(patch("/api/v1/travel-records/" + shared.getId()).with(login())
         .contentType(MediaType.APPLICATION_JSON).content(updateBody("0", "")))
         .andExpect(status().isForbidden());

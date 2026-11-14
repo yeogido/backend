@@ -196,7 +196,7 @@ class TravelRecordRemovalIntegrationTest {
   }
 
   @Test
-  void lastParticipantMayLeaveWithoutChangingVisibilityAndOldOwnerVersionConflicts() {
+  void lastParticipantLeavingMakesAlbumPublicAndOldOwnerVersionConflicts() {
     TravelRecord target = album(TravelRecordVisibility.FRIENDS);
     member(target, participant);
     contents(target);
@@ -205,9 +205,55 @@ class TravelRecordRemovalIntegrationTest {
     clear();
     var detail = service.getTravelRecord(owner.getId(), target.getId());
     assertThat(detail.participants()).isEmpty();
-    assertThat(detail.visibility()).isEqualTo(TravelRecordVisibility.FRIENDS);
+    assertThat(detail.visibility()).isEqualTo(TravelRecordVisibility.PUBLIC);
     assertError(() -> service.updateTravelRecord(target.getId(), owner.getId(), request(0L)),
         TravelRecordErrorCode.VERSION_CONFLICT);
+  }
+
+  @Test
+  void lastParticipantRemovalClearsOnlyPendingInvitationsAndPreservesContents() {
+    TravelRecord target = album(TravelRecordVisibility.FRIENDS);
+    member(target, participant);
+    invitation(target, participant, TravelRecordInvitationStatus.ACCEPTED);
+    invitation(target, other, TravelRecordInvitationStatus.PENDING);
+    contents(target);
+    clear();
+
+    service.excludeMemberByOwner(target.getId(), owner.getId(), participant.getId());
+    clear();
+
+    var detail = service.getTravelRecord(other.getId(), target.getId());
+    assertThat(detail.visibility()).isEqualTo(TravelRecordVisibility.PUBLIC);
+    assertThat(detail.version()).isEqualTo(1L);
+    assertThat(detail.images()).hasSize(1);
+    assertThat(detail.stickers()).hasSize(1);
+    assertThat(detail.permissions().canEdit()).isFalse();
+    assertThat(count("TravelRecordInvitation", target.getId())).isEqualTo(1);
+  }
+
+  @Test
+  void withdrawalOnlyConvertsAlbumsWhereDepartingUserWasLastParticipant() {
+    TravelRecord alone = album(TravelRecordVisibility.FRIENDS);
+    member(alone, participant);
+    invitation(alone, other, TravelRecordInvitationStatus.PENDING);
+    contents(alone);
+    TravelRecord shared = album(TravelRecordVisibility.FRIENDS);
+    member(shared, participant);
+    member(shared, other);
+    TravelRecord waiting = album(TravelRecordVisibility.FRIENDS);
+    invitation(waiting, participant, TravelRecordInvitationStatus.PENDING);
+    clear();
+
+    service.removeMembershipsForWithdrawal(participant.getId());
+    clear();
+
+    assertThat(em.find(TravelRecord.class, alone.getId()).getVisibility()).isEqualTo(TravelRecordVisibility.PUBLIC);
+    assertThat(count("TravelRecordMember", alone.getId())).isZero();
+    assertThat(count("TravelRecordInvitation", alone.getId())).isZero();
+    assertThat(count("TravelRecordPhoto", alone.getId())).isEqualTo(1);
+    assertThat(em.find(TravelRecord.class, shared.getId()).getVisibility()).isEqualTo(TravelRecordVisibility.FRIENDS);
+    assertThat(count("TravelRecordMember", shared.getId())).isEqualTo(1);
+    assertThat(em.find(TravelRecord.class, waiting.getId()).getVisibility()).isEqualTo(TravelRecordVisibility.FRIENDS);
   }
 
   private User user(String name) {
