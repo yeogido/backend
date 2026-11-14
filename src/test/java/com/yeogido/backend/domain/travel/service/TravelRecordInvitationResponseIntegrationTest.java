@@ -37,6 +37,10 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeoutException;
+import com.yeogido.backend.domain.user.service.UserService;
+import com.yeogido.backend.domain.auth.service.RefreshTokenService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
@@ -66,6 +70,8 @@ class TravelRecordInvitationResponseIntegrationTest {
 
     @Autowired private TravelRecordInvitationService service;
     @Autowired private TravelRecordService recordService;
+    @Autowired private UserService userService;
+    @MockitoBean private RefreshTokenService refreshTokenService;
     @Autowired private TravelRecordInvitationRepository invitations;
     @Autowired private EntityManager em;
     @Autowired private PlatformTransactionManager transactionManager;
@@ -326,6 +332,61 @@ class TravelRecordInvitationResponseIntegrationTest {
         assertThat(memberCount()).isZero();
         assertThat(invitations.findById(invitationId).orElseThrow().getStatus())
                 .isEqualTo(TravelRecordInvitationStatus.PENDING);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void withdrawalAndAcceptanceSerializeUntilCommit(boolean acceptanceFirst) throws Exception {
+        // 수락하면 수신자가 유일한 참여자가 되는 앨범입니다.
+        tx(() -> {
+            em.createQuery("delete from TravelRecordMember m where m.travelRecord.id = :id")
+                    .setParameter("id", albumId).executeUpdate();
+            return null;
+        });
+        CountDownLatch firstChanged = new CountDownLatch(1);
+        CountDownLatch releaseCommit = new CountDownLatch(1);
+        CountDownLatch secondStarted = new CountDownLatch(1);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var first = executor.submit(() -> tx(() -> {
+                if (acceptanceFirst) {
+                    respond("ACCEPTED");
+                } else {
+                    userService.withdraw(receiverId);
+                }
+                firstChanged.countDown();
+                try {
+                    if (!releaseCommit.await(10, TimeUnit.SECONDS)) throw new AssertionError("commit not released");
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new AssertionError(e);
+                }
+                return null;
+            }));
+            try {
+                assertThat(firstChanged.await(10, TimeUnit.SECONDS)).isTrue();
+                var second = executor.submit(() -> {
+                    secondStarted.countDown();
+                    if (acceptanceFirst) {
+                        userService.withdraw(receiverId);
+                        return "WITHDRAWN";
+                    }
+                    return result("ACCEPTED");
+                });
+                assertThat(secondStarted.await(5, TimeUnit.SECONDS)).isTrue();
+                // 먼저 시작한 업무의 커밋 전에는 후속 요청이 완료될 수 없습니다.
+                assertThatThrownBy(() -> second.get(200, TimeUnit.MILLISECONDS)).isInstanceOf(TimeoutException.class);
+                releaseCommit.countDown();
+                first.get(10, TimeUnit.SECONDS);
+                assertThat(second.get(10, TimeUnit.SECONDS))
+                        .isEqualTo(acceptanceFirst ? "WITHDRAWN" : "TRAVEL_RECORD4042");
+            } finally {
+                releaseCommit.countDown();
+            }
+        }
+        assertThat(memberCount()).isZero();
+        assertThat(tx(() -> em.find(User.class, receiverId).getStatus())).isEqualTo(UserStatus.DELETED);
+        assertThat(tx(() -> em.find(TravelRecord.class, albumId).getVisibility()))
+                .isEqualTo(acceptanceFirst ? TravelRecordVisibility.PUBLIC : TravelRecordVisibility.FRIENDS);
     }
 
     private List<String> race(Supplier<String> first, Supplier<String> second) throws Exception {
