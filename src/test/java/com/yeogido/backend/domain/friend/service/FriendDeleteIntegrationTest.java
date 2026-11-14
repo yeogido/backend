@@ -42,7 +42,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({JpaConfig.class, FriendServiceImpl.class, TravelRecordServiceImpl.class, TravelRecordInvitationServiceImpl.class})
+@Import({JpaConfig.class, FriendServiceImpl.class, TravelRecordServiceImpl.class, TravelRecordInvitationServiceImpl.class,
+        com.yeogido.backend.domain.travel.service.TravelRecordParticipationLockService.class})
 @ActiveProfiles("test")
 @TestPropertySource(properties = {
     "spring.datasource.url=jdbc:h2:mem:friend-delete-test;MODE=MySQL;NON_KEYWORDS=USER;DB_CLOSE_DELAY=-1"

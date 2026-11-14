@@ -53,6 +53,8 @@ public interface TravelRecordService {
 
     void deleteTravelRecord(Long travelRecordId, Long userId);
 
+    void removeMembershipsForWithdrawal(Long userId);
+
     void leaveTravelRecord(Long travelRecordId, Long userId);
 
     /** 친구 삭제 등 서버 내부 처리에서 생성자가 특정 참여자를 앨범에서 제외합니다. API로 노출하지 않습니다. */

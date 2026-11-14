@@ -50,6 +50,7 @@ public class TravelRecordInvitationServiceImpl implements TravelRecordInvitation
     private final FriendshipRepository friendshipRepository;
     private final EntityManager entityManager;
     private final S3Service s3Service;
+    private final TravelRecordParticipationLockService participationLockService;
 
     /** 앨범, 친구 관계, 초대 순서로 잠근 뒤 상태와 참여 관계를 함께 반영합니다. */
     @Override
@@ -58,6 +59,7 @@ public class TravelRecordInvitationServiceImpl implements TravelRecordInvitation
             Long invitationId, Long userId, TravelRecordInvitationReqDTO.RespondRequest request
     ) {
         TravelRecordInvitationStatus response = parseResponse(request.status());
+        participationLockService.acquire(userId);
         Long recordId = invitationRepository.findTravelRecordId(invitationId)
                 .orElseThrow(() -> new GeneralException(TravelRecordErrorCode.INVITATION_NOT_FOUND));
         TravelRecord record = travelRecordRepository.findActiveDetailForUpdate(recordId)
