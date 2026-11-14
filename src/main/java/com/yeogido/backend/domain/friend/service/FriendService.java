@@ -19,6 +19,13 @@ public interface FriendService {
 
     FriendResDTO.QrUser getUserByQrToken(Long userId, String qrToken);
 
+    /**
+     * QR 토큰의 주인과 수락 없이 바로 친구가 됩니다. QR을 보여준 것 자체를 양쪽의 동의로 봅니다.
+     * 둘 사이에 대기 중인 요청이 있으면 방향을 유지한 채 수락하고, 없으면 QR을 찍은 사람을 요청자로 친구 관계를 만듭니다.
+     * 토큰은 사용자당 가장 최근에 발급된 하나만 유효하며, 유효한 동안은 여러 명이 같은 QR을 찍어도 모두 친구가 됩니다.
+     */
+    FriendResDTO.AcceptResult befriendByQrToken(Long userId, String qrToken);
+
     FriendResDTO.SentRequest sendRequest(Long userId, FriendReqDTO.SendRequest request);
 
     CursorResponse<FriendResDTO.ReceivedRequestItem> getReceivedRequests(Long userId, Long cursorId, Integer size);
