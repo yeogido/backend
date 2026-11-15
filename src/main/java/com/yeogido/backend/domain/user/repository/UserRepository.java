@@ -2,6 +2,7 @@ package com.yeogido.backend.domain.user.repository;
 
 import com.yeogido.backend.domain.user.entity.User;
 import com.yeogido.backend.domain.user.enums.UserStatus;
+import com.yeogido.backend.domain.user.enums.AccountType;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Pageable;
@@ -17,9 +18,11 @@ public interface UserRepository extends JpaRepository<User, Long> {
   @Query("select u from User u where u.id = :id")
   Optional<User> findByIdForTermsAgreement(@Param("id") Long id);
 
-  boolean existsByEmail(String email);
+  Optional<User> findByEmailAndAccountType(String email, AccountType accountType);
 
-  Optional<User> findByEmail(String email);
+  default Optional<User> findEmailAccount(String email) {
+    return findByEmailAndAccountType(email, AccountType.EMAIL);
+  }
 
   boolean existsByFriendCode(String friendCode);
 

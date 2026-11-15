@@ -20,6 +20,7 @@ import com.yeogido.backend.domain.region.exception.RegionErrorCode;
 import com.yeogido.backend.domain.region.repository.RegionRepository;
 import com.yeogido.backend.domain.terms.service.TermsService;
 import com.yeogido.backend.domain.user.entity.User;
+import com.yeogido.backend.domain.user.enums.AccountType;
 import com.yeogido.backend.domain.user.enums.UserRole;
 import com.yeogido.backend.domain.user.enums.UserStatus;
 import com.yeogido.backend.domain.user.exception.UserErrorCode;
@@ -96,7 +97,7 @@ public class AuthServiceImpl implements AuthService {
   @Override
   @Transactional(readOnly = true)
   public AuthResDTO.Token login(AuthReqDTO.Login request) {
-    User user = userRepository.findByEmail(request.email())
+    User user = userRepository.findEmailAccount(request.email())
       .map(this::validateActiveUser)
       .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
 
@@ -170,8 +171,6 @@ public class AuthServiceImpl implements AuthService {
       throw new GeneralException(AuthErrorCode.SOCIAL_ACCOUNT_ALREADY_EXISTS);
     }
 
-    validateEmailAvailable(payload.email());
-
     Region region = regionRepository.findById(request.regionId())
       .orElseThrow(() -> new GeneralException(RegionErrorCode.REGION_NOT_FOUND));
 
@@ -180,6 +179,7 @@ public class AuthServiceImpl implements AuthService {
     User user = userRepository.save(User.builder()
       .nickname(request.name())
       .email(payload.email())
+      .accountType(AccountType.SOCIAL)
       .password(null)
       .gender(request.gender())
       .birthYear(request.birthYear())
@@ -190,11 +190,19 @@ public class AuthServiceImpl implements AuthService {
       .friendCode(friendCodeGenerator.generateUnique())
       .build());
 
-    socialAccountRepository.save(SocialAccount.builder()
-      .user(user)
-      .provider(payload.provider())
-      .providerId(payload.providerId())
-      .build());
+    try {
+      socialAccountRepository.saveAndFlush(SocialAccount.builder()
+        .user(user)
+        .provider(payload.provider())
+        .providerId(payload.providerId())
+        .build());
+    } catch (DataIntegrityViolationException e) {
+      String message = e.getMostSpecificCause().getMessage();
+      if (message != null && message.contains("uk_provider_provider_id")) {
+        throw new GeneralException(AuthErrorCode.SOCIAL_ACCOUNT_ALREADY_EXISTS);
+      }
+      throw e;
+    }
 
     termsService.record(user, agreedDocuments);
     socialSignupTokenService.deleteToken(request.temporaryToken());
@@ -205,7 +213,7 @@ public class AuthServiceImpl implements AuthService {
   @Override
   @Transactional(readOnly = true)
   public AuthResDTO.EmailCheck checkEmail(String email) {
-    return new AuthResDTO.EmailCheck(userRepository.findByEmail(email)
+    return new AuthResDTO.EmailCheck(userRepository.findEmailAccount(email)
       .map(user -> {
         if (user.getStatus() == UserStatus.DELETED) {
           throw new GeneralException(UserErrorCode.USER_WITHDRAWN);
@@ -266,7 +274,7 @@ public class AuthServiceImpl implements AuthService {
   @Override
   @Transactional(readOnly = true)
   public void sendResetCode(AuthReqDTO.PasswordSendCode request) {
-    User user = userRepository.findByEmail(request.email())
+    User user = userRepository.findEmailAccount(request.email())
       .map(this::validateActiveUser)
       .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
 
@@ -289,7 +297,7 @@ public class AuthServiceImpl implements AuthService {
   public void resetPassword(AuthReqDTO.PasswordReset request) {
     String email = passwordResetCodeService.verifyResetTokenAndDelete(request.resetToken());
 
-    User user = userRepository.findByEmail(email)
+    User user = userRepository.findEmailAccount(email)
       .map(this::validateActiveUser)
       .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
 
@@ -297,7 +305,7 @@ public class AuthServiceImpl implements AuthService {
   }
 
   private void validateEmailAvailable(String email) {
-    userRepository.findByEmail(email)
+    userRepository.findEmailAccount(email)
       .ifPresent(user -> {
         if (user.getStatus() == UserStatus.DELETED) {
           throw new GeneralException(UserErrorCode.USER_WITHDRAWN);
@@ -321,6 +329,6 @@ public class AuthServiceImpl implements AuthService {
 
   private boolean isEmailUniqueViolation(DataIntegrityViolationException e) {
     String message = e.getMostSpecificCause().getMessage();
-    return message != null && message.contains("uk_user_email");
+    return message != null && message.contains("uk_user_email_account");
   }
 }
