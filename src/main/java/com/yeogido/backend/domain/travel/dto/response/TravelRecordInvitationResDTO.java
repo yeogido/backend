@@ -17,7 +17,7 @@ public class TravelRecordInvitationResDTO {
     ) {
     }
 
-    @Schema(name = "TravelRecordReceivedInvitation", description = "수신한 참여 대기 초대. 사진 정보는 제공하지 않음")
+    @Schema(name = "TravelRecordReceivedInvitation", description = "수신한 참여 대기 초대. 폴더 미리보기만 제공하며 전체 사진 상세는 수락 후 조회")
     public record ReceivedInvitation(
             @Schema(description = "초대 ID", example = "101") Long invitationId,
             @Schema(description = "초대 상태") TravelRecordInvitationStatus status,
@@ -35,7 +35,11 @@ public class TravelRecordInvitationResDTO {
             @Schema(description = "지역 ID", example = "1") Long regionId,
             @Schema(description = "여행 시작일") LocalDate startDate,
             @Schema(description = "여행 종료일") LocalDate endDate,
-            @Schema(description = "폴더 테마", example = "BASIC") FolderTheme folderTheme
+            @Schema(description = "폴더 테마", example = "BASIC") FolderTheme folderTheme,
+            @Schema(description = "폴더 구성용 사진 순서대로 최대 2장. 전체 사진 상세가 아님")
+            List<TravelRecordResDTO.PreviewImage> previewImages,
+            @Schema(description = "폴더 스티커 배치") List<TravelRecordResDTO.StickerResponse> stickers,
+            @Schema(description = "블러 영역 표시용 전체 사진 수", example = "5") int photoCount
     ) {
     }
 

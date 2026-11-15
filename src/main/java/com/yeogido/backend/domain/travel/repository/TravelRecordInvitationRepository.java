@@ -20,6 +20,24 @@ public interface TravelRecordInvitationRepository extends JpaRepository<TravelRe
         """)
     void deletePendingByRecordId(@Param("recordId") Long recordId);
 
+    @Query("""
+        select i from TravelRecordInvitation i
+        join fetch i.travelRecord r
+        join fetch r.user owner
+        join fetch i.inviter inviter
+        join i.invitee invitee
+        join i.friendship f
+        where i.id = :invitationId and invitee.id = :userId
+          and i.status = com.yeogido.backend.domain.travel.enums.TravelRecordInvitationStatus.PENDING
+          and r.visibility = com.yeogido.backend.domain.travel.enums.TravelRecordVisibility.FRIENDS
+          and owner.status = com.yeogido.backend.domain.user.enums.UserStatus.ACTIVE
+          and inviter.status = com.yeogido.backend.domain.user.enums.UserStatus.ACTIVE
+          and invitee.status = com.yeogido.backend.domain.user.enums.UserStatus.ACTIVE
+          and f.status = com.yeogido.backend.domain.friend.enums.FriendshipStatus.ACCEPTED
+        """)
+    Optional<TravelRecordInvitation> findPendingReceivedById(@Param("invitationId") Long invitationId,
+                                                           @Param("userId") Long userId);
+
     @Query("select i.travelRecord.id from TravelRecordInvitation i where i.id = :id")
     Optional<Long> findTravelRecordId(@Param("id") Long id);
 

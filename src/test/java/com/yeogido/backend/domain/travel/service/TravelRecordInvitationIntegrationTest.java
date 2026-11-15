@@ -185,7 +185,7 @@ class TravelRecordInvitationIntegrationTest {
     assertThat(after.visibility()).isEqualTo(TravelRecordVisibility.FRIENDS);
     assertThat(after.version()).isEqualTo(before.version() + 1);
     assertThat(after.permissions().canInvite()).isTrue();
-    assertThat(after.permissions().canLinkShare()).isFalse();
+    assertThat(after.permissions().canLinkShare()).isTrue();
     mvc.perform(get(detailPath).with(login(outsiderId))).andExpect(status().isForbidden());
     mvc.perform(get(detailPath).with(login(firstId))).andExpect(status().isForbidden());
   }

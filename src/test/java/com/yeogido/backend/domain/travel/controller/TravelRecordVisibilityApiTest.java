@@ -160,6 +160,14 @@ class TravelRecordVisibilityApiTest {
   }
 
   @Test
+  void sharedParticipantCanLinkShare() throws Exception {
+    TravelRecord shared = sharedAlbum();
+    mockMvc.perform(get("/api/v1/travel-records/" + shared.getId()).with(login()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.result.permissions.canLinkShare").value(true));
+  }
+
+  @Test
   void publicReadDoesNotGrantWritePermission() throws Exception {
     mockMvc.perform(patch("/api/v1/travel-records/" + publicRecord.getId()).with(login())
         .contentType(MediaType.APPLICATION_JSON).content(updateBody("0", "")))

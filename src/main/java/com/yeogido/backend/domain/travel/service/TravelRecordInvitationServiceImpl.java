@@ -10,6 +10,10 @@ import com.yeogido.backend.domain.travel.dto.response.TravelRecordInvitationResD
 import com.yeogido.backend.domain.travel.entity.TravelRecord;
 import com.yeogido.backend.domain.travel.entity.TravelRecordInvitation;
 import com.yeogido.backend.domain.travel.entity.TravelRecordMember;
+import com.yeogido.backend.domain.travel.entity.TravelRecordPhoto;
+import com.yeogido.backend.domain.travel.entity.TravelRecordSticker;
+import com.yeogido.backend.domain.travel.repository.TravelRecordPhotoRepository;
+import com.yeogido.backend.domain.travel.repository.TravelRecordStickerRepository;
 import com.yeogido.backend.domain.travel.enums.TravelRecordInvitationStatus;
 import com.yeogido.backend.domain.travel.enums.TravelRecordVisibility;
 import com.yeogido.backend.domain.travel.exception.TravelRecordErrorCode;
@@ -46,6 +50,8 @@ public class TravelRecordInvitationServiceImpl implements TravelRecordInvitation
     private final TravelRecordRepository travelRecordRepository;
     private final TravelRecordMemberRepository travelRecordMemberRepository;
     private final TravelRecordInvitationRepository invitationRepository;
+    private final TravelRecordPhotoRepository photoRepository;
+    private final TravelRecordStickerRepository stickerRepository;
     private final UserRepository userRepository;
     private final FriendshipRepository friendshipRepository;
     private final EntityManager entityManager;
@@ -134,10 +140,29 @@ public class TravelRecordInvitationServiceImpl implements TravelRecordInvitation
         List<TravelRecordInvitation> invitations = invitationRepository.findPendingReceived(userId, cursor, size + 1);
         boolean hasNext = invitations.size() > size;
         List<TravelRecordInvitation> content = hasNext ? invitations.subList(0, size) : invitations;
+        List<Long> recordIds = content.stream().map(invitation -> invitation.getTravelRecord().getId()).toList();
+        Map<Long, List<TravelRecordPhoto>> photos = recordIds.isEmpty() ? Map.of() : photoRepository
+                .findByTravelRecordIdInOrderByTravelRecordIdAscImageOrderAsc(recordIds).stream()
+                .collect(Collectors.groupingBy(photo -> photo.getTravelRecord().getId()));
+        Map<Long, List<TravelRecordSticker>> stickers = recordIds.isEmpty() ? Map.of() : stickerRepository
+                .findByTravelRecordIds(recordIds).stream()
+                .collect(Collectors.groupingBy(sticker -> sticker.getTravelRecord().getId()));
         List<TravelRecordInvitationResDTO.ReceivedInvitation> items = content.stream()
-                .map(invitation -> TravelRecordInvitationConverter.toReceivedInvitation(invitation, s3Service::getImageUrl))
+                .map(invitation -> TravelRecordInvitationConverter.toReceivedInvitation(invitation,
+                        photos.getOrDefault(invitation.getTravelRecord().getId(), List.of()),
+                        stickers.getOrDefault(invitation.getTravelRecord().getId(), List.of()), s3Service::getImageUrl))
                 .toList();
         return CursorResponse.of(items, null, content.isEmpty() ? null : content.getLast().getId(), hasNext);
+    }
+
+    @Override
+    public TravelRecordInvitationResDTO.ReceivedInvitation getReceivedInvitation(Long invitationId, Long userId) {
+        TravelRecordInvitation invitation = invitationRepository.findPendingReceivedById(invitationId, userId)
+                .orElseThrow(() -> new GeneralException(TravelRecordErrorCode.INVITATION_NOT_FOUND));
+        Long recordId = invitation.getTravelRecord().getId();
+        return TravelRecordInvitationConverter.toReceivedInvitation(invitation,
+                photoRepository.findByTravelRecordIdOrderByImageOrderAsc(recordId),
+                stickerRepository.findByTravelRecordIdOrderByZIndexAsc(recordId), s3Service::getImageUrl);
     }
 
     /** 앨범 행 잠금 아래 모든 대상을 검증한 뒤 초대를 함께 저장하며 참여 관계는 생성하지 않습니다. */
