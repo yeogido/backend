@@ -18,6 +18,7 @@ import com.yeogido.backend.domain.user.dto.nts.NtsBusinessVerifyDTO;
 import com.yeogido.backend.domain.user.entity.BusinessInfo;
 import com.yeogido.backend.domain.user.entity.User;
 import com.yeogido.backend.domain.user.enums.BusinessVerificationStatus;
+import com.yeogido.backend.domain.user.enums.NtsBusinessStatus;
 import com.yeogido.backend.domain.user.exception.BusinessVerificationErrorCode;
 import com.yeogido.backend.domain.user.exception.UserErrorCode;
 import com.yeogido.backend.domain.user.repository.BusinessInfoRepository;
@@ -40,8 +41,8 @@ import java.util.Optional;
 public class BusinessVerificationServiceImpl
         implements BusinessVerificationService {
 
+    /** 국세청 진위확인 응답 {@code valid} 값 중 "일치" */
     private static final String VALID_BUSINESS = "01";
-    private static final String ACTIVE_BUSINESS = "01";
 
     private final UserRepository userRepository;
     private final BusinessInfoRepository businessInfoRepository;
@@ -75,6 +76,14 @@ public class BusinessVerificationServiceImpl
 
         validateKakaoPlaceSource(request.place());
 
+        // 장소 하나에는 사업자 정보 하나만 연결된다(business_info.place_id unique).
+        // 저장 시점의 제약 위반으로 알게 되면 원인과 다른 '사업자 번호 중복'으로
+        // 안내되고 이미지도 이미 옮겨진 뒤라, 국세청 호출과 이미지 이동 전에 확인한다.
+        Optional<Place> existingPlace =
+                findExistingKakaoPlace(request.place());
+
+        validatePlaceNotLinked(existingPlace);
+
         NtsBusinessVerifyDTO.Result verificationResult =
                 ntsBusinessVerificationClient.verify(
                         request.businessNumber(),
@@ -91,7 +100,9 @@ public class BusinessVerificationServiceImpl
         BusinessVerifyReqDTO movedRequest =
                 moveRegistrationImage(request);
 
-        Place place = getOrCreatePlace(movedRequest.place());
+        Place place = existingPlace.orElseGet(() ->
+                createPlace(movedRequest.place())
+        );
 
         LocalDateTime verifiedAt = LocalDateTime.now();
 
@@ -160,35 +171,50 @@ public class BusinessVerificationServiceImpl
         }
     }
 
-    private Place getOrCreatePlace(PlaceRequest request) {
+    private Optional<Place> findExistingKakaoPlace(
+            PlaceRequest placeRequest
+    ) {
+        return placeRepository.findBySourceAndExternalPlaceId(
+                PlaceSource.KAKAO,
+                placeRequest.externalPlaceId()
+        );
+    }
+
+    private void validatePlaceNotLinked(Optional<Place> existingPlace) {
+        existingPlace
+                .filter(place ->
+                        businessInfoRepository.existsByPlace_Id(place.getId())
+                )
+                .ifPresent(place -> {
+                    throw new GeneralException(
+                            BusinessVerificationErrorCode
+                                    .BUSINESS_PLACE_ALREADY_LINKED
+                    );
+                });
+    }
+
+    private Place createPlace(PlaceRequest request) {
         PlaceSource source = parsePlaceSource(request.source());
 
-        return placeRepository
-                .findBySourceAndExternalPlaceId(
-                        source,
-                        request.externalPlaceId()
-                )
-                .orElseGet(() -> {
-                    Region region = regionRepository
-                            .findById(request.regionId())
-                            .orElseThrow(() -> new GeneralException(
-                                    RegionErrorCode.REGION_NOT_FOUND
-                            ));
+        Region region = regionRepository
+                .findById(request.regionId())
+                .orElseThrow(() -> new GeneralException(
+                        RegionErrorCode.REGION_NOT_FOUND
+                ));
 
-                    Place newPlace = Place.builder()
-                            .region(region)
-                            .externalPlaceId(request.externalPlaceId())
-                            .source(source)
-                            .name(request.name())
-                            .categoryGroupCode(request.categoryGroupCode())
-                            .roadAddress(request.roadAddress())
-                            .lotAddress(request.lotAddress())
-                            .latitude(request.latitude())
-                            .longitude(request.longitude())
-                            .build();
+        Place newPlace = Place.builder()
+                .region(region)
+                .externalPlaceId(request.externalPlaceId())
+                .source(source)
+                .name(request.name())
+                .categoryGroupCode(request.categoryGroupCode())
+                .roadAddress(request.roadAddress())
+                .lotAddress(request.lotAddress())
+                .latitude(request.latitude())
+                .longitude(request.longitude())
+                .build();
 
-                    return placeRepository.save(newPlace);
-                });
+        return placeRepository.save(newPlace);
     }
 
     private PlaceSource parsePlaceSource(String source) {
@@ -227,6 +253,12 @@ public class BusinessVerificationServiceImpl
         }
     }
 
+    /**
+     * 진위확인 결과를 검증한다.
+     * <p>
+     * 진위확인이 실패하면 상태 조회를 한 번 더 해서, 계속사업자가 아니면 영업 상태 안내
+     * (미등록 4041, 휴업 4042, 폐업 4043)를 정보 불일치(4002)보다 우선해서 돌려준다.
+     */
     private void validateAuthenticity(
             String businessNumber,
             NtsBusinessVerifyDTO.Result verificationResult
@@ -235,17 +267,14 @@ public class BusinessVerificationServiceImpl
             return;
         }
 
-        NtsBusinessVerifyDTO.Status businessStatus =
+        NtsBusinessStatus businessStatus = NtsBusinessStatus.from(
                 ntsBusinessVerificationClient.getBusinessStatus(
                         businessNumber
-                );
+                )
+        );
 
-        if (!ACTIVE_BUSINESS.equals(
-                businessStatus.businessStatusCode()
-        )) {
-            throw new GeneralException(
-                    BusinessVerificationErrorCode.BUSINESS_NOT_ACTIVE
-            );
+        if (!businessStatus.isActive()) {
+            throw new GeneralException(businessStatus.toErrorCode());
         }
 
         throw new GeneralException(
@@ -253,18 +282,17 @@ public class BusinessVerificationServiceImpl
         );
     }
 
+    /**
+     * 진위확인은 성공했지만 영업 상태가 계속사업자가 아니면 상태에 맞는 에러코드로 거절한다.
+     */
     private void validateActiveBusiness(
             NtsBusinessVerifyDTO.Result verificationResult
     ) {
-        NtsBusinessVerifyDTO.Status status = verificationResult.status();
+        NtsBusinessStatus businessStatus =
+                NtsBusinessStatus.from(verificationResult.status());
 
-        if (
-                status == null
-                        || !ACTIVE_BUSINESS.equals(status.businessStatusCode())
-        ) {
-            throw new GeneralException(
-                    BusinessVerificationErrorCode.BUSINESS_NOT_ACTIVE
-            );
+        if (!businessStatus.isActive()) {
+            throw new GeneralException(businessStatus.toErrorCode());
         }
     }
 
