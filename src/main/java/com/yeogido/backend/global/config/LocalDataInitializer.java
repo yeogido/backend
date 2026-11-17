@@ -39,7 +39,7 @@ public class LocalDataInitializer implements CommandLineRunner {
                         .type(RegionType.REGION)
                         .build()));
 
-        userRepository.findByEmail(TEST_USER_EMAIL)
+        userRepository.findEmailAccount(TEST_USER_EMAIL)
                 .orElseGet(() -> userRepository.save(User.builder()
                         .nickname("로컬테스트유저")
                         .email(TEST_USER_EMAIL)

@@ -36,7 +36,7 @@ public class LocalAuthTestController {
     @Operation(summary = "로컬 테스트용 토큰 발급 API", description = "local 프로필에서만 사용할 수 있는 테스트 사용자 Access/Refresh Token을 발급합니다.")
     @PostMapping("/token")
     public ApiResponse<AuthResDTO.Token> issueTestToken() {
-        User user = userRepository.findByEmail(LocalDataInitializer.TEST_USER_EMAIL)
+        User user = userRepository.findEmailAccount(LocalDataInitializer.TEST_USER_EMAIL)
                 .orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
 
         var response = jwtTokenProvider.issueToken(user);
