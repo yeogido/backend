@@ -3,6 +3,8 @@ package com.yeogido.backend.domain.travel.converter;
 import com.yeogido.backend.domain.travel.dto.response.TravelRecordInvitationResDTO;
 import com.yeogido.backend.domain.travel.dto.response.TravelRecordResDTO;
 import com.yeogido.backend.domain.travel.entity.TravelRecordInvitation;
+import com.yeogido.backend.domain.travel.entity.TravelRecordPhoto;
+import com.yeogido.backend.domain.travel.entity.TravelRecordSticker;
 import com.yeogido.backend.domain.user.entity.User;
 import java.util.List;
 import java.util.function.Function;
@@ -18,14 +20,19 @@ public class TravelRecordInvitationConverter {
     }
 
     public static TravelRecordInvitationResDTO.ReceivedInvitation toReceivedInvitation(
-            TravelRecordInvitation invitation, Function<String, String> imageUrlResolver
+            TravelRecordInvitation invitation, List<TravelRecordPhoto> photos, List<TravelRecordSticker> stickers,
+            Function<String, String> imageUrlResolver
     ) {
         var record = invitation.getTravelRecord();
         return new TravelRecordInvitationResDTO.ReceivedInvitation(invitation.getId(), invitation.getStatus(),
                 toUserProfile(invitation.getInviter(), imageUrlResolver),
                 toUserProfile(record.getUser(), imageUrlResolver),
                 new TravelRecordInvitationResDTO.PendingTravelRecord(record.getId(), record.getTitle(),
-                        record.getRegion().getId(), record.getStartDate(), record.getEndDate(), record.getFolderTheme()),
+                        record.getRegion().getId(), record.getStartDate(), record.getEndDate(), record.getFolderTheme(),
+                        photos.stream().limit(2).map(photo -> new TravelRecordResDTO.PreviewImage(
+                                imageUrlResolver.apply(photo.getImageKey()), photo.getImageOrder())).toList(),
+                        stickers.stream().map(sticker -> TravelRecordConverter.toStickerResponse(sticker, imageUrlResolver)).toList(),
+                        photos.size()),
                 invitation.getCreatedAt());
     }
 
