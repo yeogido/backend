@@ -1105,18 +1105,13 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
             );
         }
 
-        if (!Objects.equals(
-                existingPromotion.getUser().getId(),
-                user.getId()
-        )) {
-            throw new GeneralException(
-                    BusinessPromotionErrorCode.BUSINESS_PROMOTION_ALREADY_EXISTS
-            );
-        }
-
+        // 삭제된 홍보글은 작성자가 달라도(가게 양도, 이전 사장 탈퇴) 행을 재사용한다.
+        // ID 를 유지해 장소 좋아요의 출처(PROMOTION, sourceId)를 보존하고,
+        // 이전 작성자의 소개글, 사진, 영업시간, 해시태그는 모두 비운 뒤 새로 채운다.
         clearPromotionDetails(existingPromotion.getId());
 
         existingPromotion.reactivate(
+                user,
                 request.shortDescription(),
                 request.promotionCategory(),
                 request.phoneNumber(),

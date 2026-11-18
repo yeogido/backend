@@ -99,6 +99,7 @@ public class UserServiceImpl implements UserService{
     private final FileService fileService;
     private final S3Service s3Service;
     private final RefreshTokenService refreshTokenService;
+    private final BusinessVerificationService businessVerificationService;
 
     private final JPAQueryFactory queryFactory;
 
@@ -766,6 +767,7 @@ public class UserServiceImpl implements UserService{
         stickerRepository.softDeleteAllByUserId(userId, deletedAt);
         courseRepository.softDeleteAllByUserId(userId, deletedAt);
         businessPromotionRepository.softDeleteAllActiveByUserId(userId);
+        businessVerificationService.revokeAllByUserId(userId);
         friendshipRepository.deleteAllByUserId(userId);
     }
 
