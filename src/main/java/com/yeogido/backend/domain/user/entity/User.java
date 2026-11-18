@@ -86,6 +86,12 @@ public class User extends BaseEntity {
         }
     }
 
+    public void demoteToUser() {
+        if (this.role == UserRole.BUSINESS) {
+            this.role = UserRole.USER;
+        }
+    }
+
     public AgeGroup getAgeGroup() {
         return AgeGroup.fromBirthYear(birthYear);
     }

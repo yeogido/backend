@@ -80,12 +80,18 @@ public class BusinessPromotion extends BaseEntity {
         this.status = PromotionStatus.DELETED;
     }
 
+    /**
+     * 삭제된 홍보글을 다시 활성화한다. 작성자가 바뀐 경우(가게 양도 등)에는
+     * 새 작성자로 교체되며, 영업시간, 사진, 해시태그는 호출 전에 비워져 있어야 한다.
+     */
     public void reactivate(
+            User owner,
             String shortDescription,
             PromotionCategory promotionCategory,
             String phoneNumber,
             String snsAccount
     ) {
+        this.user = owner;
         this.shortDescription = shortDescription;
         this.promotionCategory = promotionCategory;
         this.phoneNumber = phoneNumber;

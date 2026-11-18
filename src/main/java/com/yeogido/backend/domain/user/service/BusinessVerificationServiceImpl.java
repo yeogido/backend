@@ -1,5 +1,8 @@
 package com.yeogido.backend.domain.user.service;
 
+import com.yeogido.backend.domain.business.entity.BusinessPromotion;
+import com.yeogido.backend.domain.business.enums.PromotionStatus;
+import com.yeogido.backend.domain.business.repository.BusinessPromotionRepository;
 import com.yeogido.backend.domain.file.enums.ImageDirectory;
 import com.yeogido.backend.domain.file.service.FileService;
 import com.yeogido.backend.domain.place.dto.request.PlaceRequest;
@@ -50,6 +53,7 @@ public class BusinessVerificationServiceImpl
     private final RegionRepository regionRepository;
     private final NtsBusinessVerificationClient ntsBusinessVerificationClient;
     private final FileService fileService;
+    private final BusinessPromotionRepository businessPromotionRepository;
 
     @Override
     @Transactional
@@ -79,10 +83,15 @@ public class BusinessVerificationServiceImpl
         // 장소 하나에는 사업자 정보 하나만 연결된다(business_info.place_id unique).
         // 저장 시점의 제약 위반으로 알게 되면 원인과 다른 '사업자 번호 중복'으로
         // 안내되고 이미지도 이미 옮겨진 뒤라, 국세청 호출과 이미지 이동 전에 확인한다.
+        // 이미 연결된 사업자가 국세청 기준 폐업이면 그 연결을 해제하고 새 사업자에게 넘긴다.
         Optional<Place> existingPlace =
                 findExistingKakaoPlace(request.place());
 
-        validatePlaceNotLinked(existingPlace);
+        existingPlace
+                .flatMap(place ->
+                        businessInfoRepository.findByPlace_Id(place.getId())
+                )
+                .ifPresent(this::takeOverPlaceIfPreviousOwnerClosed);
 
         NtsBusinessVerifyDTO.Result verificationResult =
                 ntsBusinessVerificationClient.verify(
@@ -180,17 +189,87 @@ public class BusinessVerificationServiceImpl
         );
     }
 
-    private void validatePlaceNotLinked(Optional<Place> existingPlace) {
-        existingPlace
-                .filter(place ->
-                        businessInfoRepository.existsByPlace_Id(place.getId())
+    @Override
+    @Transactional
+    public void revokeAllByUserId(Long userId) {
+        businessInfoRepository
+                .findAllByUser_IdAndVerificationStatusOrderByIdDesc(
+                        userId,
+                        BusinessVerificationStatus.APPROVED
                 )
-                .ifPresent(place -> {
-                    throw new GeneralException(
-                            BusinessVerificationErrorCode
-                                    .BUSINESS_PLACE_ALREADY_LINKED
-                    );
-                });
+                .forEach(this::revoke);
+    }
+
+    /**
+     * 선택한 장소에 이미 연결된 사업자 정보가 있을 때의 처리.
+     * <p>
+     * 기존 사업자가 국세청 기준 폐업(03)이면 그 연결을 해제하고 인증을 계속 진행한다.
+     * 휴업, 계속사업자이거나 상태를 확인할 수 없으면 남의 연결을 풀지 않고 4092로 거절한다.
+     * 해제는 같은 트랜잭션 안에서 이뤄지므로 뒤따르는 신청자 본인 확인이 실패하면 함께 되돌려진다.
+     */
+    private void takeOverPlaceIfPreviousOwnerClosed(
+            BusinessInfo linkedBusinessInfo
+    ) {
+        if (!isClosedBusiness(linkedBusinessInfo.getBusinessNumber())) {
+            throw new GeneralException(
+                    BusinessVerificationErrorCode
+                            .BUSINESS_PLACE_ALREADY_LINKED
+            );
+        }
+
+        revoke(linkedBusinessInfo);
+
+        // Hibernate 는 flush 시 INSERT 를 UPDATE 보다 먼저 실행한다.
+        // 새 사업자 정보를 같은 place_id 로 INSERT 하기 전에 기존 행의 place_id 를
+        // 먼저 비워야 unique 위반(4091)이 나지 않으므로 여기서 명시적으로 flush 한다.
+        businessInfoRepository.flush();
+    }
+
+    private boolean isClosedBusiness(String businessNumber) {
+        try {
+            NtsBusinessStatus status = NtsBusinessStatus.from(
+                    ntsBusinessVerificationClient.getBusinessStatus(
+                            businessNumber
+                    )
+            );
+
+            return status == NtsBusinessStatus.CLOSED;
+        } catch (GeneralException exception) {
+            // 상태 조회 실패(5001)는 "확인되지 않음"으로 보고 넘기지 않는다.
+            return false;
+        }
+    }
+
+    /**
+     * 사업자 인증을 해제한다. 그 장소의 활성 홍보글을 내리고, 사업자번호와 장소 연결을 비운 뒤,
+     * 승인된 사업장이 하나도 남지 않으면 권한을 USER 로 되돌린다.
+     */
+    private void revoke(BusinessInfo businessInfo) {
+        if (businessInfo.getPlace() != null) {
+            businessPromotionRepository
+                    .findForUpdateByPlaceId(businessInfo.getPlace().getId())
+                    .filter(promotion ->
+                            promotion.getStatus() == PromotionStatus.ACTIVE
+                    )
+                    .ifPresent(BusinessPromotion::delete);
+        }
+
+        businessInfo.revoke();
+
+        demoteIfNoApprovedBusiness(businessInfo.getUser());
+    }
+
+    private void demoteIfNoApprovedBusiness(User user) {
+        // JPQL 실행 전 auto flush 로 방금 바꾼 REVOKED 상태가 반영된 뒤 조회된다.
+        boolean hasApprovedBusiness =
+                businessInfoRepository.existsByUser_IdAndVerificationStatus(
+                        user.getId(),
+                        BusinessVerificationStatus.APPROVED
+                );
+
+        if (!hasApprovedBusiness) {
+            user.demoteToUser();
+        }
     }
 
     private Place createPlace(PlaceRequest request) {

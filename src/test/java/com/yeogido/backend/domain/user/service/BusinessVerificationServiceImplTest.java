@@ -1,5 +1,9 @@
 package com.yeogido.backend.domain.user.service;
 
+import com.yeogido.backend.domain.business.entity.BusinessPromotion;
+import com.yeogido.backend.domain.business.enums.PromotionCategory;
+import com.yeogido.backend.domain.business.enums.PromotionStatus;
+import com.yeogido.backend.domain.business.repository.BusinessPromotionRepository;
 import com.yeogido.backend.domain.file.enums.ImageDirectory;
 import com.yeogido.backend.domain.file.service.FileService;
 import com.yeogido.backend.domain.place.dto.request.PlaceRequest;
@@ -23,6 +27,7 @@ import com.yeogido.backend.global.exception.GeneralException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -30,6 +35,8 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -67,6 +74,9 @@ class BusinessVerificationServiceImplTest {
 
     @Mock
     private RegionRepository regionRepository;
+
+    @Mock
+    private BusinessPromotionRepository businessPromotionRepository;
 
     @InjectMocks
     private BusinessVerificationServiceImpl businessVerificationService;
@@ -675,78 +685,393 @@ class BusinessVerificationServiceImplTest {
         );
     }
 
-    @Test
-    void verifyBusiness_WhenPlaceAlreadyLinkedToOtherBusiness_ThrowsPlaceAlreadyLinked() {
+    // ───────── 장소가 이미 다른 사업자에 연결된 경우 (작업 2, 3) ─────────
 
-        // given
-        User user = User.builder()
+    private static final Long PREVIOUS_OWNER_ID = 2L;
+    private static final Long LINKED_PLACE_ID = 100L;
+    private static final String PREVIOUS_BUSINESS_NUMBER = "9999999999";
+
+    /** 신청자, 기존 사장, 둘 사이에 놓인 장소와 사업자 정보, 기존 사장의 활성 홍보글 */
+    private record LinkedPlaceFixture(
+            User applicant,
+            User previousOwner,
+            Place place,
+            BusinessInfo linkedBusinessInfo,
+            BusinessPromotion promotion
+    ) {
+    }
+
+    /**
+     * 신청자가 요청한 장소에 기존 사장의 승인된 사업자 정보가 이미 연결되어 있는 상황을 만든다.
+     * 기존 사장 번호의 국세청 상태 조회까지는 모든 케이스에서 일어나므로 여기서 함께 stub 한다.
+     */
+    private LinkedPlaceFixture linkedPlaceFixture() {
+        User applicant = User.builder()
                 .id(USER_ID)
                 .role(UserRole.USER)
                 .build();
 
-        PlaceRequest placeRequest = new PlaceRequest(
-                "123456789",
-                "KAKAO",
-                "여기도 카페",
-                "CE7",
-                "서울특별시 강남구 테헤란로 123",
-                "서울특별시 강남구 역삼동 123",
-                BigDecimal.valueOf(37.4979),
-                BigDecimal.valueOf(127.0276),
-                1L
-        );
+        User previousOwner = User.builder()
+                .id(PREVIOUS_OWNER_ID)
+                .role(UserRole.BUSINESS)
+                .build();
 
-        BusinessVerifyReqDTO request = new BusinessVerifyReqDTO(
-                BUSINESS_NUMBER,
-                OPENING_DATE,
-                REPRESENTATIVE_NAME,
-                "temp/certificate.jpg",
-                "여기도 카페",
-                "서울특별시 강남구 테헤란로 123",
-                placeRequest
-        );
-
-        Place linkedPlace = Place.builder()
+        Place place = Place.builder()
                 .externalPlaceId("123456789")
                 .source(PlaceSource.KAKAO)
-                .name("여기도 카페")
+                .name("테스트 사업장")
                 .build();
-        ReflectionTestUtils.setField(linkedPlace, "id", 100L);
+        ReflectionTestUtils.setField(place, "id", LINKED_PLACE_ID);
+
+        BusinessInfo linkedBusinessInfo = BusinessInfo.builder()
+                .id(20L)
+                .user(previousOwner)
+                .place(place)
+                .businessNumber(PREVIOUS_BUSINESS_NUMBER)
+                .verificationStatus(BusinessVerificationStatus.APPROVED)
+                .verifiedAt(LocalDateTime.now())
+                .build();
+
+        BusinessPromotion promotion = BusinessPromotion.builder()
+                .id(30L)
+                .place(place)
+                .user(previousOwner)
+                .promotionCategory(PromotionCategory.CAFE)
+                .status(PromotionStatus.ACTIVE)
+                .build();
 
         when(userRepository.findById(USER_ID))
-                .thenReturn(Optional.of(user));
+                .thenReturn(Optional.of(applicant));
 
-        when(businessInfoRepository.findByBusinessNumber(
-                BUSINESS_NUMBER
-        )).thenReturn(Optional.empty());
+        when(businessInfoRepository.findByBusinessNumber(BUSINESS_NUMBER))
+                .thenReturn(Optional.empty());
 
         when(placeRepository.findBySourceAndExternalPlaceId(
                 PlaceSource.KAKAO,
                 "123456789"
-        )).thenReturn(Optional.of(linkedPlace));
+        )).thenReturn(Optional.of(place));
 
-        when(businessInfoRepository.existsByPlace_Id(100L))
-                .thenReturn(true);
+        when(businessInfoRepository.findByPlace_Id(LINKED_PLACE_ID))
+                .thenReturn(Optional.of(linkedBusinessInfo));
 
-        // when
+        return new LinkedPlaceFixture(
+                applicant,
+                previousOwner,
+                place,
+                linkedBusinessInfo,
+                promotion
+        );
+    }
+
+    private static NtsBusinessVerifyDTO.Status previousOwnerStatus(String statusCode) {
+        return new NtsBusinessVerifyDTO.Status(
+                PREVIOUS_BUSINESS_NUMBER,
+                "",
+                statusCode,
+                "부가가치세 일반과세자",
+                "01",
+                ""
+        );
+    }
+
+    /** 기존 사장의 연결이 그대로이고, 신청자 쪽은 아무것도 진행되지 않았는지 확인한다. */
+    private void assertNothingChanged(LinkedPlaceFixture fixture) {
+        assertThat(fixture.linkedBusinessInfo().getVerificationStatus())
+                .isEqualTo(BusinessVerificationStatus.APPROVED);
+        assertThat(fixture.linkedBusinessInfo().getBusinessNumber())
+                .isEqualTo(PREVIOUS_BUSINESS_NUMBER);
+        assertThat(fixture.linkedBusinessInfo().getPlace())
+                .isSameAs(fixture.place());
+        assertThat(fixture.promotion().getStatus())
+                .isEqualTo(PromotionStatus.ACTIVE);
+        assertThat(fixture.previousOwner().getRole())
+                .isEqualTo(UserRole.BUSINESS);
+        assertThat(fixture.applicant().getRole())
+                .isEqualTo(UserRole.USER);
+
+        // 국세청 진위확인과 이미지 이동 전에 막혀야 다시 시도할 때 이미지를 재업로드하지 않는다.
+        verify(ntsBusinessVerificationClient, never())
+                .verify(anyString(), any(), anyString());
+        verifyNoInteractions(fileService, businessPromotionRepository);
+        verify(businessInfoRepository, never()).saveAndFlush(any());
+        verify(businessInfoRepository, never()).flush();
+    }
+
+    private void assertRejectedAsPlaceAlreadyLinked(LinkedPlaceFixture fixture) {
         GeneralException exception = assertThrows(
                 GeneralException.class,
                 () -> businessVerificationService.verifyBusiness(
                         USER_ID,
-                        request
+                        verifyRequest()
                 )
         );
 
-        // then
         assertThat(exception.getErrorCode())
                 .isEqualTo(
                         BusinessVerificationErrorCode
                                 .BUSINESS_PLACE_ALREADY_LINKED
                 );
 
-        // 국세청 호출과 이미지 이동 전에 막혀야 다시 시도할 때 이미지를 재업로드하지 않는다.
-        verifyNoInteractions(ntsBusinessVerificationClient, fileService);
+        assertNothingChanged(fixture);
+    }
+
+    @Test
+    void verifyBusiness_WhenLinkedBusinessIsActive_ThrowsPlaceAlreadyLinked() {
+        LinkedPlaceFixture fixture = linkedPlaceFixture();
+
+        when(ntsBusinessVerificationClient.getBusinessStatus(PREVIOUS_BUSINESS_NUMBER))
+                .thenReturn(previousOwnerStatus("01"));
+
+        assertRejectedAsPlaceAlreadyLinked(fixture);
+    }
+
+    @Test
+    void verifyBusiness_WhenLinkedBusinessIsSuspended_ThrowsPlaceAlreadyLinked() {
+        LinkedPlaceFixture fixture = linkedPlaceFixture();
+
+        when(ntsBusinessVerificationClient.getBusinessStatus(PREVIOUS_BUSINESS_NUMBER))
+                .thenReturn(previousOwnerStatus("02"));
+
+        assertRejectedAsPlaceAlreadyLinked(fixture);
+    }
+
+    @Test
+    void verifyBusiness_WhenLinkedBusinessStatusLookupFails_ThrowsPlaceAlreadyLinked() {
+        LinkedPlaceFixture fixture = linkedPlaceFixture();
+
+        // 확인되지 않은 상태에서는 남의 연결을 풀지 않는다.
+        when(ntsBusinessVerificationClient.getBusinessStatus(PREVIOUS_BUSINESS_NUMBER))
+                .thenThrow(new GeneralException(
+                        BusinessVerificationErrorCode.BUSINESS_VERIFICATION_API_ERROR
+                ));
+
+        assertRejectedAsPlaceAlreadyLinked(fixture);
+    }
+
+    @Test
+    void verifyBusiness_WhenLinkedBusinessIsClosed_RevokesPreviousOwnerAndLinksNewOwner() {
+        // given
+        LinkedPlaceFixture fixture = linkedPlaceFixture();
+
+        when(ntsBusinessVerificationClient.getBusinessStatus(PREVIOUS_BUSINESS_NUMBER))
+                .thenReturn(previousOwnerStatus("03"));
+
+        when(businessPromotionRepository.findForUpdateByPlaceId(LINKED_PLACE_ID))
+                .thenReturn(Optional.of(fixture.promotion()));
+
+        // 기존 사장은 이 사업장 하나뿐이라 해제 후 승인된 사업장이 남지 않는다.
+        when(businessInfoRepository.existsByUser_IdAndVerificationStatus(
+                PREVIOUS_OWNER_ID,
+                BusinessVerificationStatus.APPROVED
+        )).thenReturn(false);
+
+        when(ntsBusinessVerificationClient.verify(
+                BUSINESS_NUMBER,
+                OPENING_DATE,
+                REPRESENTATIVE_NAME
+        )).thenReturn(new NtsBusinessVerifyDTO.Result(
+                BUSINESS_NUMBER,
+                "01",
+                "확인되었습니다.",
+                ntsStatus("01")
+        ));
+
+        when(fileService.moveToDirectory(
+                "temp/test.jpg",
+                ImageDirectory.BUSINESS
+        )).thenReturn("businesses/test.jpg");
+
+        when(businessInfoRepository.saveAndFlush(any(BusinessInfo.class)))
+                .thenAnswer(invocation -> {
+                    BusinessInfo businessInfo =
+                            invocation.getArgument(0, BusinessInfo.class);
+                    ReflectionTestUtils.setField(businessInfo, "id", BUSINESS_INFO_ID);
+                    return businessInfo;
+                });
+
+        // when
+        BusinessVerifyResDTO response =
+                businessVerificationService.verifyBusiness(
+                        USER_ID,
+                        verifyRequest()
+                );
+
+        // then: 기존 사장의 연결이 해제되고 홍보글이 내려가며 권한이 되돌아간다.
+        assertThat(fixture.linkedBusinessInfo().getVerificationStatus())
+                .isEqualTo(BusinessVerificationStatus.REVOKED);
+        assertThat(fixture.linkedBusinessInfo().getBusinessNumber()).isNull();
+        assertThat(fixture.linkedBusinessInfo().getPlace()).isNull();
+        assertThat(fixture.promotion().getStatus())
+                .isEqualTo(PromotionStatus.DELETED);
+        assertThat(fixture.previousOwner().getRole())
+                .isEqualTo(UserRole.USER);
+
+        // 기존 행의 place_id 를 비운 UPDATE 가 새 행의 INSERT 보다 먼저 나가야 한다.
+        InOrder inOrder = inOrder(businessInfoRepository);
+        inOrder.verify(businessInfoRepository).flush();
+        inOrder.verify(businessInfoRepository).saveAndFlush(any(BusinessInfo.class));
+
+        // 새 사장이 같은 장소로 승인된다.
+        ArgumentCaptor<BusinessInfo> captor =
+                ArgumentCaptor.forClass(BusinessInfo.class);
+        verify(businessInfoRepository).saveAndFlush(captor.capture());
+
+        BusinessInfo savedBusinessInfo = captor.getValue();
+        assertThat(savedBusinessInfo.getUser()).isSameAs(fixture.applicant());
+        assertThat(savedBusinessInfo.getPlace()).isSameAs(fixture.place());
+        assertThat(savedBusinessInfo.getBusinessNumber()).isEqualTo(BUSINESS_NUMBER);
+        assertThat(savedBusinessInfo.getVerificationStatus())
+                .isEqualTo(BusinessVerificationStatus.APPROVED);
+
+        assertThat(response.role()).isEqualTo(UserRole.BUSINESS);
+        assertThat(response.businessInfoId()).isEqualTo(BUSINESS_INFO_ID);
+        assertThat(fixture.applicant().getRole()).isEqualTo(UserRole.BUSINESS);
+
+        // 기존 장소를 재사용하므로 새 장소를 만들지 않는다.
+        verifyNoInteractions(regionRepository);
+        verify(placeRepository, never()).save(any());
+    }
+
+    @Test
+    void verifyBusiness_WhenLinkedBusinessIsClosedButApplicantFailsVerification_PropagatesApplicantError() {
+        // given
+        LinkedPlaceFixture fixture = linkedPlaceFixture();
+
+        when(ntsBusinessVerificationClient.getBusinessStatus(PREVIOUS_BUSINESS_NUMBER))
+                .thenReturn(previousOwnerStatus("03"));
+
+        when(businessPromotionRepository.findForUpdateByPlaceId(LINKED_PLACE_ID))
+                .thenReturn(Optional.of(fixture.promotion()));
+
+        when(businessInfoRepository.existsByUser_IdAndVerificationStatus(
+                PREVIOUS_OWNER_ID,
+                BusinessVerificationStatus.APPROVED
+        )).thenReturn(false);
+
+        when(ntsBusinessVerificationClient.verify(
+                BUSINESS_NUMBER,
+                OPENING_DATE,
+                REPRESENTATIVE_NAME
+        )).thenReturn(new NtsBusinessVerifyDTO.Result(
+                BUSINESS_NUMBER,
+                "02",
+                "확인할 수 없습니다.",
+                null
+        ));
+
+        when(ntsBusinessVerificationClient.getBusinessStatus(BUSINESS_NUMBER))
+                .thenReturn(ntsStatus("01"));
+
+        // when
+        GeneralException exception = assertThrows(
+                GeneralException.class,
+                () -> businessVerificationService.verifyBusiness(
+                        USER_ID,
+                        verifyRequest()
+                )
+        );
+
+        // then: 신청자 본인 확인 실패가 그대로 전파된다.
+        // 해제는 같은 트랜잭션 안에서 일어나므로 예외로 함께 롤백된다(통합 테스트에서 확인).
+        assertThat(exception.getErrorCode())
+                .isEqualTo(BusinessVerificationErrorCode.BUSINESS_VERIFICATION_FAILED);
+
+        verifyNoInteractions(fileService);
         verify(businessInfoRepository, never()).saveAndFlush(any());
-        assertThat(user.getRole()).isEqualTo(UserRole.USER);
+        assertThat(fixture.applicant().getRole()).isEqualTo(UserRole.USER);
+    }
+
+    // ───────── 회원 탈퇴 시 전체 해제 (작업 3) ─────────
+
+    @Test
+    void revokeAllByUserId_RevokesEveryApprovedBusinessAndDemotesUser() {
+        // given
+        User owner = User.builder()
+                .id(PREVIOUS_OWNER_ID)
+                .role(UserRole.BUSINESS)
+                .build();
+
+        Place placeWithPromotion = Place.builder()
+                .externalPlaceId("place-1")
+                .source(PlaceSource.KAKAO)
+                .name("사업장 1")
+                .build();
+        ReflectionTestUtils.setField(placeWithPromotion, "id", 101L);
+
+        Place placeWithoutPromotion = Place.builder()
+                .externalPlaceId("place-2")
+                .source(PlaceSource.KAKAO)
+                .name("사업장 2")
+                .build();
+        ReflectionTestUtils.setField(placeWithoutPromotion, "id", 102L);
+
+        BusinessInfo first = BusinessInfo.builder()
+                .id(21L)
+                .user(owner)
+                .place(placeWithPromotion)
+                .businessNumber("1111111111")
+                .verificationStatus(BusinessVerificationStatus.APPROVED)
+                .build();
+
+        BusinessInfo second = BusinessInfo.builder()
+                .id(22L)
+                .user(owner)
+                .place(placeWithoutPromotion)
+                .businessNumber("2222222222")
+                .verificationStatus(BusinessVerificationStatus.APPROVED)
+                .build();
+
+        BusinessPromotion activePromotion = BusinessPromotion.builder()
+                .id(31L)
+                .place(placeWithPromotion)
+                .user(owner)
+                .promotionCategory(PromotionCategory.FOOD)
+                .status(PromotionStatus.ACTIVE)
+                .build();
+
+        when(businessInfoRepository
+                .findAllByUser_IdAndVerificationStatusOrderByIdDesc(
+                        PREVIOUS_OWNER_ID,
+                        BusinessVerificationStatus.APPROVED
+                )).thenReturn(List.of(second, first));
+
+        when(businessPromotionRepository.findForUpdateByPlaceId(101L))
+                .thenReturn(Optional.of(activePromotion));
+        when(businessPromotionRepository.findForUpdateByPlaceId(102L))
+                .thenReturn(Optional.empty());
+
+        when(businessInfoRepository.existsByUser_IdAndVerificationStatus(
+                PREVIOUS_OWNER_ID,
+                BusinessVerificationStatus.APPROVED
+        )).thenReturn(true, false);
+
+        // when
+        businessVerificationService.revokeAllByUserId(PREVIOUS_OWNER_ID);
+
+        // then
+        for (BusinessInfo businessInfo : List.of(first, second)) {
+            assertThat(businessInfo.getVerificationStatus())
+                    .isEqualTo(BusinessVerificationStatus.REVOKED);
+            assertThat(businessInfo.getBusinessNumber()).isNull();
+            assertThat(businessInfo.getPlace()).isNull();
+        }
+
+        assertThat(activePromotion.getStatus()).isEqualTo(PromotionStatus.DELETED);
+        assertThat(owner.getRole()).isEqualTo(UserRole.USER);
+    }
+
+    @Test
+    void revokeAllByUserId_WhenUserHasNoApprovedBusiness_DoesNothing() {
+        when(businessInfoRepository
+                .findAllByUser_IdAndVerificationStatusOrderByIdDesc(
+                        USER_ID,
+                        BusinessVerificationStatus.APPROVED
+                )).thenReturn(List.of());
+
+        businessVerificationService.revokeAllByUserId(USER_ID);
+
+        verifyNoInteractions(businessPromotionRepository, userRepository);
+        verify(businessInfoRepository, never())
+                .existsByUser_IdAndVerificationStatus(any(), any());
     }
 }
