@@ -34,6 +34,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -151,13 +152,32 @@ public class BusinessVerificationServiceImpl
             );
         }
 
-        return businessInfoRepository
+        List<BusinessInfo> businessInfos = businessInfoRepository
                 .findAllByUser_IdAndVerificationStatusOrderByIdDesc(
                         userId,
                         BusinessVerificationStatus.APPROVED
+                );
+
+        if (businessInfos.isEmpty()) {
+            return List.of();
+        }
+
+        // 사업장 수와 관계없이 활성 홍보글 여부는 한 번에 조회한다.
+        Set<Long> businessInfoIdsWithActivePromotion =
+                businessInfoRepository.findIdsWithActivePromotion(
+                        userId,
+                        BusinessVerificationStatus.APPROVED
+                );
+
+        return businessInfos.stream()
+                .map(businessInfo ->
+                        BusinessVerificationConverter.toBusinessInfoResponse(
+                                businessInfo,
+                                businessInfoIdsWithActivePromotion.contains(
+                                        businessInfo.getId()
+                                )
+                        )
                 )
-                .stream()
-                .map(BusinessVerificationConverter::toBusinessInfoResponse)
                 .toList();
     }
 

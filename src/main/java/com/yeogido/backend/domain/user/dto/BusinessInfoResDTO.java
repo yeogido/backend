@@ -29,6 +29,9 @@ public record BusinessInfoResDTO(
 
         @Schema(description = "사업자 인증 완료 시각", example = "2026-07-26T15:30:00"
         )
-        LocalDateTime verifiedAt
+        LocalDateTime verifiedAt,
+
+        @Schema(description = "이 사업장에 활성 홍보글이 있는지 여부", example = "true")
+        boolean hasActivePromotion
 
 ) { }
