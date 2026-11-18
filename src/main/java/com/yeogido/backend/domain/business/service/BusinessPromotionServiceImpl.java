@@ -332,11 +332,15 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
         );
     }
 
+    /**
+     * 수정, 삭제용 조회. 행 잠금을 잡아 소유자 확인 뒤 다른 트랜잭션(재활성화, 인증 해제)이
+     * 같은 행을 바꾸지 못하게 한다.
+     */
     private BusinessPromotion getActiveBusinessPromotion(
             Long promotionId
     ) {
         return businessPromotionRepository
-                .findByIdAndStatus(
+                .findForUpdateByIdAndStatus(
                         promotionId,
                         PromotionStatus.ACTIVE
                 )
@@ -1084,8 +1088,9 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
             User user,
             BusinessPromotionRequest.Register request
     ) {
+        // 행 잠금: 이전 주인의 삭제, 인증 해제와 겹쳐도 한쪽이 끝난 뒤 상태를 읽는다.
         BusinessPromotion existingPromotion = businessPromotionRepository
-                .findByPlaceId(place.getId())
+                .findForUpdateByPlaceId(place.getId())
                 .orElse(null);
 
         if (existingPromotion == null) {
