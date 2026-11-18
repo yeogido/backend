@@ -15,6 +15,15 @@ public interface TravelRecordInvitationRepository extends JpaRepository<TravelRe
 
     @Modifying(flushAutomatically = true)
     @Query("""
+        update TravelRecordInvitation i set i.status = :status, i.friendship = null
+        where i.travelRecord.id = :recordId and i.invitee.id = :userId
+          and i.status = com.yeogido.backend.domain.travel.enums.TravelRecordInvitationStatus.PENDING
+        """)
+    int respondPendingFromLink(@Param("recordId") Long recordId, @Param("userId") Long userId,
+            @Param("status") com.yeogido.backend.domain.travel.enums.TravelRecordInvitationStatus status);
+
+    @Modifying(flushAutomatically = true)
+    @Query("""
         delete from TravelRecordInvitation i where i.travelRecord.id = :recordId
           and i.status = com.yeogido.backend.domain.travel.enums.TravelRecordInvitationStatus.PENDING
         """)

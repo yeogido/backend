@@ -55,11 +55,21 @@ public class TravelRecord extends BaseEntity {
     @Builder.Default
     private TravelRecordVisibility visibility = TravelRecordVisibility.PRIVATE;
 
+    @Column(name = "share_token", length = 64, unique = true)
+    private String shareToken;
+
+    public void assignShareToken(String shareToken) {
+        this.shareToken = shareToken;
+    }
+
     @Version
     @Column(name = "version", nullable = false)
     private Long version;
 
     public void updateVisibility(TravelRecordVisibility visibility) {
+        if (this.visibility != visibility) {
+            this.shareToken = null;
+        }
         this.visibility = visibility;
     }
 
