@@ -11,7 +11,12 @@ public interface BusinessInfoRepository extends JpaRepository<BusinessInfo, Long
 
     Optional<BusinessInfo> findByBusinessNumber(String businessNumber);
 
-    boolean existsByPlace_Id(Long placeId);
+    Optional<BusinessInfo> findByPlace_Id(Long placeId);
+
+    boolean existsByUser_IdAndVerificationStatus(
+            Long userId,
+            BusinessVerificationStatus verificationStatus
+    );
 
     List<BusinessInfo>
     findAllByUser_IdAndVerificationStatusOrderByIdDesc(
