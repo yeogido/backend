@@ -856,7 +856,7 @@ class BusinessVerificationServiceImplTest {
         when(ntsBusinessVerificationClient.getBusinessStatus(PREVIOUS_BUSINESS_NUMBER))
                 .thenReturn(previousOwnerStatus("03"));
 
-        when(businessPromotionRepository.findByPlaceId(LINKED_PLACE_ID))
+        when(businessPromotionRepository.findForUpdateByPlaceId(LINKED_PLACE_ID))
                 .thenReturn(Optional.of(fixture.promotion()));
 
         // 기존 사장은 이 사업장 하나뿐이라 해제 후 승인된 사업장이 남지 않는다.
@@ -940,7 +940,7 @@ class BusinessVerificationServiceImplTest {
         when(ntsBusinessVerificationClient.getBusinessStatus(PREVIOUS_BUSINESS_NUMBER))
                 .thenReturn(previousOwnerStatus("03"));
 
-        when(businessPromotionRepository.findByPlaceId(LINKED_PLACE_ID))
+        when(businessPromotionRepository.findForUpdateByPlaceId(LINKED_PLACE_ID))
                 .thenReturn(Optional.of(fixture.promotion()));
 
         when(businessInfoRepository.existsByUser_IdAndVerificationStatus(
@@ -1035,9 +1035,9 @@ class BusinessVerificationServiceImplTest {
                         BusinessVerificationStatus.APPROVED
                 )).thenReturn(List.of(second, first));
 
-        when(businessPromotionRepository.findByPlaceId(101L))
+        when(businessPromotionRepository.findForUpdateByPlaceId(101L))
                 .thenReturn(Optional.of(activePromotion));
-        when(businessPromotionRepository.findByPlaceId(102L))
+        when(businessPromotionRepository.findForUpdateByPlaceId(102L))
                 .thenReturn(Optional.empty());
 
         when(businessInfoRepository.existsByUser_IdAndVerificationStatus(

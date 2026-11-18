@@ -247,7 +247,7 @@ public class BusinessVerificationServiceImpl
     private void revoke(BusinessInfo businessInfo) {
         if (businessInfo.getPlace() != null) {
             businessPromotionRepository
-                    .findByPlaceId(businessInfo.getPlace().getId())
+                    .findForUpdateByPlaceId(businessInfo.getPlace().getId())
                     .filter(promotion ->
                             promotion.getStatus() == PromotionStatus.ACTIVE
                     )
