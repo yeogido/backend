@@ -20,6 +20,7 @@ import com.yeogido.backend.domain.course.entity.QCourseLike;
 import com.yeogido.backend.domain.course.entity.QCourseReview;
 import com.yeogido.backend.domain.course.enums.CourseItemType;
 import com.yeogido.backend.domain.course.enums.CourseSortType;
+import com.yeogido.backend.domain.course.enums.CourseType;
 import com.yeogido.backend.domain.region.entity.QRegion;
 import jakarta.persistence.EntityManager;
 import java.time.LocalDateTime;
@@ -31,6 +32,8 @@ import org.springframework.util.StringUtils;
 
 @Repository
 public class CourseQueryRepositoryImpl implements CourseQueryRepository {
+
+    private static final NumberExpression<Long> ZERO_POPULARITY = Expressions.numberTemplate(Long.class, "0");
 
     private final JPAQueryFactory queryFactory;
 
@@ -161,6 +164,33 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
         return listQuery(listProjection(ordering), ordering)
                 .where(course.deletedAt.isNull(), course.id.in(memberIds))
                 .fetch();
+    }
+
+    @Override
+    public List<CourseListRow> findPopularityRows(CourseType courseType, List<Long> ids) {
+        if (ids.isEmpty()) {
+            return List.of();
+        }
+        return popularityRowsQuery(courseType)
+                .where(course.id.in(ids))
+                .fetch();
+    }
+
+    @Override
+    public List<Long> findPopularityZeroCandidateIds(CourseType courseType, Long beforeId, int limit) {
+        return queryFactory.select(course.id).from(course)
+                .where(course.deletedAt.isNull(),
+                        courseType == null ? null : course.courseType.eq(courseType),
+                        beforeId == null ? null : course.id.lt(beforeId))
+                .orderBy(course.id.desc())
+                .limit(limit)
+                .fetch();
+    }
+
+    private JPAQuery<CourseListRow> popularityRowsQuery(CourseType courseType) {
+        var ordering = listOrdering(CourseSortType.POPULAR, new CourseLocation(null, null), Map.of());
+        return listQuery(listProjection(ordering), ordering)
+                .where(course.deletedAt.isNull(), courseType == null ? null : course.courseType.eq(courseType));
     }
 
     private List<CourseListRow> findSearchPhase(
@@ -362,10 +392,9 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
                     reviewCount.desc(),
                     course.id.desc()
             };
-            case POPULAR -> new OrderSpecifier<?>[] {
-                    popularityScore.desc(),
-                    course.id.desc()
-            };
+            case POPULAR -> popularityScore == ZERO_POPULARITY
+                    ? new OrderSpecifier<?>[] { course.id.desc() }
+                    : new OrderSpecifier<?>[] { popularityScore.desc(), course.id.desc() };
             case LATEST -> new OrderSpecifier<?>[] {
                     course.createdAt.desc(),
                     course.id.desc()
@@ -396,11 +425,7 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
             case DISTANCE -> distanceCursor(distance, request.cursorValue(), request.cursorId());
             case SAVED -> descendingNumberCursor(savedCount, Long.valueOf(request.cursorValue()), request.cursorId());
             case REVIEW -> descendingNumberCursor(reviewCount, Long.valueOf(request.cursorValue()), request.cursorId());
-            case POPULAR -> descendingNumberCursor(
-                    popularityScore,
-                    Long.valueOf(request.cursorValue()),
-                    request.cursorId()
-            );
+            case POPULAR -> popularityCursor(popularityScore, Long.parseLong(request.cursorValue()), request.cursorId());
             case LATEST -> latestCursor(request.cursorValue(), request.cursorId());
             case RECOMMEND -> recommendCursor(
                     recommendOrderSortGroup,
@@ -430,6 +455,16 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
         return expression.lt(cursorValue)
                 .or(expression.eq(cursorValue)
                         .and(course.id.lt(cursorId)));
+    }
+
+    private BooleanExpression popularityCursor(NumberExpression<Long> score, long cursorScore, long cursorId) {
+        if (score != ZERO_POPULARITY) {
+            return descendingNumberCursor(score, cursorScore, cursorId);
+        }
+        if (cursorScore > 0) {
+            return null;
+        }
+        return cursorScore == 0 ? course.id.lt(cursorId) : Expressions.FALSE;
     }
 
     private BooleanExpression latestCursor(
@@ -498,7 +533,7 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
 
     private NumberExpression<Long> popularityScoreExpression(Map<Long, Long> popularityScores) {
         if (popularityScores == null || popularityScores.isEmpty()) {
-            return Expressions.numberTemplate(Long.class, "0");
+            return ZERO_POPULARITY;
         }
 
         CaseBuilder.Cases<Long, NumberExpression<Long>> cases = null;
@@ -514,9 +549,7 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
             }
         }
 
-        return cases == null
-                ? Expressions.numberTemplate(Long.class, "0")
-                : cases.otherwise(0L);
+        return cases.otherwise(0L);
     }
 
     private NumberExpression<Double> distanceExpression(CourseLocation location) {

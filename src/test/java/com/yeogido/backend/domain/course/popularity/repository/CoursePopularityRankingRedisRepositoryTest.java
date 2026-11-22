@@ -1,6 +1,7 @@
 package com.yeogido.backend.domain.course.popularity.repository;
 
 import com.yeogido.backend.domain.course.popularity.dto.CoursePopularityRankingEntry;
+import com.yeogido.backend.domain.course.enums.CourseType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InOrder;
@@ -11,16 +12,19 @@ import org.springframework.data.redis.connection.RedisConnection;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
+import org.springframework.data.redis.core.script.RedisScript;
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.LinkedHashSet;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
@@ -66,13 +70,15 @@ class CoursePopularityRankingRedisRepositoryTest {
     }
 
     @Test
-    void replaceOfficialRankingDeletesRankingAndSkipsRenameWhenEntriesAreEmpty() {
+    void replaceOfficialRankingDeletesLegacyKeyAndPublishesEmptyListIndex() {
         repository.replaceOfficialRanking(List.of());
 
         verify(stringRedisTemplate).delete("course:ranking:official");
         verify(stringRedisTemplate, never()).delete("course:ranking:official:tmp");
-        verify(stringRedisTemplate, never()).executePipelined(any(RedisCallback.class));
-        verify(stringRedisTemplate, never()).rename(any(), any());
+        verify(stringRedisTemplate).rename(
+                argThat(key -> key.startsWith("course:ranking:official:list:tmp:")), eq("course:ranking:official:list")
+        );
+        verify(stringRedisTemplate, never()).rename(any(), eq("course:ranking:official"));
     }
 
     @Test
@@ -120,6 +126,11 @@ class CoursePopularityRankingRedisRepositoryTest {
                 eq(90.0d),
                 eq(expectedMember.getBytes(StandardCharsets.UTF_8))
         );
+        verify(connection).zAdd(
+                argThat(key -> new String(key, StandardCharsets.UTF_8).startsWith("course:ranking:official:list:tmp:")),
+                eq(90.0d),
+                eq("0000000000000000010".getBytes(StandardCharsets.UTF_8))
+        );
     }
 
     @Test
@@ -135,5 +146,32 @@ class CoursePopularityRankingRedisRepositoryTest {
         List<Long> result = repository.findTopLocalCourseIds(2);
 
         assertThat(result).containsExactly(20L, 10L);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void listPageMergesCourseTypesByScoreAndNumericIdAndCapsTheResult() {
+        when(stringRedisTemplate.execute(any(RedisScript.class), eq(List.of("course:ranking:official:list")),
+                eq("positive"), eq("5"), eq("0000000000000000015"), eq("2")))
+                .thenReturn(List.of("0000000000000000010", "5", "0000000000000000002", "4"));
+        when(stringRedisTemplate.execute(any(RedisScript.class), eq(List.of("course:ranking:local:list")),
+                eq("positive"), eq("5"), eq("0000000000000000015"), eq("2")))
+                .thenReturn(List.of("0000000000000000009", "5", "0000000000000000001", "3"));
+
+        assertThat(repository.findListRankingPage(null, 5L, 15L, true, 2)).containsExactly(
+                new CoursePopularityRankingRedisRepository.RankedCourse(10L, 5L),
+                new CoursePopularityRankingRedisRepository.RankedCourse(9L, 5L)
+        );
+    }
+
+    @Test
+    void nonZeroLookupKeepsBothPositiveAndNegativeScores() {
+        when(stringRedisTemplate.opsForZSet()).thenReturn(zSetOperations);
+        when(zSetOperations.score("course:ranking:official:list", "0000000000000000001",
+                "0000000000000000002", "0000000000000000003", "0000000000000000004"))
+                .thenReturn(Arrays.asList(null, 0d, -5d, 5d));
+
+        assertThat(repository.findNonZeroRankedCourseIds(CourseType.OFFICIAL, List.of(1L, 2L, 3L, 4L)))
+                .containsExactlyInAnyOrder(3L, 4L);
     }
 }
