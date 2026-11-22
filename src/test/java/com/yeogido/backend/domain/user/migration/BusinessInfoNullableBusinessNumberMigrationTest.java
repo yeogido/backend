@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 /**
- * V52: 해제(REVOKED)된 사업자 정보의 사업자번호를 비울 수 있도록 business_number 를 NULL 허용으로 바꾼다.
+ * V53: 해제(REVOKED)된 사업자 정보의 사업자번호를 비울 수 있도록 business_number 를 NULL 허용으로 바꾼다.
  * MYSQL_MIGRATION_TEST_URL에 DB 이름을 제외한 테스트용 MySQL 서버 주소 설정 필수
  * ./gradlew migrationTest로 실행하며 테스트마다 별도 스키마 생성 및 정리
  */
@@ -41,8 +41,8 @@ class BusinessInfoNullableBusinessNumberMigrationTest {
             statement.execute("CREATE DATABASE " + schema);
         }
         databaseUrl = withSchema(serverUrl, schema);
-        // V52 직전인 V51까지 적용하여 기존 DB 구조 재현
-        Flyway.configure().dataSource(databaseUrl, username, password).target("51").load().migrate();
+        // V53 직전인 V52까지 적용하여 기존 DB 구조 재현
+        Flyway.configure().dataSource(databaseUrl, username, password).target("52").load().migrate();
         database = DriverManager.getConnection(databaseUrl, username, password);
         insertUser();
     }
@@ -61,11 +61,11 @@ class BusinessInfoNullableBusinessNumberMigrationTest {
 
     @Test
     void allowsNullBusinessNumberWhileKeepingFormatAndUniqueConstraints() throws SQLException {
-        // V51 에서는 사업자번호를 비울 수 없다.
+        // V52 까지는 사업자번호를 비울 수 없다.
         assertThatThrownBy(() -> execute(businessInfoInsert("NULL")))
                 .isInstanceOf(SQLException.class).hasMessageContaining("business_number");
 
-        migrateTo52();
+        migrateTo53();
 
         // 해제된 행 여러 건이 번호 없이 공존할 수 있다(unique 는 NULL 을 여러 건 허용).
         execute(businessInfoInsert("NULL"));
@@ -90,16 +90,16 @@ class BusinessInfoNullableBusinessNumberMigrationTest {
     }
 
     @Test
-    void doesNotReapply52() {
-        migrateTo52();
+    void doesNotReapply53() {
+        migrateTo53();
 
         assertThat(Flyway.configure().dataSource(databaseUrl, username, password)
-                .target("52").load().migrate().migrationsExecuted).isZero();
+                .target("53").load().migrate().migrationsExecuted).isZero();
     }
 
-    private void migrateTo52() {
+    private void migrateTo53() {
         assertThat(Flyway.configure().dataSource(databaseUrl, username, password)
-                .target("52").load().migrate().migrationsExecuted).isEqualTo(1);
+                .target("53").load().migrate().migrationsExecuted).isEqualTo(1);
     }
 
     private void insertUser() throws SQLException {
