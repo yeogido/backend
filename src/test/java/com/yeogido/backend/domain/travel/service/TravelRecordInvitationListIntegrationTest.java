@@ -259,7 +259,7 @@ class TravelRecordInvitationListIntegrationTest {
     }
 
     @Test
-    void previewAndListExposeOnlyTwoFolderPhotosAndStickerPlacement() throws Exception {
+    void previewAndListExposeAllOrderedPhotosRegionAndStickerPlacement() throws Exception {
         Long id = invitation(receiver, TravelRecordInvitationStatus.PENDING, timestamp);
         TravelRecord album = em.find(TravelRecordInvitation.class, id).getTravelRecord();
         for (int order = 5; order >= 1; order--) {
@@ -274,13 +274,19 @@ class TravelRecordInvitationListIntegrationTest {
         Long recordId = album.getId();
         flushAndClear();
         var preview = service.getReceivedInvitation(id, receiver.getId());
+        assertThat(preview.travelRecord().previewImages())
+                .extracting(com.yeogido.backend.domain.travel.dto.response.TravelRecordResDTO.PreviewImage::imageOrder)
+                .containsExactly(1, 2, 3, 4, 5);
+        assertThat(preview.travelRecord().regionName()).isEqualTo("초대 목록 지역");
         assertThat(preview.travelRecord()).isEqualTo(service.getReceivedInvitations(receiver.getId(),
                 new ListRequest(null, 10)).getItems().getFirst().travelRecord());
         mvc.perform(get("/api/v1/travel-records/invitations/" + id).with(auth(receiver.getId())))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.result.travelRecord.previewImages.length()").value(2))
+                .andExpect(jsonPath("$.result.travelRecord.previewImages.length()").value(5))
                 .andExpect(jsonPath("$.result.travelRecord.previewImages[0].imageUrl").value("https://example.com/travel-records/preview-1.jpg"))
                 .andExpect(jsonPath("$.result.travelRecord.previewImages[1].imageOrder").value(2))
+                .andExpect(jsonPath("$.result.travelRecord.regionName").value("초대 목록 지역"))
+                .andExpect(jsonPath("$.result.travelRecord.previewImages[4].imageUrl").value("https://example.com/travel-records/preview-5.jpg"))
                 .andExpect(jsonPath("$.result.travelRecord.photoCount").value(5))
                 .andExpect(jsonPath("$.result.travelRecord.stickers[0].positionX").value(10.0))
                 .andExpect(jsonPath("$.result.travelRecord.stickers[0].rotation").value(30.0))

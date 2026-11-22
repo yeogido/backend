@@ -32,6 +32,7 @@ public interface TravelRecordInvitationRepository extends JpaRepository<TravelRe
     @Query("""
         select i from TravelRecordInvitation i
         join fetch i.travelRecord r
+        join fetch r.region
         join fetch r.user owner
         join fetch i.inviter inviter
         join i.invitee invitee
