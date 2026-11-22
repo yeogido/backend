@@ -188,6 +188,7 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
     }
 
     private JPAQuery<CourseListRow> popularityRowsQuery(CourseType courseType) {
+        // 인기 점수와 순서는 서비스에서 반영하므로 SQL에서는 코스 상세만 조회
         var ordering = listOrdering(CourseSortType.POPULAR, new CourseLocation(null, null), Map.of());
         return listQuery(listProjection(ordering), ordering)
                 .where(course.deletedAt.isNull(), courseType == null ? null : course.courseType.eq(courseType));
@@ -461,6 +462,7 @@ public class CourseQueryRepositoryImpl implements CourseQueryRepository {
         if (score != ZERO_POPULARITY) {
             return descendingNumberCursor(score, cursorScore, cursorId);
         }
+        // 전체 점수가 0점이면 양수 커서에서 전체 허용, 음수 커서에서 전체 제외
         if (cursorScore > 0) {
             return null;
         }

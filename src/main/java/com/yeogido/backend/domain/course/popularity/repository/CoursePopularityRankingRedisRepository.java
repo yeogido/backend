@@ -54,7 +54,7 @@ public class CoursePopularityRankingRedisRepository {
                 if storedScore and tonumber(storedScore) == score then
                     start = math.max(start, redis.call('ZREVRANK', key, member) + 1)
                 else
-                    -- The cursor can refer to a course that changed score or disappeared after a refresh.
+                    -- 커서 코스의 점수가 변경되거나 코스가 사라진 경우 기존 점수와 ID로 다음 위치 탐색
                     local upper = stop
                     while start < upper do
                         local middle = math.floor((start + upper) / 2)
@@ -108,6 +108,7 @@ public class CoursePopularityRankingRedisRepository {
     }
 
     public boolean hasListRanking(CourseType type) {
+        // 기존 랭킹만 있는 경우 목록용 인덱스의 첫 갱신까지 기존 조회 경로 유지
         return rankingKeys(type).stream().allMatch(key ->
                 Boolean.TRUE.equals(stringRedisTemplate.hasKey(listRankingKey(key)))
                         || Boolean.FALSE.equals(stringRedisTemplate.hasKey(key)));
@@ -119,6 +120,7 @@ public class CoursePopularityRankingRedisRepository {
         if (limit <= 0) {
             return List.of();
         }
+        // 코스 유형별 상위 후보를 합친 뒤 점수와 ID 순서로 페이지 범위 확정
         return rankingKeys(type).stream()
                 .flatMap(key -> listPage(key, cursorScore, cursorId, positive, limit).stream())
                 .sorted(LIST_ORDER)
@@ -178,14 +180,13 @@ public class CoursePopularityRankingRedisRepository {
         String tmpKey = temporaryRankingKey(key);
         String listTmpKey = temporaryRankingKey(listKey) + ":" + UUID.randomUUID();
 
-        // 이전 실패로 남아있을 수 있는 임시 Key만 초기화한다.
+        // 이전 갱신 실패로 남았을 수 있는 기존 랭킹 임시 키 초기화
         if (!entries.isEmpty()) {
             stringRedisTemplate.delete(tmpKey);
         }
 
-        // ZSet score는 인기 점수 그대로 유지하고,
-        // member에 createdAt을 고정폭으로 포함해 동점 시 최신 코스가 먼저 오도록 한다.
-        // Pipeline으로 임시 Key에 Redis 요청을 일괄 처리한다.
+        // 기존 랭킹은 동점 시 생성 시각순, 목록용 랭킹은 코스 ID순 정렬
+        // 두 랭킹의 임시 키에 Redis 파이프라인으로 일괄 적재
         stringRedisTemplate.executePipelined((RedisCallback<Object>) connection -> {
             byte[] redisKey = serialize(tmpKey);
             byte[] listRedisKey = serialize(listTmpKey);
@@ -198,12 +199,14 @@ public class CoursePopularityRankingRedisRepository {
                 );
                 connection.zAdd(listRedisKey, entry.score(), serialize(listMember(entry.courseId())));
             }
+            // 빈 목록용 인덱스와 갱신 전 상태를 구분하는 표시 추가
             connection.zAdd(listRedisKey, 0, serialize(LIST_SENTINEL));
             connection.expire(listRedisKey, 3600);
 
             return null;
         });
 
+        // 적재를 끝낸 임시 키로 목록용 인덱스 교체
         stringRedisTemplate.rename(listTmpKey, listKey);
         stringRedisTemplate.persist(listKey);
         if (entries.isEmpty()) {
@@ -218,7 +221,7 @@ public class CoursePopularityRankingRedisRepository {
             return List.of();
         }
 
-        // score 기준 인기순 조회
+        // 인기 점수 기준 상위 코스 조회
         Set<String> courseIds = stringRedisTemplate.opsForZSet()
                 .reverseRange(key, 0, size - 1L);
 
@@ -281,7 +284,7 @@ public class CoursePopularityRankingRedisRepository {
         long createdAtMicros = createdAt.toEpochSecond(ZoneOffset.UTC) * 1_000_000L
                 + createdAt.getNano() / 1_000L;
 
-        // 고정폭으로 패딩해야 Redis의 문자열 역순 정렬이 시간 역순과 일치한다.
+        // 문자열 내림차순과 생성 시각 내림차순을 맞추기 위한 고정 자릿수 사용
         return String.format(Locale.ROOT, "%020d:%d", createdAtMicros, entry.courseId());
     }
 
@@ -298,6 +301,7 @@ public class CoursePopularityRankingRedisRepository {
     }
 
     private String listMember(long courseId) {
+        // 동점에서 문자열 내림차순과 코스 ID 내림차순을 맞추기 위한 고정 자릿수 사용
         return String.format(Locale.ROOT, "%019d", courseId);
     }
 

@@ -404,8 +404,10 @@ public class CourseServiceImpl implements CourseService {
         User currentUser = userId == null
                 ? null
                 : getCurrentUser(userId);
+        // 검색과 필터가 없는 인기순 목록만 Redis에서 페이지 후보 조회
         if (interpretation == null && !pinned && phase == null && isUnfilteredPopularityRequest(request)
                 && coursePopularityRankingRedisRepository.hasListRanking(request.courseType())) {
+            // 다음 페이지 존재 여부 확인을 위한 후보 한 건 추가 조회
             var rows = findPopularityPage(request, size + 1);
             return toCourseListResponse(request, userId, currentUser, null, false, null, rows, 0);
         }
@@ -471,6 +473,7 @@ public class CourseServiceImpl implements CourseService {
         List<CourseQueryRepository.CourseListRow> rows = new ArrayList<>();
         Set<Long> seen = new HashSet<>();
         Long score = request.cursorValue() == null ? null : Long.valueOf(request.cursorValue());
+        // 기존 점수 내림차순을 유지하기 위한 양수, 0점, 음수 순서의 페이지 구성
         if (score == null || score > 0) {
             appendRankedCourses(request.courseType(), score, request.cursorId(), true, limit, rows, seen);
         }
@@ -497,6 +500,7 @@ public class CourseServiceImpl implements CourseService {
             }
             var ids = ranked.stream().map(RankedCourse::courseId).toList();
             var coursesById = findPopularityRowsById(type, ids);
+            // DB 조회 결과를 Redis 순위대로 조립하고 삭제되었거나 이미 포함된 코스 제외
             for (var entry : ranked) {
                 var course = coursesById.get(entry.courseId());
                 if (course != null && seen.add(entry.courseId())) {
@@ -506,6 +510,7 @@ public class CourseServiceImpl implements CourseService {
             if (ranked.size() < batchSize) {
                 return;
             }
+            // 삭제된 코스가 섞인 경우에도 마지막으로 읽은 후보 다음부터 추가 조회
             var last = ranked.getLast();
             score = last.score();
             afterId = last.courseId();
@@ -520,6 +525,7 @@ public class CourseServiceImpl implements CourseService {
             if (candidates.isEmpty()) {
                 return;
             }
+            // 미집계 코스도 0점으로 포함하기 위해 후보별 Redis 점수를 일괄 확인
             var nonZero = coursePopularityRankingRedisRepository.findNonZeroRankedCourseIds(type, candidates);
             int remaining = limit - rows.size();
             var zeroIds = candidates.stream().filter(id -> !nonZero.contains(id) && !seen.contains(id))

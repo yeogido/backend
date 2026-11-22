@@ -22,6 +22,7 @@ if (page === 'next' && (!__ENV.CURSOR_ID || !__ENV.CURSOR_VALUE)) {
 export const options = {
   scenarios: {
     course_list: {
+      // 응답이 느려져도 목표 요청률 기준으로 부하를 주고 시작하지 못한 요청을 기록
       executor: 'constant-arrival-rate',
       rate,
       timeUnit: '1s',
@@ -60,7 +61,7 @@ export default function () {
     try {
       items = response.json('result.items');
     } catch (_) {
-      // The response check below records malformed JSON as a failed page.
+      // 파싱할 수 없는 응답은 아래 검증에서 페이지 실패로 기록
     }
   }
   const valid = check(response, {

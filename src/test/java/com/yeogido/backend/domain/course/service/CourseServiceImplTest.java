@@ -228,7 +228,7 @@ class CourseServiceImplTest {
         stubSuccessfulCreateCourse(createUser());
         var base = createRequest();
         var place = createPlaceItem("AT4");
-        // 십의 자리는 일차, 일의 자리는 방문 순서이며 정렬 검증을 위해 입력 순서 혼합
+        // 십의 자리는 일차, 일의 자리는 방문 순서로 지정하고 정렬 검증을 위해 입력 순서 혼합
         var items = java.util.stream.IntStream.of(22, 11, 21, 12).mapToObj(value ->
                 new CourseReqDTO.CourseItemCreateReq(value % 10, place.type(), null, place.externalPlaceId(),
                         place.categoryGroupCode(), place.name(), place.roadAddress(), place.lotAddress(),
@@ -561,7 +561,7 @@ class CourseServiceImplTest {
                 null, null, first.getCursorValue().toString(), first.getCursorId(), 2);
         var decoded = courseSearchCursorConverter.decode(next);
         assertThat(decoded.phase()).isEqualTo(titleRows >= 2 ? SearchPhase.TITLE : SearchPhase.NATURAL);
-        // Null RECOMMEND cursor is valid when a position ID is present.
+        // 커서 ID가 있으면 커서 값이 없는 추천순 요청도 유효한 것으로 처리
         assertThat(decoded.request().cursorValue()).isNull();
         assertThat(decoded.interpretation().totalDays()).isEqualTo(1);
         assertThat(decoded.interpretation().extractedKeywords()).containsExactly("당일치기", "바다");
