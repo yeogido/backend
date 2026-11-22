@@ -16,6 +16,10 @@ import org.springframework.data.repository.query.Param;
 
 public interface TravelRecordRepository extends JpaRepository<TravelRecord, Long>, TravelRecordQueryRepository {
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select tr from TravelRecord tr where tr.shareToken = :token")
+    Optional<TravelRecord> findByShareTokenForUpdate(@Param("token") String token);
+
     /** 파일 이동 전에 버전을 선점하여 충돌한 요청의 임시 사진이 소모되지 않게 합니다. */
     @Modifying(flushAutomatically = true)
     @Query("""
