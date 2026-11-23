@@ -36,10 +36,13 @@ import jakarta.persistence.LockModeType;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.Year;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -272,7 +275,7 @@ public class TravelRecordServiceImpl implements TravelRecordService {
         List<TravelRecordReqDTO.ImageRequest> movedImages = moveImages(request.images());
         String coverImageKey = findCoverImageKey(movedImages);
 
-        // travel_record.cover_image_key가 NOT NULL이라 대표 이미지 key를 여행 기록에도 저장
+        // 첫 번째 사진을 폴더 대표 이미지로 함께 저장합니다.
         TravelRecord travelRecord = TravelRecordConverter.toTravelRecord(
                 request,
                 user,
@@ -286,7 +289,8 @@ public class TravelRecordServiceImpl implements TravelRecordService {
 
         List<TravelRecordPhoto> photos = TravelRecordConverter.toTravelRecordPhotos(
                 savedTravelRecord,
-                movedImages
+                movedImages,
+                user
         );
 
         travelRecordPhotoRepository.saveAll(photos);
@@ -346,14 +350,22 @@ public class TravelRecordServiceImpl implements TravelRecordService {
         // JPQL 일괄 수정 이후 영속성 컨텍스트도 최신 버전으로 맞춥니다.
         entityManager.refresh(travelRecord);
 
+        // 기존 사진을 재저장해도 최초 업로더는 유지하고, 새 사진만 현재 편집자로 기록합니다.
+        Map<String, User> existingUploaders = new HashMap<>();
+        travelRecordPhotoRepository.findCurrentPhotosForUpdate(travelRecordId)
+                .forEach(photo -> existingUploaders.putIfAbsent(photo.getImageKey(), photo.getUploader()));
+        User editor = getUserOrThrow(userId);
+
         // 수정 요청의 images는 "수정 후 최종 목록"이므로 기존 사진을 전체 교체합니다.
         travelRecordPhotoRepository.deleteAllByTravelRecord_Id(travelRecordId);
         travelRecordPhotoRepository.flush();
 
-        List<TravelRecordPhoto> photos = TravelRecordConverter.toTravelRecordPhotos(
-                travelRecord,
-                movedImages
-        );
+        List<TravelRecordPhoto> photos = movedImages.stream()
+                .map(image -> TravelRecordPhoto.builder().travelRecord(travelRecord)
+                        .imageKey(image.imageKey()).imageOrder(image.imageOrder())
+                        .uploader(existingUploaders.containsKey(image.imageKey())
+                                ? existingUploaders.get(image.imageKey()) : editor).build())
+                .toList();
         travelRecordPhotoRepository.saveAll(photos);
 
         updateStickersIfRequested(travelRecord, request.stickers(), stickerMap);
@@ -435,22 +447,57 @@ public class TravelRecordServiceImpl implements TravelRecordService {
         updateAfterMemberRemoval(travelRecord);
     }
 
-    /** 회원 탈퇴 전에 참여 중인 앨범을 ID 순서로 잠그고 참여 관계를 제거합니다. */
+    /** 회원 탈퇴 시 참여 중이거나 사진을 올린 앨범을 ID 순서로 잠그고 사진과 참여 관계를 정리합니다. */
     @Override
     @Transactional
     public void removeMembershipsForWithdrawal(Long userId) {
-        for (Long recordId : travelRecordMemberRepository.findJoinedRecordIds(userId)) {
+        // 이미 나간 폴더도 사진 업로더 관계를 통해 찾아 같은 순서로 잠급니다.
+        Set<Long> recordIds = new TreeSet<>(travelRecordMemberRepository.findJoinedRecordIds(userId));
+        recordIds.addAll(travelRecordPhotoRepository.findUploadedRecordIds(userId));
+        for (Long recordId : recordIds) {
             TravelRecord record = travelRecordRepository.findActiveDetailForUpdate(recordId).orElse(null);
             if (record == null) {
                 continue;
             }
             entityManager.refresh(record, LockModeType.PESSIMISTIC_WRITE);
+            boolean photosRemoved = !record.getUser().getId().equals(userId)
+                    && removeUploadedPhotos(record, userId);
             if (travelRecordMemberRepository.deleteCurrentMembership(recordId, userId) > 0
                     && record.getVisibility() == TravelRecordVisibility.FRIENDS
                     && !record.getUser().getId().equals(userId)) {
                 updateAfterMemberRemoval(record);
+            } else if (photosRemoved) {
+                // 사진만 바뀌어도 탈퇴 전에 열어 둔 편집 화면이 삭제된 사진을 복구하지 못하게 합니다.
+                if (travelRecordRepository.reserveVersion(recordId, record.getVersion()) == 0) {
+                    throw new GeneralException(TravelRecordErrorCode.VERSION_CONFLICT);
+                }
+                entityManager.refresh(record, LockModeType.PESSIMISTIC_WRITE);
             }
         }
+    }
+
+    /** 탈퇴자 사진만 제거하고 남은 사진의 업로더, 대표 이미지와 순서를 함께 보존합니다. */
+    private boolean removeUploadedPhotos(TravelRecord record, Long userId) {
+        List<TravelRecordPhoto> current = travelRecordPhotoRepository
+                .findCurrentPhotosForUpdate(record.getId());
+        List<TravelRecordPhoto> retained = current.stream()
+                .filter(photo -> photo.getUploader() == null || !photo.getUploader().getId().equals(userId))
+                .toList();
+        if (current.size() == retained.size()) {
+            return false;
+        }
+        travelRecordPhotoRepository.deleteAllByTravelRecord_Id(record.getId());
+        travelRecordPhotoRepository.flush();
+        List<TravelRecordPhoto> replacements = new ArrayList<>();
+        for (int index = 0; index < retained.size(); index++) {
+            TravelRecordPhoto photo = retained.get(index);
+            replacements.add(TravelRecordPhoto.builder().travelRecord(record).uploader(photo.getUploader())
+                    .imageKey(photo.getImageKey()).imageOrder(index + 1).build());
+        }
+        travelRecordPhotoRepository.saveAll(replacements);
+        record.updateCoverImageKey(retained.isEmpty() ? null : retained.getFirst().getImageKey());
+        travelRecordRepository.flush();
+        return true;
     }
 
     /** 앨범 잠금 아래 최신 참여 관계를 읽고, 생성자만 남으면 대기 초대와 공개범위를 함께 정리합니다. */
