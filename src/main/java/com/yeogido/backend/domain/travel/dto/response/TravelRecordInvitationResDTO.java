@@ -33,10 +33,11 @@ public class TravelRecordInvitationResDTO {
             @Schema(description = "여행 기록 ID", example = "20") Long travelRecordId,
             @Schema(description = "제목", example = "부산 감성 바다 여행") String title,
             @Schema(description = "지역 ID", example = "1") Long regionId,
+            @Schema(description = "지역명", example = "부산시") String regionName,
             @Schema(description = "여행 시작일") LocalDate startDate,
             @Schema(description = "여행 종료일") LocalDate endDate,
             @Schema(description = "폴더 테마", example = "BASIC") FolderTheme folderTheme,
-            @Schema(description = "폴더 구성용 사진 순서대로 최대 2장. 전체 사진 상세가 아님")
+            @Schema(description = "앨범 사진 URL 전체를 표시 순서로 제공. 폴더 썸네일과 하단 블러 표시용")
             List<TravelRecordResDTO.PreviewImage> previewImages,
             @Schema(description = "폴더 스티커 배치") List<TravelRecordResDTO.StickerResponse> stickers,
             @Schema(description = "블러 영역 표시용 전체 사진 수", example = "5") int photoCount

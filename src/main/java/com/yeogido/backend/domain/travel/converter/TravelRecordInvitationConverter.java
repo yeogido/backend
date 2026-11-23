@@ -28,8 +28,8 @@ public class TravelRecordInvitationConverter {
                 toUserProfile(invitation.getInviter(), imageUrlResolver),
                 toUserProfile(record.getUser(), imageUrlResolver),
                 new TravelRecordInvitationResDTO.PendingTravelRecord(record.getId(), record.getTitle(),
-                        record.getRegion().getId(), record.getStartDate(), record.getEndDate(), record.getFolderTheme(),
-                        photos.stream().limit(2).map(photo -> new TravelRecordResDTO.PreviewImage(
+                        record.getRegion().getId(), record.getRegion().getName(), record.getStartDate(), record.getEndDate(), record.getFolderTheme(),
+                        photos.stream().map(photo -> new TravelRecordResDTO.PreviewImage(
                                 imageUrlResolver.apply(photo.getImageKey()), photo.getImageOrder())).toList(),
                         stickers.stream().map(sticker -> TravelRecordConverter.toStickerResponse(sticker, imageUrlResolver)).toList(),
                         photos.size()),

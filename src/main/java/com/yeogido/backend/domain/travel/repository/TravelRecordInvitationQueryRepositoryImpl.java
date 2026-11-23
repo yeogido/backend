@@ -30,6 +30,7 @@ public class TravelRecordInvitationQueryRepositoryImpl implements TravelRecordIn
         QUser inviter = new QUser("actualInviter");
         return queryFactory.selectFrom(travelRecordInvitation)
                 .join(travelRecordInvitation.travelRecord, travelRecord).fetchJoin()
+                .join(travelRecord.region).fetchJoin()
                 .join(travelRecord.user, owner).fetchJoin()
                 .join(travelRecordInvitation.inviter, inviter).fetchJoin()
                 .join(travelRecordInvitation.friendship)
