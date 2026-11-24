@@ -2,9 +2,11 @@ package com.yeogido.backend.domain.business.repository;
 
 import com.yeogido.backend.domain.business.entity.BusinessPromotion;
 import com.yeogido.backend.domain.business.enums.PromotionStatus;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.repository.query.Param;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 
@@ -17,6 +19,16 @@ public interface BusinessPromotionRepository
         extends JpaRepository<BusinessPromotion, Long> {
 
     Optional<BusinessPromotion> findByPlaceId(Long placeId);
+
+    /**
+     * 홍보글 행을 바꾸는 경로(삭제, 수정, 재활성화, 인증 해제)는 같은 행 잠금을 잡는다.
+     * 이전 주인의 삭제가 새 주인의 재활성화를 덮어쓰지 않도록 서로 직렬화한다.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    Optional<BusinessPromotion> findForUpdateByPlaceId(Long placeId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    Optional<BusinessPromotion> findForUpdateByIdAndStatus(Long id, PromotionStatus status);
 
     @Modifying(flushAutomatically = true)
     @Query("""

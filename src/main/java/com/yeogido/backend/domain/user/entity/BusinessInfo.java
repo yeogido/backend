@@ -43,9 +43,9 @@ public class BusinessInfo extends BaseEntity {
     )
     private Place place;
 
+    /** 해제(REVOKED)되면 비워져 다른 인증에서 같은 번호를 다시 쓸 수 있다. */
     @Column(
             name = "business_number",
-            nullable = false,
             length = 10
     )
     private String businessNumber;
@@ -110,5 +110,16 @@ public class BusinessInfo extends BaseEntity {
         this.verificationStatus =
                 BusinessVerificationStatus.APPROVED;
         this.verifiedAt = verifiedAt;
+    }
+
+    /**
+     * 인증을 해제한다. 행은 이력으로 남기되 사업자번호와 장소 연결을 비워
+     * 같은 번호와 장소를 다른 인증에서 다시 쓸 수 있게 한다.
+     */
+    public void revoke() {
+        this.verificationStatus =
+                BusinessVerificationStatus.REVOKED;
+        this.businessNumber = null;
+        this.place = null;
     }
 }

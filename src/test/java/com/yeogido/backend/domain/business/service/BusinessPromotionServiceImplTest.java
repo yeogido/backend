@@ -290,7 +290,7 @@ class BusinessPromotionServiceImplTest {
     }
 
     private void givenNewPromotionIsSaved() {
-        when(businessPromotionRepository.findByPlaceId(PLACE_ID)).thenReturn(Optional.empty());
+        when(businessPromotionRepository.findForUpdateByPlaceId(PLACE_ID)).thenReturn(Optional.empty());
         when(businessPromotionRepository.save(any(BusinessPromotion.class)))
                 .thenAnswer(invocation -> {
                     BusinessPromotion saved = invocation.getArgument(0);
@@ -315,7 +315,7 @@ class BusinessPromotionServiceImplTest {
                 .status(PromotionStatus.ACTIVE)
                 .build();
 
-        when(businessPromotionRepository.findByIdAndStatus(PROMOTION_ID, PromotionStatus.ACTIVE))
+        when(businessPromotionRepository.findForUpdateByIdAndStatus(PROMOTION_ID, PromotionStatus.ACTIVE))
                 .thenReturn(Optional.of(promotion));
     }
 
