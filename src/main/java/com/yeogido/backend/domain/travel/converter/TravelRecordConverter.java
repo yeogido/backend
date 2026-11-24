@@ -11,6 +11,7 @@ import com.yeogido.backend.domain.travel.entity.TravelRecordSticker;
 import com.yeogido.backend.domain.travel.enums.FolderTheme;
 import com.yeogido.backend.domain.travel.enums.TravelRecordVisibility;
 import com.yeogido.backend.domain.user.entity.User;
+import com.yeogido.backend.domain.user.enums.UserStatus;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -42,11 +43,13 @@ public class TravelRecordConverter {
 
     public static List<TravelRecordPhoto> toTravelRecordPhotos(
             TravelRecord travelRecord,
-            List<TravelRecordReqDTO.ImageRequest> images
+            List<TravelRecordReqDTO.ImageRequest> images,
+            User uploader
     ) {
         return images.stream()
                 .map(image -> TravelRecordPhoto.builder()
                         .travelRecord(travelRecord)
+                        .uploader(uploader)
                         .imageKey(image.imageKey())
                         .imageOrder(image.imageOrder())
                         .build())
@@ -89,8 +92,7 @@ public class TravelRecordConverter {
                 travelRecord.getVisibility(),
                 toUserProfile(travelRecord.getUser(), imageUrlResolver),
                 toParticipants(travelRecord, members, imageUrlResolver),
-                photos.stream().limit(2).map(photo -> new TravelRecordResDTO.PreviewImage(
-                        imageUrlResolver.apply(photo.getImageKey()), photo.getImageOrder())).toList(),
+                photos.stream().limit(2).map(photo -> toPreviewImage(photo, imageUrlResolver)).toList(),
                 stickers.stream().map(sticker -> toStickerResponse(sticker, imageUrlResolver)).toList(),
                 travelRecord.getCreatedAt()
         );
@@ -172,8 +174,24 @@ public class TravelRecordConverter {
                 photo.getId(),
                 photo.getImageKey(),
                 imageUrlResolver.apply(photo.getImageKey()),
-                photo.getImageOrder()
+                photo.getImageOrder(),
+                toUploaderProfile(photo, imageUrlResolver)
         );
+    }
+
+    public static TravelRecordResDTO.PreviewImage toPreviewImage(
+            TravelRecordPhoto photo, Function<String, String> imageUrlResolver
+    ) {
+        return new TravelRecordResDTO.PreviewImage(imageUrlResolver.apply(photo.getImageKey()),
+                photo.getImageOrder(), toUploaderProfile(photo, imageUrlResolver));
+    }
+
+    private static TravelRecordResDTO.UserProfile toUploaderProfile(
+            TravelRecordPhoto photo, Function<String, String> imageUrlResolver
+    ) {
+        User uploader = photo.getUploader();
+        return uploader == null || uploader.getStatus() != UserStatus.ACTIVE
+                ? null : toUserProfile(uploader, imageUrlResolver);
     }
 
     public static TravelRecordResDTO.StickerResponse toStickerResponse(

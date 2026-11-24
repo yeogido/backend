@@ -86,8 +86,7 @@ public class TravelRecordShareServiceImpl implements TravelRecordShareService {
         }
         var preview = new TravelRecordShareResDTO.Preview(record.getId(), record.getTitle(),
                 record.getRegion().getId(), record.getRegion().getName(), record.getStartDate(), record.getEndDate(), record.getFolderTheme(),
-                recordPhotos.stream().map(p -> new TravelRecordResDTO.PreviewImage(
-                        s3Service.getImageUrl(p.getImageKey()), p.getImageOrder())).toList(),
+                recordPhotos.stream().map(p -> TravelRecordConverter.toPreviewImage(p, s3Service::getImageUrl)).toList(),
                 recordStickers.stream().map(s -> TravelRecordConverter.toStickerResponse(s, s3Service::getImageUrl)).toList(),
                 recordPhotos.size());
         return new TravelRecordShareResDTO.View(record.getId(), record.getVisibility(), true, ownerProfile, preview, null);
