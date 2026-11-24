@@ -19,6 +19,7 @@ import com.yeogido.backend.domain.course.enums.DurationType;
 import com.yeogido.backend.domain.course.enums.TransportType;
 import com.yeogido.backend.domain.course.exception.CourseErrorCode;
 import com.yeogido.backend.domain.course.popularity.repository.CoursePopularityRankingRedisRepository;
+import com.yeogido.backend.domain.course.popularity.repository.CoursePopularityRankingRedisRepository.RankedCourse;
 import com.yeogido.backend.domain.course.repository.CourseHashtagRepository;
 import com.yeogido.backend.domain.course.repository.CourseItemRepository;
 import com.yeogido.backend.domain.course.repository.CourseItemTimeRepository;
@@ -50,6 +51,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -226,7 +228,7 @@ class CourseServiceImplTest {
         stubSuccessfulCreateCourse(createUser());
         var base = createRequest();
         var place = createPlaceItem("AT4");
-        // 십의 자리는 일차, 일의 자리는 방문 순서이며 정렬 검증을 위해 입력 순서 혼합
+        // 십의 자리는 일차, 일의 자리는 방문 순서로 지정하고 정렬 검증을 위해 입력 순서 혼합
         var items = java.util.stream.IntStream.of(22, 11, 21, 12).mapToObj(value ->
                 new CourseReqDTO.CourseItemCreateReq(value % 10, place.type(), null, place.externalPlaceId(),
                         place.categoryGroupCode(), place.name(), place.roadAddress(), place.lotAddress(),
@@ -559,7 +561,7 @@ class CourseServiceImplTest {
                 null, null, first.getCursorValue().toString(), first.getCursorId(), 2);
         var decoded = courseSearchCursorConverter.decode(next);
         assertThat(decoded.phase()).isEqualTo(titleRows >= 2 ? SearchPhase.TITLE : SearchPhase.NATURAL);
-        // Null RECOMMEND cursor is valid when a position ID is present.
+        // 커서 ID가 있으면 커서 값이 없는 추천순 요청도 유효한 것으로 처리
         assertThat(decoded.request().cursorValue()).isNull();
         assertThat(decoded.interpretation().totalDays()).isEqualTo(1);
         assertThat(decoded.interpretation().extractedKeywords()).containsExactly("당일치기", "바다");
@@ -827,6 +829,36 @@ class CourseServiceImplTest {
         return new CourseQueryRepository.CourseListRow(id, CourseType.OFFICIAL, null, null, null,
                 "바다", "서울", DurationType.DAY_TRIP, TransportType.CAR, CompanionType.SOLO,
                 LocalDateTime.of(2026, 1, 1, 0, 0), null, 0L, 0L, 0.0, 0L);
+    }
+
+    @Test
+    void unfilteredPopularityFillsPastStaleRanksAndPreservesZeroAndNegativeScores() {
+        var type = CourseType.OFFICIAL;
+        var request = new CourseReqDTO.CourseListReq(type, null, null, null, null, null, null,
+                CourseSortType.POPULAR, null, null, null, null, 3);
+        when(coursePopularityRankingRedisRepository.hasListRanking(type)).thenReturn(true);
+        when(coursePopularityRankingRedisRepository.findListRankingPage(type, null, null, true, 4))
+                .thenReturn(List.of(new RankedCourse(50L, 12L), new RankedCourse(20L, 10L)));
+        when(courseRepository.findPopularityRows(type, List.of(50L, 20L)))
+                .thenReturn(List.of(priorityRow(20L)));
+        when(courseRepository.findPopularityZeroCandidateIds(eq(type), isNull(), anyInt()))
+                .thenReturn(List.of(30L, 20L, 8L));
+        when(coursePopularityRankingRedisRepository.findNonZeroRankedCourseIds(type, List.of(30L, 20L, 8L)))
+                .thenReturn(Set.of(20L, 8L));
+        when(courseRepository.findPopularityRows(type, List.of(30L))).thenReturn(List.of(priorityRow(30L)));
+        when(coursePopularityRankingRedisRepository.findListRankingPage(type, null, null, false, 2))
+                .thenReturn(List.of(new RankedCourse(8L, -2L), new RankedCourse(3L, -4L)));
+        when(courseRepository.findPopularityRows(type, List.of(8L, 3L)))
+                .thenReturn(List.of(priorityRow(3L), priorityRow(8L)));
+
+        var response = courseService.getCourses(request, null);
+
+        assertThat(response.getItems()).extracting(CourseResDTO.CoursePreview::courseId)
+                .containsExactly(20L, 30L, 8L);
+        assertThat(response.getCursorValue()).isEqualTo(-2L);
+        assertThat(response.getCursorId()).isEqualTo(8L);
+        assertThat(response.isHasNext()).isTrue();
+        verify(coursePopularityRankingRedisRepository, never()).findCourseScores(any());
     }
 
     @Test

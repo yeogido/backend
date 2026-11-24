@@ -91,6 +91,10 @@ public interface CourseQueryRepository {
 
     List<CourseListRow> findPinnedSearchRows(List<Long> memberIds);
 
+    List<CourseListRow> findPopularityRows(CourseType courseType, List<Long> ids);
+
+    List<Long> findPopularityZeroCandidateIds(CourseType courseType, Long beforeId, int limit);
+
     record SearchMembership(List<Long> titleIds, List<Long> naturalIds) {
         public SearchMembership {
             titleIds = List.copyOf(titleIds);
@@ -124,5 +128,11 @@ public interface CourseQueryRepository {
             Long reviewCount,
             Double distance,
             Long popularityScore
-    ) { }
+    ) {
+        public CourseListRow withPopularityScore(long score) {
+            return new CourseListRow(courseId, courseType, authorUserId, thumbnailKey, routeImageKey, title, region,
+                    durationType, transportType, companionType, createdAt, recommendOrder, savedCount, reviewCount,
+                    distance, score);
+        }
+    }
 }
