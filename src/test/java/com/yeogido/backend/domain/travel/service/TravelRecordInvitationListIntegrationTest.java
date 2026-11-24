@@ -17,6 +17,11 @@ import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.region.enums.RegionType;
 import com.yeogido.backend.domain.travel.dto.request.TravelRecordInvitationReqDTO.ListRequest;
 import com.yeogido.backend.domain.travel.entity.TravelRecord;
+import com.yeogido.backend.domain.travel.entity.TravelRecordPhoto;
+import com.yeogido.backend.domain.travel.entity.TravelRecordSticker;
+import com.yeogido.backend.domain.travel.entity.Sticker;
+import com.yeogido.backend.domain.travel.enums.StickerType;
+import com.yeogido.backend.domain.travel.enums.StickerCategory;
 import com.yeogido.backend.domain.travel.entity.TravelRecordInvitation;
 import com.yeogido.backend.domain.travel.enums.FolderTheme;
 import com.yeogido.backend.domain.travel.enums.TravelRecordInvitationStatus;
@@ -238,7 +243,7 @@ class TravelRecordInvitationListIntegrationTest {
         try {
             long before = statistics.getPrepareStatementCount();
             assertThat(service.getReceivedInvitations(receiver.getId(), new ListRequest(null, 10)).getItems()).hasSize(5);
-            assertThat(statistics.getPrepareStatementCount() - before).isEqualTo(1);
+            assertThat(statistics.getPrepareStatementCount() - before).isEqualTo(3);
         } finally {
             statistics.setStatisticsEnabled(false);
         }
@@ -251,6 +256,75 @@ class TravelRecordInvitationListIntegrationTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.result.items").isEmpty())
                 .andExpect(jsonPath("$.result.cursorId").isEmpty())
                 .andExpect(jsonPath("$.result.hasNext").value(false));
+    }
+
+    @Test
+    void previewAndListExposeAllOrderedPhotosRegionAndStickerPlacement() throws Exception {
+        Long id = invitation(receiver, TravelRecordInvitationStatus.PENDING, timestamp);
+        TravelRecord album = em.find(TravelRecordInvitation.class, id).getTravelRecord();
+        for (int order = 5; order >= 1; order--) {
+            em.persist(TravelRecordPhoto.builder().travelRecord(album)
+                    .imageKey("travel-records/preview-" + order + ".jpg").imageOrder(order).build());
+        }
+        Sticker sticker = Sticker.builder().name("미리보기 스티커").imageKey("stickers/" + UUID.randomUUID() + ".png")
+                .stickerType(StickerType.values()[0]).category(StickerCategory.values()[0]).build();
+        em.persist(sticker);
+        em.persist(TravelRecordSticker.builder().travelRecord(album).sticker(sticker)
+                .positionX(10.0).positionY(20.0).rotation(30.0).scale(1.0).zIndex(2).build());
+        Long recordId = album.getId();
+        flushAndClear();
+        var preview = service.getReceivedInvitation(id, receiver.getId());
+        assertThat(preview.travelRecord().previewImages())
+                .extracting(com.yeogido.backend.domain.travel.dto.response.TravelRecordResDTO.PreviewImage::imageOrder)
+                .containsExactly(1, 2, 3, 4, 5);
+        assertThat(preview.travelRecord().regionName()).isEqualTo("초대 목록 지역");
+        assertThat(preview.travelRecord()).isEqualTo(service.getReceivedInvitations(receiver.getId(),
+                new ListRequest(null, 10)).getItems().getFirst().travelRecord());
+        mvc.perform(get("/api/v1/travel-records/invitations/" + id).with(auth(receiver.getId())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.travelRecord.previewImages.length()").value(5))
+                .andExpect(jsonPath("$.result.travelRecord.previewImages[0].imageUrl").value("https://example.com/travel-records/preview-1.jpg"))
+                .andExpect(jsonPath("$.result.travelRecord.previewImages[1].imageOrder").value(2))
+                .andExpect(jsonPath("$.result.travelRecord.regionName").value("초대 목록 지역"))
+                .andExpect(jsonPath("$.result.travelRecord.previewImages[4].imageUrl").value("https://example.com/travel-records/preview-5.jpg"))
+                .andExpect(jsonPath("$.result.travelRecord.photoCount").value(5))
+                .andExpect(jsonPath("$.result.travelRecord.stickers[0].positionX").value(10.0))
+                .andExpect(jsonPath("$.result.travelRecord.stickers[0].rotation").value(30.0))
+                .andExpect(jsonPath("$.result.travelRecord.images").doesNotExist())
+                .andExpect(jsonPath("$.result.travelRecord.previewImages[0].imageKey").doesNotExist());
+        mvc.perform(get("/api/v1/travel-records/" + recordId).with(auth(receiver.getId())))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void previewRequiresLoginAndRejectsOtherRecipientsAndDeletedAlbums() throws Exception {
+        Long id = invitation(receiver, TravelRecordInvitationStatus.PENDING, timestamp);
+        flushAndClear();
+        String path = "/api/v1/travel-records/invitations/" + id;
+        mvc.perform(get(path)).andExpect(status().isUnauthorized());
+        mvc.perform(get(path).with(auth(outsider.getId()))).andExpect(status().isNotFound());
+        em.remove(em.find(TravelRecordInvitation.class, id).getTravelRecord());
+        flushAndClear();
+        mvc.perform(get(path).with(auth(receiver.getId()))).andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("TRAVEL_RECORD4042"));
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = TravelRecordInvitationStatus.class, names = {"ACCEPTED", "DECLINED"})
+    void completedInvitationsHaveNoPendingPreview(TravelRecordInvitationStatus invitationStatus) throws Exception {
+        Long id = invitation(receiver, invitationStatus, timestamp);
+        flushAndClear();
+        mvc.perform(get("/api/v1/travel-records/invitations/" + id).with(auth(receiver.getId())))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void removedFriendshipInvalidatesPreview() throws Exception {
+        Long id = invitation(receiver, TravelRecordInvitationStatus.PENDING, timestamp);
+        em.remove(receiverFriendship);
+        flushAndClear();
+        mvc.perform(get("/api/v1/travel-records/invitations/" + id).with(auth(receiver.getId())))
+                .andExpect(status().isNotFound());
     }
 
     private Long invitation(User recipient, TravelRecordInvitationStatus status, LocalDateTime createdAt) {

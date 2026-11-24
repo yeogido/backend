@@ -323,9 +323,9 @@ class TravelRecordVisibilityIntegrationTest {
     assertThat(response.participants()).extracting(TravelRecordResDTO.UserProfile::userId)
         .containsExactly(viewer.getId(), third.getId());
     assertThat(response.version()).isZero();
-    assertThat(response.permissions()).isEqualTo(new TravelRecordResDTO.Permissions(true, false, true, true, false));
+    assertThat(response.permissions()).isEqualTo(new TravelRecordResDTO.Permissions(true, false, true, true, true));
     assertThat(service.getTravelRecord(owner.getId(), shared.getId()).permissions())
-        .isEqualTo(new TravelRecordResDTO.Permissions(true, true, false, true, false));
+        .isEqualTo(new TravelRecordResDTO.Permissions(true, true, false, true, true));
     assertThat(response.images()).extracting(TravelRecordResDTO.ImageResponse::imageOrder).containsExactly(1, 2, 3);
     assertThat(response.stickers()).hasSize(1);
     assertThat(response.stickers().getFirst().imageUrl()).isEqualTo("https://example.com/stickers/heart.png");

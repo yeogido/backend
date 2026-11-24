@@ -43,7 +43,7 @@ public class TravelRecordInvitationController {
     }
 
     @Operation(summary = "받은 공유 앨범 초대 목록 조회", description = "본인이 받은 PENDING 초대를 생성일, ID 내림차순으로 조회합니다. "
-            + "수락 전 사진 정보는 제공하지 않으며 cursor에는 이전 응답의 cursorId를 전달합니다.")
+            + "폴더 썸네일과 하단 블러 표시용 사진 URL 전체, 스티커, 지역명을 제공합니다. 블러는 프론트에서 적용합니다. cursor에는 이전 응답의 cursorId를 전달합니다.")
     @GetMapping("/invitations")
     public ApiResponse<CursorResponse<TravelRecordInvitationResDTO.ReceivedInvitation>> getReceivedInvitations(
             @AuthenticationPrincipal AuthUser authUser,
@@ -51,6 +51,16 @@ public class TravelRecordInvitationController {
     ) {
         return ApiResponse.onSuccess(SuccessCode.OK,
                 invitationService.getReceivedInvitations(authUser.userId(), request));
+    }
+
+    @Operation(summary = "받은 공유 앨범 초대 미리보기", description = "본인이 받은 유효한 PENDING 초대의 폴더 미리보기를 조회합니다. "
+            + "사진 URL 전체와 스티커 배치, 지역명을 제공합니다. 수락 전 하단 사진 블러는 프론트에서 적용합니다. 삭제, 취소, 처리 완료된 초대와 타인의 초대는 404입니다.")
+    @GetMapping("/invitations/{invitationId}")
+    public ApiResponse<TravelRecordInvitationResDTO.ReceivedInvitation> getReceivedInvitation(
+            @PathVariable Long invitationId,
+            @AuthenticationPrincipal AuthUser authUser
+    ) {
+        return ApiResponse.onSuccess(SuccessCode.OK, invitationService.getReceivedInvitation(invitationId, authUser.userId()));
     }
 
     @Operation(summary = "공유 앨범 초대", description = "PUBLIC 앨범의 생성자와 FRIENDS 앨범의 생성자 및 현재 참여자가 친구에게 초대를 보냅니다. "

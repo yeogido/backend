@@ -66,7 +66,7 @@ public class TravelRecordResDTO {
             @Schema(description = "여행 종료일", example = "2026-05-24")
             LocalDate endDate,
 
-            @Schema(description = "대표 이미지 URL", example = "https://example-bucket.s3.ap-northeast-2.amazonaws.com/travel-records/20/image-1.jpg")
+            @Schema(description = "대표 이미지 URL. 탈퇴 정리로 사진이 모두 삭제되면 null", nullable = true, example = "https://example-bucket.s3.ap-northeast-2.amazonaws.com/travel-records/20/image-1.jpg")
             String coverImageUrl,
 
             @Schema(description = "폴더 색상/테마", example = "BASIC")
@@ -92,12 +92,13 @@ public class TravelRecordResDTO {
     ) {
     }
 
-    @Schema(name = "TravelRecordUserProfile", description = "앨범 생성자 및 현재 참여자")
+    @Schema(name = "TravelRecordUserProfile", description = "앨범 생성자, 현재 참여자 및 사진 업로더")
     public record UserProfile(Long userId, String nickname, String profileImageUrl) {
     }
 
     @Schema(name = "TravelRecordPreviewImage", description = "폴더 미리보기 사진")
-    public record PreviewImage(String imageUrl, Integer imageOrder) {
+    public record PreviewImage(String imageUrl, Integer imageOrder,
+            @Schema(description = "사진 업로더. 도입 전 사진은 null", nullable = true) UserProfile uploader) {
     }
 
     @Schema(name = "TravelRecordPermissions", description = "현재 사용자의 앨범 작업 권한")
@@ -123,7 +124,7 @@ public class TravelRecordResDTO {
             @Schema(description = "여행 종료일", example = "2026-05-24")
             LocalDate endDate,
 
-            @Schema(description = "대표 이미지 URL", example = "https://example-bucket.s3.ap-northeast-2.amazonaws.com/travel-records/1/image-1.jpg")
+            @Schema(description = "대표 이미지 URL. 탈퇴 정리로 사진이 모두 삭제되면 null", nullable = true, example = "https://example-bucket.s3.ap-northeast-2.amazonaws.com/travel-records/1/image-1.jpg")
             String coverImageUrl,
 
             @Schema(description = "폴더 색상/테마", example = "BASIC")
@@ -170,7 +171,10 @@ public class TravelRecordResDTO {
             String imageUrl,
 
             @Schema(description = "사진 순서", example = "1")
-            Integer imageOrder
+            Integer imageOrder,
+
+            @Schema(description = "사진 업로더. 도입 전 사진은 null", nullable = true)
+            UserProfile uploader
     ) {
     }
 

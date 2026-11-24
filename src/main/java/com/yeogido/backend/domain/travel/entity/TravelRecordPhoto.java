@@ -1,6 +1,7 @@
 package com.yeogido.backend.domain.travel.entity;
 
 import com.yeogido.backend.global.entity.BaseEntity;
+import com.yeogido.backend.domain.user.entity.User;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -31,6 +32,11 @@ public class TravelRecordPhoto extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "travel_record_id", nullable = false)
     private TravelRecord travelRecord;
+
+    // 도입 전 사진은 실제 업로더를 복원할 수 없으므로 null을 허용합니다.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "uploader_id")
+    private User uploader;
 
     @Column(name = "image_key", nullable = false)
     private String imageKey;

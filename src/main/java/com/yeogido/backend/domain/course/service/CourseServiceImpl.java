@@ -25,6 +25,7 @@ import com.yeogido.backend.domain.course.repository.CourseHashtagRepository;
 import com.yeogido.backend.domain.course.repository.CourseItemRepository;
 import com.yeogido.backend.domain.course.repository.CourseLikeRepository;
 import com.yeogido.backend.domain.course.popularity.repository.CoursePopularityRankingRedisRepository;
+import com.yeogido.backend.domain.course.popularity.repository.CoursePopularityRankingRedisRepository.RankedCourse;
 import com.yeogido.backend.domain.course.repository.CourseRedisRepository;
 import com.yeogido.backend.domain.course.repository.CourseRepository;
 import com.yeogido.backend.domain.course.repository.CourseReviewRepository;
@@ -84,6 +85,7 @@ public class CourseServiceImpl implements CourseService {
 
     private static final Long MOCK_MEMBER_ID = 1L;
     private static final int POPULAR_LOCAL_COURSE_SIZE = 4;
+    private static final int POPULARITY_ZERO_CANDIDATE_BATCH_SIZE = 256;
     private static final int DEFAULT_COURSE_REVIEW_PAGE_SIZE = 10;
     private static final int RECOMMENDED_COURSE_SIZE = 5;
 
@@ -402,6 +404,13 @@ public class CourseServiceImpl implements CourseService {
         User currentUser = userId == null
                 ? null
                 : getCurrentUser(userId);
+        // 검색과 필터가 없는 인기순 목록만 Redis에서 페이지 후보 조회
+        if (interpretation == null && !pinned && phase == null && isUnfilteredPopularityRequest(request)
+                && coursePopularityRankingRedisRepository.hasListRanking(request.courseType())) {
+            // 다음 페이지 존재 여부 확인을 위한 후보 한 건 추가 조회
+            var rows = findPopularityPage(request, size + 1);
+            return toCourseListResponse(request, userId, currentUser, null, false, null, rows, 0);
+        }
         CourseQueryRepository.CourseLocation location = resolveCourseLocation(request, currentUser);
         Map<Long, Long> popularityScores = getPopularityScores(request);
         if (captureMembership) {
@@ -448,6 +457,105 @@ public class CourseServiceImpl implements CourseService {
         }
 
         return toCourseListResponse(request, userId, currentUser, interpretation, pinned, phase, rows, titleCount);
+    }
+
+    private boolean isUnfilteredPopularityRequest(CourseReqDTO.CourseListReq request) {
+        return request.sort() == CourseSortType.POPULAR
+                && !StringUtils.hasText(request.keyword())
+                && request.contentId() == null && request.regionId() == null
+                && request.transportType() == null && request.durationType() == null
+                && request.companionType() == null;
+    }
+
+    private List<CourseQueryRepository.CourseListRow> findPopularityPage(
+            CourseReqDTO.CourseListReq request, int limit
+    ) {
+        List<CourseQueryRepository.CourseListRow> rows = new ArrayList<>();
+        Set<Long> seen = new HashSet<>();
+        Long score = request.cursorValue() == null ? null : Long.valueOf(request.cursorValue());
+        // 기존 점수 내림차순을 유지하기 위한 양수, 0점, 음수 순서의 페이지 구성
+        if (score == null || score > 0) {
+            appendRankedCourses(request.courseType(), score, request.cursorId(), true, limit, rows, seen);
+        }
+        if (rows.size() < limit && (score == null || score >= 0)) {
+            Long beforeId = Long.valueOf(0L).equals(score) ? request.cursorId() : null;
+            appendZeroScoreCourses(request.courseType(), beforeId, limit, rows, seen);
+        }
+        if (rows.size() < limit) {
+            boolean negativeCursor = score != null && score < 0;
+            appendRankedCourses(request.courseType(), negativeCursor ? score : null,
+                    negativeCursor ? request.cursorId() : null, false, limit, rows, seen);
+        }
+        return rows;
+    }
+
+    private void appendRankedCourses(CourseType type, Long score, Long afterId, boolean positive, int limit,
+            List<CourseQueryRepository.CourseListRow> rows, Set<Long> seen) {
+        while (rows.size() < limit) {
+            int batchSize = limit - rows.size();
+            var ranked = coursePopularityRankingRedisRepository.findListRankingPage(
+                    type, score, afterId, positive, batchSize);
+            if (ranked.isEmpty()) {
+                return;
+            }
+            var ids = ranked.stream().map(RankedCourse::courseId).toList();
+            var coursesById = findPopularityRowsById(type, ids);
+            // DB 조회 결과를 Redis 순위대로 조립하고 삭제되었거나 이미 포함된 코스 제외
+            for (var entry : ranked) {
+                var course = coursesById.get(entry.courseId());
+                if (course != null && seen.add(entry.courseId())) {
+                    rows.add(course.withPopularityScore(entry.score()));
+                }
+            }
+            if (ranked.size() < batchSize) {
+                return;
+            }
+            // 삭제된 코스가 섞인 경우에도 마지막으로 읽은 후보 다음부터 추가 조회
+            var last = ranked.getLast();
+            score = last.score();
+            afterId = last.courseId();
+        }
+    }
+
+    private void appendZeroScoreCourses(CourseType type, Long beforeId, int limit,
+            List<CourseQueryRepository.CourseListRow> rows, Set<Long> seen) {
+        while (rows.size() < limit) {
+            var candidates = courseRepository.findPopularityZeroCandidateIds(
+                    type, beforeId, POPULARITY_ZERO_CANDIDATE_BATCH_SIZE);
+            if (candidates.isEmpty()) {
+                return;
+            }
+            // 미집계 코스도 0점으로 포함하기 위해 후보별 Redis 점수를 일괄 확인
+            var nonZero = coursePopularityRankingRedisRepository.findNonZeroRankedCourseIds(type, candidates);
+            int remaining = limit - rows.size();
+            var zeroIds = candidates.stream().filter(id -> !nonZero.contains(id) && !seen.contains(id))
+                    .limit(remaining).toList();
+            var coursesById = findPopularityRowsById(type, zeroIds);
+            for (Long id : zeroIds) {
+                var course = coursesById.get(id);
+                if (course != null && seen.add(id)) {
+                    rows.add(course);
+                }
+            }
+            if (rows.size() == limit) {
+                return;
+            }
+            if (zeroIds.size() == remaining) {
+                beforeId = zeroIds.getLast();
+            } else if (candidates.size() < POPULARITY_ZERO_CANDIDATE_BATCH_SIZE) {
+                return;
+            } else {
+                beforeId = candidates.getLast();
+            }
+        }
+    }
+
+    private Map<Long, CourseQueryRepository.CourseListRow> findPopularityRowsById(CourseType type, List<Long> ids) {
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        return courseRepository.findPopularityRows(type, ids).stream()
+                .collect(Collectors.toMap(CourseQueryRepository.CourseListRow::courseId, Function.identity()));
     }
 
     private CourseResDTO.CourseListRes toCourseListResponse(

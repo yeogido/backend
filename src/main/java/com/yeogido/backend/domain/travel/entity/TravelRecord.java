@@ -43,7 +43,7 @@ public class TravelRecord extends BaseEntity {
     @Column(name = "end_date", nullable = false)
     private LocalDate endDate;
 
-    @Column(name = "cover_image_key", nullable = false, length = 255)
+    @Column(name = "cover_image_key", length = 255)
     private String coverImageKey;
 
     @Enumerated(EnumType.STRING)
@@ -55,11 +55,25 @@ public class TravelRecord extends BaseEntity {
     @Builder.Default
     private TravelRecordVisibility visibility = TravelRecordVisibility.PRIVATE;
 
+    @Column(name = "share_token", length = 64, unique = true)
+    private String shareToken;
+
+    public void updateCoverImageKey(String coverImageKey) {
+        this.coverImageKey = coverImageKey;
+    }
+
+    public void assignShareToken(String shareToken) {
+        this.shareToken = shareToken;
+    }
+
     @Version
     @Column(name = "version", nullable = false)
     private Long version;
 
     public void updateVisibility(TravelRecordVisibility visibility) {
+        if (this.visibility != visibility) {
+            this.shareToken = null;
+        }
         this.visibility = visibility;
     }
 

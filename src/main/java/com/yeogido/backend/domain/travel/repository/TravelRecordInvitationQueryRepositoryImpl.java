@@ -23,13 +23,14 @@ public class TravelRecordInvitationQueryRepositoryImpl implements TravelRecordIn
         this.queryFactory = new JPAQueryFactory(entityManager);
     }
 
-    /** 수신자와 현재 유효한 대기 초대만 조회하며 사진 정보는 로드하지 않습니다. */
+    /** 수신자와 현재 유효한 대기 초대를 조회합니다. 폴더 사진과 스티커는 서비스에서 일괄 조회합니다. */
     @Override
     public List<TravelRecordInvitation> findPendingReceived(Long userId, TravelRecordInvitation cursor, int limit) {
         QUser owner = new QUser("invitationOwner");
         QUser inviter = new QUser("actualInviter");
         return queryFactory.selectFrom(travelRecordInvitation)
                 .join(travelRecordInvitation.travelRecord, travelRecord).fetchJoin()
+                .join(travelRecord.region).fetchJoin()
                 .join(travelRecord.user, owner).fetchJoin()
                 .join(travelRecordInvitation.inviter, inviter).fetchJoin()
                 .join(travelRecordInvitation.friendship)
@@ -37,6 +38,7 @@ public class TravelRecordInvitationQueryRepositoryImpl implements TravelRecordIn
                         travelRecordInvitation.status.eq(TravelRecordInvitationStatus.PENDING),
                         travelRecord.visibility.eq(TravelRecordVisibility.FRIENDS),
                         owner.status.eq(UserStatus.ACTIVE), inviter.status.eq(UserStatus.ACTIVE),
+                        travelRecordInvitation.invitee.status.eq(UserStatus.ACTIVE),
                         travelRecordInvitation.friendship.status.eq(
                                 FriendshipStatus.ACCEPTED), afterCursor(cursor))
                 .orderBy(travelRecordInvitation.createdAt.desc(), travelRecordInvitation.id.desc())

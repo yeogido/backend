@@ -53,6 +53,51 @@ class CourseQueryRepositoryImplTest {
     private TestEntityManager entityManager;
 
     @Test
+    void popularityHydrationAndZeroCandidatesExcludeDeletedOrWrongTypeCourses() {
+        Region region = persistRegion("Seoul", "37.5", "127.0");
+        Course first = persistCourse(region, "first");
+        Course otherType = entityManager.persist(Course.builder().region(region).title("local")
+                .courseType(CourseType.LOCAL).build());
+        Course deleted = persistCourse(region, "deleted");
+        Course last = persistCourse(region, "last");
+        deleted.delete();
+        flushAndClear();
+
+        assertThat(courseRepository.findPopularityRows(CourseType.OFFICIAL,
+                List.of(last.getId(), deleted.getId(), otherType.getId(), first.getId())))
+                .extracting(CourseQueryRepository.CourseListRow::courseId)
+                .containsExactlyInAnyOrder(first.getId(), last.getId());
+        assertThat(courseRepository.findPopularityZeroCandidateIds(CourseType.OFFICIAL, null, 1))
+                .containsExactly(last.getId());
+        assertThat(courseRepository.findPopularityZeroCandidateIds(CourseType.OFFICIAL, last.getId(), 2))
+                .containsExactly(first.getId());
+    }
+
+    @Test
+    void popularWithoutScoresKeepsZeroScoreCursorSemantics() {
+        Region region = persistRegion("Seoul", "37.5", "127.0");
+        Course older = persistCourse(region, "older");
+        Course newer = persistCourse(region, "newer");
+        flushAndClear();
+        var location = new CourseQueryRepository.CourseLocation(null, null);
+
+        var first = courseRepository.findCoursesByCursor(courseListRequest(CourseSortType.POPULAR),
+                location, Map.of(), 1);
+        assertThat(first).singleElement().satisfies(row -> {
+            assertThat(row.courseId()).isEqualTo(newer.getId());
+            assertThat(row.popularityScore()).isZero();
+        });
+        assertThat(courseRepository.findCoursesByCursor(
+                courseListRequest(CourseSortType.POPULAR, "0", newer.getId()), location, Map.of(), 2))
+                .extracting(CourseQueryRepository.CourseListRow::courseId).containsExactly(older.getId());
+        assertThat(courseRepository.findCoursesByCursor(
+                courseListRequest(CourseSortType.POPULAR, "10", older.getId()), location, Map.of(), 2))
+                .extracting(CourseQueryRepository.CourseListRow::courseId).containsExactly(newer.getId(), older.getId());
+        assertThat(courseRepository.findCoursesByCursor(
+                courseListRequest(CourseSortType.POPULAR, "-1", newer.getId()), location, Map.of(), 2)).isEmpty();
+    }
+
+    @Test
     void findCoursesByCursorSortsBySavedCountOnlyWhenSavedSortIsRequested() {
         Region region = persistRegion("Seoul", "37.5665", "126.9780");
         Course first = persistCourse(region, "saved first");

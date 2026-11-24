@@ -3,6 +3,7 @@ package com.yeogido.backend.domain.user.entity;
 import com.yeogido.backend.domain.friend.service.FriendCodeGenerator;
 import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.user.enums.AgeGroup;
+import com.yeogido.backend.domain.user.enums.AccountType;
 import com.yeogido.backend.domain.user.enums.Gender;
 import com.yeogido.backend.domain.user.enums.UserRole;
 import com.yeogido.backend.domain.user.enums.UserStatus;
@@ -17,11 +18,8 @@ import lombok.*;
 @AllArgsConstructor
 @Table(
         name = "user",
+        indexes = @Index(name = "idx_user_email_account_type", columnList = "email, account_type"),
         uniqueConstraints = {
-                @UniqueConstraint(
-                        name = "uk_user_email",
-                        columnNames = "email"
-                ),
                 @UniqueConstraint(
                         name = "uk_user_friend_code",
                         columnNames = "friend_code"
@@ -39,6 +37,12 @@ public class User extends BaseEntity {
 
     @Column(nullable = false, length = 255)
     private String email;
+
+    // 소셜 계정의 식별자는 social_account의 provider + provider_id입니다.
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(name = "account_type", nullable = false, length = 20)
+    private AccountType accountType = AccountType.EMAIL;
 
     @Column(nullable = true)
     private String password;
@@ -79,6 +83,12 @@ public class User extends BaseEntity {
     public void promoteToBusiness() {
         if (this.role == UserRole.USER) {
             this.role = UserRole.BUSINESS;
+        }
+    }
+
+    public void demoteToUser() {
+        if (this.role == UserRole.BUSINESS) {
+            this.role = UserRole.USER;
         }
     }
 

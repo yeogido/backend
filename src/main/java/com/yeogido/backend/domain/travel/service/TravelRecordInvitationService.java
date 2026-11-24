@@ -15,6 +15,8 @@ public interface TravelRecordInvitationService {
             Long userId, TravelRecordInvitationReqDTO.ListRequest request
     );
 
+    TravelRecordInvitationResDTO.ReceivedInvitation getReceivedInvitation(Long invitationId, Long userId);
+
     TravelRecordInvitationResDTO.CreateResponse createInvitations(
             Long travelRecordId, Long userId, TravelRecordInvitationReqDTO.CreateRequest request
     );

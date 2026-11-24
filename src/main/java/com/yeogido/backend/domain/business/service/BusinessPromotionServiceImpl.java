@@ -47,6 +47,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.format.DateTimeParseException;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -116,8 +117,12 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
             );
         }
 
-        validateDuplicateBusinessHours(request.businessHours());
+        validateBusinessHours(request.businessHours());
         validateDuplicateImageSortOrders(request.images());
+
+        // 요청 내용만으로 판단할 수 있는 검증은 이미지 이동(S3) 전에 끝낸다.
+        // 이동 뒤에 실패하면 DB는 롤백되지만 옮긴 파일은 S3에 남기 때문이다.
+        List<Hashtag> hashtags = findHashtags(request.hashtagIds());
 
         BusinessPromotion businessPromotion =
                 createOrReactivatePromotion(place, user, request);
@@ -134,7 +139,7 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
 
         savePromotionHashtags(
                 businessPromotion,
-                request.hashtagIds()
+                hashtags
         );
 
         return BusinessPromotionConverter.toRegisterResponse(
@@ -161,12 +166,17 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
         );
 
         if (request.businessHours() != null) {
-            validateDuplicateBusinessHours(request.businessHours());
+            validateBusinessHours(request.businessHours());
         }
 
         if (request.images() != null) {
             validateDuplicateImageSortOrders(request.images());
         }
+
+        // 해시태그 존재 여부는 이미지 이동 전에 확인한다 (등록과 같은 이유).
+        List<Hashtag> hashtags = request.hashtagIds() != null
+                ? findHashtags(request.hashtagIds())
+                : null;
 
         promotion.update(
                 request.shortDescription(),
@@ -220,10 +230,10 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
             );
         }
 
-        if (request.hashtagIds() != null) {
+        if (hashtags != null) {
             savePromotionHashtags(
                     promotion,
-                    request.hashtagIds()
+                    hashtags
             );
         }
 
@@ -322,11 +332,15 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
         );
     }
 
+    /**
+     * 수정, 삭제용 조회. 행 잠금을 잡아 소유자 확인 뒤 다른 트랜잭션(재활성화, 인증 해제)이
+     * 같은 행을 바꾸지 못하게 한다.
+     */
     private BusinessPromotion getActiveBusinessPromotion(
             Long promotionId
     ) {
         return businessPromotionRepository
-                .findByIdAndStatus(
+                .findForUpdateByIdAndStatus(
                         promotionId,
                         PromotionStatus.ACTIVE
                 )
@@ -1024,12 +1038,13 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
         );
     }
 
-    private void savePromotionHashtags(
-            BusinessPromotion businessPromotion,
-            List<Long> hashtagIds
-    ) {
+    /**
+     * 요청한 해시태그 ID가 모두 존재하는지 확인하고 엔티티를 돌려준다.
+     * 이미지 이동 전에 호출해야 하므로 저장({@link #savePromotionHashtags})과 분리했다.
+     */
+    private List<Hashtag> findHashtags(List<Long> hashtagIds) {
         if (hashtagIds == null || hashtagIds.isEmpty()) {
-            return;
+            return List.of();
         }
 
         List<Long> distinctHashtagIds = hashtagIds.stream()
@@ -1043,6 +1058,17 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
             throw new GeneralException(
                     HashtagErrorCode.HASHTAG_NOT_FOUND
             );
+        }
+
+        return hashtags;
+    }
+
+    private void savePromotionHashtags(
+            BusinessPromotion businessPromotion,
+            List<Hashtag> hashtags
+    ) {
+        if (hashtags.isEmpty()) {
+            return;
         }
 
         List<BusinessPromotionHashtag> promotionHashtags = hashtags.stream()
@@ -1062,8 +1088,9 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
             User user,
             BusinessPromotionRequest.Register request
     ) {
+        // 행 잠금: 이전 주인의 삭제, 인증 해제와 겹쳐도 한쪽이 끝난 뒤 상태를 읽는다.
         BusinessPromotion existingPromotion = businessPromotionRepository
-                .findByPlaceId(place.getId())
+                .findForUpdateByPlaceId(place.getId())
                 .orElse(null);
 
         if (existingPromotion == null) {
@@ -1083,18 +1110,13 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
             );
         }
 
-        if (!Objects.equals(
-                existingPromotion.getUser().getId(),
-                user.getId()
-        )) {
-            throw new GeneralException(
-                    BusinessPromotionErrorCode.BUSINESS_PROMOTION_ALREADY_EXISTS
-            );
-        }
-
+        // 삭제된 홍보글은 작성자가 달라도(가게 양도, 이전 사장 탈퇴) 행을 재사용한다.
+        // ID 를 유지해 장소 좋아요의 출처(PROMOTION, sourceId)를 보존하고,
+        // 이전 작성자의 소개글, 사진, 영업시간, 해시태그는 모두 비운 뒤 새로 채운다.
         clearPromotionDetails(existingPromotion.getId());
 
         existingPromotion.reactivate(
+                user,
                 request.shortDescription(),
                 request.promotionCategory(),
                 request.phoneNumber(),
@@ -1112,7 +1134,15 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
         businessPromotionRepository.flush();
     }
 
-    private void validateDuplicateBusinessHours(
+    /**
+     * 영업시간 검증.
+     * <ul>
+     *   <li>요일이 중복되면 안 된다.</li>
+     *   <li>오픈과 마감이 같으면 안 된다. 단, 둘 다 00:00이면 24시간 영업으로 보고 허용한다.</li>
+     *   <li>마감이 오픈보다 이른 경우(심야 영업, 예: 18:00~02:00)는 다음 날까지 영업으로 보고 허용한다.</li>
+     * </ul>
+     */
+    private void validateBusinessHours(
             List<BusinessPromotionRequest.BusinessHour> businessHours
     ) {
         Set<DayOfWeek> days = new HashSet<>();
@@ -1127,7 +1157,20 @@ public class BusinessPromotionServiceImpl implements BusinessPromotionService {
                         GeneralErrorCode.INVALID_REQUEST
                 );
             }
+
+            if (isSameTimeButNotAllDay(businessHour)) {
+                throw new GeneralException(
+                        GeneralErrorCode.INVALID_REQUEST
+                );
+            }
         }
+    }
+
+    private boolean isSameTimeButNotAllDay(
+            BusinessPromotionRequest.BusinessHour businessHour
+    ) {
+        return businessHour.openTime().equals(businessHour.closeTime())
+                && !LocalTime.MIDNIGHT.equals(businessHour.openTime());
     }
 
     private void validateDuplicateImageSortOrders(

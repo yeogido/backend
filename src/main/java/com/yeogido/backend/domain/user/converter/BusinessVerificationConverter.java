@@ -46,7 +46,8 @@ public final class BusinessVerificationConverter {
     }
 
     public static BusinessInfoResDTO toBusinessInfoResponse(
-            BusinessInfo businessInfo
+            BusinessInfo businessInfo,
+            boolean hasActivePromotion
     ) {
         return BusinessInfoResDTO.builder()
                 .businessInfoId(businessInfo.getId())
@@ -55,6 +56,7 @@ public final class BusinessVerificationConverter {
                 .businessAddress(businessInfo.getBusinessAddress())
                 .representativeName(businessInfo.getRepresentativeName())
                 .verifiedAt(businessInfo.getVerifiedAt())
+                .hasActivePromotion(hasActivePromotion)
                 .build();
     }
 }

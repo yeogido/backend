@@ -9,6 +9,8 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import com.yeogido.backend.domain.file.service.FileService;
+import com.yeogido.backend.domain.auth.service.RefreshTokenService;
+import com.yeogido.backend.domain.user.service.UserService;
 import com.yeogido.backend.domain.file.service.S3Service;
 import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.region.enums.RegionType;
@@ -54,6 +56,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 class TravelRecordCoeditingTransactionTest {
 
   @Autowired private TravelRecordService service;
+  @Autowired private UserService userService;
+  @MockitoBean private RefreshTokenService refreshTokenService;
   @Autowired private EntityManager entityManager;
   @Autowired private DataSource dataSource;
   @Autowired private PlatformTransactionManager transactionManager;
@@ -229,6 +233,44 @@ class TravelRecordCoeditingTransactionTest {
       assertThat(leave.get(20, TimeUnit.SECONDS)).isIn("OK", "TRAVEL_RECORD4041");
     }
     assertAlbumRemoved();
+  }
+
+  /** 편집 완료를 기다린 탈퇴가 방금 추가된 사진도 최신 업로더 기준으로 제거합니다. */
+  @Test
+  void withdrawalDuringEditRemovesNewlyCommittedUploaderPhoto() throws Exception {
+    CountDownLatch editing = new CountDownLatch(1);
+    CountDownLatch finishEdit = new CountDownLatch(1);
+    AtomicInteger editSession = new AtomicInteger();
+    AtomicInteger withdrawalSession = new AtomicInteger();
+    when(fileService.moveToDirectory(anyString(), any())).thenAnswer(call -> {
+      editSession.set(currentSessionId());
+      editing.countDown();
+      if (!finishEdit.await(10, TimeUnit.SECONDS)) throw new IllegalStateException("편집 대기 시간 초과");
+      return call.getArgument(0);
+    });
+    try (var pool = Executors.newFixedThreadPool(2)) {
+      var edit = pool.submit(() -> save(participantId, "탈퇴 전 사진"));
+      assertThat(editing.await(10, TimeUnit.SECONDS)).isTrue();
+      var withdrawal = pool.submit(() -> new TransactionTemplate(transactionManager).execute(status -> {
+        withdrawalSession.set(currentSessionId());
+        userService.withdraw(participantId);
+        return "OK";
+      }));
+      try {
+        awaitBlockedBy(withdrawalSession, editSession);
+      } finally {
+        finishEdit.countDown();
+      }
+      assertThat(edit.get(20, TimeUnit.SECONDS)).isEqualTo("OK");
+      assertThat(withdrawal.get(20, TimeUnit.SECONDS)).isEqualTo("OK");
+    } finally {
+      finishEdit.countDown();
+    }
+    var detail = service.getTravelRecord(ownerId, albumId);
+    assertThat(detail.images()).isEmpty();
+    assertThat(detail.coverImageUrl()).isNull();
+    assertThat(detail.participants()).isEmpty();
+    assertThat(detail.visibility()).isEqualTo(TravelRecordVisibility.PUBLIC);
   }
 
   private int currentSessionId() {

@@ -19,7 +19,7 @@ public enum PlaceErrorCode implements ErrorCode {
     INVALID_PLACE_LIKE_SOURCE(
             HttpStatus.BAD_REQUEST,
             "PLACE4001",
-            "유효하지 않은 장소 좋아요 출처입니다."
+            "삭제되었거나 더 이상 볼 수 없는 게시물이에요"
     );
 
     private final HttpStatus httpStatus;
