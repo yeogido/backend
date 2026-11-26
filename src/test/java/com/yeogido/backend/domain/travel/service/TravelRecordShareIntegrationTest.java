@@ -113,6 +113,29 @@ class TravelRecordShareIntegrationTest {
     }
 
     @Test
+    void publicLinkIssuanceAndRepeatedViewingNeverCreateParticipationRequests() throws Exception {
+        album.updateVisibility(TravelRecordVisibility.PUBLIC);
+        em.flush();
+        String token = service.createLink(album.getId(), owner.getId()).token();
+        assertThat(service.createLink(album.getId(), visitor.getId()).token()).isEqualTo(token);
+        mvc.perform(get(path(token)).with(auth(visitor)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.visibility").value("PUBLIC"))
+                .andExpect(jsonPath("$.result.canAccept").value(false))
+                .andExpect(jsonPath("$.result.detail.permissions.canInvite").value(false))
+                .andExpect(jsonPath("$.result.detail.permissions.canDelete").value(false))
+                .andExpect(jsonPath("$.result.preview").isEmpty());
+        Long afterIssuance = em.find(TravelRecord.class, album.getId()).getVersion();
+        service.getSharedRecord(token, visitor.getId());
+        assertThat(album.getVisibility()).isEqualTo(TravelRecordVisibility.PUBLIC);
+        assertThat(em.createQuery("select count(i) from TravelRecordInvitation i where i.travelRecord.id = :id", Long.class)
+                .setParameter("id", album.getId()).getSingleResult()).isZero();
+        assertThat(em.createQuery("select count(m) from TravelRecordMember m where m.travelRecord.id = :id", Long.class)
+                .setParameter("id", album.getId()).getSingleResult()).isZero();
+        assertThat(em.find(TravelRecord.class, album.getId()).getVersion()).isEqualTo(afterIssuance);
+    }
+
+    @Test
     void declineDoesNotCreateMembershipAndLaterAcceptanceIsAllowed() throws Exception {
         String token = service.createLink(album.getId(), owner.getId()).token();
         respond(token, "DECLINED");

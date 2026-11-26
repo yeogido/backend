@@ -373,7 +373,7 @@ public class TravelRecordServiceImpl implements TravelRecordService {
         return TravelRecordConverter.toUpdateResponse(travelRecord);
     }
 
-    /** 생성자의 PRIVATE, PUBLIC 전환만 허용하며 콘텐츠 수정과 같은 앨범 행에서 버전을 검사합니다. */
+    /** 생성자만 있는 동안 세 공개범위의 변경을 허용하며 수락 처리와 동일한 앨범 잠금에서 검증합니다. */
     @Override
     @Transactional
     public TravelRecordResDTO.VisibilityUpdateResponse updateVisibility(
@@ -387,13 +387,19 @@ public class TravelRecordServiceImpl implements TravelRecordService {
         if (record.getUser().getStatus() != UserStatus.ACTIVE) {
             throw new GeneralException(GeneralErrorCode.FORBIDDEN);
         }
-        if (record.getVisibility() == TravelRecordVisibility.FRIENDS || visibility == TravelRecordVisibility.FRIENDS) {
-            throw new GeneralException(TravelRecordErrorCode.INVALID_INVITATION_STATE);
-        }
         if (!record.getVersion().equals(request.version())) {
             throw new GeneralException(TravelRecordErrorCode.VERSION_CONFLICT);
         }
         if (record.getVisibility() != visibility) {
+            boolean hasParticipant = travelRecordMemberRepository.findMembersForUpdate(travelRecordId).stream()
+                    .anyMatch(member -> !member.getUser().getId().equals(userId));
+            if (hasParticipant) {
+                throw new GeneralException(TravelRecordErrorCode.INVALID_INVITATION_STATE);
+            }
+            // 수락 대기 상태는 변경을 막지 않지만 FRIENDS를 해제하면 기존 초대도 취소합니다.
+            if (record.getVisibility() == TravelRecordVisibility.FRIENDS) {
+                travelRecordInvitationRepository.deletePendingByRecordId(travelRecordId);
+            }
             record.updateVisibility(visibility);
             // 실제 변경이 있을 때만 JPA의 @Version을 증가시키고 응답에도 반영합니다.
             travelRecordRepository.flush();

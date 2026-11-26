@@ -152,8 +152,8 @@ public class TravelRecordReqDTO {
 
     @Schema(name = "TravelRecordVisibilityUpdateRequest", description = "여행 기록 공개범위 수정 요청")
     public record VisibilityUpdateRequest(
-            @Schema(description = "변경할 공개범위. FRIENDS 관련 전환은 지원하지 않습니다.",
-                    allowableValues = {"PRIVATE", "PUBLIC"}, example = "PUBLIC")
+            @Schema(description = "변경할 공개범위. 다른 사용자가 수락해 참여하기 전까지 생성자만 변경할 수 있습니다.",
+                    allowableValues = {"PRIVATE", "FRIENDS", "PUBLIC"}, example = "PUBLIC")
             String visibility,
 
             @Schema(description = "상세 조회에서 받은 현재 수정 버전", example = "0")

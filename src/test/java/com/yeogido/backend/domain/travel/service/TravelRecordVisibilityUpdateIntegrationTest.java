@@ -13,6 +13,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.yeogido.backend.domain.auth.security.AuthUser;
 import com.yeogido.backend.domain.file.service.FileService;
+import com.yeogido.backend.domain.friend.entity.Friendship;
+import com.yeogido.backend.domain.travel.dto.request.TravelRecordInvitationReqDTO;
+import com.yeogido.backend.domain.travel.entity.TravelRecordInvitation;
 import com.yeogido.backend.domain.file.service.S3Service;
 import com.yeogido.backend.domain.region.entity.Region;
 import com.yeogido.backend.domain.region.enums.RegionType;
@@ -41,6 +44,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -62,6 +66,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 class TravelRecordVisibilityUpdateIntegrationTest {
 
     @Autowired private TravelRecordService service;
+    @Autowired private TravelRecordInvitationService invitations;
+    @Autowired private TravelRecordShareService shares;
     @Autowired private EntityManager em;
     @Autowired private PlatformTransactionManager transactionManager;
     @Autowired private MockMvc mvc;
@@ -132,18 +138,145 @@ class TravelRecordVisibilityUpdateIntegrationTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"PRIVATE", "PUBLIC", "FRIENDS"})
-    void friendsAlbumCannotChangeEvenToTheSameVisibility(String target) {
-        tx(() -> { em.find(TravelRecord.class, albumId).updateVisibility(TravelRecordVisibility.FRIENDS); return null; });
-        assertError(() -> change(target, currentVersion()), TravelRecordErrorCode.INVALID_INVITATION_STATE);
-        assertThat(service.getTravelRecord(ownerId, albumId).visibility()).isEqualTo(TravelRecordVisibility.FRIENDS);
+    @CsvSource({"PRIVATE,PUBLIC", "PRIVATE,FRIENDS", "PUBLIC,PRIVATE", "PUBLIC,FRIENDS",
+            "FRIENDS,PRIVATE", "FRIENDS,PUBLIC", "PRIVATE,PRIVATE", "PUBLIC,PUBLIC", "FRIENDS,FRIENDS"})
+    void ownerWithoutParticipantsCanChooseAnyVisibility(String initial, String target) {
+        tx(() -> { em.find(TravelRecord.class, albumId).updateVisibility(TravelRecordVisibility.valueOf(initial)); return null; });
+        long before = currentVersion();
+        var result = change(target, before);
+        assertThat(result.visibility()).isEqualTo(TravelRecordVisibility.valueOf(target));
+        assertThat(result.version()).isEqualTo(initial.equals(target) ? before : before + 1);
+        assertThat(service.getTravelRecord(ownerId, albumId).images().getFirst().imageKey())
+                .isEqualTo("travel-records/original.jpg");
+        verifyNoInteractions(fileService);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"PRIVATE", "PUBLIC"})
+    void acceptedParticipantBlocksRealVisibilityChangeButAllowsSameState(String target) {
+        change("FRIENDS", currentVersion());
+        String token = shares.createLink(albumId, ownerId).token();
+        shares.respond(token, viewerId, new TravelRecordInvitationReqDTO.RespondRequest("ACCEPTED"));
+        long version = currentVersion();
+        assertError(() -> change(target, version), TravelRecordErrorCode.INVALID_INVITATION_STATE);
+        assertThat(change("FRIENDS", version).version()).isEqualTo(version);
+        assertThat(shares.getSharedRecord(token, viewerId).detail()).isNotNull();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"PRIVATE", "PUBLIC"})
+    void pendingInvitationDoesNotBlockChangeAndCannotReviveAfterReturningToFriends(String target) {
+        makeFriends();
+        change("FRIENDS", currentVersion());
+        Long invitationId = invitations.createInvitations(albumId, ownerId,
+                new TravelRecordInvitationReqDTO.CreateRequest(List.of(viewerId)))
+                .invitations().getFirst().invitationId();
+        String token = shares.createLink(albumId, ownerId).token();
+        long version = currentVersion();
+        var changed = change(target, version);
+        assertThat(changed.visibility()).isEqualTo(TravelRecordVisibility.valueOf(target));
+        assertThat(tx(() -> em.find(TravelRecordInvitation.class, invitationId))).isNull();
+        assertError(() -> shares.getSharedRecord(token, viewerId), TravelRecordErrorCode.TRAVEL_RECORD_NOT_FOUND);
+        assertError(() -> invitations.respondToInvitation(invitationId, viewerId,
+                new TravelRecordInvitationReqDTO.RespondRequest("ACCEPTED")), TravelRecordErrorCode.INVITATION_NOT_FOUND);
+        change("FRIENDS", currentVersion());
+        assertError(() -> shares.respond(token, viewerId, new TravelRecordInvitationReqDTO.RespondRequest("ACCEPTED")),
+                TravelRecordErrorCode.TRAVEL_RECORD_NOT_FOUND);
+        var replacement = invitations.createInvitations(albumId, ownerId,
+                new TravelRecordInvitationReqDTO.CreateRequest(List.of(viewerId)));
+        assertThat(replacement.invitations().getFirst().invitationId()).isNotEqualTo(invitationId);
+        assertThat(shares.createLink(albumId, ownerId).token()).isNotEqualTo(token);
     }
 
     @Test
-    void cannotConvertPrivateOrPublicIntoFriends() {
-        assertError(() -> change("FRIENDS", 0L), TravelRecordErrorCode.INVALID_INVITATION_STATE);
-        change("PUBLIC", 0L);
-        assertError(() -> change("FRIENDS", 1L), TravelRecordErrorCode.INVALID_INVITATION_STATE);
+    void publicFolderMustExplicitlyBecomeFriendsBeforeInviting() {
+        makeFriends();
+        change("PUBLIC", currentVersion());
+        assertThat(service.getTravelRecord(ownerId, albumId).permissions().canInvite()).isFalse();
+        assertError(() -> invitations.createInvitations(albumId, ownerId,
+                new TravelRecordInvitationReqDTO.CreateRequest(List.of(viewerId))), TravelRecordErrorCode.INVALID_INVITATION_STATE);
+        change("FRIENDS", currentVersion());
+        assertThat(service.getTravelRecord(ownerId, albumId).permissions().canInvite()).isTrue();
+        invitations.createInvitations(albumId, ownerId, new TravelRecordInvitationReqDTO.CreateRequest(List.of(viewerId)));
+        assertThat(change("PRIVATE", currentVersion()).visibility()).isEqualTo(TravelRecordVisibility.PRIVATE);
+    }
+
+    @Test
+    void linkAcceptanceAndVisibilityChangeCannotLeaveMembershipInPublicAlbum() throws Exception {
+        change("FRIENDS", currentVersion());
+        String token = shares.createLink(albumId, ownerId).token();
+        long version = currentVersion();
+        var results = race(() -> result(() -> change("PUBLIC", version)),
+                () -> result(() -> shares.respond(token, viewerId, new TravelRecordInvitationReqDTO.RespondRequest("ACCEPTED"))));
+        var detail = service.getTravelRecord(ownerId, albumId);
+        assertThat(results).contains("OK");
+        if (detail.visibility() == TravelRecordVisibility.PUBLIC) {
+            assertThat(results).containsExactly("OK", "TRAVEL_RECORD4041");
+            assertThat(detail.participants()).isEmpty();
+        } else {
+            assertThat(results).containsExactly("TRAVEL_RECORD4091", "OK");
+            assertThat(detail.participants()).extracting(p -> p.userId()).containsExactly(viewerId);
+        }
+    }
+
+    @Test
+    void sendingInvitationAndVisibilityChangeCannotLeavePendingInvitationInPublicAlbum() throws Exception {
+        makeFriends();
+        change("FRIENDS", currentVersion());
+        long version = currentVersion();
+        var results = race(() -> result(() -> change("PUBLIC", version)),
+                () -> result(() -> invitations.createInvitations(albumId, ownerId,
+                        new TravelRecordInvitationReqDTO.CreateRequest(List.of(viewerId)))));
+        assertThat(results.getFirst()).isEqualTo("OK");
+        assertThat(results.getLast()).isIn("OK", "TRAVEL_RECORD4095");
+        assertThat(service.getTravelRecord(ownerId, albumId).visibility()).isEqualTo(TravelRecordVisibility.PUBLIC);
+        assertThat(tx(() -> em.createQuery("select count(i) from TravelRecordInvitation i where i.travelRecord.id = :id", Long.class)
+                .setParameter("id", albumId).getSingleResult())).isZero();
+    }
+
+    @Test
+    void targetedAcceptanceAndVisibilityChangeCannotRestoreCancelledInvitation() throws Exception {
+        makeFriends();
+        change("FRIENDS", currentVersion());
+        Long invitationId = invitations.createInvitations(albumId, ownerId,
+                new TravelRecordInvitationReqDTO.CreateRequest(List.of(viewerId)))
+                .invitations().getFirst().invitationId();
+        long version = currentVersion();
+        var results = race(() -> result(() -> change("PUBLIC", version)),
+                () -> result(() -> invitations.respondToInvitation(invitationId, viewerId,
+                        new TravelRecordInvitationReqDTO.RespondRequest("ACCEPTED"))));
+        var detail = service.getTravelRecord(ownerId, albumId);
+        if (detail.visibility() == TravelRecordVisibility.PUBLIC) {
+            assertThat(results).containsExactly("OK", "TRAVEL_RECORD4042");
+            assertThat(detail.participants()).isEmpty();
+            assertThat(tx(() -> em.find(TravelRecordInvitation.class, invitationId))).isNull();
+        } else {
+            assertThat(results).containsExactly("TRAVEL_RECORD4091", "OK");
+            assertThat(detail.participants()).extracting(p -> p.userId()).containsExactly(viewerId);
+        }
+    }
+
+    @Test
+    void apiAcceptsFriendsAndAllowsReturningBeforeAnyoneAccepts() throws Exception {
+        mvc.perform(patch(path()).with(auth(ownerId)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"visibility\":\"FRIENDS\",\"version\":0}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.visibility").value("FRIENDS"))
+                .andExpect(jsonPath("$.result.version").value(1));
+        mvc.perform(patch(path()).with(auth(ownerId)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"visibility\":\"PRIVATE\",\"version\":1}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.visibility").value("PRIVATE"))
+                .andExpect(jsonPath("$.result.version").value(2));
+    }
+
+    private void makeFriends() {
+        tx(() -> {
+            Friendship friendship = Friendship.request(em.getReference(User.class, ownerId), em.getReference(User.class, viewerId));
+            friendship.accept();
+            em.persist(friendship);
+            return null;
+        });
     }
 
     @ParameterizedTest
