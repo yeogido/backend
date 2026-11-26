@@ -22,7 +22,7 @@ public class UserReqDTO {
             Long regionId,
 
             @Schema(
-                    description = "프로필 이미지 object key",
+                    description = "프로필 이미지 object key. 생략 또는 null이면 유지, 빈 문자열(공백 포함)이면 삭제하여 기본 프로필로 변경합니다.",
                     example = "temp/156c9c65-acf8-4d82-bb12-c031e3eecda0.png"
             )
             String profileImageUrl

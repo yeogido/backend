@@ -1361,6 +1361,10 @@ public class UserServiceImpl implements UserService{
                 profileImage
         );
 
+        if (request.profileImageUrl() != null && request.profileImageUrl().isBlank()) {
+            user.removeProfileImage();
+        }
+
         return new UserResDTO.UpdateProfile(user.getId());
     }
 
