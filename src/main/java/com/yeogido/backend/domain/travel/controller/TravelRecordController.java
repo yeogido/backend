@@ -128,8 +128,9 @@ public class TravelRecordController {
 
     @Operation(
             summary = "여행 기록 공개범위 수정",
-            description = "생성자만 PRIVATE와 PUBLIC 사이에서 변경합니다. 상세 조회의 version은 필수이며 "
-                    + "같은 상태 요청도 버전을 검사합니다. FRIENDS 관련 전환은 지원하지 않습니다."
+            description = "다른 사용자가 수락해 참여하기 전까지 생성자가 PRIVATE, PUBLIC, FRIENDS 사이에서 변경합니다. "
+                    + "수락 대기 초대가 있어도 변경할 수 있으며 FRIENDS를 해제하면 대기 초대를 취소합니다. "
+                    + "실제 공개범위 변경 시 기존 공유 링크는 무효화됩니다. 상세의 version은 필수이고 같은 상태 요청도 버전을 검사합니다."
     )
     @PatchMapping("/{travelRecordId}/visibility")
     public ApiResponse<TravelRecordResDTO.VisibilityUpdateResponse> updateVisibility(

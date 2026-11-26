@@ -27,7 +27,7 @@ public interface CourseService {
 
     CourseResDTO.CourseSummary getCourseSummary(Long courseId, Long userId);
 
-    CursorResponse<CourseResDTO.ReviewPreview> getCourseReviews(
+    CourseResDTO.ReviewListRes getCourseReviews(
             Long courseId,
             CourseReqDTO.CourseReviewListReq request,
             Long userId

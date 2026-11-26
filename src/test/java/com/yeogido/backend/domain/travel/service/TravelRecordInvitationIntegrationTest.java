@@ -168,40 +168,35 @@ class TravelRecordInvitationIntegrationTest {
   }
 
   @Test
-  void successfulPublicInvitationConvertsAlbumAndRevokesPublicDetailAccess() throws Exception {
+  void publicInvitationIsRejectedWithoutChangingVisibilityOrReadAccess() throws Exception {
     setVisibility(TravelRecordVisibility.PUBLIC);
     var before = recordService.getTravelRecord(ownerId, albumId);
-    assertThat(before.permissions().canInvite()).isTrue();
-    assertThat(recordService.getTravelRecord(outsiderId, albumId).permissions().canInvite()).isFalse();
+    assertThat(before.permissions().canInvite()).isFalse();
+    assertThat(before.permissions().canLinkShare()).isTrue();
     String detailPath = "/api/v1/travel-records/" + albumId;
-    mvc.perform(get(detailPath).with(login(outsiderId))).andExpect(status().isOk());
 
     mvc.perform(post(path()).with(login(ownerId)).contentType(MediaType.APPLICATION_JSON)
             .content(mapper.writeValueAsString(request(firstId))))
-        .andExpect(status().isCreated())
-        .andExpect(jsonPath("$.result.invitations[0].status").value("PENDING"));
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.code").value("TRAVEL_RECORD4095"));
 
-    var after = recordService.getTravelRecord(ownerId, albumId);
-    assertThat(after.visibility()).isEqualTo(TravelRecordVisibility.FRIENDS);
-    assertThat(after.version()).isEqualTo(before.version() + 1);
-    assertThat(after.permissions().canInvite()).isTrue();
-    assertThat(after.permissions().canLinkShare()).isTrue();
-    mvc.perform(get(detailPath).with(login(outsiderId))).andExpect(status().isForbidden());
-    mvc.perform(get(detailPath).with(login(firstId))).andExpect(status().isForbidden());
-  }
-
-  @Test
-  void invalidPublicInvitationKeepsVisibilityAndDoesNotPersistPartialInvitations() {
-    setVisibility(TravelRecordVisibility.PUBLIC);
-    var before = recordService.getTravelRecord(ownerId, albumId);
-
-    assertError(participantId, request(firstId), GeneralErrorCode.FORBIDDEN);
-    assertError(ownerId, request(firstId, outsiderId), TravelRecordErrorCode.INVALID_INVITATION_TARGET);
-
-    assertThat(countInvitations()).isZero();
     var after = recordService.getTravelRecord(ownerId, albumId);
     assertThat(after.visibility()).isEqualTo(TravelRecordVisibility.PUBLIC);
     assertThat(after.version()).isEqualTo(before.version());
+    assertThat(countInvitations()).isZero();
+    mvc.perform(get(detailPath).with(login(outsiderId))).andExpect(status().isOk());
+    assertThat(recordService.getTravelRecord(outsiderId, albumId).permissions().canEdit()).isFalse();
+    assertThat(recordService.getTravelRecord(outsiderId, albumId).permissions().canDelete()).isFalse();
+  }
+
+  @Test
+  void publicInvitationChecksStateBeforeValidatingTargets() {
+    setVisibility(TravelRecordVisibility.PUBLIC);
+    var before = recordService.getTravelRecord(ownerId, albumId);
+    assertError(participantId, request(firstId), GeneralErrorCode.FORBIDDEN);
+    assertError(ownerId, request(firstId, outsiderId), TravelRecordErrorCode.INVALID_INVITATION_STATE);
+    assertThat(countInvitations()).isZero();
+    assertThat(recordService.getTravelRecord(ownerId, albumId).version()).isEqualTo(before.version());
   }
 
   /** 서비스 호출도 HTTP 검증에 의존하지 않고 잘못된 대상 목록 전체를 거부합니다. */

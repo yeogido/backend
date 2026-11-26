@@ -120,6 +120,10 @@ public class User extends BaseEntity {
         }
     }
 
+    public void removeProfileImage() {
+        this.profileImage = null;
+    }
+
     public void updatePassword(String password) {
         this.password = password;
     }

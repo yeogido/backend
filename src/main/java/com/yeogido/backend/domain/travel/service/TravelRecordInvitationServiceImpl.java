@@ -185,7 +185,7 @@ public class TravelRecordInvitationServiceImpl implements TravelRecordInvitation
         if (!owner && (visibility != TravelRecordVisibility.FRIENDS || !memberIds.contains(userId))) {
             throw new GeneralException(GeneralErrorCode.FORBIDDEN);
         }
-        if (visibility == TravelRecordVisibility.PRIVATE) {
+        if (visibility != TravelRecordVisibility.FRIENDS) {
             throw new GeneralException(TravelRecordErrorCode.INVALID_INVITATION_STATE);
         }
 
@@ -211,9 +211,6 @@ public class TravelRecordInvitationServiceImpl implements TravelRecordInvitation
         List<TravelRecordInvitation> invitations = ids.stream()
                 .map(id -> TravelRecordInvitation.builder().travelRecord(record)
                         .inviter(inviter).invitee(targets.get(id)).friendship(friendships.get(id)).build()).toList();
-        if (visibility == TravelRecordVisibility.PUBLIC) {
-            record.updateVisibility(TravelRecordVisibility.FRIENDS);
-        }
         return TravelRecordInvitationConverter.toCreateResponse(travelRecordId,
                 invitationRepository.saveAllAndFlush(invitations));
     }
