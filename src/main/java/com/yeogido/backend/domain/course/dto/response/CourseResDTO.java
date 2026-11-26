@@ -429,6 +429,24 @@ public class CourseResDTO {
             Long reviewId
     ) { }
 
+    @Schema(name = "CourseReviewListResponse", description = "추천 코스 리뷰 목록 조회 응답")
+    public record ReviewListRes(
+            @Schema(description = "리뷰 목록")
+            List<ReviewPreview> items,
+
+            @Schema(description = "다음 페이지 조회를 위한 정렬 기준값")
+            Object cursorValue,
+
+            @Schema(description = "다음 페이지 조회를 위한 리뷰 ID")
+            Long cursorId,
+
+            @Schema(description = "다음 페이지 존재 여부")
+            boolean hasNext,
+
+            @Schema(description = "해당 추천 코스의 전체 리뷰 수", example = "25")
+            long reviewCount
+    ) { }
+
     @Schema(name = "CourseReviewPreviewResponse", description = "추천 코스 리뷰 목록 정보")
     public record ReviewPreview(
 
