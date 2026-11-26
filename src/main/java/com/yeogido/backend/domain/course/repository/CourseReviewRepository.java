@@ -12,6 +12,8 @@ import org.springframework.data.repository.query.Param;
 
 public interface CourseReviewRepository extends JpaRepository<CourseReview, Long> {
 
+    long countByCourse_IdAndCourse_DeletedAtIsNull(Long courseId);
+
     @Modifying(flushAutomatically = true)
     @Query("""
             delete from CourseReview cr

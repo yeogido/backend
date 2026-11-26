@@ -183,7 +183,7 @@ public class CourseController {
 
     @Operation(summary = "추천 코스 리뷰 목록 조회", description = "추천 코스 상세 화면에 노출되는 리뷰 목록을 정렬 조건과 커서 기반 페이징으로 조회합니다.")
     @GetMapping("/{courseId}/reviews")
-    public ApiResponse<CursorResponse<CourseResDTO.ReviewPreview>> getCourseReviews(
+    public ApiResponse<CourseResDTO.ReviewListRes> getCourseReviews(
             @Parameter(description = "코스 ID", example = "1")
             @PathVariable Long courseId,
             @AuthenticationPrincipal AuthUser authUser,
@@ -193,7 +193,7 @@ public class CourseController {
                 ? null
                 : authUser.userId();
 
-        CursorResponse<CourseResDTO.ReviewPreview> response = courseService.getCourseReviews(
+        CourseResDTO.ReviewListRes response = courseService.getCourseReviews(
                 courseId,
                 request,
                 userId

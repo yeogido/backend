@@ -176,6 +176,28 @@ class CourseServiceImplTest {
     @InjectMocks
     private CourseServiceImpl courseService;
 
+    @ParameterizedTest
+    @ValueSource(longs = {0, 25})
+    void getCourseReviewsReturnsTotalCountEvenWhenPageIsEmpty(long reviewCount) throws Exception {
+        Mockito.when(courseRepository.existsByIdAndDeletedAtIsNull(1L)).thenReturn(true);
+        Mockito.when(courseReviewRepository.countByCourse_IdAndCourse_DeletedAtIsNull(1L))
+                .thenReturn(reviewCount);
+        Mockito.when(courseReviewRepository.findLatestReviewsByCourseId(
+                Mockito.eq(1L), Mockito.any())).thenReturn(List.of());
+
+        CourseResDTO.ReviewListRes result = courseService.getCourseReviews(
+                1L, new CourseReqDTO.CourseReviewListReq(null, null, 10, null), null);
+
+        org.assertj.core.api.Assertions.assertThat(result.reviewCount()).isEqualTo(reviewCount);
+        org.assertj.core.api.Assertions.assertThat(result.items()).isEmpty();
+        org.assertj.core.api.Assertions.assertThat(result.hasNext()).isFalse();
+        org.assertj.core.api.Assertions.assertThat(result.cursorId()).isNull();
+        org.assertj.core.api.Assertions.assertThat(result.cursorValue()).isNull();
+        org.assertj.core.api.Assertions.assertThat(new ObjectMapper().readTree(
+                new ObjectMapper().writeValueAsString(result)).get("reviewCount").asLong())
+                .isEqualTo(reviewCount);
+    }
+
     private ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> outcomeLogs;
     private final ch.qos.logback.classic.Logger outcomeLogger =
             (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(CourseServiceImpl.class);

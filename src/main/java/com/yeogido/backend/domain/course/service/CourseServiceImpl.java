@@ -828,7 +828,7 @@ public class CourseServiceImpl implements CourseService {
     }
 
     @Override
-    public CursorResponse<CourseResDTO.ReviewPreview> getCourseReviews(
+    public CourseResDTO.ReviewListRes getCourseReviews(
             Long courseId,
             CourseReqDTO.CourseReviewListReq request,
             Long userId
@@ -865,7 +865,10 @@ public class CourseServiceImpl implements CourseService {
                 ? null
                 : content.get(content.size() - 1).getId();
 
-        return CursorResponse.of(items, cursorValue, cursorId, hasNext);
+        return new CourseResDTO.ReviewListRes(
+                items, cursorValue, cursorId, hasNext,
+                courseReviewRepository.countByCourse_IdAndCourse_DeletedAtIsNull(courseId)
+        );
     }
 
     private List<CourseReview> findCourseReviews(
